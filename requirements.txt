@@ -1,0 +1,7 @@
+lxml
+numpy
+scipy
+nose
+progressbar
+voluptuous
+bw-stats-toolkit
