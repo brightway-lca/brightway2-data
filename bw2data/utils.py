@@ -14,6 +14,27 @@ def natural_sort(l):
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
     return sorted(l, key=alphanum_key)
 
+
 def random_string(length):
     return ''.join(random.choice(string.letters + string.digits
         ) for i in xrange(length))
+
+
+def combine_methods(name, *ms):
+    from . import Method, methods
+    data = {}
+    units = set([methods[x]["unit"] for x in ms])
+    print units
+    for m in ms:
+        for key, amount in Method(m).load().iteritems():
+            data[key] = data.get(key, 0) + amount
+    meta = {
+        "description": "Combination of the following methods: " + \
+            ", ".join([str(x) for x in ms]),
+        "num_cfs": len(data),
+        "unit": list(units)[0] if len(units) == 1 else "Unknown"
+    }
+    method = Method(name)
+    method.register(**meta)
+    method.write(data)
+    method.process()
