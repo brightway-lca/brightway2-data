@@ -27,8 +27,8 @@ class EcospoldImporter(object):
         log = get_logger(name)
         log.critical(u"Starting import of %s (from %s)" % (name, path))
         if os.path.isdir(path):
-            files = [os.path.join(path, filter(lambda x: x[-4:].lower(
-                ) == ".xml", os.listdir(path)))]
+            files = [os.path.join(path, y) for y in filter(
+                lambda x: x[-4:].lower() == ".xml", os.listdir(path))]
         else:
             files = [path]
 
@@ -74,6 +74,9 @@ class EcospoldImporter(object):
                     exc["input"] = self._find_in_dependent_database(code,
                         exc, depends)
                 exc["technosphere"] = exc["input"][0] != "biosphere"
+
+            # Sort for consistent order to make import comparisons easier
+            ds["exchanges"].sort(key=lambda x: x["input"])
 
         data = dict([((name, int(o["code"])), o) for o in data])
 
@@ -203,6 +206,4 @@ class EcospoldImporter(object):
 
             data.append(this)
 
-        # Sort for consistent order to make import comparisons easier
-        data.sort(key=lambda x: x["input"])
         return data
