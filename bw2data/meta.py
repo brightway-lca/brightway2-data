@@ -16,7 +16,7 @@ class Mapping(PickledDict):
             * *keys* (list): The keys to add.
 
         """
-        index = max(self.data.values())
+        index = max(self.data.values()) if self.data else 0
         for i, key in enumerate(keys):
             if key not in self.data:
                 self.data[key] = index + i + 1
