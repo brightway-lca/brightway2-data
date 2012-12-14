@@ -37,6 +37,7 @@ class DatabaseToGEXF(object):
             f.write(tostring(E.gexf(meta, graph, version="1.2"),
                 xml_declaration=True, encoding="utf-8",
                 pretty_print=True))
+        return self.filepath
 
     def get_data(self, E):
         count = itertools.count()
