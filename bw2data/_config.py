@@ -90,7 +90,8 @@ class Config(object):
 
         Useful when first starting or for tests."""
         for name in self.basic_directories:
-            os.mkdir(os.path.join(self.dir, name))
+            if not os.path.exists(os.path.join(self.dir, name)):
+                os.mkdir(os.path.join(self.dir, name))
 
     def _get_dir(self):
         return self._dir
