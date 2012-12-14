@@ -212,6 +212,8 @@ class Database(object):
             raise UnknownObject("This database is not yet registered")
         databases.increment_version(self.database)
         mapping.add(data.keys())
+        if config.p.get("use_cache", False) and self.database in config.cache:
+            config.cache[self.database] = data
         filepath = os.path.join(config.dir, "intermediate", self.filename())
         with open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
