@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup
 import os
 
 packages = []
@@ -16,12 +16,12 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
   name='bw2data',
-  version="0.8",
+  version="0.8.1",
   packages=packages,
   author="Chris Mutel",
   author_email="cmutel@gmail.com",
   license=open('LICENSE.txt').read(),
   install_requires=["voluptuous", "progressbar", "numpy", "lxml", "scipy"],
-  url="https://bitbucket.org/cmutel/bw2data",
+  url="https://bitbucket.org/cmutel/brightway2-data",
   long_description=open('README').read(),
 )
