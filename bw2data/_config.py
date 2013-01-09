@@ -27,9 +27,9 @@ class Config(object):
 
     def reset(self, path=None):
         """Reset to original configuration. Useful for testing."""
-        # Use _dir instead of dir beacuse need to check dir ourselves
-        self._dir = self.get_home_directory(path)
-        if not self.check_dir():
+        try:
+            self.dir = os.path.dirname(self.get_home_directory(path))
+        except OSError:
             self.dir = tempfile.mkdtemp()
             self.is_temp_dir = True
             print "Your changes will not be saved! Set a writeable directory!"
@@ -57,21 +57,32 @@ class Config(object):
 
         * Provided path (optional)
         * ``BRIGHTWAY2-DIR`` environment variable
+        * ``.brightway2path`` file in user's home directory
+        * ``brightway2path.txt`` file in user's home directory
         * ``brightway2`` in user's home directory
 
         To set the environment variable:
 
         * Unix/Mac: ``export BRIGHTWAY2_DIR=/path/to/brightway2/directory``
-        * Windows: ``set BRIGHTWAY2_DIR=\path\to\brightway2\directory``
+        * Windows XP: Create a ``brightway2path.txt`` file in your home directory (C:\Users\Your Name\) with a single line that is the directory path you want to use.
+        * Windows 7: ``setx BRIGHTWAY2_DIR=\path\to\brightway2\directory``
 
         """
+        user_dir = os.path.expanduser("~")
         if path:
             return path
         envvar = os.getenv("BRIGHTWAY2_DIR")
         if envvar:
             return envvar
+        for filename in (".brightway2path", "brightway2path.txt"):
+            try:
+                candidate = open(os.path.join(user_dir, filename)).readline().strip()
+                assert os.path.exists(candidate)
+                return candidate
+            except:
+                pass
         else:
-            return os.path.join(os.path.expanduser("~"), "brightway2")
+            return os.path.join(user_dir, "brightway2")
 
     def request_dir(self, dirname):
         """Return ``True`` if directory already exists or can be created."""
