@@ -2,6 +2,7 @@
 import os
 import json
 import tempfile
+import warnings
 
 
 class Config(object):
@@ -32,9 +33,10 @@ class Config(object):
         except OSError:
             self.dir = tempfile.mkdtemp()
             self.is_temp_dir = True
-            print "Your changes will not be saved! Set a writeable directory!"
-            print "Current data directory is:"
-            print self.dir
+            warnings.warn("\n\tYour changes will not be saved!\n"
+                "\tSet a writeable directory!\n"
+                "\tCurrent data directory is:\n"
+                "\t%s" % self.dir, UserWarning)
         self.load_preferences()
 
     def load_preferences(self):
@@ -68,9 +70,9 @@ class Config(object):
         * Windows 7: ``setx BRIGHTWAY2_DIR=\path\to\brightway2\directory``
 
         """
-        user_dir = os.path.expanduser("~")
         if path:
             return path
+        user_dir = os.path.expanduser("~")
         envvar = os.getenv("BRIGHTWAY2_DIR")
         if envvar:
             return envvar
@@ -82,7 +84,7 @@ class Config(object):
             except:
                 pass
         else:
-            return os.path.join(user_dir, "brightway2")
+            return os.path.join(user_dir, "brightway2/")
 
     def request_dir(self, dirname):
         """Return ``True`` if directory already exists or can be created."""

@@ -24,7 +24,6 @@ def combine_methods(name, *ms):
     from . import Method, methods
     data = {}
     units = set([methods[x]["unit"] for x in ms])
-    print units
     for m in ms:
         for key, amount in Method(m).load().iteritems():
             data[key] = data.get(key, 0) + amount

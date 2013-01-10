@@ -8,6 +8,7 @@ from validate import db_validator
 import datetime
 import numpy as np
 import os
+import warnings
 try:
     import cPickle as pickle
 except ImportError:
@@ -36,7 +37,8 @@ class Database(object):
         """
         self.database = database
         if self.database not in databases:
-            print "Warning: %s not a currently installed database" % database
+            warnings.warn("\n\t%s not a currently installed database" % \
+                database, UserWarning)
 
     @property
     def version(self):

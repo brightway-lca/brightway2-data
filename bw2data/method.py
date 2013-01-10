@@ -3,10 +3,11 @@ from . import config, mapping, methods
 from copy import copy
 from errors import UnknownObject, MissingIntermediateData
 from utils import MAX_INT_32, random_string
+from validate import ia_validator
 import numpy as np
 import os
 import string
-from validate import ia_validator
+import warnings
 try:
     import cPickle as pickle
 except ImportError:
@@ -36,8 +37,8 @@ class Method(object):
     def __init__(self, method, *args, **kwargs):
         self.method = method
         if self.method not in methods:
-            print "Warning: %s not a currently installed method" % (
-                " : ".join(method))
+            warnings.warn("\n\t%s not a currently installed method" % (
+                " : ".join(method)), UserWarning)
 
     def get_abbreviation(self):
         """Abbreviate a method identifier (a tuple of long strings) for a filename. Random characters are added because some methods have similar names which would overlap when abbreviated."""
