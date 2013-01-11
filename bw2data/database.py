@@ -212,7 +212,7 @@ class Database(object):
         """
         if self.database not in databases:
             raise UnknownObject("This database is not yet registered")
-        databases.increment_version(self.database)
+        databases.increment_version(self.database, len(data))
         mapping.add(data.keys())
         if config.p.get("use_cache", False) and self.database in config.cache:
             config.cache[self.database] = data

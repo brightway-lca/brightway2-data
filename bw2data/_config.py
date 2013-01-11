@@ -23,13 +23,13 @@ class Config(object):
         self.cache = {}
 
     def check_dir(self, dir=None):
-        """Check is directory is writeable."""
-        return os.access(dir or self.dir, os.W_OK)
+        """Check is directory is a directory and writeable."""
+        return os.path.isdir(self.dir) and os.access(dir or self.dir, os.W_OK)
 
     def reset(self, path=None):
         """Reset to original configuration. Useful for testing."""
         try:
-            self.dir = os.path.dirname(self.get_home_directory(path))
+            self.dir = self.get_home_directory(path)
         except OSError:
             self.dir = tempfile.mkdtemp()
             self.is_temp_dir = True
@@ -84,7 +84,7 @@ class Config(object):
             except:
                 pass
         else:
-            return os.path.join(user_dir, "brightway2/")
+            return os.path.join(user_dir, "brightway2")
 
     def request_dir(self, dirname):
         """Return ``True`` if directory already exists or can be created."""

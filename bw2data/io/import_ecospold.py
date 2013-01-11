@@ -4,10 +4,11 @@ from .. import Database, mapping
 from ..logs import get_logger
 from ..errors import UnknownExchange
 from lxml import objectify
+from stats_toolkit.distributions import *
 import math
 import os
 import progressbar
-from stats_toolkit.distributions import *
+import warnings
 
 BIOSPHERE = ("air", "water", "soil", "resource")
 
@@ -80,9 +81,11 @@ class EcospoldImporter(object):
 
         data = dict([((name, int(o["code"])), o) for o in data])
 
-        manager = Database(name)
-        manager.register(("Ecospold", 1), depends, len(data))
-        manager.write(data)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            manager = Database(name)
+            manager.register(("Ecospold", 1), depends, len(data))
+            manager.write(data)
 
         pbar.finish()
 

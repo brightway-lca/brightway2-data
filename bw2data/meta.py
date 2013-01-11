@@ -47,9 +47,11 @@ class Databases(SerializedDict):
     """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
     _filename = "databases.json"
 
-    def increment_version(self, database):
+    def increment_version(self, database, number=None):
         """Increment the ``database`` version. Returns the new version."""
         self.data[database]["version"] += 1
+        if number is not None:
+            self.data[database]["number"] = number
         self.flush()
         return self.data[database]["version"]
 
