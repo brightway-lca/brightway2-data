@@ -58,7 +58,7 @@ class Config(object):
         """Get data directory, trying in order:
 
         * Provided path (optional)
-        * ``BRIGHTWAY2-DIR`` environment variable
+        * ``BRIGHTWAY2_DIR`` environment variable
         * ``.brightway2path`` file in user's home directory
         * ``brightway2path.txt`` file in user's home directory
         * ``brightway2`` in user's home directory
@@ -71,19 +71,23 @@ class Config(object):
 
         """
         if path:
+            self._dir_from = "user provided"
             return path
         user_dir = os.path.expanduser("~")
         envvar = os.getenv("BRIGHTWAY2_DIR")
         if envvar:
+            self._dir_from = "environment variable"
             return envvar
         for filename in (".brightway2path", "brightway2path.txt"):
             try:
                 candidate = open(os.path.join(user_dir, filename)).readline().strip()
                 assert os.path.exists(candidate)
+                self._dir_from = filename
                 return candidate
             except:
                 pass
         else:
+            self._dir_from = "default"
             return os.path.join(user_dir, "brightway2")
 
     def request_dir(self, dirname):
