@@ -43,6 +43,23 @@ class Mapping(PickledDict):
         return len(self.data)
 
 
+class GeoMapping(Mapping):
+    """A dictionary that maps location codes to integers. Needed because parameter arrays have integer ``geo`` fields.
+
+    File data is stored in ``geomapping.pickle``.
+
+    This dictionary does not support setting items directly; instead, use the ``add`` method to add multiple keys."""
+    _filename = "geomapping.pickle"
+
+    def __init__(self, *args, **kwargs):
+        super(GeoMapping, self).__init__(*args, **kwargs)
+        # At a minimum, "GLO" should always be present
+        self.add(["GLO"])
+
+    def __unicode__(self):
+        return u"Mapping from locations to parameter indices."
+
+
 class Databases(SerializedDict):
     """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
     _filename = "databases.json"
@@ -84,9 +101,11 @@ class Methods(SerializedDict):
 mapping = Mapping()
 databases = Databases()
 methods = Methods()
+geomapping = GeoMapping()
 
 
 def reset_meta():
     mapping.__init__()
     databases.__init__()
     methods.__init__()
+    geomapping.__init__()

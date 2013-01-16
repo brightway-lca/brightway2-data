@@ -1,5 +1,5 @@
 biosphere = {
-    ("biopshere", 1): {
+    ("biosphere", 1): {
         'categories': ['things'],
         'code': 1,
         'exchanges': [],
@@ -22,14 +22,14 @@ food = {
         'code': 1,
         'exchanges': [{
             'amount': 0.5,
-            'input': ('Test', 2),
+            'input': ('food', 2),
             'technosphere': True,
             'uncertainty type': 0},
             {'amount': 0.05,
             'input': ('biosphere', 1),
             'technosphere': False,
             'uncertainty type': 0}],
-        'location': 'GLO',
+        'location': 'CA',
         'name': 'lunch',
         'type': 'process',
         'unit': 'kg'
@@ -39,14 +39,14 @@ food = {
         'code': 2,
         'exchanges': [{
             'amount': 0.25,
-            'input': ('Test', 1),
+            'input': ('food', 1),
             'technosphere': True,
             'uncertainty type': 0},
             {'amount': 0.15,
             'input': ('biosphere', 2),
             'technosphere': False,
             'uncertainty type': 0}],
-        'location': 'GLO',
+        'location': 'CH',
         'name': 'dinner',
         'type': 'process',
         'unit': 'kg'

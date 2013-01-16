@@ -39,6 +39,11 @@ Metadata
     :members:
     :inherited-members:
 
+.. autoclass:: bw2data.meta.GeoMapping
+    :members:
+    :inherited-members:
+
+
 Documentation
 =============
 

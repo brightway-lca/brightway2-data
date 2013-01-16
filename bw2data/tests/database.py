@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-from . import BW2Test
+from . import BW2DataTest
 from .. import Database, databases
 from fixtures import food, biosphere
 
 
-class DatabaseTest(BW2Test):
+class DatabaseTest(BW2DataTest):
     def extra_setup(self):
         d = Database("biosphere")
         d.register("Tests", [], len(biosphere))
@@ -33,3 +33,5 @@ class DatabaseTest(BW2Test):
 
     def test_versions(self):
         pass
+
+# Test that database.write revises number of processes correctly

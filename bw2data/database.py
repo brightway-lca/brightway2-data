@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import databases, config, mapping
+from . import databases, config, mapping, geomapping
 from errors import MissingIntermediateData, UnknownObject
 from query import Query
 from time import time
@@ -36,7 +36,8 @@ class Database(object):
 
         """
         self.database = database
-        if self.database not in databases:
+        if self.database not in databases and not \
+                getattr(config, "dont_warn", False):
             warnings.warn("\n\t%s not a currently installed database" % \
                 database, UserWarning)
 
@@ -214,6 +215,8 @@ class Database(object):
             raise UnknownObject("This database is not yet registered")
         databases.increment_version(self.database, len(data))
         mapping.add(data.keys())
+        geomapping.add([x["location"] for x in data.values() if \
+            x.get("location", False)])
         if config.p.get("use_cache", False) and self.database in config.cache:
             config.cache[self.database] = data
         filepath = os.path.join(config.dir, "intermediate", self.filename())
@@ -276,6 +279,7 @@ class Database(object):
         dtype = [('uncertainty_type', np.uint8),
             ('input', np.uint32),
             ('output', np.uint32),
+            ('geo', np.uint32),
             ('row', np.uint32),
             ('col', np.uint32),
             ('technosphere', np.bool),
@@ -293,6 +297,7 @@ class Database(object):
                     exc["uncertainty type"],
                     mapping[exc["input"]],
                     mapping[key],
+                    geomapping[data[key].get("location", "GLO")],
                     MAX_INT_32,
                     MAX_INT_32,
                     exc["technosphere"],

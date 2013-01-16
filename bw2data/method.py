@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import config, mapping, methods
+from . import config, mapping, methods, geomapping
 from copy import copy
 from errors import UnknownObject, MissingIntermediateData
 from utils import MAX_INT_32, random_string
@@ -36,7 +36,8 @@ class Method(object):
     """
     def __init__(self, method, *args, **kwargs):
         self.method = method
-        if self.method not in methods:
+        if self.method not in methods and not \
+                getattr(config, "dont_warn", False):
             warnings.warn("\n\t%s not a currently installed method" % (
                 " : ".join(method)), UserWarning)
 
@@ -104,6 +105,9 @@ class Method(object):
         if self.method not in methods:
             raise UnknownObject("This database is not yet registered")
         mapping.add(data.keys())
+        geo_codes = [x[1] for x in data.values() if isinstance(x, (tuple, list))]
+        if geo_codes:
+            geomapping.add(geo_codes)
         filepath = os.path.join(config.dir, "intermediate",
             "%s.pickle" % self.get_abbreviation())
         with open(filepath, "wb") as f:
@@ -136,6 +140,7 @@ class Method(object):
         dtype = [('uncertainty_type', np.uint8),
             ('flow', np.uint32),
             ('index', np.uint32),
+            ('geo', np.uint32),
             ('amount', np.float32),
             ('sigma', np.float32),
             ('minimum', np.float32),
@@ -144,10 +149,16 @@ class Method(object):
         arr = np.zeros((len(data), ), dtype=dtype)
         arr['minimum'] = arr['maximum'] = arr['sigma'] = np.NaN
         for i, (key, value) in enumerate(data.iteritems()):
+            if isinstance(value, (tuple, list)):
+                value, geo = value
+            else:
+                geo = "GLO"
+
             arr[i] = (
                 0,
                 mapping[key],
                 MAX_INT_32,
+                geomapping[geo],
                 value,
                 np.NaN,
                 np.NaN,

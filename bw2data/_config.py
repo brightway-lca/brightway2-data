@@ -33,10 +33,11 @@ class Config(object):
         except OSError:
             self.dir = tempfile.mkdtemp()
             self.is_temp_dir = True
-            warnings.warn("\n\tYour changes will not be saved!\n"
-                "\tSet a writeable directory!\n"
-                "\tCurrent data directory is:\n"
-                "\t%s" % self.dir, UserWarning)
+            if not getattr(self, "dont_warn", False):
+                warnings.warn("\n\tYour changes will not be saved!\n"
+                    "\tSet a writeable directory!\n"
+                    "\tCurrent data directory is:\n"
+                    "\t%s" % self.dir, UserWarning)
         self.load_preferences()
 
     def load_preferences(self):
