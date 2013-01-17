@@ -86,6 +86,7 @@ class EcospoldImporter(object):
             manager = Database(name)
             manager.register(("Ecospold", 1), depends, len(data))
             manager.write(data)
+            manager.process()
 
         pbar.finish()
 
