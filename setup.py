@@ -23,5 +23,5 @@ setup(
   license=open('LICENSE.txt').read(),
   install_requires=["voluptuous", "progressbar", "numpy", "lxml", "scipy"],
   url="https://bitbucket.org/cmutel/brightway2-data",
-  long_description=open('README').read(),
+  long_description=open('README.rst').read(),
 )
