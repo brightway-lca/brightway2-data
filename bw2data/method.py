@@ -35,7 +35,7 @@ class Method(object):
 
     """
     def __init__(self, method, *args, **kwargs):
-        self.method = method
+        self.method = tuple(method)
         if self.method not in methods and not \
                 getattr(config, "dont_warn", False):
             warnings.warn("\n\t%s not a currently installed method" % (
@@ -55,7 +55,8 @@ class Method(object):
             * *name* (tuple, optional): Name of the new method.
 
         """
-        name = name or self.method[:-1] + ("Copy of " + self.method[-1],)
+        name = tuple(name) or self.method[:-1] + ("Copy of " + \
+            self.method[-1],)
         new_method = Method(name)
         metadata = copy(methods[self.method])
         del metadata["abbreviation"]

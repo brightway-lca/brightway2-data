@@ -23,7 +23,7 @@ def random_string(length):
 def combine_methods(name, *ms):
     from . import Method, methods
     data = {}
-    units = set([methods[x]["unit"] for x in ms])
+    units = set([methods[tuple(x)]["unit"] for x in ms])
     for m in ms:
         for key, amount in Method(m).load().iteritems():
             data[key] = data.get(key, 0) + amount

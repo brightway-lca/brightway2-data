@@ -73,6 +73,8 @@ class SerializedDict(object):
         return sorted(self.data.keys())
 
     def __getitem__(self, key):
+        if isinstance(key, list):
+            key = tuple(key)
         return self.data[key]
 
     def __setitem__(self, key, value):
