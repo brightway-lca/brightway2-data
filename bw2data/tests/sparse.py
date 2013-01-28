@@ -2,6 +2,7 @@
 import numpy as np
 import scipy.sparse
 import unittest
+import warnings
 from ..proxies.sparse import SparseMatrixProxy, CompressedSparseMatrixProxy
 
 
@@ -20,10 +21,10 @@ class SparseMatrixProxyTest(unittest.TestCase):
         self.assertEqual(mat.nnz, 6)
         mat[11, 21] = 3
         self.assertEqual(mat[11, 21], 3)
-        self.assertRaises(NotImplementedError, mat.__getitem__, (slice(None),
-            21))
-        self.assertRaises(NotImplementedError, mat.__setitem__, (slice(None),
-            21), 1)
+        with self.assertRaises(NotImplementedError):
+            mat[slice(None), 21]
+        with self.assertRaises(NotImplementedError):
+            mat[slice(None), 21] = 1
 
     def test_compressed_sparse_matrix_proxy(self):
         c = scipy.sparse.lil_matrix((3, 3))
@@ -46,5 +47,7 @@ class SparseMatrixProxyTest(unittest.TestCase):
             c[11, :].todense(),
             np.array((1, 0, 7))
             ))
-        c[11, 21] = 3
-        assert c[11, 21] == 3
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            c[11, 21] = 3
+            self.assertEqual(c[11, 21], 3)

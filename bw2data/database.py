@@ -112,7 +112,7 @@ class Database(object):
                     e["input"] = (new_name, e["input"][1])
             return obj
 
-        return dict([((new_name, k[1]), self.relabel_exchanges(v, new_name)) \
+        return dict([((new_name, k[1]), relabel_exchanges(v, new_name)) \
             for k, v in data.iteritems()])
 
     def copy(self, name):
@@ -158,6 +158,8 @@ class Database(object):
         assert version in [x[0] for x in self.versions()], "Version not found"
         self.backup()
         databases[self.database]["version"] = version
+        if config.p.get("use_cache", False) and self.database in config.cache:
+            config.cache[self.database] = self.load(version)
         self.process(version)
 
     def register(self, format, depends, num_processes):
