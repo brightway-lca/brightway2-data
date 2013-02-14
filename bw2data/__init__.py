@@ -5,6 +5,7 @@ from serialization import JsonWrapper
 from database import Database
 from method import Method
 from query import Query, Filter, Result
+from utils import set_data_dir, setup
 import proxies
 import utils
 import validate

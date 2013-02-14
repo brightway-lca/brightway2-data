@@ -33,4 +33,4 @@ db_validator = Schema({valid_tuple: {
     }},
     extra=True)
 
-ia_validator = Schema({valid_tuple: float or (object, float)})
+ia_validator = Schema([[valid_tuple, float, object]])

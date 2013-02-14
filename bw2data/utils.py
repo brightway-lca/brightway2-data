@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-from . import config
+from . import config, reset_meta
 import hashlib
 import os
+import platform
 import random
 import re
 import requests
@@ -16,7 +17,7 @@ TYPE_DICTIONARY = {
     "biosphere": 2,
     }
 
-DOWNLOAD_URL = "http://secret.brightwaylca.org/data/"
+DOWNLOAD_URL = "http://brightwaylca.org/data/"
 
 
 def natural_sort(l):
@@ -84,3 +85,29 @@ def download_file(filename):
                 break
             f.write(segment)
     return filepath
+
+
+def set_data_dir(dirpath):
+    if not os.path.exists(dirpath):
+        os.mkdir(dirpath)
+
+    user_dir = os.path.expanduser("~")
+    if platform.system == "Windows":
+        filename = "brightway2path.txt"
+    else:
+        filename = ".brightway2path"
+    with open(os.path.join(user_dir, filename), "w") as f:
+        f.write(dirpath)
+
+    config.reset()
+    config.is_temp_dir = False
+    config.create_basic_directories()
+    reset_meta()
+
+
+def setup():
+    from io import download_biosphere, download_methods
+    config.create_basic_directories()
+    config.is_temp_dir = False
+    download_biosphere()
+    download_methods()

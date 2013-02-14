@@ -105,10 +105,8 @@ class Method(object):
         """
         if self.method not in methods:
             raise UnknownObject("This database is not yet registered")
-        mapping.add(data.keys())
-        geo_codes = [x[1] for x in data.values() if isinstance(x, (tuple, list))]
-        if geo_codes:
-            geomapping.add(geo_codes)
+        mapping.add(set([x[0] for x in data]))
+        geomapping.add(set([x[2] for x in data]))
         filepath = os.path.join(config.dir, "intermediate",
             "%s.pickle" % self.get_abbreviation())
         with open(filepath, "wb") as f:
@@ -149,12 +147,7 @@ class Method(object):
             ('negative', np.bool)]
         arr = np.zeros((len(data), ), dtype=dtype)
         arr['minimum'] = arr['maximum'] = arr['sigma'] = np.NaN
-        for i, (key, value) in enumerate(data.iteritems()):
-            if isinstance(value, (tuple, list)):
-                value, geo = value
-            else:
-                geo = "GLO"
-
+        for i, (key, value, geo) in enumerate(data):
             arr[i] = (
                 0,
                 mapping[key],

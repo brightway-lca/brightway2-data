@@ -31,7 +31,7 @@ Does not have any arguments; instead, instantiate the class, and then import usi
             :align: center
 
         Args:
-            *path* (str): A filepath or directory.
+            * *path* (str): A filepath or directory.
 
         """
         if os.path.isdir(path):
@@ -90,7 +90,8 @@ Does not have any arguments; instead, instantiate the class, and then import usi
             warnings.simplefilter("ignore")
             method = Method(name)
             method.register(unit, description, len(data))
-            method.write(dict([(("biosphere", o[0]), o[1]) for o in data]))
+            method.write([
+                [("biosphere", o[0]), o[1], "GLO"] for o in data])
             method.process()
 
     def add_cf(self, cf):

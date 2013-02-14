@@ -456,4 +456,4 @@ Exchanges should also be copied and allocated for any other co-products.
             manager = Database(name)
             manager.register(("Ecospold", 1), depends, len(data))
             manager.write(data)
-            # manager.process()
+            manager.process()
