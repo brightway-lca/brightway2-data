@@ -87,7 +87,7 @@ class GeoTest(BW2DataTest):
         pickled = pickle.load(open(os.path.join(config.dir, "processed",
             database.database + ".pickle"), "rb"))
         self.assertTrue(np.allclose(pickled["geo"],
-            geomapping["GLO"] * np.ones((4,))))
+            geomapping["GLO"] * np.ones(pickled.shape)))
 
     def test_method_write_adds_to_geomapping(self):
         self.add_method(False)

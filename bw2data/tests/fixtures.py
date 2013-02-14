@@ -4,14 +4,15 @@ biosphere = {
         'code': 1,
         'exchanges': [],
         'name': 'an emission',
-        'type': 'process',
+        'type': 'emission',
         'unit': 'kg'
         },
     ("biosphere", 2): {
         'categories': ['things'],
         'code': 2,
         'exchanges': [],
-        'type': 'another emission',
+        'type': 'emission',
+        'name': 'another emission',
         'unit': 'kg'
         },
 }
@@ -23,11 +24,11 @@ food = {
         'exchanges': [{
             'amount': 0.5,
             'input': ('food', 2),
-            'technosphere': True,
+            'type': 'technosphere',
             'uncertainty type': 0},
             {'amount': 0.05,
             'input': ('biosphere', 1),
-            'technosphere': False,
+            'type': 'biosphere',
             'uncertainty type': 0}],
         'location': 'CA',
         'name': 'lunch',
@@ -40,11 +41,11 @@ food = {
         'exchanges': [{
             'amount': 0.25,
             'input': ('food', 1),
-            'technosphere': True,
+            'type': 'technosphere',
             'uncertainty type': 0},
             {'amount': 0.15,
             'input': ('biosphere', 2),
-            'technosphere': False,
+            'type': 'biosphere',
             'uncertainty type': 0}],
         'location': 'CH',
         'name': 'dinner',

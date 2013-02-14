@@ -3,7 +3,8 @@ from . import databases, config, mapping, geomapping
 from errors import MissingIntermediateData, UnknownObject
 from query import Query
 from time import time
-from utils import natural_sort, MAX_INT_32
+from units import normalize_units
+from utils import natural_sort, MAX_INT_32, TYPE_DICTIONARY
 from validate import db_validator
 import datetime
 import numpy as np
@@ -132,6 +133,7 @@ class Database(object):
             depends=databases[self.database]["depends"],
             num_processes=len(data))
         new_database.write(data)
+        return new_database
 
     def backup(self):
         """Save a backup to ``backups`` folder.
@@ -162,7 +164,7 @@ class Database(object):
             config.cache[self.database] = self.load(version)
         self.process(version)
 
-    def register(self, format, depends, num_processes):
+    def register(self, format, depends, num_processes, version=None):
         """Register a database with the metadata store.
 
         Databases must be registered before data can be written.
@@ -178,7 +180,7 @@ class Database(object):
             "from format": format,
             "depends": depends,
             "number": num_processes,
-            "version": 0
+            "version": version or 0
             }
 
     def deregister(self):
@@ -217,6 +219,8 @@ class Database(object):
             raise UnknownObject("This database is not yet registered")
         databases.increment_version(self.database, len(data))
         mapping.add(data.keys())
+        for ds in data.values():
+            ds["unit"] = normalize_units(ds["unit"])
         geomapping.add([x["location"] for x in data.values() if \
             x.get("location", False)])
         if config.p.get("use_cache", False) and self.database in config.cache:
@@ -284,25 +288,29 @@ class Database(object):
             ('geo', np.uint32),
             ('row', np.uint32),
             ('col', np.uint32),
-            ('technosphere', np.bool),
+            ('type', np.uint8),
             ('amount', np.float32),
             ('sigma', np.float32),
             ('minimum', np.float32),
             ('maximum', np.float32),
             ('negative', np.bool)]
-        arr = np.zeros((num_exchanges, ), dtype=dtype)
+        arr = np.zeros((num_exchanges + len(data), ), dtype=dtype)
         arr['minimum'] = arr['maximum'] = arr['sigma'] = np.NaN
         count = 0
-        for key in data:
-            for exc in data[key]["exchanges"]:
+        for key in sorted(data.keys(), key=lambda x: x[1]):
+            production_found = False
+            for exc in sorted(data[key]["exchanges"],
+                    key=lambda x: x["input"][1]):
+                if key == exc["input"]:
+                    production_found = True
                 arr[count] = (
                     exc["uncertainty type"],
                     mapping[exc["input"]],
                     mapping[key],
-                    geomapping[data[key].get("location", "GLO")],
+                    geomapping[data[key].get("location", "GLO") or "GLO"],
                     MAX_INT_32,
                     MAX_INT_32,
-                    exc["technosphere"],
+                    TYPE_DICTIONARY[exc["type"]],
                     exc["amount"],
                     exc.get("sigma", np.NaN),
                     exc.get("minimum", np.NaN),
@@ -310,7 +318,17 @@ class Database(object):
                     exc["amount"] < 1
                     )
                 count += 1
+            if not production_found and data[key]["type"] == "process":
+                # Add amount produced for each process (default 1)
+                arr[count] = (0, mapping[key], mapping[key],
+                    geomapping[data[key].get("location", "GLO") or "GLO"],
+                    MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY["production"],
+                    1, np.NaN, np.NaN, np.NaN, False)
+                count += 1
 
+        # The array is too big, because it can include a default production
+        # amount for each activity. Trim to actual size.
+        arr = arr[:count]
         filepath = os.path.join(config.dir, "processed", "%s.pickle" % \
             self.database)
         with open(filepath, "wb") as f:

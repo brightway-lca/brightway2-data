@@ -15,22 +15,22 @@ def valid_tuple(o):
     return o
 
 db_validator = Schema({valid_tuple: {
-    required("code"): object,
+    "code": object,
     "categories": list or tuple,
     "location": object,
     required("name"): basestring,
-    required("type"): "process" or "emission" or "resource",
-    "unit": basestring,
+    required("type"): basestring,
+    required("unit"): basestring,
     required("exchanges"): [{
         required("amount"): float,
-        required("input"): object,
-        "pedigree matrix": basestring,
+        required("input"): valid_tuple,
+        "comment": basestring,
         "code": object,
         "sigma": float,
-        required("technosphere"): bool,
-        required("uncertainty type"): int
+        required("uncertainty type"): int,
+        required("type"): basestring,
         }]
     }},
     extra=True)
 
-ia_validator = Schema({valid_tuple: float})
+ia_validator = Schema({valid_tuple: float or (object, float)})
