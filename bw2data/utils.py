@@ -76,7 +76,7 @@ def activity_hash(data):
 def download_file(filename):
     dirpath = config.request_dir("downloads")
     filepath = os.path.join(dirpath, filename)
-    download = requests.get(DOWNLOAD_URL + filename, prefetch=False).raw
+    download = requests.get(DOWNLOAD_URL + filename, stream=True).raw
     chunk = 128 * 1024
     with open(filepath, "wb") as f:
         while True:

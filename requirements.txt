@@ -4,4 +4,6 @@ scipy
 nose
 progressbar
 voluptuous
-bw-stats-toolkit
+bw-stats-toolkit>=0.7
+requests>=1.1.0
+brightway2>=0.9.0-alpha2
