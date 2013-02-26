@@ -170,10 +170,10 @@ class EcospoldDataExtractor(object):
         return data
 
 
-class EcospoldImporter(object):
+class Ecospold1Importer(object):
     """Import inventory datasets from ecospold XML format.
 
-    Does not have any arguments; instead, instantiate the class, and then import using the ``importer`` method, i.e. ``EcospoldImporter().importer(filepath)``."""
+    Does not have any arguments; instead, instantiate the class, and then import using the ``importer`` method, i.e. ``Ecospold1Importer().importer(filepath)``."""
     def importer(self, path, name, depends=["biosphere"]):
         """Import an inventory dataset, or a directory of inventory datasets.
 
