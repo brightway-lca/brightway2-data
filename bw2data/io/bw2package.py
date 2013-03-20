@@ -97,7 +97,7 @@ class BW2PackageImporter(object):
                 db_data = dict([((name, key), value) for key, value in \
                     data["data"].iteritems()])
                 if name in databases:
-                    raise ValueError("Dataase %s already exists" % name)
+                    raise ValueError("Database %s already exists" % name)
                 metadata = data["metadata"]
                 database = Database(name)
                 database.register(
