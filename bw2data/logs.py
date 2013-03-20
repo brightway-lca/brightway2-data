@@ -8,14 +8,15 @@ import logging
 import os
 
 
-def get_logger(name, add_datetime=True, level=logging.INFO):
-    now = datetime.datetime.now()
-    filename = "%s-%s.log" % (name, now.strftime("%d-%B-%Y-%I-%M%p"))
-    handler = RotatingFileHandler(os.path.join(config.dir, 'logs', filename),
+def get_logger(name, level=logging.INFO):
+    filename = "%s-%s.log" % (
+        name, datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"))
+    handler = RotatingFileHandler(
+        os.path.join(config.dir, 'logs', filename),
         maxBytes=50000, encoding='utf-8', backupCount=5)
     formatter = logging.Formatter(
         "%(asctime)s %(levelname)s %(lineno)d %(message)s")
-    logger = logging.getLogger("name")
+    logger = logging.getLogger(name)
     logger.setLevel(level)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
@@ -34,3 +35,25 @@ def get_io_logger(name):
     handler.setFormatter(logging.Formatter(u"%(message)s"))
     logger.addHandler(handler)
     return logger, filepath
+
+
+def get_verbose_logger(name, level=logging.WARNING):
+    filename = "%s-%s.log" % (
+        name, datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"))
+    handler = RotatingFileHandler(
+        os.path.join(config.dir, 'logs', filename),
+        maxBytes=50000, encoding='utf-8', backupCount=5)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    handler.setFormatter(logging.Formatter('''
+Message type:       %(levelname)s
+Location:           %(pathname)s:%(lineno)d
+Module:             %(module)s
+Function:           %(funcName)s
+Time:               %(asctime)s
+Message:
+%(message)s
+
+'''))
+    logger.addHandler(handler)
+    return logger
