@@ -315,7 +315,7 @@ class Database(object):
                     exc.get("sigma", np.NaN),
                     exc.get("minimum", np.NaN),
                     exc.get("maximum", np.NaN),
-                    exc["amount"] < 1
+                    exc["amount"] < 0
                     )
                 count += 1
             if not production_found and data[key]["type"] == "process":
