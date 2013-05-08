@@ -34,10 +34,14 @@ class Config(object):
             self.dir = tempfile.mkdtemp()
             self.is_temp_dir = True
             if not getattr(self, "dont_warn", False):
-                warnings.warn("\n\tYour changes will not be saved!\n"
-                    "\tSet a writeable directory!\n"
-                    "\tCurrent data directory is:\n"
-                    "\t%s" % self.dir, UserWarning)
+                warnings.warn(u"\n\tYour changes will not be saved!\n"
+                              u"\tSet a writeable directory!\n"
+                              u"\tCurrent data directory is:\n"
+                              u"\t%s" % self.dir, UserWarning
+                    )
+            # Has to come here, because web interface wants
+            # to open a log ASAP
+            self.create_basic_directories()
         self.load_preferences()
 
     def load_preferences(self):
@@ -72,12 +76,12 @@ class Config(object):
 
         """
         if path:
-            self._dir_from = "user provided"
+            self._dir_from = u"user provided"
             return path
         user_dir = os.path.expanduser("~")
         envvar = os.getenv("BRIGHTWAY2_DIR")
         if envvar:
-            self._dir_from = "environment variable"
+            self._dir_from = u"environment variable"
             return envvar
         for filename in (".brightway2path", "brightway2path.txt"):
             try:
@@ -88,7 +92,7 @@ class Config(object):
             except:
                 pass
         else:
-            self._dir_from = "default"
+            self._dir_from = u"default"
             return os.path.join(user_dir, "brightway2")
 
     def request_dir(self, dirname):
@@ -117,7 +121,7 @@ class Config(object):
     def _set_dir(self, d):
         self._dir = d
         if not self.check_dir():
-            raise OSError("This directory is not writeable")
+            raise OSError(u"This directory is not writeable")
 
     dir = property(_get_dir, _set_dir)
 
