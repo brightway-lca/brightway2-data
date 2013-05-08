@@ -142,8 +142,10 @@ class Database(object):
             Filepath of backup.
 
         """
-        filepath = os.path.join(config.request_dir("backups"), self.filename() + \
-            ".%s.backup" % int(time()))
+        filepath = os.path.join(
+            config.request_dir("backups"),
+            self.filename() + ".%s.backup" % int(time())
+        )
         with open(filepath, "wb") as f:
             pickle.dump(self.load(), f, protocol=pickle.HIGHEST_PROTOCOL)
         return filepath
@@ -181,7 +183,7 @@ class Database(object):
             "depends": depends,
             "number": num_processes,
             "version": version or 0
-            }
+        }
 
     def deregister(self):
         """Remove a database from the metadata store. Does not delete any files."""
@@ -205,8 +207,10 @@ class Database(object):
             Filename (not path)
 
         """
-        return "%s.%i.pickle" % (self.database,
-            version or self.version)
+        return "%s.%i.pickle" % (
+            self.database,
+            version or self.version
+        )
 
     def write(self, data):
         """Serialize data to disk.
@@ -221,8 +225,8 @@ class Database(object):
         mapping.add(data.keys())
         for ds in data.values():
             ds["unit"] = normalize_units(ds["unit"])
-        geomapping.add([x["location"] for x in data.values() if \
-            x.get("location", False)])
+        geomapping.add([x["location"] for x in data.values() if
+                       x.get("location", False)])
         if config.p.get("use_cache", False) and self.database in config.cache:
             config.cache[self.database] = data
         filepath = os.path.join(config.dir, "intermediate", self.filename())
@@ -243,13 +247,16 @@ class Database(object):
         """
         if self.database not in databases:
             raise UnknownObject("This database is not yet registered")
-        if version == None and config.p.get("use_cache", False) and \
+        if version is None and config.p.get("use_cache", False) and \
                 self.database in config.cache:
             return config.cache[self.database]
         try:
-            data = pickle.load(open(os.path.join(config.dir, "intermediate",
-                self.filename(version)), "rb"))
-            if version == None and config.p.get("use_cache", False):
+            data = pickle.load(open(os.path.join(
+                config.dir,
+                "intermediate",
+                self.filename(version)
+            ), "rb"))
+            if version is None and config.p.get("use_cache", False):
                 config.cache[self.database] = data
             return data
         except OSError:
@@ -282,7 +289,8 @@ class Database(object):
         data = self.load(version)
         num_exchanges = sum([len(obj["exchanges"]) for obj in data.values()])
         assert data
-        dtype = [('uncertainty_type', np.uint8),
+        dtype = [
+            ('uncertainty_type', np.uint8),
             ('input', np.uint32),
             ('output', np.uint32),
             ('geo', np.uint32),
@@ -293,13 +301,15 @@ class Database(object):
             ('sigma', np.float32),
             ('minimum', np.float32),
             ('maximum', np.float32),
-            ('negative', np.bool)]
+            ('negative', np.bool)
+        ]
         arr = np.zeros((num_exchanges + len(data), ), dtype=dtype)
         arr['minimum'] = arr['maximum'] = arr['sigma'] = np.NaN
         count = 0
         for key in sorted(data.keys(), key=lambda x: x[1]):
             production_found = False
-            for exc in sorted(data[key]["exchanges"],
+            for exc in sorted(
+                    data[key]["exchanges"],
                     key=lambda x: x["input"][1]):
                 if key == exc["input"]:
                     production_found = True
@@ -316,7 +326,7 @@ class Database(object):
                     exc.get("minimum", np.NaN),
                     exc.get("maximum", np.NaN),
                     exc["amount"] < 0
-                    )
+                )
                 count += 1
             if not production_found and data[key]["type"] == "process":
                 # Add amount produced for each process (default 1)
@@ -329,8 +339,11 @@ class Database(object):
         # The array is too big, because it can include a default production
         # amount for each activity. Trim to actual size.
         arr = arr[:count]
-        filepath = os.path.join(config.dir, "processed", "%s.pickle" % \
-            self.database)
+        filepath = os.path.join(
+            config.dir,
+            "processed",
+            "%s.pickle" % self.database
+        )
         with open(filepath, "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 

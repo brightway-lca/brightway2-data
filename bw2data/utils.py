@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from . import config, reset_meta
+import codecs
 import hashlib
 import os
-import platform
 import random
 import re
 import requests
@@ -15,7 +15,7 @@ TYPE_DICTIONARY = {
     "production": 0,
     "technosphere": 1,
     "biosphere": 2,
-    }
+}
 
 DOWNLOAD_URL = "http://brightwaylca.org/data/"
 
@@ -39,7 +39,7 @@ def recursively_sort(obj):
 
 def random_string(length):
     return ''.join(random.choice(string.letters + string.digits
-        ) for i in xrange(length))
+                                 ) for i in xrange(length))
 
 
 def combine_methods(name, *ms):
@@ -50,7 +50,7 @@ def combine_methods(name, *ms):
         for key, amount in Method(m).load().iteritems():
             data[key] = data.get(key, 0) + amount
     meta = {
-        "description": "Combination of the following methods: " + \
+        "description": "Combination of the following methods: " +
             ", ".join([str(x) for x in ms]),
         "num_cfs": len(data),
         "unit": list(units)[0] if len(units) == 1 else "Unknown"
@@ -92,11 +92,11 @@ def set_data_dir(dirpath):
         os.mkdir(dirpath)
 
     user_dir = os.path.expanduser("~")
-    if platform.system == "Windows":
-        filename = "brightway2path.txt"
-    else:
-        filename = ".brightway2path"
-    with open(os.path.join(user_dir, filename), "w") as f:
+    filename = "brightway2path.txt" if config._windows else ".brightway2path"
+    with codecs.open(
+            os.path.join(user_dir, filename),
+            "w",
+            encoding="utf-8") as f:
         f.write(dirpath)
 
     config.reset()

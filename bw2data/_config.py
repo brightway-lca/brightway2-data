@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-import os
+import codecs
 import json
+import os
+import platform
 import tempfile
 import warnings
 
@@ -14,6 +16,7 @@ class Config(object):
     """
     version = 0.1
     basic_directories = ("processed", "intermediate", "backups", "logs")
+    _windows = platform.system == "Windows"
 
     # TODO: Create directory if needed (and basic dirs)
 
@@ -38,7 +41,7 @@ class Config(object):
                               u"\tSet a writeable directory!\n"
                               u"\tCurrent data directory is:\n"
                               u"\t%s" % self.dir, UserWarning
-                    )
+                              )
             # Has to come here, because web interface wants
             # to open a log ASAP
             self.create_basic_directories()
@@ -56,7 +59,9 @@ class Config(object):
 
     def save_preferences(self):
         """Serialize preferences to disk."""
-        with open(os.path.join(self.dir, "preferences.json"), "w") as f:
+        with open(os.path.join(
+                self.dir,
+                "preferences.json"), "w") as f:
             json.dump(self.p, f, indent=2)
 
     def get_home_directory(self, path=None):
@@ -85,7 +90,15 @@ class Config(object):
             return envvar
         for filename in (".brightway2path", "brightway2path.txt"):
             try:
-                candidate = open(os.path.join(user_dir, filename)).readline().strip()
+                candidate = codecs.open(
+                    os.path.join(user_dir, filename),
+                    encoding='utf-8'
+                ).readline().strip()
+                # config.dir should always be a bytestring, not unicode
+                if self._windows:
+                    candidate = candidate.encode('utf-16')
+                else:
+                    candidate = candidate.encode('utf-8')
                 assert os.path.exists(candidate)
                 self._dir_from = filename
                 return candidate
@@ -116,6 +129,7 @@ class Config(object):
                 os.mkdir(os.path.join(self.dir, name))
 
     def _get_dir(self):
+        # This is a string in the correct encoding for the filesystem
         return self._dir
 
     def _set_dir(self, d):
@@ -124,6 +138,11 @@ class Config(object):
             raise OSError(u"This directory is not writeable")
 
     dir = property(_get_dir, _set_dir)
+
+    @property
+    def udir(self):
+        """Return `dir` in Unicode"""
+        return self.dir.decode('utf-8')
 
 
 config = Config()

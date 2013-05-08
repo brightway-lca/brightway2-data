@@ -55,7 +55,7 @@ class Method(object):
             * *name* (tuple, optional): Name of the new method.
 
         """
-        name = tuple(name) or self.method[:-1] + ("Copy of " + \
+        name = tuple(name) or self.method[:-1] + ("Copy of " +
             self.method[-1],)
         new_method = Method(name)
         metadata = copy(methods[self.method])
@@ -80,7 +80,7 @@ class Method(object):
             "unit": unit,
             "description": description,
             "num_cfs": num_cfs
-            }
+        }
 
     def deregister(self):
         """Remove a method from the metadata store. Does not delete any files."""
@@ -107,8 +107,11 @@ class Method(object):
             raise UnknownObject("This database is not yet registered")
         mapping.add(set([x[0] for x in data]))
         geomapping.add(set([x[2] for x in data]))
-        filepath = os.path.join(config.dir, "intermediate",
-            "%s.pickle" % self.get_abbreviation())
+        filepath = os.path.join(
+            config.dir,
+            "intermediate",
+            "%s.pickle" % self.get_abbreviation()
+        )
         with open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -120,8 +123,11 @@ class Method(object):
 
         """
         try:
-            return pickle.load(open(os.path.join(config.dir, "intermediate",
-                "%s.pickle" % self.get_abbreviation()), "rb"))
+            return pickle.load(open(os.path.join(
+                config.dir,
+                "intermediate",
+                "%s.pickle" % self.get_abbreviation()
+            ), "rb"))
         except OSError:
             raise MissingIntermediateData("Can't load intermediate data")
 
@@ -133,10 +139,14 @@ class Method(object):
         Although it is not standard to provide uncertainty distributions for impact assessment methods, the structured array includes uncertainty fields.
 
         """
-        data = pickle.load(open(os.path.join(config.dir, "intermediate",
-            "%s.pickle" % self.get_abbreviation()), "rb"))
+        data = pickle.load(open(os.path.join(
+            config.dir,
+            "intermediate",
+            "%s.pickle" % self.get_abbreviation()
+        ), "rb"))
         assert data
-        dtype = [('uncertainty_type', np.uint8),
+        dtype = [
+            ('uncertainty_type', np.uint8),
             ('flow', np.uint32),
             ('index', np.uint32),
             ('geo', np.uint32),
@@ -144,7 +154,8 @@ class Method(object):
             ('sigma', np.float32),
             ('minimum', np.float32),
             ('maximum', np.float32),
-            ('negative', np.bool)]
+            ('negative', np.bool)
+        ]
         arr = np.zeros((len(data), ), dtype=dtype)
         arr['minimum'] = arr['maximum'] = arr['sigma'] = np.NaN
         for i, (key, value, geo) in enumerate(data):
@@ -158,8 +169,8 @@ class Method(object):
                 np.NaN,
                 np.NaN,
                 False
-                )
-        filepath = os.path.join(config.dir, "processed", "%s.pickle" % \
-            self.get_abbreviation())
+            )
+        filepath = os.path.join(config.dir, "processed", "%s.pickle" %
+                                self.get_abbreviation())
         with open(filepath, "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
