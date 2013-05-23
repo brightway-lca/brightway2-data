@@ -2,7 +2,6 @@
 from __future__ import division
 from .. import Database, mapping
 from ..logs import get_io_logger
-from ..utils import activity_hash
 from ..units import normalize_units
 from lxml import objectify
 from stats_toolkit.distributions import *
@@ -17,80 +16,55 @@ import warnings
 BIOSPHERE = ("air", "water", "soil", "resource")
 
 
-class Ecospold1DataExtractor(object):
+class Ecospold2DataExtractor(object):
     def extract(self, path, log):
         data = []
         if os.path.isdir(path):
             files = [os.path.join(path, y) for y in filter(
-                lambda x: x[-4:].lower() == ".xml", os.listdir(path))]
+                lambda x: x[-6:].lower() == ".spold", os.listdir(path))]
         else:
             files = [path]
-        widgets = ['Extracting data: ', progressbar.Percentage(), ' ',
-            progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
+        widgets = [
+            'Extracting data: ',
+            progressbar.Percentage(),
+            ' ',
+            progressbar.Bar(marker=progressbar.RotatingMarker()),
+            ' ',
             progressbar.ETA()]
-        pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(files)
-            ).start()
+        pbar = progressbar.ProgressBar(
+            widgets=widgets,
+            maxval=len(files)
+        ).start()
 
         for index, filename in enumerate(files):
             root = objectify.parse(open(filename)).getroot()
 
-            if root.tag != '{http://www.EcoInvent.org/EcoSpold01}ecoSpold':
+            if root.tag != '{http://www.EcoInvent.org/EcoSpold02}ecoSpold':
                 # Unrecognized file type
                 log.critical(u"skipping %s - no ecoSpold element" % filename)
                 continue
 
-            for dataset in root.iterchildren():
-                data.append(self.process_dataset(dataset))
+            for activityDataset in root.iterchildren():
+                data.append(self.process_dataset(activityDataset))
 
             pbar.update(index)
         pbar.finish()
         return data
 
     def process_dataset(self, dataset):
-        ref_func = dataset.metaInformation.processInformation.\
-            referenceFunction
         data = {
-            "name": ref_func.get("name"),
+            "code": dataset.activityDescription.activity.get("id"),
+            "name": dataset.activityDescription.activity.activityName.text,
             "type": "process",  # True for all ecospold?
-            "categories": [ref_func.get("category"), ref_func.get(
-                "subCategory")],
-            "location": dataset.metaInformation.processInformation.\
-                geography.get("location"),
-            "code": int(dataset.get("number")),
-            "unit": normalize_units(ref_func.get("unit")),
-            "exchanges": self.process_exchanges(dataset)
-            }
-        # Convert ("foo", "unspecified") to ("foo",)
-        while data["categories"] and data["categories"][-1] in (
-                "unspecified", None):
-            data["categories"] = data["categories"][:-1]
-        return data
-
-    def process_exchanges(self, dataset):
-        data = []
-        # Skip definitional exchange - we assume this already
-        for exc in dataset.flowData.iterchildren():
-            if exc.tag == "{http://www.EcoInvent.org/EcoSpold01}exchange":
-                data.append(self.process_exchange(exc, dataset))
-            elif exc.tag == "{http://www.EcoInvent.org/EcoSpold01}allocation":
-                data.append(self.process_allocation(exc, dataset))
-            else:
-                raise ValueError("Flow data type %s no understood" % exc.tag)
-        return data
-
-    def process_allocation(self, exc, dataset):
-        return {
-            "reference": int(exc.get("referenceToCoProduct")),
-            "fraction": float(exc.get("fraction")),
-            "exchanges": [int(c.text) for c in exc.iterchildren()]
+            "location": dataset.activityDescription.geography.shortname.text,
+            "exchanges": [
+                self.process_exchange(x) for x in
+                dataset.flowData.iterchildren()
+            ]
         }
+        return data
 
     def process_exchange(self, exc, dataset):
-        # if exc.get("name") == dataset.metaInformation.processInformation.\
-        #         referenceFunction.get("name") != None and float(
-        #         exc.get("meanValue", 0.)) == 1.0:
-        #     continue
-
         data = {
             "code": int(exc.get("number")),
             "matching": {
@@ -170,7 +144,7 @@ class Ecospold1DataExtractor(object):
         return data
 
 
-class Ecospold1Importer(object):
+class Ecospold2Importer(object):
     """Import inventory datasets from ecospold XML format.
 
     Does not have any arguments; instead, instantiate the class, and then import using the ``importer`` method, i.e. ``Ecospold1Importer().importer(filepath)``."""
@@ -189,7 +163,7 @@ class Ecospold1Importer(object):
         self.new_activities = []
         self.new_biosphere = []
 
-        data = Ecospold1DataExtractor().extract(path, self.log)
+        data = Ecospold2DataExtractor().extract(path, self.log)
         data = self.allocate_datasets(data)
         data = self.apply_transforms(data)
         data = self.add_hashes(data)
