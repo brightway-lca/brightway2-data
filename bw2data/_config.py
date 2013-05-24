@@ -16,7 +16,7 @@ class Config(object):
     """
     version = 0.1
     basic_directories = ("processed", "intermediate", "backups", "logs")
-    _windows = platform.system == "Windows"
+    _windows = platform.system() == "Windows"
 
     # TODO: Create directory if needed (and basic dirs)
 
