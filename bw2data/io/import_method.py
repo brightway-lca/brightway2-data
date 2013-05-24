@@ -17,13 +17,15 @@ except:
 class EcospoldImpactAssessmentImporter(object):
     """Import impact assessment methods and weightings from ecospold XML format.
 
-Does not have any arguments; instead, instantiate the class, and then import using the ``importer`` method, i.e. ``EcospoldImpactAssessmentImporter().importer(filepath)``."""
+Does not have any arguments; instead, instantiate the class, and then import using the ``importer`` method, i.e. ``EcospoldImpactAssessmentImporter().importer(filepath)``.
+
+    """
     def importer(self, path):
         """Import an impact assessment method, or a directory of impact assessment methods.
 
         The flow logic is relatively complex, because:
-            #. We have to make sure the ``number`` attribute is not just a sequential list
-            #. Even if valid biosphere ``number``s are provided, we can't believe them.
+            #. We have to make sure the ``number`` attribute is not just a sequential list.
+            #. Even if a valid biosphere ``number`` is provided, we can't believe it.
 
         Here is the flow logic graphic:
 

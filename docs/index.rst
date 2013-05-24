@@ -26,7 +26,7 @@ Table of Contents
 -----------------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    querying
    technical

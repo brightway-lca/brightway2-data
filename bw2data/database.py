@@ -278,12 +278,36 @@ class Database(object):
             config.dir, directory, name)).st_mtime)) for name in files])
 
     def process(self, version=None):
-        """Process intermediate data from a Python dictionary to a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/arrays.classes.html#record-arrays-numpy-rec>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record arrays) is a heterogeneous array, where each column has a different label and data type. These structured arrays act as a standard data format for LCA and Monte Carlo calculations, and are the native data format for the Stats Arrays package.
+        """
+Process intermediate data from a Python dictionary to a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/arrays.classes.html#record-arrays-numpy-rec>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type. These structured arrays act as a standard data format for LCA and Monte Carlo calculations, and are the native data format for the Stats Arrays package.
 
-        Processed arrays are saved in the ``processed`` directory.
+Processed arrays are saved in the ``processed`` directory.
 
-        Args:
-            * *version* (int, optional): The version of the database to process
+The structure for processed inventory databases is:
+
+================ ======== ===================================
+Column name      Type     Description
+================ ======== ===================================
+uncertainty_type uint8    integer type defined in `stats_toolkit.uncertainty_choices`
+input            uint32   integer value from `Mapping`
+output           uint32   integer value from `Mapping`
+geo              uint32   integer value from `GeoMapping`
+row              uint32   column filled with `NaN` values, used for matrix construction
+col              uint32   column filled with `NaN` values, used for matrix construction
+type             uint8    integer type defined in `bw2data.utils.TYPE_DICTIONARY`
+amount           float32  location parameter, e.g. mean
+sigma            float32  shape parameter, e.g. std
+minimum          float32  minimum bound
+maximum          float32  maximum bound
+negative         bool     `amount` < 0
+================ ======== ===================================
+
+See also `NumPy data types <http://docs.scipy.org/doc/numpy/user/basics.types.html>`_.
+
+Args:
+    * *version* (int, optional): The version of the database to process
+
+Doesn't return anything, but writes a file to disk.
 
         """
         data = self.load(version)

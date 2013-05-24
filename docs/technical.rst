@@ -15,56 +15,14 @@ The current components of Brightway2 are:
 * bw2analyzer: Functions for analyzing the results of LCA calculations, including contribution and sensitivity analysis.
 * bw2ui: Two different user interfaces for Brightway2. Brightway2 is pure Python, and can be used by other programs or in an ipython notebook. For people who aren't as comfortable programming in Python, this packages provides a command line interface for work in the terminal, and a web interface.
 
-Configuration
-=============
+Reference
+=========
 
-The configuration for brightway2 is implemented as a singleton class that is created when ``brightway2`` is imported.
+.. toctree::
+   :maxdepth: 2
 
-.. autoclass:: bw2data._config.Config
-    :members:
-
-Metadata
-========
-
-.. autoclass:: bw2data.meta.Databases
-    :members:
-    :inherited-members:
-
-.. autoclass:: bw2data.meta.Methods
-    :members:
-    :inherited-members:
-
-.. autoclass:: bw2data.meta.Mapping
-    :members:
-    :inherited-members:
-
-.. autoclass:: bw2data.meta.GeoMapping
-    :members:
-    :inherited-members:
-
-Database
-========
-
-.. autoclass:: bw2data.Database
-    :members:
-
-Method
-======
-
-.. autoclass:: bw2data.Method
-    :members:
-
-Import and Export
-=================
-
-.. autoclass:: bw2data.io.BW2PackageImporter
-    :members:
-
-.. autoclass:: bw2data.io.BW2PackageExporter
-    :members:
-
-.. autoclass:: bw2data.io.EcospoldImporter
-    :members:
-
-.. autoclass:: bw2data.io.EcospoldImpactAssessmentImporter
-    :members:
+   configuration
+   metadata
+   database
+   method
+   io
