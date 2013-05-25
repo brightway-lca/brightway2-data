@@ -1,11 +1,18 @@
 # -*- coding: utf-8 -*-
 from . import config
 from logging.handlers import RotatingFileHandler
-from utils import random_string
+from utils import random_string, create_in_memory_zipfile_from_directory
 import codecs
 import datetime
 import logging
 import os
+import requests
+import uuid
+from serialization import JsonWrapper
+try:
+    import anyjson
+except ImportError:
+    anyjson = None
 
 
 def get_logger(name, level=logging.INFO):
@@ -57,3 +64,19 @@ Message:
 '''))
     logger.addHandler(handler)
     return logger
+
+
+def upload_logs_to_server(metadata={}):
+    # Hardcoded for now
+    url = "http://reports.brightwaylca.org/logs"
+    dirpath = config.request_dir("logs")
+    zip_fo = create_in_memory_zipfile_from_directory(dirpath)
+    files = {'file': (uuid.uuid4().hex + ".zip", zip_fo.read())}
+    metadata['json'] = 'native' if anyjson is None else \
+        anyjson.implementation.name
+    metadata['windows'] = config._windows
+    return requests.post(
+        url,
+        data=metadata,
+        files=files
+    )

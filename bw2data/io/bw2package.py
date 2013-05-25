@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*
 from .. import Database, databases, config, JsonWrapper, methods, Method
+from ..logs import get_logger
 from ..utils import database_hash, download_file
+from time import time
 import bz2
 import os
 import warnings
@@ -87,13 +89,22 @@ class BW2PackageImporter(object):
 
     @classmethod
     def import_database(cls, filepath, overwrite):
+        logger = get_logger("io-performance.log")
+
         if overwrite:
             raise NotImplementedError
         with bz2.BZ2File(filepath) as f:
+            start = time()
+
             package_data = JsonWrapper.loads(f.read())
+
+            logger.info("Loading BW2Package database (len %s): %.4g" % (len(package_data), time() - start))
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             for name, data in package_data.iteritems():
+                start = time()
+
                 db_data = dict([((name, key), value) for key, value in \
                     data["data"].iteritems()])
                 if name in databases:
@@ -109,15 +120,26 @@ class BW2PackageImporter(object):
                 database.write(db_data)
                 database.process()
 
+                logger.info("Processing BW2Package database (len %s): %.4g" % (len(db_data), time() - start))
+
     @classmethod
     def import_method(cls, filepath, overwrite):
+        logger = get_logger("io-performance.log")
+
         if overwrite:
             raise NotImplementedError
         with bz2.BZ2File(filepath) as f:
+            start = time()
+
             package_data = JsonWrapper.loads(f.read())
+
+            logger.info("Loading BW2Package method (len %s): %.4g" % (len(package_data), time() - start))
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            start = time()
             for data in package_data:
+
                 name = tuple(data["metadata"]["name"])
                 if name in methods:
                     raise ValueError("Duplicate method")
@@ -126,18 +148,30 @@ class BW2PackageImporter(object):
                     unit=data["metadata"]["unit"],
                     description=data["metadata"]["description"],
                     num_cfs=data["metadata"]["num_cfs"]
-                    )
+                )
                 method.write([
                     [(o["database"], o["code"]), o["amount"], o["location"]
-                    ] for o in data["cfs"]])
+                ] for o in data["cfs"]])
                 method.process()
+
+            logger.info("Processing BW2Package methods (len %s): %.4g" % (len(package_data), time() - start))
 
 
 def download_biosphere():
+    logger = get_logger("io-performance.log")
+    start = time()
     filepath = download_file("biosphere.bw2package")
+    logger.info("Downloading biosphere package: %.4g" % (time() - start))
+    start = time()
     BW2PackageImporter.importer(filepath)
+    logger.info("Importing biosphere package: %.4g" % (time() - start))
 
 
 def download_methods():
+    logger = get_logger("io-performance.log")
+    start = time()
     filepath = download_file("methods.bw2iapackage")
+    logger.info("Downloading methods package: %.4g" % (time() - start))
+    start = time()
     BW2PackageImporter.importer(filepath)
+    logger.info("Importing methods package: %.4g" % (time() - start))

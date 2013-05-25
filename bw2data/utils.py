@@ -7,6 +7,11 @@ import random
 import re
 import requests
 import string
+import zipfile
+try:
+    import cStringIO as StringIO
+except ImportError:
+    import StringIO
 
 # Maximum value for unsigned integer stored in 4 bytes
 MAX_INT_32 = 4294967295
@@ -111,3 +116,22 @@ def setup():
     config.is_temp_dir = False
     download_biosphere()
     download_methods()
+
+
+def create_in_memory_zipfile_from_directory(path):
+    # Based on http://stackoverflow.com/questions/2463770/python-in-memory-zip-library
+    memory_obj = StringIO.StringIO()
+    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    zf = zipfile.ZipFile(memory_obj, "a", zipfile.ZIP_DEFLATED, False)
+    for filename in files:
+        zf.writestr(
+            filename,
+            open(os.path.join(path, filename)).read()
+        )
+    # Mark the files as having been created on Windows so that
+    # Unix permissions are not inferred as 0000
+    for zfile in zf.filelist:
+        zfile.create_system = 0
+    zf.close()
+    memory_obj.seek(0)
+    return memory_obj
