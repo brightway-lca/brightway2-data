@@ -5,7 +5,9 @@ from serialization import JsonWrapper
 from database import Database
 from method import Method
 from query import Query, Filter, Result
-from utils import set_data_dir, setup
+from utils import set_data_dir
+# Don't confuse nose tests
+from utils import setup as bw2setup
 import proxies
 import utils
 import validate
