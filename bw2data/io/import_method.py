@@ -91,7 +91,7 @@ Does not have any arguments; instead, instantiate the class, and then import usi
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             method = Method(name)
-            method.register(unit, description, len(data))
+            method.register(unit=unit, description=description, num_cfs=len(data))
             method.write([
                 [("biosphere", o[0]), o[1], "GLO"] for o in data])
             method.process()

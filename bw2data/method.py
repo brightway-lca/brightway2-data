@@ -1,27 +1,12 @@
 # -*- coding: utf-8 -*-
-from . import config, mapping, methods, geomapping
-from copy import copy
-from errors import UnknownObject, MissingIntermediateData
-from utils import MAX_INT_32, random_string
-from validate import ia_validator
+from . import mapping, methods, geomapping
+from .utils import MAX_INT_32
+from .validate import ia_validator
+from .ia_data_store import ImpactAssessmentDataStore
 import numpy as np
-import os
-import string
-import warnings
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 
 
-def abbreviate(names, length=8):
-    abbrev = lambda x: x if x[0] in string.digits else x[0].lower()
-    name = " ".join(names).split(" ")[0].lower() + \
-        "".join([abbrev(x) for x in " ".join(names).split(" ")[1:]])
-    return name + "-" + random_string(length)
-
-
-class Method(object):
+class Method(ImpactAssessmentDataStore):
     """A manager for a method. This class can register or deregister methods, write intermediate data, process data to parameter arrays, validate, and copy methods.
 
     The Method class never holds intermediate data, but it can load or write intermediate data. The only attribute is *method*, which is the name of the method being managed.
@@ -31,40 +16,18 @@ class Method(object):
     Methods are hierarchally structured, and this structure is preserved in the method name. It is a tuple of strings, like ``('ecological scarcity 2006', 'total', 'natural resources')``.
 
     Args:
-        * *method* (tuple): Name of the method to manage. Must be a tuple of strings.
+        * *name* (tuple): Name of the method to manage. Must be a tuple of strings.
 
     """
-    def __init__(self, method, *args, **kwargs):
-        self.method = tuple(method)
-        if self.method not in methods and not \
-                getattr(config, "dont_warn", False):
-            warnings.warn("\n\t%s not a currently installed method" % (
-                " : ".join(method)), UserWarning)
+    metadata = methods
+    label = u"method"
 
-    def get_abbreviation(self):
-        """Abbreviate a method identifier (a tuple of long strings) for a filename. Random characters are added because some methods have similar names which would overlap when abbreviated."""
-        try:
-            return methods[self.method]["abbreviation"]
-        except KeyError:
-            raise UnknownObject("This method is not yet registered")
+    @property
+    def method(self):
+        return self.name
 
-    def copy(self, name=None):
-        """Make a copy of the method.
-
-        Args:
-            * *name* (tuple, optional): Name of the new method.
-
-        """
-        name = tuple(name) or self.method[:-1] + ("Copy of " +
-            self.method[-1],)
-        new_method = Method(name)
-        metadata = copy(methods[self.method])
-        del metadata["abbreviation"]
-        new_method.register(**metadata)
-        new_method.write(self.load())
-
-    def register(self, unit, description="", num_cfs=0):
-        """Register a database with the metadata store.
+    def register(self, unit, description="", num_cfs=0, **kwargs):
+        """Register a method with the metadata store.
 
         Methods must be registered before data can be written.
 
@@ -74,17 +37,12 @@ class Method(object):
             * *num_cfs* (int): Number of characterization factors
 
         """
-        assert self.method not in methods
-        methods[self.method] = {
-            "abbreviation": abbreviate(self.method),
-            "unit": unit,
+        kwargs.update({
+            "unit":unit,
             "description": description,
             "num_cfs": num_cfs
-        }
-
-    def deregister(self):
-        """Remove a method from the metadata store. Does not delete any files."""
-        del methods[self.method]
+        })
+        super(Method, self).register(**kwargs)
 
     def validate(self, data):
         """Validate data. Must be called manually.
@@ -100,36 +58,12 @@ class Method(object):
         """Serialize data to disk.
 
         Args:
-            * *data* (dict): Inventory data
+            * *data* (dict): Method data
 
         """
-        if self.method not in methods:
-            raise UnknownObject("This database is not yet registered")
         mapping.add(set([x[0] for x in data]))
         geomapping.add(set([x[2] for x in data]))
-        filepath = os.path.join(
-            config.dir,
-            "intermediate",
-            "%s.pickle" % self.get_abbreviation()
-        )
-        with open(filepath, "wb") as f:
-            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-    def load(self):
-        """Load the intermediate data for this method.
-
-        Returns:
-            The intermediate data, a dictionary.
-
-        """
-        try:
-            return pickle.load(open(os.path.join(
-                config.dir,
-                "intermediate",
-                "%s.pickle" % self.get_abbreviation()
-            ), "rb"))
-        except OSError:
-            raise MissingIntermediateData("Can't load intermediate data")
+        super(Method, self).write(data)
 
     def process(self):
         """
@@ -160,11 +94,7 @@ See also `NumPy data types <http://docs.scipy.org/doc/numpy/user/basics.types.ht
 Doesn't return anything, but writes a file to disk.
 
         """
-        data = pickle.load(open(os.path.join(
-            config.dir,
-            "intermediate",
-            "%s.pickle" % self.get_abbreviation()
-        ), "rb"))
+        data = self.load()
         assert data
         dtype = [
             ('uncertainty_type', np.uint8),
@@ -191,7 +121,4 @@ Doesn't return anything, but writes a file to disk.
                 np.NaN,
                 False
             )
-        filepath = os.path.join(config.dir, "processed", "%s.pickle" %
-                                self.get_abbreviation())
-        with open(filepath, "wb") as f:
-            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+        self.write_processed_array(arr)
