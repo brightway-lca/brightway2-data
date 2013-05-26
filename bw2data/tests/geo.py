@@ -19,20 +19,14 @@ class GeoTest(BW2DataTest):
         d.register("biosphere", [], len(biosphere))
         d.write(biosphere)
 
-    def add_method(self, simple=True):
+    def add_method(self):
         self.add_biosphere()
         method = Method(("test method",))
-        method.register("kg")
-        if simple:
-            method.write({
-                ("biosphere", 1): 6,
-                ("biosphere", 2): 5
-                })
-        else:
-            method.write({
-                ("biosphere", 1): (6, "foo"),
-                ("biosphere", 2): (5, "bar")
-                })
+        method.register(unit="kg")
+        method.write([
+            (("biosphere", 1), 6, "foo"),
+            (("biosphere", 2), 5, "bar")
+        ])
         return method
 
     def test_geomapping_retrieval(self):
@@ -45,18 +39,8 @@ class GeoTest(BW2DataTest):
         print geomapping.data
         self.assertTrue("GLO" in geomapping)
 
-    def test_method_adds_default_geo(self):
-        method = self.add_method()
-        method.process()
-        pickled = pickle.load(open(os.path.join(config.dir, "processed",
-            method.get_abbreviation() + ".pickle"), "rb"))
-        global_index = geomapping["GLO"]
-        self.assertEqual(global_index, int(pickled[0]["geo"]))
-        self.assertEqual(global_index, int(pickled[1]["geo"]))
-        self.assertEquals(pickled.shape, (2,))
-
     def test_method_adds_correct_geo(self):
-        method = self.add_method(False)
+        method = self.add_method()
         method.process()
         pickled = pickle.load(open(os.path.join(config.dir, "processed",
             method.get_abbreviation() + ".pickle"), "rb"))
@@ -90,7 +74,7 @@ class GeoTest(BW2DataTest):
             geomapping["GLO"] * np.ones(pickled.shape)))
 
     def test_method_write_adds_to_geomapping(self):
-        self.add_method(False)
+        self.add_method()
         self.assertTrue("foo" in geomapping)
         self.assertTrue("bar" in geomapping)
 

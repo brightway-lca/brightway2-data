@@ -52,14 +52,15 @@ def combine_methods(name, *ms):
     data = {}
     units = set([methods[tuple(x)]["unit"] for x in ms])
     for m in ms:
-        for key, amount in Method(m).load().iteritems():
-            data[key] = data.get(key, 0) + amount
+        for key, cf, geo in Method(m).load():
+            data[(key, geo)] = data.get((key, geo), 0) + cf
     meta = {
         "description": "Combination of the following methods: " +
             ", ".join([str(x) for x in ms]),
         "num_cfs": len(data),
         "unit": list(units)[0] if len(units) == 1 else "Unknown"
     }
+    data = [(key, cf, geo) for (key, geo), cf in data.iteritems()]
     method = Method(name)
     method.register(**meta)
     method.write(data)

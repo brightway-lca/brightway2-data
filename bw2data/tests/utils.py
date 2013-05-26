@@ -20,21 +20,21 @@ class UtilsTest(BW2DataTest):
         d.register("Tests", [], len(biosphere))
         d.write(biosphere)
         m1 = Method(["test method 1"])
-        m1.register("p", 2)
-        m1.write({
-            ("biosphere", 1): 1,
-            ("biosphere", 2): 2
-            })
+        m1.register(unit="p", num_cfs=2)
+        m1.write([
+            (("biosphere", 1), 1, "GLO"),
+            (("biosphere", 2), 2, "GLO")
+        ])
         m2 = Method(["test method 2"])
-        m2.register("p", 1)
-        m2.write({
-            ("biosphere", 2): 10
-            })
+        m2.register(unit="p", num_cfs=1)
+        m2.write([
+            (("biosphere", 2), 10, "GLO")
+        ])
         combine_methods(["test method 3"], ["test method 1"],
             ["test method 2"])
         cm = Method(["test method 3"])
-        self.assertEqual(cm.load(), {
-            ("biosphere", 1): 1,
-            ("biosphere", 2): 12
-            })
+        self.assertEqual(sorted(cm.load()), [
+            (("biosphere", 1), 1, "GLO"),
+            (("biosphere", 2), 12, "GLO")
+        ])
         self.assertEqual(methods[["test method 3"]]["unit"], "p")
