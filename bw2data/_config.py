@@ -94,10 +94,11 @@ class Config(object):
                     os.path.join(user_dir, filename),
                     encoding='utf-8'
                 ).readline().strip()
-                # config.dir should always be a bytestring, not unicode
-                if self._windows:
-                    candidate = candidate.encode('utf-16')
+                if os.path.supports_unicode_filenames:
+                    # Leaving as unicode is OK
+                    pass
                 else:
+                    # posix systems except for Mac OS X
                     candidate = candidate.encode('utf-8')
                 assert os.path.exists(candidate)
                 self._dir_from = filename
