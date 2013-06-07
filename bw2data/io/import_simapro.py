@@ -4,6 +4,7 @@ from ..utils import activity_hash
 import csv
 import pprint
 import re
+import warnings
 
 
 detoxify_pattern = '/[A-Z]{2,10} [SU]$'
@@ -27,27 +28,38 @@ def is_number(x):
 
 
 class SimaProImporter(object):
-    def __init__(self, filepath, delimiter="\t", depends=['ecoinvent 2.2']):
+    def __init__(self, filepath, delimiter="\t", depends=['ecoinvent 2.2'], overwrite=False, name=None, geo="GLO"):
         self.filepath = filepath
         self.delimiter = delimiter
         self.depends = depends
+        self.overwrite = overwrite
+        self.name = name
+        self.geo = geo
 
     def importer(self):
         raw_data = self.load_file()
         name, data = self.clean_data(raw_data)
-        assert name not in databases, "Already imported"
-        database = Database(name)
+        if self.name:
+            name = self.name
         data = [self.process_data(obj) for obj in data]
-        database.register(
-            format=raw_data[0][0],
-            depends=self.depends,
-            num_processes=len(data)
-        )
+        if not self.overwrite:
+            assert name not in databases, "Already imported this project"
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                database = Database(name)
+                database.register(
+                    format=raw_data[0][0],
+                    depends=self.depends,
+                    num_processes=len(data)
+                )
+        else:
+            database = Database(name)
         database.write(dict([(obj['code'], obj) for obj in data]))
         database.process()
 
     def process_data(self, data):
         data['code'] = (self.db_name, activity_hash(data))
+        data['location'] = self.geo
         data['exchanges'] = self.link_exchanges(data['exchanges']) + [
             self.production_exchange(data)]
         return data
