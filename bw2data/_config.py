@@ -110,7 +110,7 @@ class Config(object):
             return os.path.join(user_dir, "brightway2")
 
     def request_dir(self, dirname):
-        """Return ``True`` if directory already exists or can be created."""
+        """Return directory path if writable, or ``False``."""
         path = os.path.join(self.dir, dirname)
         if self.check_dir(path):
             return path
