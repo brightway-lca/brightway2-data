@@ -2,6 +2,7 @@
 from . import config, reset_meta
 import codecs
 import hashlib
+import numpy as np
 import os
 import random
 import re
@@ -12,6 +13,26 @@ try:
     import cStringIO as StringIO
 except ImportError:
     import StringIO
+try:
+    import stats_arrays as sa
+except ImportError:
+    import warnings
+    WARNING_TEXT = """
+
+It looks like you need to upgrade to the ``stats_arrays`` package. This is a new statistical toolkit that replaces the deprecated ``bw_stats_toolkit``. Read more at (https://bitbucket.org/cmutel/stats_arrays/).
+
+To do this, enter a Python interpreter, and run the following:
+
+    from bw2data.utils import convert_from_stats_toolkit
+    convert_from_stats_toolkit()
+
+Then leave the Python interpreter, and install the ``stats_arrays`` package, something like this:
+
+    pip install stats_arrays
+
+    """
+    warnings.warn(WARNING_TEXT)
+    sa = None
 
 # Maximum value for unsigned integer stored in 4 bytes
 MAX_INT_32 = 4294967295
@@ -136,3 +157,33 @@ def create_in_memory_zipfile_from_directory(path):
     zf.close()
     memory_obj.seek(0)
     return memory_obj
+
+
+def convert_from_stats_toolkit():
+    """Convert all databases from ``bw_stats_toolkit`` to ``stats_arrays`` (https://bitbucket.org/cmutel/stats_arrays/)."""
+    def update_exchange(exc):
+        if not exc.get('uncertainty_type', None):
+            return exc
+        exc['scale'] = exc['sigma']
+        del exc['sigma']
+        exc['loc'] = exc['amount']
+        if exc['uncertainty_type'] == sa.LognormalUncertainty.id:
+            exc['negative'] = exc['amount'] < 0
+            exc['loc'] = np.log(np.abs(exc['amount']))
+        return exc
+
+    assert sa, "Must have `stats_arrays` package for this function"
+    from bw2data import Database, databases
+    print "Starting conversion"
+    for database in databases:
+        print "Working on %s" % database
+        db = Database(database)
+        data = db.load()
+        for key, value in data:
+            if 'exchanges' in value:
+                value['exchanges'] = [update_exchange(exchange
+                    ) for exchange in value['exchanges']]
+            data[key] = value
+        db.write(data)
+        db.process()
+    print "Conversion finished"

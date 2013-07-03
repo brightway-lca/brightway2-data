@@ -279,11 +279,11 @@ class Database(object):
 
     def process(self, version=None):
         """
-Process intermediate data from a Python dictionary to a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type. These structured arrays act as a standard data format for LCA and Monte Carlo calculations, and are the native data format for the Stats Arrays package.
+Process intermediate data from a Python dictionary to a `stats_arrays <>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
 
 Processed arrays are saved in the ``processed`` directory.
 
-The structure for processed inventory databases is:
+The structure for processed inventory databases includes additional columns beyond the basic ``stats_arrays`` format:
 
 ================ ======== ===================================
 Column name      Type     Description
@@ -295,8 +295,10 @@ geo              uint32   integer value from `GeoMapping`
 row              uint32   column filled with `NaN` values, used for matrix construction
 col              uint32   column filled with `NaN` values, used for matrix construction
 type             uint8    integer type defined in `bw2data.utils.TYPE_DICTIONARY`
-amount           float32  location parameter, e.g. mean
-sigma            float32  shape parameter, e.g. std
+amount           float32  amount without uncertainty
+loc              float32  location parameter, e.g. mean
+scale            float32  scale parameter, e.g. standard deviation
+shape            float32  shape parameter
 minimum          float32  minimum bound
 maximum          float32  maximum bound
 negative         bool     `amount` < 0
@@ -322,13 +324,16 @@ Doesn't return anything, but writes a file to disk.
             ('col', np.uint32),
             ('type', np.uint8),
             ('amount', np.float32),
-            ('sigma', np.float32),
+            ('loc', np.float32),
+            ('scale', np.float32),
+            ('shape', np.float32),
             ('minimum', np.float32),
             ('maximum', np.float32),
             ('negative', np.bool)
         ]
         arr = np.zeros((num_exchanges + len(data), ), dtype=dtype)
-        arr['minimum'] = arr['maximum'] = arr['sigma'] = np.NaN
+        arr['minimum'] = arr['maximum'] = np.NaN
+        arr['loc'] = arr['scale'] = arr['shape'] = np.NaN
         count = 0
         for key in sorted(data.keys(), key=lambda x: x[1]):
             production_found = False
@@ -346,7 +351,9 @@ Doesn't return anything, but writes a file to disk.
                     MAX_INT_32,
                     TYPE_DICTIONARY[exc["type"]],
                     exc["amount"],
-                    exc.get("sigma", np.NaN),
+                    exc.get("loc", np.NaN),
+                    exc.get("scale", np.NaN),
+                    exc.get("shape", np.NaN),
                     exc.get("minimum", np.NaN),
                     exc.get("maximum", np.NaN),
                     exc["amount"] < 0

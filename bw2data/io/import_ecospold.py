@@ -128,31 +128,36 @@ class Ecospold1DataExtractor(object):
             data.update({
                 'uncertainty type': LognormalUncertainty.id,
                 'amount': float(mean),
-                'sigma': math.log(math.sqrt(float(sigma)))
-                })
+                'loc': np.log(np.abs(mean)),
+                'scale': math.log(math.sqrt(float(sigma))),
+                'negative': mean < 0,
+            })
             if data['sigma'] == 0:
                 # Bad ecoinvent data
                 data['uncertainty type'] = UndefinedUncertainty.id
+                data['loc'] = data['amount']
                 del data["sigma"]
         elif uncertainty == 2:
             # Normal
             data.update({
                 'uncertainty type': NormalUncertainty.id,
                 'amount': float(mean),
-                'sigma': float(sigma) / 2
-                })
+                'loc': float(mean),
+                'scale': float(sigma) / 2
+            })
         elif uncertainty == 3:
             # Triangular
             data.update({
                 'uncertainty type': TriangularUncertainty.id,
                 'minimum': float(min_),
                 'maximum': float(max_)
-                })
+            })
             # Sometimes this isn't included (though it SHOULD BE)
             if exc.get("mostLikelyValue"):
-                data['amount'] = float(exc.get("mostLikelyValue"))
+                mode = float(exc.get("mostLikelyValue"))
+                data['amount'] = data['loc'] = mode
             else:
-                data['amount'] = float(mean)
+                data['amount'] = data['loc'] = float(mean)
         elif uncertainty == 4:
             # Uniform
             data.update({
@@ -165,7 +170,8 @@ class Ecospold1DataExtractor(object):
             # None
             data.update({
                 'uncertainty type': UndefinedUncertainty.id,
-                'amount': float(mean)
+                'amount': float(mean),
+                'loc': float(mean),
             })
         return data
 
