@@ -1,4 +1,4 @@
-from serialization import SerializedDict, PickledDict
+from serialization import SerializedDict, PickledDict, CompoundJSONDict
 
 
 class Mapping(PickledDict):
@@ -81,17 +81,9 @@ class Databases(SerializedDict):
             self.data)
 
 
-class Methods(SerializedDict):
+class Methods(CompoundJSONDict):
     """A dictionary for method metadata. File data is saved in ``methods.json``."""
     _filename = "methods.json"
-
-    def pack(self, data):
-        """Transform the dictionary to a list because JSON can't handle lists as keys"""
-        return [(k, v) for k, v in data.iteritems()]
-
-    def unpack(self, data):
-        """Transform data back to a dictionary"""
-        return dict([(tuple(x[0]), x[1]) for x in data])
 
     def __unicode__(self):
         return u"Brightway2 methods metadata with %i objects" % len(

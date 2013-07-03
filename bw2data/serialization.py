@@ -140,3 +140,14 @@ class PickledDict(SerializedDict):
 
     def deserialize(self):
         return self.unpack(pickle.load(open(self._filepath, "rb")))
+
+
+class CompoundJSONDict(SerializedDict):
+    """Subclass of ``SerializedDict`` that allows tuples as dictionary keys."""
+    def pack(self, data):
+        """Transform the dictionary to a list because JSON can't handle lists as keys"""
+        return [(k, v) for k, v in data.iteritems()]
+
+    def unpack(self, data):
+        """Transform data back to a dictionary"""
+        return dict([(tuple(x[0]), x[1]) for x in data])
