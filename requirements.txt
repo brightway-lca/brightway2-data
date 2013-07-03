@@ -6,4 +6,4 @@ requests>=1.1.0
 scipy
 voluptuous
 brightway2>=0.9.1
-bw-stats-toolkit>=0.7
+stats_arrays
