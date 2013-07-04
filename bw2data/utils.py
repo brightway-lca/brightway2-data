@@ -21,15 +21,14 @@ except ImportError:
 
 It looks like you need to upgrade to the ``stats_arrays`` package. This is a new statistical toolkit that replaces the deprecated ``bw_stats_toolkit``. Read more at (https://bitbucket.org/cmutel/stats_arrays/).
 
-To do this, enter a Python interpreter, and run the following:
-
-    from bw2data.utils import convert_from_stats_toolkit
-    convert_from_stats_toolkit()
-
-Then leave the Python interpreter, and install the ``stats_arrays`` package, something like this:
+To do this, use `pip` (or whatever package manager you prefer) to install `stats_arrays`, e.g.:
 
     pip install stats_arrays
 
+Then, enter a Python interpreter, and run the following:
+
+    from bw2data.utils import convert_from_stats_toolkit
+    convert_from_stats_toolkit()
     """
     warnings.warn(WARNING_TEXT)
     sa = None
@@ -178,12 +177,18 @@ def convert_from_stats_toolkit():
     for database in databases:
         print "Working on %s" % database
         db = Database(database)
+        print "\t... loading ..."
         data = db.load()
-        for key, value in data:
+        print "\t... converting ..."
+        new_data = {}
+
+        for index, (key, value) in enumerate(data.iteritems()):
             if 'exchanges' in value:
                 value['exchanges'] = [update_exchange(exchange
                     ) for exchange in value['exchanges']]
-            data[key] = value
-        db.write(data)
+            new_data[key] = value
+
+        print "\t... writing ..."
+        db.write(new_data)
         db.process()
-    print "Conversion finished"
+    print "Conversion finished\n"
