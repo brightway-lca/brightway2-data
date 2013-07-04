@@ -67,23 +67,25 @@ class Method(ImpactAssessmentDataStore):
 
     def process(self):
         """
-Process intermediate data from a Python dictionary to a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type. These structured arrays act as a standard data format for LCA and Monte Carlo calculations, and are the native data format for the Stats Arrays package.
+Process intermediate data from a Python dictionary to a `stats_arrays <https://pypi.python.org/pypi/stats_arrays/>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
 
 Processed arrays are saved in the ``processed`` directory.
 
 Although it is not standard to provide uncertainty distributions for impact assessment methods, the structured array includes uncertainty fields.
 
-The structure for processed inventory databases is:
+The structure for processed IA methods includes additional columns beyond the basic ``stats_arrays`` format:
 
 ================ ======== ===================================
 Column name      Type     Description
 ================ ======== ===================================
-uncertainty_type uint8    integer type defined in `stats_toolkit.uncertainty_choices`
+uncertainty_type uint8    integer type defined in `stats_arrays.uncertainty_choices`
 flow             uint32   integer value from `Mapping`
 index            uint32   column filled with `NaN` values, used for matrix construction
 geo              uint32   integer value from `GeoMapping`
 amount           float32  location parameter, e.g. mean
-sigma            float32  shape parameter, e.g. std
+loc              float32  location parameter, e.g. mean
+scale            float32  scale parameter, e.g. standard deviation
+shape            float32  shape parameter
 minimum          float32  minimum bound
 maximum          float32  maximum bound
 negative         bool     `amount` < 0
@@ -102,7 +104,9 @@ Doesn't return anything, but writes a file to disk.
             ('index', np.uint32),
             ('geo', np.uint32),
             ('amount', np.float32),
-            ('sigma', np.float32),
+            ('loc', np.float32),
+            ('scale', np.float32),
+            ('shape', np.float32),
             ('minimum', np.float32),
             ('maximum', np.float32),
             ('negative', np.bool)
@@ -116,6 +120,8 @@ Doesn't return anything, but writes a file to disk.
                 MAX_INT_32,
                 geomapping[geo],
                 value,
+                np.NaN,
+                np.NaN,
                 np.NaN,
                 np.NaN,
                 np.NaN,
