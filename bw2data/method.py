@@ -112,7 +112,6 @@ Doesn't return anything, but writes a file to disk.
             ('negative', np.bool)
         ]
         arr = np.zeros((len(data), ), dtype=dtype)
-        arr['minimum'] = arr['maximum'] = arr['sigma'] = np.NaN
         for i, (key, value, geo) in enumerate(data):
             arr[i] = (
                 0,

@@ -332,8 +332,6 @@ Doesn't return anything, but writes a file to disk.
             ('negative', np.bool)
         ]
         arr = np.zeros((num_exchanges + len(data), ), dtype=dtype)
-        arr['minimum'] = arr['maximum'] = np.NaN
-        arr['loc'] = arr['scale'] = arr['shape'] = np.NaN
         count = 0
         for key in sorted(data.keys(), key=lambda x: x[1]):
             production_found = False
