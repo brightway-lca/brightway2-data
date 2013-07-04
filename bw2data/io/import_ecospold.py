@@ -5,7 +5,10 @@ from ..logs import get_io_logger
 from ..utils import activity_hash
 from ..units import normalize_units
 from lxml import objectify
-from stats_toolkit.distributions import *
+try:
+    from stats_arrays.distributions import *
+except ImportError:
+    LognormalUncertainty = None
 import copy
 import math
 import numpy as np
@@ -192,6 +195,10 @@ class Ecospold1Importer(object):
             *path* (str): A filepath or directory.
 
         """
+
+        if LognormalUncertainty is None:
+            print "``stats_array`` not installed!"
+            return
 
         self.log, self.logfile = get_io_logger("lci-import")
         self.new_activities = []

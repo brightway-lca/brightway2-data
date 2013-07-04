@@ -4,7 +4,7 @@ from .. import Database, databases, mapping
 # from ..logs import get_io_logger
 from ..units import normalize_units
 from lxml import objectify, etree
-from stats_toolkit.distributions import *
+from stats_arrays.distributions import *
 import os
 import progressbar
 import warnings
