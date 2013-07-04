@@ -279,7 +279,7 @@ class Database(object):
 
     def process(self, version=None):
         """
-Process intermediate data from a Python dictionary to a `stats_arrays <>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
+Process intermediate data from a Python dictionary to a `stats_arrays <https://pypi.python.org/pypi/stats_arrays/>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
 
 Processed arrays are saved in the ``processed`` directory.
 
@@ -288,7 +288,7 @@ The structure for processed inventory databases includes additional columns beyo
 ================ ======== ===================================
 Column name      Type     Description
 ================ ======== ===================================
-uncertainty_type uint8    integer type defined in `stats_toolkit.uncertainty_choices`
+uncertainty_type uint8    integer type defined in `stats_arrays.uncertainty_choices`
 input            uint32   integer value from `Mapping`
 output           uint32   integer value from `Mapping`
 geo              uint32   integer value from `GeoMapping`
