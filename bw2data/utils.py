@@ -176,7 +176,7 @@ def convert_from_stats_toolkit():
     assert sa, "Must have `stats_arrays` package for this function"
     from bw2data import Database, databases, Method, methods
     print "Starting inventory conversion"
-    for database in ("ecoinvent 2.2", "biosphere"):
+    for database in databases:
         print "Working on %s" % database
         db = Database(database)
         print "\t... loading ..."

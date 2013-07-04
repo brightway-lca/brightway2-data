@@ -12,3 +12,5 @@ import proxies
 import utils
 import validate
 import io
+
+__version__ = (0, 9, 2)
