@@ -119,7 +119,7 @@ Doesn't return anything, but writes a file to disk.
                 MAX_INT_32,
                 geomapping[geo],
                 value,
-                np.NaN,
+                value,
                 np.NaN,
                 np.NaN,
                 np.NaN,

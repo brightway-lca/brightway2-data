@@ -4,6 +4,7 @@ import codecs
 import hashlib
 import numpy as np
 import os
+import progressbar
 import random
 import re
 import requests
@@ -161,20 +162,21 @@ def create_in_memory_zipfile_from_directory(path):
 def convert_from_stats_toolkit():
     """Convert all databases from ``bw_stats_toolkit`` to ``stats_arrays`` (https://bitbucket.org/cmutel/stats_arrays/)."""
     def update_exchange(exc):
-        if not exc.get('uncertainty_type', None):
+        if exc.get('uncertainty type', None) is None:
             return exc
-        exc['scale'] = exc['sigma']
-        del exc['sigma']
+        if 'sigma' in exc:
+            exc['scale'] = exc['sigma']
+            del exc['sigma']
         exc['loc'] = exc['amount']
-        if exc['uncertainty_type'] == sa.LognormalUncertainty.id:
+        if exc['uncertainty type'] == sa.LognormalUncertainty.id:
             exc['negative'] = exc['amount'] < 0
             exc['loc'] = np.log(np.abs(exc['amount']))
         return exc
 
     assert sa, "Must have `stats_arrays` package for this function"
-    from bw2data import Database, databases
-    print "Starting conversion"
-    for database in databases:
+    from bw2data import Database, databases, Method, methods
+    print "Starting inventory conversion"
+    for database in ("ecoinvent 2.2", "biosphere"):
         print "Working on %s" % database
         db = Database(database)
         print "\t... loading ..."
@@ -191,4 +193,17 @@ def convert_from_stats_toolkit():
         print "\t... writing ..."
         db.write(new_data)
         db.process()
-    print "Conversion finished\n"
+    print "Inventory conversion finished\nStarting IA conversion"
+
+    widgets = ['IA methods: ', progressbar.Percentage(), ' ',
+               progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
+               progressbar.ETA()]
+    pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(methods.list)
+                                   ).start()
+
+    for index, name in enumerate(methods):
+        method = Method(name)
+        method.process()
+        pbar.update(index)
+    pbar.finish()
+    print "Conversion finished"
