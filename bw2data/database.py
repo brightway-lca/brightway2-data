@@ -359,10 +359,12 @@ Doesn't return anything, but writes a file to disk.
                 count += 1
             if not production_found and data[key]["type"] == "process":
                 # Add amount produced for each process (default 1)
-                arr[count] = (0, mapping[key], mapping[key],
+                arr[count] = (
+                    0, mapping[key], mapping[key],
                     geomapping[data[key].get("location", "GLO") or "GLO"],
                     MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY["production"],
-                    1, np.NaN, np.NaN, np.NaN, False)
+                    1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
+                )
                 count += 1
 
         # The array is too big, because it can include a default production
