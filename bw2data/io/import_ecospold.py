@@ -121,10 +121,17 @@ class Ecospold1DataExtractor(object):
 
     def process_uncertainty_fields(self, exc, data):
         uncertainty = int(exc.get("uncertaintyType", 0))
-        mean = exc.get("meanValue")
-        min_ = exc.get("minValue")
-        max_ = exc.get("maxValue")
-        sigma = exc.get("standardDeviation95")
+
+        def floatish(x):
+            try:
+                return float(x)
+            except:
+                return np.NaN
+
+        mean = floatish(exc.get("meanValue"))
+        min_ = floatish(exc.get("minValue"))
+        max_ = floatish(exc.get("maxValue"))
+        sigma = floatish(exc.get("standardDeviation95"))
 
         if uncertainty == 1:
             # Lognormal
@@ -135,11 +142,11 @@ class Ecospold1DataExtractor(object):
                 'scale': math.log(math.sqrt(float(sigma))),
                 'negative': mean < 0,
             })
-            if data['sigma'] == 0:
+            if data['scale'] == 0 or np.isnan(data['scale']):
                 # Bad ecoinvent data
                 data['uncertainty type'] = UndefinedUncertainty.id
                 data['loc'] = data['amount']
-                del data["sigma"]
+                del data["scale"]
         elif uncertainty == 2:
             # Normal
             data.update({
@@ -157,7 +164,7 @@ class Ecospold1DataExtractor(object):
             })
             # Sometimes this isn't included (though it SHOULD BE)
             if exc.get("mostLikelyValue"):
-                mode = float(exc.get("mostLikelyValue"))
+                mode = floatish(exc.get("mostLikelyValue"))
                 data['amount'] = data['loc'] = mode
             else:
                 data['amount'] = data['loc'] = float(mean)
