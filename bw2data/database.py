@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from . import databases, config, mapping, geomapping
-from errors import MissingIntermediateData, UnknownObject
-from query import Query
+from .errors import MissingIntermediateData, UnknownObject
+from .query import Query
+from .units import normalize_units
+from .utils import natural_sort, MAX_INT_32, TYPE_DICTIONARY
+from .validate import db_validator
 from time import time
-from units import normalize_units
-from utils import natural_sort, MAX_INT_32, TYPE_DICTIONARY
-from validate import db_validator
 import datetime
 import numpy as np
 import os

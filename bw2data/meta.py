@@ -90,10 +90,22 @@ class Methods(CompoundJSONDict):
             self.data)
 
 
+class WeightingMeta(Methods):
+    """A dictionary for weighting metadata. File data is saved in ``methods.json``."""
+    _filename = "weightings.json"
+
+
+class NormalizationMeta(Methods):
+    """A dictionary for normalization metadata. File data is saved in ``methods.json``."""
+    _filename = "normalizations.json"
+
+
 mapping = Mapping()
 databases = Databases()
 methods = Methods()
 geomapping = GeoMapping()
+weightings = WeightingMeta()
+normalizations = NormalizationMeta()
 
 
 def reset_meta():
@@ -101,3 +113,5 @@ def reset_meta():
     databases.__init__()
     methods.__init__()
     geomapping.__init__()
+    weightings.__init__()
+    normalizations.__init__()

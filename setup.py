@@ -16,12 +16,21 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="0.9.2",
+    version="0.9.3",
     packages=packages,
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
     license=open('LICENSE.txt').read(),
-    install_requires=["voluptuous", "progressbar", "numpy", "lxml", "scipy", "requests>=1.1.0", "brightway2", "stats_arrays"],
+    install_requires=[
+        "brightway2",
+        "lxml",
+        "numpy",
+        "progressbar",
+        "requests>=1.1.0",
+        "scipy",
+        "stats_arrays"
+        "voluptuous",
+    ],
     url="https://bitbucket.org/cmutel/brightway2-data",
     long_description=open('README.rst').read(),
     classifiers=[

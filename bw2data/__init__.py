@@ -4,6 +4,7 @@ from meta import databases, methods, mapping, reset_meta, geomapping
 from serialization import JsonWrapper
 from database import Database
 from method import Method
+from weighting_normalization import Weighting, Normalization
 from query import Query, Filter, Result
 from utils import set_data_dir
 # Don't confuse nose tests
@@ -13,4 +14,4 @@ import utils
 import validate
 import io
 
-__version__ = (0, 9, 2)
+__version__ = (0, 9, 3)
