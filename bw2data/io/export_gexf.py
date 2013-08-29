@@ -64,6 +64,9 @@ class DatabaseToGEXF(object):
             for exc in value["exchanges"]:
                 if exc["input"] not in self.id_mapping:
                     continue
+                elif exc["input"] == key:
+                    # Don't need production process in graph
+                    continue
                 else:
                     edges.append(E.edge(
                         id=str(count.next()),
@@ -74,3 +77,14 @@ class DatabaseToGEXF(object):
         pbar.finish()
 
         return E.nodes(*nodes), E.edges(*edges)
+
+
+class DatabaseSelectionToGEXF(DatabaseToGEXF):
+    def __init__(self, database, keys):
+        self.database = database
+        self.filepath = os.path.join(config.request_dir("output"),
+            database + "selection.gexf")
+        unfiltered_data = Database(self.database).load()
+        self.data = {key: value for key, value in unfiltered_data.iteritems() if key in keys}
+        self.id_mapping = dict([(key, str(i)) for i, key in enumerate(
+            self.data)])

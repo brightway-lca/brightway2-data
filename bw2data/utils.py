@@ -207,3 +207,11 @@ def convert_from_stats_toolkit():
         pbar.update(index)
     pbar.finish()
     print "Conversion finished"
+
+
+def keyword_to_gephi_graph(database, keyword):
+    """Export a Gephi graph from a keyword in activity names"""
+    from . import Database, Filter
+    from bw2data.io.export_gexf import DatabaseSelectionToGEXF
+    query = Database(database).query(Filter("name", "in", keyword))
+    return DatabaseSelectionToGEXF(database, set(query.keys())).export()
