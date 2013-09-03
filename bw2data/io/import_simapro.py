@@ -77,6 +77,7 @@ class SimaProImporter(object):
         * Uncertainty data is not imported.
         * Biosphere flows are not imported.
         * Not all SimaPro unit changes from ecoinvent are included (no comprehensive list seems to be available)
+        * SimaPro unit conversions will cause problems matching to background databases (e.g. if you specify an import in megajoules, and the ecoinvent process is defined in kWh, they won't match)
 
     **Instantiation**
 
@@ -143,11 +144,11 @@ class SimaProImporter(object):
                 )
         else:
             if self.db_name in databases:
-                self.warning("Overwriting database %s" % self.db_name)
+                self.log.warning("Overwriting database %s" % self.db_name)
             database = Database(self.db_name)
         database.write(dict([(obj['code'], obj) for obj in data]))
         database.process()
-        return self.db_name, self.logile
+        return self.db_name, self.logfile
 
     def load_file(self):
         """Open the CSV file and load the data.
