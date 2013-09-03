@@ -56,7 +56,7 @@ class SimaProImporter(object):
 
     .. warning:: Only import of text-delimited files is supported.
 
-    The SimaPro export must be done with exactly the following options checked:
+    The SimaPro export must be done with **exactly** the following options checked:
 
     .. image:: images/simapro-options.png
         :align: center
