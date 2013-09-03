@@ -4,3 +4,6 @@ include bw2data/*.py
 include bw2data/io/*.py
 include bw2data/proxies/*.py
 include bw2data/tests/*.py
+include bw2data/tests/fixtures/*.py
+recursive-include bw2data/tests/fixtures *.txt
+recursive-include bw2data/tests/fixtures *.xml

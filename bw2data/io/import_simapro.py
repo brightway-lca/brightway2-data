@@ -146,7 +146,9 @@ class SimaProImporter(object):
             if self.db_name in databases:
                 self.log.warning("Overwriting database %s" % self.db_name)
             database = Database(self.db_name)
-        database.write(dict([(obj['code'], obj) for obj in data]))
+        database.write(dict([
+            ((self.db_name, obj['code']), obj) for obj in data
+        ]))
         database.process()
         return self.db_name, self.logfile
 
@@ -247,7 +249,7 @@ class SimaProImporter(object):
             'location': geo or self.default_geo,
             'categories': line[5].split('\\')
         }
-        data['code'] = (self.db_name, activity_hash(data))
+        data['code'] = activity_hash(data)
         return data
 
     def get_dataset_metadata(self, dataset):
@@ -322,7 +324,7 @@ class SimaProImporter(object):
         line = dataset[self.get_exchanges_index(dataset) + 1]
         return {
             'amount': float(line[1]),
-            'input': data['code'],
+            'input': (self.db_name, data['code']),
             'uncertainty type': 0,
             'type': 'production'
         }
@@ -338,7 +340,8 @@ class SimaProImporter(object):
 
         """
         self.foreground = dict([
-            ((ds['name'], ds['unit']), ds['code']) for ds in data
+            ((ds['name'], ds['unit']), (self.db_name, ds['code']))
+            for ds in data
         ])
 
     def load_background(self):
@@ -383,10 +386,8 @@ class SimaProImporter(object):
             exc["input"] = self.background[(exc["name"].lower(), exc["unit"],
                 exc['location'])]
             found = True
-        elif (exc["name"].lower(), exc["unit"], exc['location']) in \
-                self.background:
-            exc["input"] = self.background[(exc["name"].lower(), exc["unit"],
-                exc['location'])]
+        elif (exc["name"].lower(), exc["unit"]) in self.background:
+            exc["input"] = self.background[(exc["name"].lower(), exc["unit"])]
             found = True
         else:
             found = False

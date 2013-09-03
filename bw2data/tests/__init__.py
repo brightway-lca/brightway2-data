@@ -5,3 +5,4 @@ from .geo import GeoTest
 from .utils import UtilsTest
 from .array import ArrayProxyTest, ListArrayProxyTest
 from .sparse import SparseMatrixProxyTest
+from .simapro import SimaProImportTest
