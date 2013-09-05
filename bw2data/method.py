@@ -113,17 +113,33 @@ Doesn't return anything, but writes a file to disk.
         ]
         arr = np.zeros((len(data), ), dtype=dtype)
         for i, (key, value, geo) in enumerate(data):
-            arr[i] = (
-                0,
-                mapping[key],
-                MAX_INT_32,
-                geomapping[geo],
-                value,
-                value,
-                np.NaN,
-                np.NaN,
-                np.NaN,
-                np.NaN,
-                False
-            )
+            if isinstance(value, dict):
+                # LCIA with uncertainty
+                arr[i] = (
+                    value["uncertainty type"],
+                    mapping[key],
+                    MAX_INT_32,
+                    geomapping[geo],
+                    value["amount"],
+                    value.get("loc", np.NaN),
+                    value.get("scale", np.NaN),
+                    value.get("shape", np.NaN),
+                    value.get("minimum", np.NaN),
+                    value.get("maximum", np.NaN),
+                    value.get("amount" < 0)
+                )
+            else:
+                arr[i] = (
+                    0,
+                    mapping[key],
+                    MAX_INT_32,
+                    geomapping[geo],
+                    value,
+                    value,
+                    np.NaN,
+                    np.NaN,
+                    np.NaN,
+                    np.NaN,
+                    False
+                )
         self.write_processed_array(arr)
