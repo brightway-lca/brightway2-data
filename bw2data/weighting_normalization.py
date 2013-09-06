@@ -23,7 +23,7 @@ class Weighting(ImpactAssessmentDataStore):
             ('negative', np.bool)
         ]
         corrected_data = (
-            data.get("uncertainty_type", 0),
+            data.get("uncertainty type", 0),
             data["amount"],
             data.get("loc", np.NaN),
             data.get("scale", np.NaN),
@@ -61,7 +61,7 @@ class Normalization(ImpactAssessmentDataStore):
         array = np.zeros((len(data),), dtype=dtype)
         for index, row in enumerate(data):
             array[index] = (
-                row.get("uncertainty_type", 0),
+                row.get("uncertainty type", 0),
                 mapping[row['flow']],
                 MAX_INT_32,
                 row["amount"],
