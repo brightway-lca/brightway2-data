@@ -37,7 +37,9 @@ class Ecospold1DataExtractor(object):
         for index, filename in enumerate(files):
             root = objectify.parse(open(filename)).getroot()
 
-            if root.tag != '{http://www.EcoInvent.org/EcoSpold01}ecoSpold':
+            if root.tag not in (
+                    '{http://www.EcoInvent.org/EcoSpold01}ecoSpold',
+                    'ecoSpold'):
                 # Unrecognized file type
                 log.critical(u"skipping %s - no ecoSpold element" % filename)
                 continue
@@ -73,12 +75,16 @@ class Ecospold1DataExtractor(object):
         data = []
         # Skip definitional exchange - we assume this already
         for exc in dataset.flowData.iterchildren():
-            if exc.tag == "{http://www.EcoInvent.org/EcoSpold01}exchange":
+            if exc.tag in (
+                    "{http://www.EcoInvent.org/EcoSpold01}exchange",
+                    "exchange"):
                 data.append(self.process_exchange(exc, dataset))
-            elif exc.tag == "{http://www.EcoInvent.org/EcoSpold01}allocation":
+            elif exc.tag in (
+                    "{http://www.EcoInvent.org/EcoSpold01}allocation",
+                    "allocation"):
                 data.append(self.process_allocation(exc, dataset))
             else:
-                raise ValueError("Flow data type %s no understood" % exc.tag)
+                raise ValueError("Flow data type %s not understood" % exc.tag)
         return data
 
     def process_allocation(self, exc, dataset):
@@ -215,6 +221,11 @@ class Ecospold1Importer(object):
         data = self.allocate_datasets(data)
         data = self.apply_transforms(data)
         data = self.add_hashes(data)
+
+        if not data:
+            self.log.critical("No data found in XML file %s" % path)
+            warnings.warn("No data found in XML file %s" % path)
+            return
 
         widgets = ['Linking exchanges:', progressbar.Percentage(), ' ',
             progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
