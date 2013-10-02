@@ -119,10 +119,10 @@ class Database(object):
     def copy(self, name):
         """Make a copy of the database.
 
-        Internal links within the database will be updated to match the new database name.
+        Internal links within the database will be updated to match the new database name, i.e. ``("old name", "some id")`` will be converted to ``("new name", "some id")`` for all exchanges.
 
         Args:
-            * *name* (str): Name of the new database.
+            * *name* (str): Name of the new database. Must not already exist.
 
         """
         assert name not in databases, ValueError("This database exists")
@@ -382,4 +382,4 @@ Doesn't return anything, but writes a file to disk.
         return u"Brightway2 database %s" % self.database
 
     def __str__(self):
-        return self.__unicode__()
+        return unicode(self).encode('utf-8')

@@ -2,9 +2,7 @@
 from . import config, reset_meta
 import codecs
 import hashlib
-import numpy as np
 import os
-import progressbar
 import random
 import re
 import requests
@@ -14,29 +12,11 @@ try:
     import cStringIO as StringIO
 except ImportError:
     import StringIO
-try:
-    import stats_arrays as sa
-except ImportError:
-    import warnings
-    WARNING_TEXT = """
-
-It looks like you need to upgrade to the ``stats_arrays`` package. This is a new statistical toolkit that replaces the deprecated ``bw_stats_toolkit``. Read more at (https://bitbucket.org/cmutel/stats_arrays/).
-
-To do this, use `pip` (or whatever package manager you prefer) to install `stats_arrays`, e.g.:
-
-    pip install stats_arrays
-
-Then, enter a Python interpreter, and run the following:
-
-    from bw2data.utils import convert_from_stats_toolkit
-    convert_from_stats_toolkit()
-    """
-    warnings.warn(WARNING_TEXT)
-    sa = None
 
 # Maximum value for unsigned integer stored in 4 bytes
 MAX_INT_32 = 4294967295
 
+# Type of technosphere/biosphere exchanges used in processed Databases
 TYPE_DICTIONARY = {
     "production": 0,
     "technosphere": 1,
@@ -44,6 +24,25 @@ TYPE_DICTIONARY = {
 }
 
 DOWNLOAD_URL = "http://brightwaylca.org/data/"
+
+if config._windows:
+    # Colorama no workie, grumble grumble
+    # See http://stackoverflow.com/questions/9848889/colorama-for-python-not-returning-colored-print-lines-on-windows
+    class _Fore(object):
+        def __getattr__(self, arg):
+            return ""
+    Fore = _Fore()
+else:
+    class Fore(object):
+        BLACK = '\x1b[30m'
+        CYAN = '\x1b[36m'
+        MAGENTA = '\x1b[35m'
+        RESET = '\x1b[39m'
+        YELLOW = '\x1b[33m'
+        BLUE = '\x1b[34m'
+        GREEN = '\x1b[32m'
+        RED = '\x1b[31m'
+        WHITE = '\x1b[37m'
 
 
 def natural_sort(l):
@@ -63,12 +62,30 @@ def recursively_sort(obj):
         return obj
 
 
-def random_string(length):
+def random_string(length=8):
+    """Generate a random string of letters and numbers.
+
+    Args:
+        * *length* (int): Length of string, default is 8
+
+    Returns:
+        A string
+
+    """
     return ''.join(random.choice(string.letters + string.digits
                                  ) for i in xrange(length))
 
 
 def combine_methods(name, *ms):
+    """Combine LCIA methods by adding duplicate characterization factors.
+
+    Args:
+        * *ms* (one or more method ids): The method ids, e.g. ``("my method", "wow")``. Not the actual Method classes.
+
+    Returns:
+        The new Method
+
+    """
     from . import Method, methods
     data = {}
     units = set([methods[tuple(x)]["unit"] for x in ms])
@@ -86,13 +103,42 @@ def combine_methods(name, *ms):
     method.register(**meta)
     method.write(data)
     method.process()
+    return method
 
 
 def database_hash(data):
+    """Hash a Database.
+
+    Data is recursively sorted so that the hashes are consistent. Useful for exchanging data and making sure background databases are the same across computers.
+
+    Args:
+        * *data* (dict): The Database data.
+
+    Returns:
+        A MD5 hash string, hex-encoded.
+
+    """
     return hashlib.md5(unicode(recursively_sort(data))).hexdigest()
 
 
 def activity_hash(data):
+    """Hash an activity dataset.
+
+    Used to import data formats like ecospold 1 (ecoinvent v1-2) and SimaPro, where no unique attributes for datasets are given. This is clearly an imperfect and brittle solution, but there is no other obvious approach at this time.
+
+    Uses the following, in order:
+        * *name* Lower case
+        * *categories* In string form, joined together with ``""``.
+        * *unit* Lower case, default is ``""``.
+        * *location* Lower case, default is ``""``.
+
+    Args:
+        * *data* (list): The activity dataset data.
+
+    Returns:
+        A MD5 hash string, hex-encoded.
+
+    """
     string = (data["name"].lower() + \
         u"".join(data["categories"]) + \
         (data.get("unit", u"") or u"").lower() + \
@@ -101,6 +147,18 @@ def activity_hash(data):
 
 
 def download_file(filename):
+    """Download a file from ``DOWNLOAD_URL`` and write it to disk in ``downloads`` directory.
+
+    Streams download to reduce memory usage.
+
+    Args:
+        * *filename* (str): The filename to download.
+
+    Returns:
+        The path of the created file.
+
+    """
+
     dirpath = config.request_dir("downloads")
     filepath = os.path.join(dirpath, filename)
     download = requests.get(DOWNLOAD_URL + filename, stream=True).raw
@@ -136,6 +194,12 @@ def setup():
     from io import download_biosphere, download_methods
     config.create_basic_directories()
     config.is_temp_dir = False
+    config.load_preferences()
+    config.p["upgrades"] = {
+        "stats_array reformat": True,
+        "0.10 units restandardization": True,
+    }
+    config.save_preferences()
     download_biosphere()
     download_methods()
 
@@ -157,61 +221,3 @@ def create_in_memory_zipfile_from_directory(path):
     zf.close()
     memory_obj.seek(0)
     return memory_obj
-
-
-def convert_from_stats_toolkit():
-    """Convert all databases from ``bw_stats_toolkit`` to ``stats_arrays`` (https://bitbucket.org/cmutel/stats_arrays/)."""
-    def update_exchange(exc):
-        if exc.get('uncertainty type', None) is None:
-            return exc
-        if 'sigma' in exc:
-            exc['scale'] = exc['sigma']
-            del exc['sigma']
-        exc['loc'] = exc['amount']
-        if exc['uncertainty type'] == sa.LognormalUncertainty.id:
-            exc['negative'] = exc['amount'] < 0
-            exc['loc'] = np.log(np.abs(exc['amount']))
-        return exc
-
-    assert sa, "Must have `stats_arrays` package for this function"
-    from bw2data import Database, databases, Method, methods
-    print "Starting inventory conversion"
-    for database in databases:
-        print "Working on %s" % database
-        db = Database(database)
-        print "\t... loading ..."
-        data = db.load()
-        print "\t... converting ..."
-        new_data = {}
-
-        for index, (key, value) in enumerate(data.iteritems()):
-            if 'exchanges' in value:
-                value['exchanges'] = [update_exchange(exchange
-                    ) for exchange in value['exchanges']]
-            new_data[key] = value
-
-        print "\t... writing ..."
-        db.write(new_data)
-        db.process()
-    print "Inventory conversion finished\nStarting IA conversion"
-
-    widgets = ['IA methods: ', progressbar.Percentage(), ' ',
-               progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
-               progressbar.ETA()]
-    pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(methods.list)
-                                   ).start()
-
-    for index, name in enumerate(methods):
-        method = Method(name)
-        method.process()
-        pbar.update(index)
-    pbar.finish()
-    print "Conversion finished"
-
-
-def keyword_to_gephi_graph(database, keyword):
-    """Export a Gephi graph from a keyword in activity names"""
-    from . import Database, Filter
-    from bw2data.io.export_gexf import DatabaseSelectionToGEXF
-    query = Database(database).query(Filter("name", "in", keyword))
-    return DatabaseSelectionToGEXF(database, set(query.keys())).export()

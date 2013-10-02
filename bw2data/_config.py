@@ -25,9 +25,10 @@ class Config(object):
         self.reset(path)
         self.cache = {}
 
-    def check_dir(self, dir=None):
+    def check_dir(self, directory=None):
         """Check is directory is a directory and writeable."""
-        return os.path.isdir(self.dir) and os.access(dir or self.dir, os.W_OK)
+        return os.path.isdir(self.dir) and \
+            os.access(directory or self.dir, os.W_OK)
 
     def reset(self, path=None):
         """Reset to original configuration. Useful for testing."""
@@ -56,6 +57,7 @@ class Config(object):
                 self.dir, "preferences.json")))
         except:
             self.p = {"use_cache": True}
+            self.save_preferences()
 
     def save_preferences(self):
         """Serialize preferences to disk."""

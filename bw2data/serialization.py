@@ -85,7 +85,7 @@ class SerializedDict(object):
         return key in self.data
 
     def __str__(self):
-        return self.__unicode__()
+        return unicode(self).encode('utf-8')
 
     def __delitem__(self, name):
         del self.data[name]

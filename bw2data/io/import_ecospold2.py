@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*
 from __future__ import division
 from .. import Database, databases, mapping
-# from ..logs import get_io_logger
+from ..logs import get_io_logger
 from ..units import normalize_units
 from lxml import objectify, etree
 from stats_arrays.distributions import *
 import os
+import pprint
 import progressbar
 import warnings
 
@@ -206,12 +207,12 @@ class Ecospold2Importer(object):
         self.name = name
 
     def importer(self):
+        self.log, self.logfile = get_io_logger("es3-import")
         # Note: Creates biosphere3 database
         activities, biosphere, technosphere = Ecospold2DataExtractor().extract(
             self.datapath,
             self.metadatapath
         )
-        self.file = open("exchange-weirdness.txt", "w")
         self.create_biosphere3_database(biosphere)
         self.create_database(biosphere, technosphere, activities)
 
@@ -227,6 +228,7 @@ class Ecospold2Importer(object):
         if "biosphere3" in databases:
             del databases["biosphere3"]
 
+        print "Writing new biosphere database"
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             db = Database("biosphere3")
@@ -235,6 +237,7 @@ class Ecospold2Importer(object):
             db.process()
 
     def create_database(self, biosphere, technosphere, activities):
+        print "Processing database"
         for elem in activities:
             elem["unit"] = ""
             elem["type"] = "product"
@@ -250,15 +253,20 @@ class Ecospold2Importer(object):
                     exc['type'] = 'technosphere'
                     exc['input'] = (self.name, exc['activity'])
                 if exc['input'][1] is None:
+                    # This exchange wasn't linked correctly by ecoinvent
+                    # It is missing the "activityLinkId" attribute
+                    # See http://www.ecoinvent.org/database/ecoinvent-version-3/reports-of-changes/known-data-issues/
+                    # We ignore it for now, but add attributes to log it later
                     exc['input'] = None
+                    exc['activity filename'] = elem['filename']
+                    exc['activity name'] = elem['name']
                     continue
-                    # self.file.write("Activity name: %s\n" % elem['name'])
-                    # self.file.write('Flow name: %s\n' % exc['name'])
-                    # self.file.write('Filename: %s\n' % elem['filename'])
-                    # self.file.write('XML:\n%s\n' % exc['xml'])
 
         # Drop "missing" exchanges
         for elem in activities:
+            for exc in [x for x in elem["exchanges"] if not x['input']]:
+                self.log.warning(u"Dropped missing exchange: %s" % \
+                    pprint.pformat(exc, indent=2))
             elem["exchanges"] = [x for x in elem["exchanges"] if x['input']]
 
         data = dict([((self.name, elem['id']), elem) for elem in activities])
@@ -266,19 +274,27 @@ class Ecospold2Importer(object):
         if self.name in databases:
             del databases[self.name]
 
+        print "Writing new database"
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             db = Database(self.name)
             db.register("Ecospold2", ["biosphere3"], len(data))
             db.write(data)
 
-            # Purge weird exchanges without valid activities
+            # Purge any exchanges without valid activities
+            rewrite = False
             for value in data.values():
+                for exc in [x for x in value['exchanges'] \
+                        if x['input'] not in mapping]:
+                    rewrite = True
+                    self.log.critical(u"Purging unlinked exchange:\n%s" % \
+                        pprint.pformat(exc, indent=2))
                 value['exchanges'] = [x for x in value['exchanges'] if
                                       x['input'] in mapping]
 
-            # Rewrite with correct data
-            db.write(data)
+            if rewrite:
+                # Rewrite with correct data
+                db.write(data)
             db.process()
 
 

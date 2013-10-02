@@ -16,13 +16,14 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="0.9.3.3",
+    version="0.10.1",
     packages=packages,
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
     license=open('LICENSE.txt').read(),
     install_requires=[
         "brightway2",
+        "docopt",
         "lxml",
         "numpy",
         "progressbar",
@@ -33,6 +34,7 @@ setup(
     ],
     url="https://bitbucket.org/cmutel/brightway2-data",
     long_description=open('README.rst').read(),
+    scripts=["bw2data/bin/bw2-uptodate.py"],
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: End Users/Desktop',

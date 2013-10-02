@@ -1,14 +1,26 @@
 UNITS_NORMALIZATION = {
-    "mj": u"megajoule",
+    "ha": u"hectare",
+    "kbq": u"kilo Becquerel",
     "kg": u"kilogram",
-    "m3": u"cubic meter",
+    "km": u"kilometer",
+    "kwh": u"kilowatt hour",
     "m2": u"square meter",
-    'm3a': u"cubic meter-year",
     "m2a": u"square meter-year",
+    "m3": u"cubic meter",
+    "ma": u"meter-year",
+    "mj": u"megajoule",
+    "nm3": u"cubic meter",
+    "pkm": u"person kilometer",
+    "tkm": u"ton kilometer",
+    "vkm": u"vehicle kilometer",
     # SimaPro units to convert, ranging from sensible to bizarre
-    "personkm": u"pkm",  # SimaPro changes this but doesn't change tkm!?
+    "m3a": u"cubic meter-year",
+    "personkm": u"person kilometer",
     "p": u"unit",
-    "my": u"ma",  # SimaPro is much better (meter-year)
+    "my": u"meter-year",
 }
 
 normalize_units = lambda x: UNITS_NORMALIZATION.get(x.lower(), x)
+
+
+

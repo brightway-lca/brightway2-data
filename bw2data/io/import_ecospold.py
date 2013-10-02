@@ -139,6 +139,10 @@ class Ecospold1DataExtractor(object):
         max_ = floatish(exc.get("maxValue"))
         sigma = floatish(exc.get("standardDeviation95"))
 
+        if uncertainty == 1 and sigma in (0, 1):
+            # Bad data
+            uncertainty = 0
+
         if uncertainty == 1:
             # Lognormal
             data.update({
@@ -148,8 +152,8 @@ class Ecospold1DataExtractor(object):
                 'scale': math.log(math.sqrt(float(sigma))),
                 'negative': mean < 0,
             })
-            if data['scale'] == 0 or np.isnan(data['scale']):
-                # Bad ecoinvent data
+            if np.isnan(data['scale']):
+                # Bad data
                 data['uncertainty type'] = UndefinedUncertainty.id
                 data['loc'] = data['amount']
                 del data["scale"]

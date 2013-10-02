@@ -52,7 +52,7 @@ class Result(object):
         self.result = result
 
     def __str__(self):
-        return u"Query result with %i entries" % len(self.result)
+        return "Query result with %i entries" % len(self.result)
 
     def __repr__(self):
         if len(self.result) > 20:

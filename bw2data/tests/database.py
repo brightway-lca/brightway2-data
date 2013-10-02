@@ -89,3 +89,8 @@ class DatabaseTest(BW2DataTest):
         d = Database("food")
         with self.assertRaises(UnknownObject):
             d.write(food)
+
+    def test_repr(self):
+        d = Database("food")
+        self.assertTrue(isinstance(str(d), str))
+        self.assertTrue(isinstance(unicode(d), unicode))

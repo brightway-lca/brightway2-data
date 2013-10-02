@@ -5,5 +5,5 @@ progressbar
 requests>=1.1.0
 scipy
 voluptuous
-brightway2>=0.9.1
+brightway2>=0.10
 stats_arrays

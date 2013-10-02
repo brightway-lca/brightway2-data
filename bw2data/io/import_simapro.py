@@ -31,13 +31,6 @@ def detoxify(string, log):
     return [name, geo]
 
 
-def is_number(x):
-    try:
-        float(x)
-        return True
-    except:
-        return False
-
 INTRODUCTION = """Starting SimaPro import:
 \tFilepath: %s
 \tDelimiter: %s
@@ -46,7 +39,21 @@ INTRODUCTION = """Starting SimaPro import:
 \tDefault geo: %s
 """
 
-SIMAPRO_BIOSPHERE = set(["Resources", "Emissions to air", "Emissions to water", "Emissions to soil"])
+SIMAPRO_BIOSPHERE = {
+    "Emissions to air": "air",
+    "Resources": "resource",
+    "Emissions to water": "water",
+    "Emissions to soil": "soil",
+}
+
+SIMAPRO_BIO_SUBCATEGORIES = {
+    "high. pop.": u'high population density',
+    "low. pop.": u'low population density',
+    "low. pop., long-term": u'low population density, long-term',
+    "stratosphere + troposphere": u'lower stratosphere + upper troposphere',
+    "groundwater": u'ground-',
+    "groundwater, long-term": u'ground-, long-term',
+}
 
 
 class SimaProImporter(object):
@@ -71,11 +78,11 @@ class SimaProImporter(object):
         * Links to background databases like ecoinvent can be included
 
     However, the SimaPro importer has the following limitations:
-        * Multioutput datasets are not supported
-        * Linking against datasets other than ecoinvent is not tested (most are not available otherwise)
-        * Modifying an existing database is not supported; it can only be overwritten completely.
+        * Multioutput datasets are not supported.
         * Uncertainty data is not imported.
-        * Biosphere flows are not imported.
+        * Social and economic flows are ignored.
+        * Linking against datasets other than ecoinvent is not tested (most are not available otherwise).
+        * Modifying an existing database is not supported; it can only be overwritten completely.
         * Not all SimaPro unit changes from ecoinvent are included (no comprehensive list seems to be available)
         * SimaPro unit conversions will cause problems matching to background databases (e.g. if you specify an import in megajoules, and the ecoinvent process is defined in kWh, they won't match)
 
@@ -94,7 +101,7 @@ class SimaProImporter(object):
     Args:
         * ``filepath``: Filepath for file to important.
         * ``delimiter`` (str, default=tab character): Delimiter character for CSV file.
-        * ``depends`` (list, default= ``['ecoinvent 2.2']`` ): List of databases referenced by datasets in this file.
+        * ``depends`` (list, default= ``['ecoinvent 2.2']`` ): List of databases referenced by datasets in this file. The database *biosphere* is always matched against.
         * ``overwrite`` (bool, default=False): Overwrite existing database.
         * ``name`` (str, default=None): Name of the database to import. If not specified, the SimaPro project name will be used.
         * ``default_geo`` (str, default= ``GLO`` ): Default location for datasets with no location is specified.
@@ -299,13 +306,28 @@ class SimaProImporter(object):
             elif len(line) == 1:
                 label = line[0]
             elif label in SIMAPRO_BIOSPHERE:
-                continue
+                categories = [
+                    SIMAPRO_BIOSPHERE[label],
+                    SIMAPRO_BIO_SUBCATEGORIES.get(line[1], line[1])
+                ]
+                exchanges.append({
+                    'name': line[0],
+                    'categories': filter(lambda x: x, categories),
+                    'amount': float(line[2]),
+                    'loc': float(line[2]),
+                    'uncertainty type': 0,
+                    'unit': normalize_units(line[3]),
+                    'uncertainty': line[4],
+                    'biosphere': True,
+                })
             else:
                 # Try to interpret as ecoinvent
                 name, geo = detoxify(line[0], self.log)
                 exchanges.append({
                     'name': name,
                     'amount': float(line[1]),
+                    'loc': float(line[1]),
+                    'uncertainty type': 0,
                     'comment': label,
                     'unit': normalize_units(line[2]),
                     'uncertainty': line[3],
@@ -324,6 +346,7 @@ class SimaProImporter(object):
         line = dataset[self.get_exchanges_index(dataset) + 1]
         return {
             'amount': float(line[1]),
+            'loc': float(line[1]),
             'input': (self.db_name, data['code']),
             'uncertainty type': 0,
             'type': 'production'
@@ -349,8 +372,11 @@ class SimaProImporter(object):
 
         Need to be able to match against both ``(name, unit, geo)`` and ``(name, unit)``.
 
+        Also loads the *biosphere* database.
+
         Global variables:
             * ``self.background``: dict
+            * ``self.biosphere``: dict
 
         """
         background_data = {}
@@ -362,6 +388,8 @@ class SimaProImporter(object):
             self.background[(value['name'].lower(), value['unit'],
                             value['location'])] = key
             self.background[(value['name'].lower(), value['unit'])] = key
+
+        self.biosphere = Database("biosphere").load()
 
     def link_exchanges(self, dataset):
         """Link all exchanges in a given dataset"""
@@ -378,6 +406,18 @@ class SimaProImporter(object):
         This method looks first in the foreground, then the background; if an exchange isn't found an error is rasied."""
         if exc.get('type', None) == 'production':
             return exc
+        elif exc.get('biosphere', False):
+            try:
+                code = ('biosphere', activity_hash(exc))
+                assert code in self.biosphere
+                exc['input'] = code
+                exc['type'] = 'biosphere'
+                exc['uncertainty type'] = 0
+                del exc['biosphere']
+                return exc
+            except:
+                raise MissingExchange("Can't find biosphere flow\n%s" % \
+                    pprint.pformat(exc, indent=4))
         elif (exc["name"], exc["unit"]) in self.foreground:
             exc["input"] = self.foreground[(exc["name"], exc["unit"])]
             found = True

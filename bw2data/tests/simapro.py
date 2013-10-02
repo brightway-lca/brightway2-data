@@ -9,6 +9,16 @@ SP_FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "simapro")
 
 
 class SimaProImportTest(BW2DataTest):
+    def extra_setup(self):
+        # SimaPro importer always wants biosphere database
+        database = Database("biosphere")
+        database.register(
+            format="Test data",
+            depends=[],
+            num_processes=0
+        )
+        database.write({})
+
     def filepath(self, name):
         return os.path.join(SP_FIXTURES_DIR, name + '.txt')
 
@@ -88,6 +98,7 @@ class SimaProImportTest(BW2DataTest):
             "code": u'6524377b64855cc3daf13bd1bcfe0385',
             "exchanges": [{
                 'amount': 1.0,
+                'loc': 1.0,
                 'input': ('W00t', u'6524377b64855cc3daf13bd1bcfe0385'),
                 'type': 'production',
                 'uncertainty type': 0}],
@@ -105,6 +116,7 @@ class SimaProImportTest(BW2DataTest):
         data = Database("W00t").load().values()[0]
         self.assertEqual(data['exchanges'], [{
             'amount': 1.0,
+            'loc': 1.0,
             'input': ('W00t', u'6524377b64855cc3daf13bd1bcfe0385'),
             'type': 'production',
             'uncertainty type': 0

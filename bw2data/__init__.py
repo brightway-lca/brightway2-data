@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*
+__version__ = (0, 10, 1)
+
 from _config import config
-from meta import databases, methods, mapping, reset_meta, geomapping
+from meta import databases, methods, mapping, reset_meta, geomapping, \
+    weightings, normalizations
 from serialization import JsonWrapper
 from database import Database
 from method import Method
@@ -14,4 +17,5 @@ import utils
 import validate
 import io
 
-__version__ = (0, 9, 3, 3)
+from upgrades import check_status
+check_status()

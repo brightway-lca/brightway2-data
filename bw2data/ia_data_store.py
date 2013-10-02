@@ -57,7 +57,7 @@ Args:
         return u"%s: %s" % (self.label.title(), u"-".join(self.name))
 
     def __str__(self):
-        return self.__unicode__()
+        return unicode(self).encode('utf-8')
 
     def get_abbreviation(self):
         """Abbreviate a method identifier (a tuple of long strings) for a filename. Random characters are added because some methods have similar names which would overlap when abbreviated."""
