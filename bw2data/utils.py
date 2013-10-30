@@ -25,25 +25,6 @@ TYPE_DICTIONARY = {
 
 DOWNLOAD_URL = "http://brightwaylca.org/data/"
 
-if config._windows:
-    # Colorama no workie, grumble grumble
-    # See http://stackoverflow.com/questions/9848889/colorama-for-python-not-returning-colored-print-lines-on-windows
-    class _Fore(object):
-        def __getattr__(self, arg):
-            return ""
-    Fore = _Fore()
-else:
-    class Fore(object):
-        BLACK = '\x1b[30m'
-        CYAN = '\x1b[36m'
-        MAGENTA = '\x1b[35m'
-        RESET = '\x1b[39m'
-        YELLOW = '\x1b[33m'
-        BLUE = '\x1b[34m'
-        GREEN = '\x1b[32m'
-        RED = '\x1b[31m'
-        WHITE = '\x1b[37m'
-
 
 def natural_sort(l):
     """Sort the given list in the way that humans expect"""

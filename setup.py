@@ -16,13 +16,14 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="0.10.1",
+    version="0.10.2",
     packages=packages,
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
     license=open('LICENSE.txt').read(),
     install_requires=[
         "brightway2",
+        "colorama",
         "docopt",
         "lxml",
         "numpy",

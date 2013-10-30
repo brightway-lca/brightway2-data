@@ -9,6 +9,7 @@ from time import time
 import datetime
 import numpy as np
 import os
+import random
 import warnings
 try:
     import cPickle as pickle
@@ -149,6 +150,17 @@ class Database(object):
         with open(filepath, "wb") as f:
             pickle.dump(self.load(), f, protocol=pickle.HIGHEST_PROTOCOL)
         return filepath
+
+    def random(self):
+        """Return a random activity key.
+
+        Returns a random activity key, or ``None`` (and issues a warning) if the current database is empty."""
+        keys = self.load().keys()
+        if not keys:
+            warnings.warn("This database is empty")
+            return None
+        else:
+            return random.choice(keys)
 
     def revert(self, version):
         """Return data to a previous state.

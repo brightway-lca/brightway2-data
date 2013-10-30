@@ -7,6 +7,14 @@ import tempfile
 import warnings
 
 
+def _ran_from_ipython():
+    try:
+        __IPYTHON__
+        return True
+    except NameError:
+        return False
+
+
 class Config(object):
     """A singleton that store configuration settings. Default data directory is ``brightway`` in the user's home directory, and is stored as ``config.dir``. Other configuration settings can also be assigned as needed.
 
@@ -17,6 +25,7 @@ class Config(object):
     version = 0.1
     basic_directories = ("processed", "intermediate", "backups", "logs")
     _windows = platform.system() == "Windows"
+    _ipython = _ran_from_ipython()
 
     # TODO: Create directory if needed (and basic dirs)
 

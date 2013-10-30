@@ -7,3 +7,4 @@ scipy
 voluptuous
 brightway2>=0.10
 stats_arrays
+colorama

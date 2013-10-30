@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 from . import Database, databases, Method, methods, config
-from .utils import activity_hash, Fore
+from .colors import Fore, safe_colorama
 from .units import normalize_units
+from .utils import activity_hash
 import numpy as np
 import progressbar
 import sys
 import warnings
+
 
 STATS_ARRAY_WARNING = "\n\nIt looks like you need to upgrade to the ``" + \
     Fore.GREEN + "stats_arrays" + Fore.RESET + \
@@ -32,11 +34,12 @@ def check_status():
     try:
         import stats_arrays
     except ImportError:
-        warnings.warn(STATS_ARRAY_WARNING)
-        try:
+        warnings.warn(safe_colorama(STATS_ARRAY_WARNING))
+        if config._ipython:
             # ipython won't let us leave the shell...
-            __IPYTHON__
-        except:
+            print "Please exit the IPython shell now"
+            return
+        else:
             sys.exit(0)
     updates = []
     if not databases.list:
@@ -51,7 +54,7 @@ def check_status():
     if not config.p['upgrades'].get('0.10 units restandardization', False):
         updates.append('0.10 units restandardization')
     if updates:
-        warnings.warn(UPTODATE_WARNING)
+        warnings.warn(safe_colorama(UPTODATE_WARNING))
     return updates
 
 
