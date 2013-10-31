@@ -2,7 +2,14 @@ from . import config
 from contextlib import contextmanager
 
 
-if not config._ipython:
+class _Fore(object):
+    def __getattr__(self, *args, **kwargs):
+        return ""
+
+if not hasattr(config, "p"):
+    config.load_preferences()
+
+if not config._ipython and not config.p.get('no_color'):
     from colorama import Fore, init, deinit
 
     # ASCII color codes
@@ -20,9 +27,6 @@ else:
     # IPython seems to screw up colorama, maybe by not printing to stdout
     # Can globally disable for windows as well...
     # See also http://stackoverflow.com/questions/9848889/colorama-for-python-not-returning-colored-print-lines-on-windows
-    class _Fore(object):
-        def __getattr__(self, *args, **kwargs):
-            return ""
     Fore = _Fore()
 
     def init(*args, **kwargs):
