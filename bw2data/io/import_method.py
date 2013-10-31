@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*
-from .. import Database, Method, methods, mapping
+from .. import Database, Method, methods, mapping, config
 from ..logs import get_io_logger
 from ..units import normalize_units
 from ..utils import activity_hash
@@ -45,7 +45,7 @@ Does not have any arguments; instead, instantiate the class, and then import usi
         self.log, self.logfile = get_io_logger("lcia-import")
 
         try:
-            self.biosphere_data = Database("biosphere").load()
+            self.biosphere_data = Database(config.biosphere).load()
         except:
             # Biosphere not loaded
             raise ValueError("Can't find biosphere database; check configuration.")
@@ -78,12 +78,12 @@ Does not have any arguments; instead, instantiate the class, and then import usi
         data = [self.add_cf(o) for o in ds.flowData.iterchildren()]
 
         if self.new_flows:
-            biosphere = Database("biosphere")
+            biosphere = Database(config.biosphere)
             biosphere_data = biosphere.load()
             # Could be considered dirty to .pop() inside list comprehension
             # but it works. The dictionary constructor also eliminates
             # duplicates.
-            biosphere_data.update(dict([(("biosphere", o.pop("hash")), o
+            biosphere_data.update(dict([((config.biosphere, o.pop("hash")), o
                 ) for o in self.new_flows]))
             biosphere.write(biosphere_data)
             biosphere.process()
@@ -93,7 +93,7 @@ Does not have any arguments; instead, instantiate the class, and then import usi
             method = Method(name)
             method.register(unit=unit, description=description, num_cfs=len(data))
             method.write([
-                [("biosphere", o[0]), o[1], "GLO"] for o in data])
+                [(config.biosphere, o[0]), o[1], "GLO"] for o in data])
             method.process()
 
     def add_cf(self, cf):

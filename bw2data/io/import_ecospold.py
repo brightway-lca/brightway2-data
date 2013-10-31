@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*
 from __future__ import division
-from .. import Database, mapping
+from .. import Database, mapping, config
 from ..logs import get_io_logger
 from ..utils import activity_hash
 from ..units import normalize_units
@@ -202,7 +202,7 @@ class Ecospold1Importer(object):
     Does not have any arguments; instead, instantiate the class, and then import using the ``importer`` method, i.e. ``Ecospold1Importer().importer(filepath)``.
 
     """
-    def importer(self, path, name, depends=["biosphere"]):
+    def importer(self, path, name, depends=[config.biosphere]):
         """Import an inventory dataset, or a directory of inventory datasets.
 
         .. image:: images/import-method.png
@@ -246,9 +246,9 @@ class Ecospold1Importer(object):
         data = linked_data + self.new_activities
 
         if self.new_biosphere:
-            self.new_biosphere = dict([((u"biosphere", o.pop("hash")), o) \
+            self.new_biosphere = dict([((config.biosphere, o.pop("hash")), o) \
                 for o in self.new_biosphere])
-            biosphere = Database("biosphere")
+            biosphere = Database(config.biosphere)
             biosphere_data = biosphere.load()
             biosphere_data.update(self.new_biosphere)
             biosphere.write(biosphere_data)
@@ -470,7 +470,7 @@ Exchanges should also be copied and allocated for any other co-products.
         """Set the ``type`` attribute for each exchange, one of either (``production``, ``technosphere``, ``biosphere``). ``production`` defines the amount produced by the activity dataset (default is 1)."""
         for ds in data:
             for exc in ds["exchanges"]:
-                if exc["input"][0] == "biosphere":
+                if exc["input"][0] == config.biosphere:
                     exc["type"] = "biosphere"
                 elif exc["input"][1] == ds["hash"]:
                     exc["type"] = "production"

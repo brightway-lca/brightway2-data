@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*
-from .. import Database, databases
+from .. import Database, databases, config
 from ..logs import get_io_logger
 from ..utils import activity_hash
 from ..units import normalize_units
@@ -389,7 +389,7 @@ class SimaProImporter(object):
                             value['location'])] = key
             self.background[(value['name'].lower(), value['unit'])] = key
 
-        self.biosphere = Database("biosphere").load()
+        self.biosphere = Database(config.biosphere).load()
 
     def link_exchanges(self, dataset):
         """Link all exchanges in a given dataset"""

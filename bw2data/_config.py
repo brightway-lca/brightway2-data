@@ -156,5 +156,11 @@ class Config(object):
         """Return `dir` in Unicode"""
         return self.dir.decode('utf-8')
 
+    @property
+    def biosphere(self):
+        if not hasattr(self, "p"):
+            self.load_preferences()
+        return self.p.get("biosphere_database", "biosphere")
+
 
 config = Config()

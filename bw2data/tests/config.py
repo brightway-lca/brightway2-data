@@ -32,3 +32,14 @@ class ConfigTest(BW2DataTest):
         self.assertEqual(config.p['saved'], "yep")
         data = json.load(open(os.path.join(config.dir, "preferences.json")))
         self.assertEqual(data['saved'], "yep")
+
+    def test_default_biosphere(self):
+        self.assertEqual(config.biosphere, "biosphere")
+
+    def test_set_retrieve_biosphere(self):
+        config.p['biosphere_database'] = "foo"
+        config.save_preferences()
+        config.load_preferences()
+        self.assertEqual(config.biosphere, "foo")
+        del config.p['biosphere_database']
+        config.save_preferences()

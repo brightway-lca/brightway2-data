@@ -257,6 +257,7 @@ class Database(object):
             The intermediate data, a dictionary.
 
         """
+        print "Loading database:", self.database
         if self.database not in databases:
             raise UnknownObject("This database is not yet registered")
         if version is None and config.p.get("use_cache", False) and \
