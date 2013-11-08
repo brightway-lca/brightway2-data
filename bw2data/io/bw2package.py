@@ -28,16 +28,16 @@ class BW2PackageExporter(object):
         return data
 
     @classmethod
-    def export_ia_method(cls, name):
-        filepath = os.path.join(config.request_dir("export"),
+    def export_ia_method(cls, name, folder="export"):
+        filepath = os.path.join(config.request_dir(folder),
             ".".join(name) + ".bw2iapackage")
         with bz2.BZ2File(filepath, "w") as f:
             f.write(JsonWrapper.dumps([cls._prepare_method(name)]))
         return filepath
 
     @classmethod
-    def export_all_methods(cls):
-        filepath = os.path.join(config.request_dir("export"),
+    def export_all_methods(cls, folder="export"):
+        filepath = os.path.join(config.request_dir(folder),
             "methods.bw2iapackage")
         with bz2.BZ2File(filepath, "w") as f:
             f.write(JsonWrapper.dumps(
@@ -46,18 +46,22 @@ class BW2PackageExporter(object):
         return filepath
 
     @classmethod
-    def export_database(cls, name, include_dependencies):
+    def export_database(cls, name, include_dependencies=False, **kwargs):
         assert name in databases, "Can't find this database"
+
+        extra_string = kwargs.get("extra_string", "")
+        folder = kwargs.get("folder", "export")
+
         if include_dependencies:
             for dependency in databases[name]["depends"]:
                 assert dependency in databases, \
                     "Can't find dependent database %s" % dependency
             to_export = [name] + databases[name]["depends"]
-            filename = name + ".fat.bw2package"
+            filename = name + extra_string + ".fat.bw2package"
         else:
             to_export = [name]
-            filename = name + ".bw2package"
-        filepath = os.path.join(config.request_dir("export"), filename)
+            filename = name + extra_string + ".bw2package"
+        filepath = os.path.join(config.request_dir(folder), filename)
         with bz2.BZ2File(filepath, "w") as f:
             f.write(JsonWrapper.dumps({db_name: {
                 "metadata": databases[db_name],
