@@ -2,6 +2,7 @@
 from . import BW2DataTest
 from .. import Database, databases
 from ..errors import UnknownObject
+import copy
 from fixtures import food, biosphere
 
 
@@ -94,3 +95,19 @@ class DatabaseTest(BW2DataTest):
         d = Database("food")
         self.assertTrue(isinstance(str(d), str))
         self.assertTrue(isinstance(unicode(d), unicode))
+
+    def test_rename(self):
+        d = Database("biosphere")
+        d.register("Tests", [], len(biosphere))
+        d.write(biosphere)
+        d = Database("food")
+        d.register("Tests", ["biosphere"], len(food))
+        d.write(copy.deepcopy(food))
+        ndb = d.rename("buildings")
+        ndb_data = ndb.load()
+        self.assertEqual(ndb.database, "buildings")
+        self.assertEqual(len(ndb_data), len(food))
+        for key in ndb_data:
+            self.assertEqual(key[0], "buildings")
+            for exc in ndb_data[key]['exchanges']:
+                self.assertTrue(exc['input'][0] in ('biosphere', 'buildings'))
