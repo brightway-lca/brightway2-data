@@ -87,6 +87,16 @@ def combine_methods(name, *ms):
     return method
 
 
+def combine_databases(name, *dbs):
+    """Combine databases into new database called ``name``."""
+    pass
+
+
+def merge_databases(parent_db, *others):
+    """Merge ``others`` into ``parent_db``, including updating exchanges."""
+    pass
+
+
 def database_hash(data):
     """Hash a Database.
 

@@ -5,6 +5,7 @@ from ..logs import get_io_logger
 from ..units import normalize_units
 from lxml import objectify, etree
 from stats_arrays.distributions import *
+import hashlib
 import os
 import pprint
 import progressbar
@@ -99,9 +100,22 @@ class Ecospold2DataExtractor(object):
             'location': stem.activityDescription.geography.shortname.text,
             'exchanges': [self.extract_exchange(exc) for exc in stem.flowData.iterchildren()],
             'filename': filename,
-            'id': stem.activityDescription.activity.get('id')
+            'activity': stem.activityDescription.activity.get('id')
         }
+
+        candidates = [exc for exc in data['exchanges'] if exc.get('product', False) and exc['amount']]
+        assert len(candidates) == 1
+        flow = candidates[0]['flow']
+
+        data['id'] = hashlib.md5(data['activity'] + flow).hexdigest()
+        data['id_from'] = {
+            'activity': data['activity'],
+            'flow': flow
+        }
+
         # Purge empties and exchanges with `amount` of zero
+        # Excludes parameters, by products (amount of zero),
+        # non-allocated reference products (amount of zero)
         data['exchanges'] = [x for x in data['exchanges'] if x and x['amount'] != 0]
         return data
 
@@ -118,17 +132,30 @@ class Ecospold2DataExtractor(object):
             print exc.tag
             raise ValueError
 
-        is_product = hasattr(exc, "outputGroup") and not is_biosphere
+        # Output group 0 is reference product
+        # 2 is by-product
+        is_product = (not is_biosphere
+            and hasattr(exc, "outputGroup")
+            and exc.outputGroup.text == "0")
+        amount = float(exc.get('amount'))
+
+        if is_product and amount == 0.:
+            # This is system modeled multi-output dataset
+            # and a "fake" exchange. It represents a possible
+            # output which isn't actualized in this allocation
+            # and can therefore be ignored. This shouldn't exist
+            # at all, but the data format is not perfect.
+            return {}
 
         data = {
             'flow': exc.get(flow),
-            'amount': float(exc.get('amount')),
+            'amount': amount,
             'biosphere': is_biosphere,
             'product': is_product,
             'name': exc.name.text,
             # 'xml': etree.tostring(exc, pretty_print=True)
         }
-        if not is_biosphere and not is_product:
+        if not is_biosphere:
             data["activity"] = exc.get("activityLinkId")
         if hasattr(exc, "unitName"):
             data['unit'] = exc.unitName.text
@@ -249,10 +276,7 @@ class Ecospold2Importer(object):
                 elif exc['biosphere']:
                     exc['type'] = 'biosphere'
                     exc['input'] = ('biosphere3', exc['flow'])
-                else:
-                    exc['type'] = 'technosphere'
-                    exc['input'] = (self.name, exc['activity'])
-                if exc['input'][1] is None:
+                elif exc['activity'] is None:
                     # This exchange wasn't linked correctly by ecoinvent
                     # It is missing the "activityLinkId" attribute
                     # See http://www.ecoinvent.org/database/ecoinvent-version-3/reports-of-changes/known-data-issues/
@@ -260,7 +284,12 @@ class Ecospold2Importer(object):
                     exc['input'] = None
                     exc['activity filename'] = elem['filename']
                     exc['activity name'] = elem['name']
-                    continue
+                else:
+                    exc['type'] = 'technosphere'
+                    exc['input'] = (
+                        self.name,
+                        hashlib.md5(exc['activity'] + exc['flow']).hexdigest()
+                    )
 
         # Drop "missing" exchanges
         for elem in activities:
