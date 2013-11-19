@@ -34,7 +34,8 @@ def check_status():
     try:
         import stats_arrays
     except ImportError:
-        warnings.warn(safe_colorama(STATS_ARRAY_WARNING))
+        with safe_colorama():
+            warnings.warn(STATS_ARRAY_WARNING)
         if config._ipython:
             # ipython won't let us leave the shell...
             print "Please exit the IPython shell now"
@@ -54,7 +55,8 @@ def check_status():
     if not config.p['upgrades'].get('0.10 units restandardization', False):
         updates.append('0.10 units restandardization')
     if updates:
-        warnings.warn(safe_colorama(UPTODATE_WARNING))
+        with safe_colorama():
+            warnings.warn(UPTODATE_WARNING)
     return updates
 
 
