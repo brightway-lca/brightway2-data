@@ -22,17 +22,19 @@ PM_MAPPING = {
 
 
 class Ecospold2DataExtractor(object):
-    def extract_metadata(self, dirpath):
+    @classmethod
+    def extract_metadata(cls, dirpath):
         for filename in (
             "IntermediateExchanges.xml",
             "ElementaryExchanges.xml"
         ):
             assert os.path.exists(os.path.join(dirpath, filename))
-        biosphere = self.extract_biosphere_metadata(dirpath)
-        technosphere = self.extract_technosphere_metadata(dirpath)
+        biosphere = cls.extract_biosphere_metadata(dirpath)
+        technosphere = cls.extract_technosphere_metadata(dirpath)
         return biosphere, technosphere
 
-    def extract_technosphere_metadata(self, dirpath):
+    @classmethod
+    def extract_technosphere_metadata(cls, dirpath):
         def extract_metadata(o):
             return {
                 'name': o.name.text,
@@ -45,7 +47,9 @@ class Ecospold2DataExtractor(object):
         ).getroot()
         return [extract_metadata(ds) for ds in root.iterchildren()]
 
-    def extract_biosphere_metadata(self, dirpath):
+
+    @classmethod
+    def extract_biosphere_metadata(cls, dirpath):
         def extract_metadata(o):
             return {
                 'name': o.name.text,
@@ -62,7 +66,8 @@ class Ecospold2DataExtractor(object):
         ).getroot()
         return [extract_metadata(ds) for ds in root.iterchildren()]
 
-    def extract_activities(self, dirpath):
+    @classmethod
+    def extract_activities(cls, dirpath):
         assert os.path.exists(dirpath)
         filelist = [filename for filename in os.listdir(dirpath)
                     if os.path.isfile(os.path.join(dirpath, filename))
@@ -83,13 +88,14 @@ class Ecospold2DataExtractor(object):
 
         data = []
         for index, filename in enumerate(filelist):
-            data.append(self.extract_activity(dirpath, filename))
+            data.append(cls.extract_activity(dirpath, filename))
             pbar.update(index)
         pbar.finish()
 
         return data
 
-    def extract_activity(self, dirpath, filename):
+    @classmethod
+    def extract_activity(cls, dirpath, filename):
         root = objectify.parse(open(os.path.join(dirpath, filename))).getroot()
         if hasattr(root, "activityDataset"):
             stem = root.activityDataset
@@ -98,7 +104,7 @@ class Ecospold2DataExtractor(object):
         data = {
             'name': stem.activityDescription.activity.activityName.text,
             'location': stem.activityDescription.geography.shortname.text,
-            'exchanges': [self.extract_exchange(exc) for exc in stem.flowData.iterchildren()],
+            'exchanges': [cls.extract_exchange(exc) for exc in stem.flowData.iterchildren()],
             'filename': filename,
             'activity': stem.activityDescription.activity.get('id')
         }
@@ -221,9 +227,10 @@ class Ecospold2DataExtractor(object):
 
         return data
 
-    def extract(self, files_dir, meta_dir):
-        biosphere, technosphere = self.extract_metadata(meta_dir)
-        activities = self.extract_activities(files_dir)
+    @classmethod
+    def extract(cls, files_dir, meta_dir):
+        biosphere, technosphere = cls.extract_metadata(meta_dir)
+        activities = cls.extract_activities(files_dir)
         return activities, biosphere, technosphere
 
 
@@ -236,7 +243,7 @@ class Ecospold2Importer(object):
     def importer(self):
         self.log, self.logfile = get_io_logger("es3-import")
         # Note: Creates biosphere3 database
-        activities, biosphere, technosphere = Ecospold2DataExtractor().extract(
+        activities, biosphere, technosphere = Ecospold2DataExtractor.extract(
             self.datapath,
             self.metadatapath
         )

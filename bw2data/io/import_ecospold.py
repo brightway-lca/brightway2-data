@@ -21,7 +21,8 @@ BIOSPHERE = ("air", "water", "soil", "resource")
 
 
 class Ecospold1DataExtractor(object):
-    def extract(self, path, log):
+    @classmethod
+    def extract(cls, path, log):
         data = []
         if os.path.isdir(path):
             files = [os.path.join(path, y) for y in filter(
@@ -45,13 +46,14 @@ class Ecospold1DataExtractor(object):
                 continue
 
             for dataset in root.iterchildren():
-                data.append(self.process_dataset(dataset))
+                data.append(cls.process_dataset(dataset))
 
             pbar.update(index)
         pbar.finish()
         return data
 
-    def process_dataset(self, dataset):
+    @classmethod
+    def process_dataset(cls, dataset):
         ref_func = dataset.metaInformation.processInformation.\
             referenceFunction
         data = {
@@ -63,7 +65,7 @@ class Ecospold1DataExtractor(object):
                 geography.get("location"),
             "code": int(dataset.get("number")),
             "unit": normalize_units(ref_func.get("unit")),
-            "exchanges": self.process_exchanges(dataset)
+            "exchanges": cls.process_exchanges(dataset)
             }
         # Convert ("foo", "unspecified") to ("foo",)
         while data["categories"] and data["categories"][-1] in (
@@ -71,30 +73,33 @@ class Ecospold1DataExtractor(object):
             data["categories"] = data["categories"][:-1]
         return data
 
-    def process_exchanges(self, dataset):
+    @classmethod
+    def process_exchanges(cls, dataset):
         data = []
         # Skip definitional exchange - we assume this already
         for exc in dataset.flowData.iterchildren():
             if exc.tag in (
                     "{http://www.EcoInvent.org/EcoSpold01}exchange",
                     "exchange"):
-                data.append(self.process_exchange(exc, dataset))
+                data.append(cls.process_exchange(exc, dataset))
             elif exc.tag in (
                     "{http://www.EcoInvent.org/EcoSpold01}allocation",
                     "allocation"):
-                data.append(self.process_allocation(exc, dataset))
+                data.append(cls.process_allocation(exc, dataset))
             else:
                 raise ValueError("Flow data type %s not understood" % exc.tag)
         return data
 
-    def process_allocation(self, exc, dataset):
+    @classmethod
+    def process_allocation(cls, exc, dataset):
         return {
             "reference": int(exc.get("referenceToCoProduct")),
             "fraction": float(exc.get("fraction")),
             "exchanges": [int(c.text) for c in exc.iterchildren()]
         }
 
-    def process_exchange(self, exc, dataset):
+    @classmethod
+    def process_exchange(cls, exc, dataset):
         # if exc.get("name") == dataset.metaInformation.processInformation.\
         #         referenceFunction.get("name") != None and float(
         #         exc.get("meanValue", 0.)) == 1.0:
@@ -123,9 +128,10 @@ class Ecospold1DataExtractor(object):
 
         if exc.get("generalComment"):
             data["comment"] = exc.get("generalComment")
-        return self.process_uncertainty_fields(exc, data)
+        return cls.process_uncertainty_fields(exc, data)
 
-    def process_uncertainty_fields(self, exc, data):
+    @classmethod
+    def process_uncertainty_fields(cls, exc, data):
         uncertainty = int(exc.get("uncertaintyType", 0))
 
         def floatish(x):
@@ -214,14 +220,14 @@ class Ecospold1Importer(object):
         """
 
         if LognormalUncertainty is None:
-            print "``stats_array`` not installed!"
+            warnings.warn("``stats_array`` not installed!")
             return
 
         self.log, self.logfile = get_io_logger("lci-import")
         self.new_activities = []
         self.new_biosphere = []
 
-        data = Ecospold1DataExtractor().extract(path, self.log)
+        data = Ecospold1DataExtractor.extract(path, self.log)
         data = self.allocate_datasets(data)
         data = self.apply_transforms(data)
         data = self.add_hashes(data)
