@@ -98,7 +98,7 @@ Does not have any arguments; instead, instantiate the class, and then import usi
 
     def add_cf(self, cf):
         data = self.get_cf_data(cf)
-        if ("biosphere", data["hash"]) not in mapping:
+        if (config.biosphere, data["hash"]) not in mapping:
             self.add_flow(data)
         return (data["hash"], float(cf.get("meanValue")))
 

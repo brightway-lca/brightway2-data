@@ -423,8 +423,8 @@ Exchanges should also be copied and allocated for any other co-products.
             return self.link_activity(exc, ds, data, depends, name)
 
     def link_biosphere(self, exc):
-        exc["input"] = ("biosphere", exc["hash"])
-        if (u"biosphere", exc["hash"]) in Database("biosphere").load():
+        exc["input"] = (config.biosphere, exc["hash"])
+        if (config.biosphere, exc["hash"]) in Database(config.biosphere).load():
             return exc
         else:
             new_flow = copy.deepcopy(exc["matching"])
