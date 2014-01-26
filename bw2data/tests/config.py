@@ -36,6 +36,9 @@ class ConfigTest(BW2DataTest):
     def test_default_biosphere(self):
         self.assertEqual(config.biosphere, "biosphere")
 
+    def test_default_geo(self):
+        self.assertEqual(config.global_location, "GLO")
+
     def test_set_retrieve_biosphere(self):
         config.p['biosphere_database'] = "foo"
         config.save_preferences()

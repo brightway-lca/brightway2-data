@@ -93,7 +93,8 @@ Does not have any arguments; instead, instantiate the class, and then import usi
             method = Method(name)
             method.register(unit=unit, description=description, num_cfs=len(data))
             method.write([
-                [(config.biosphere, o[0]), o[1], "GLO"] for o in data])
+                [(config.biosphere, o[0]), o[1], config.global_location]
+                for o in data])
             method.process()
 
     def add_cf(self, cf):

@@ -113,6 +113,8 @@ class Ecospold2DataExtractor(object):
         assert len(candidates) == 1
         flow = candidates[0]['flow']
 
+        # Despite using a million UUIDs, there is actually no unique ID in
+        # an ecospold2 dataset
         data['id'] = hashlib.md5(data['activity'] + flow).hexdigest()
         data['id_from'] = {
             'activity': data['activity'],
@@ -125,7 +127,8 @@ class Ecospold2DataExtractor(object):
         data['exchanges'] = [x for x in data['exchanges'] if x and x['amount'] != 0]
         return data
 
-    def extract_exchange(self, exc):
+    @classmethod
+    def extract_exchange(cls, exc):
         if exc.tag == u"{http://www.EcoInvent.org/EcoSpold02}intermediateExchange":
             flow = "intermediateExchangeId"
             is_biosphere = False
@@ -236,6 +239,7 @@ class Ecospold2DataExtractor(object):
 
 class Ecospold2Importer(object):
     def __init__(self, datapath, metadatapath, name):
+        warnings.warn("Ecospold2 importer is still experimental! Correct results are not guaranteed!")
         self.datapath = datapath
         self.metadatapath = metadatapath
         self.name = name
@@ -266,7 +270,11 @@ class Ecospold2Importer(object):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             db = Database("biosphere3")
-            db.register("Ecospold2", [], len(data))
+            db.register(
+                format="Ecospold2",
+                depends=[],
+                num_processes=len(data)
+            )
             db.write(data)
             db.process()
 
@@ -314,7 +322,11 @@ class Ecospold2Importer(object):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             db = Database(self.name)
-            db.register("Ecospold2", ["biosphere3"], len(data))
+            db.register(
+                format="Ecospold2",
+                depends=["biosphere3"],
+                num_processes=len(data)
+            )
             db.write(data)
 
             # Purge any exchanges without valid activities

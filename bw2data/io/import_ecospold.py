@@ -497,6 +497,10 @@ Exchanges should also be copied and allocated for any other co-products.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             manager = Database(name)
-            manager.register(("Ecospold", 1), depends, len(data))
+            manager.register(
+                format="Ecospold1",
+                depends=depends,
+                num_processes=len(data),
+            )
             manager.write(data)
             manager.process()

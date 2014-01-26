@@ -18,10 +18,6 @@ class BW2PackageExporter(object):
                 "code": o[0][1],
                 "amount": o[1],
                 "location": o[2],
-                "uncertainty type": 0,
-                "sigma": None,
-                "maximum": None,
-                "minimum": None
             } for o in Method(name).load()]
         }
         data["metadata"]["name"] = name

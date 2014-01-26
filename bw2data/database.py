@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from . import databases, config, mapping, geomapping
-from .errors import MissingIntermediateData, UnknownObject
+from .errors import MissingIntermediateData
 from .query import Query
+from .data_store import DataStore
 from .units import normalize_units
 from .utils import natural_sort, MAX_INT_32, TYPE_DICTIONARY
 from .validate import db_validator
@@ -17,7 +18,7 @@ except ImportError:
     import pickle
 
 
-class Database(object):
+class Database(DataStore):
     """A manager for a database. This class can register or deregister databases, write intermediate data, process data to parameter arrays, query, validate, and copy databases.
 
     Databases are automatically versioned.
@@ -27,27 +28,26 @@ class Database(object):
     Instantiation does not load any data. If this database is not yet registered in the metadata store, a warning is written to ``stdout``.
 
     Args:
-        *database* (str): Name of the database to manage.
+        *name* (str): Name of the database to manage.
 
     """
-    def __init__(self, database):
-        """Instantiate a Database object.
+    metadata = databases
+    valdiator = db_validator
+    dtype_fields = [
+        ('input', np.uint32),
+        ('output', np.uint32),
+        ('row', np.uint32),
+        ('col', np.uint32),
+        ('type', np.uint8),
+    ]
 
-        Does not load any data. If this database is not yet registered in the metadata store, a warning is written to **stdout**.
+    dtype_fields_geomapping = [
+        ('activity', np.uint32),
+        ('geo', np.uint32),
+        ('row', np.uint32),
+        ('col', np.uint32),
+    ]
 
-
-        """
-        self.database = database
-        if self.database not in databases and not \
-                getattr(config, "dont_warn", False):
-            warnings.warn("\n\t%s not a currently installed database" % \
-                database, UserWarning)
-
-    def __unicode__(self):
-        return u"Brightway2 database %s" % self.database
-
-    def __str__(self):
-        return unicode(self).encode('utf-8')
 
     def backup(self):
         """Save a backup to ``backups`` folder.
@@ -57,7 +57,7 @@ class Database(object):
 
         """
         from .io import BW2PackageExporter
-        return BW2PackageExporter.export_database(self.database,
+        return BW2PackageExporter.export_database(self.name,
             folder="backups", extra_string="." + str(int(time()))
             )
 
@@ -75,24 +75,25 @@ class Database(object):
         new_database = Database(name)
         new_database.register(
             format="Brightway2 copy",
-            depends=databases[self.database]["depends"],
-            num_processes=len(data))
+            depends=databases[self.name]["depends"],
+            num_processes=len(data)
+        )
         new_database.write(data)
         return new_database
 
-    def deregister(self):
-        """Remove a database from the metadata store. Does not delete any files."""
-        del databases[self.database]
+    @property
+    def filename(self):
+        return self.filename_for_version()
 
-    def filename(self, version=None):
+    def filename_for_version(self, version=None):
         """Filename for given version; Default is current.
 
         Returns:
             Filename (not path)
 
         """
-        return "%s.%i.pickle" % (
-            self.database,
+        return "%s.%i" % (
+            self.name,
             version or self.version
         )
 
@@ -108,22 +109,22 @@ class Database(object):
             The intermediate data, a dictionary.
 
         """
-        if self.database not in databases:
-            raise UnknownObject("This database is not yet registered")
+        self.assert_registered()
         if version is None and config.p.get("use_cache", False) and \
-                self.database in config.cache:
-            return config.cache[self.database]
+                self.name in config.cache:
+            return config.cache[self.name]
         try:
             data = pickle.load(open(os.path.join(
                 config.dir,
-                "intermediate",
-                self.filename(version)
+                u"intermediate",
+                self.filename_for_version(version) + u".pickle"
             ), "rb"))
             if version is None and config.p.get("use_cache", False):
-                config.cache[self.database] = data
+                config.cache[self.name] = data
             return data
         except OSError:
             raise MissingIntermediateData("This version (%i) not found" % version)
+
 
     def process(self, version=None):
         """
@@ -164,24 +165,28 @@ Doesn't return anything, but writes a file to disk.
         """
         data = self.load(version)
         num_exchanges = sum([len(obj["exchanges"]) for obj in data.values()])
-        assert data
-        dtype = [
-            ('uncertainty_type', np.uint8),
-            ('input', np.uint32),
-            ('output', np.uint32),
-            ('geo', np.uint32),
-            ('row', np.uint32),
-            ('col', np.uint32),
-            ('type', np.uint8),
-            ('amount', np.float32),
-            ('loc', np.float32),
-            ('scale', np.float32),
-            ('shape', np.float32),
-            ('minimum', np.float32),
-            ('maximum', np.float32),
-            ('negative', np.bool)
-        ]
-        arr = np.zeros((num_exchanges + len(data), ), dtype=dtype)
+
+        gl = config.global_location
+
+        # Create geomapping array
+        arr = np.zeros((len(data), ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
+        for index, key in enumerate(sorted(data.keys(), key=lambda x: x[1])):
+            arr[index] = (
+                mapping[key],
+                geomapping[data[key].get("location", gl) or gl],
+                MAX_INT_32, MAX_INT_32,
+                0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
+            )
+
+        filepath = os.path.join(
+            config.dir,
+            u"processed",
+            self.name + u".geomapping.pickle"
+        )
+        with open(filepath, "wb") as f:
+            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        arr = np.zeros((num_exchanges + len(data), ), dtype=self.dtype)
         count = 0
         for key in sorted(data.keys(), key=lambda x: x[1]):
             production_found = False
@@ -191,13 +196,12 @@ Doesn't return anything, but writes a file to disk.
                 if key == exc["input"]:
                     production_found = True
                 arr[count] = (
-                    exc["uncertainty type"],
                     mapping[exc["input"]],
                     mapping[key],
-                    geomapping[data[key].get("location", "GLO") or "GLO"],
                     MAX_INT_32,
                     MAX_INT_32,
                     TYPE_DICTIONARY[exc["type"]],
+                    exc.get("uncertainty type", 0),
                     exc["amount"],
                     exc.get("loc", np.NaN),
                     exc.get("scale", np.NaN),
@@ -210,10 +214,9 @@ Doesn't return anything, but writes a file to disk.
             if not production_found and data[key]["type"] == "process":
                 # Add amount produced for each process (default 1)
                 arr[count] = (
-                    0, mapping[key], mapping[key],
-                    geomapping[data[key].get("location", "GLO") or "GLO"],
+                    mapping[key], mapping[key],
                     MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY["production"],
-                    1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
+                    0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
                 )
                 count += 1
 
@@ -222,11 +225,12 @@ Doesn't return anything, but writes a file to disk.
         arr = arr[:count]
         filepath = os.path.join(
             config.dir,
-            "processed",
-            "%s.pickle" % self.database
+            u"processed",
+            self.name + u".pickle"
         )
         with open(filepath, "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+
 
     def query(self, *queries):
         """Search through the database. See :class:`query.Query` for details."""
@@ -243,7 +247,7 @@ Doesn't return anything, but writes a file to disk.
         else:
             return random.choice(keys)
 
-    def register(self, format, depends, num_processes, version=None):
+    def register(self, depends=None, **kwargs):
         """Register a database with the metadata store.
 
         Databases must be registered before data can be written.
@@ -254,13 +258,11 @@ Doesn't return anything, but writes a file to disk.
             * *num_processes* (int): Number of processes in this database.
 
         """
-        assert self.database not in databases
-        databases[self.database] = {
-            "from format": format,
-            "depends": depends,
-            "number": num_processes,
-            "version": version or 0
-        }
+        kwargs.update(
+            depends=depends or [],
+            version=kwargs.get('version', None) or 0
+        )
+        super(Database, self).register(**kwargs)
 
     def relabel_data(self, data, new_name):
         """Relabel database keys and exchanges.
@@ -332,7 +334,7 @@ Doesn't return anything, but writes a file to disk.
             New ``Database`` object.
 
         """
-        old_name = self.database
+        old_name = self.name
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             new_db = Database(name)
@@ -354,21 +356,10 @@ Doesn't return anything, but writes a file to disk.
         """
         assert version in [x[0] for x in self.versions()], "Version not found"
         self.backup()
-        databases[self.database]["version"] = version
-        if config.p.get("use_cache", False) and self.database in config.cache:
-            config.cache[self.database] = self.load(version)
+        databases[self.name]["version"] = version
+        if config.p.get("use_cache", False) and self.name in config.cache:
+            config.cache[self.name] = self.load(version)
         self.process(version)
-
-    def validate(self, data):
-        """Validate data. Must be called manually.
-
-        Raises ``voluptuous.Invalid`` if data does not validate.
-
-        Args:
-            * *data* (dict): The data, in its processed form.
-
-        """
-        db_validator(data)
 
     @property
     def version(self):
@@ -378,7 +369,7 @@ Doesn't return anything, but writes a file to disk.
             Version number
 
         """
-        return databases.version(self.database)
+        return databases.version(self.name)
 
     def versions(self):
         """Get a list of available versions of this database.
@@ -389,11 +380,12 @@ Doesn't return anything, but writes a file to disk.
         """
         directory = os.path.join(config.dir, "intermediate")
         files = natural_sort(filter(
-            lambda x: ".".join(x.split(".")[:-2]) == self.database,
+            lambda x: ".".join(x.split(".")[:-2]) == self.name,
             os.listdir(directory)))
         return sorted([(int(name.split(".")[-2]),
             datetime.datetime.fromtimestamp(os.stat(os.path.join(
             config.dir, directory, name)).st_mtime)) for name in files])
+
 
     def write(self, data):
         """Serialize data to disk.
@@ -402,16 +394,20 @@ Doesn't return anything, but writes a file to disk.
             * *data* (dict): Inventory data
 
         """
-        if self.database not in databases:
-            raise UnknownObject("This database is not yet registered")
-        databases.increment_version(self.database, len(data))
+        self.assert_registered()
+        databases.increment_version(self.name, len(data))
         mapping.add(data.keys())
         for ds in data.values():
-            ds["unit"] = normalize_units(ds["unit"])
-        geomapping.add([x["location"] for x in data.values() if
-                       x.get("location", False)])
-        if config.p.get("use_cache", False) and self.database in config.cache:
-            config.cache[self.database] = data
-        filepath = os.path.join(config.dir, "intermediate", self.filename())
+            if 'unit' in ds:
+                ds["unit"] = normalize_units(ds["unit"])
+        geomapping.add({x["location"] for x in data.values() if
+                       x.get("location", False)})
+        if config.p.get("use_cache", False) and self.name in config.cache:
+            config.cache[self.name] = data
+        filepath = os.path.join(
+            config.dir,
+            u"intermediate",
+            self.filename + u".pickle"
+        )
         with open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)

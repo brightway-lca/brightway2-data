@@ -16,7 +16,7 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="0.10.5",
+    version="0.11",
     packages=packages,
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
@@ -37,7 +37,7 @@ setup(
     long_description=open('README.rst').read(),
     scripts=["bw2data/bin/bw2-uptodate.py"],
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: End Users/Desktop',
         'Intended Audience :: Developers',
         'Intended Audience :: Science/Research',

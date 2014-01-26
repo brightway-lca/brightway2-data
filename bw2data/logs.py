@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 from . import config
+from .utils import random_string, create_in_memory_zipfile_from_directory
 from logging.handlers import RotatingFileHandler
-from utils import random_string, create_in_memory_zipfile_from_directory
 import codecs
 import datetime
 import logging
 import os
 import requests
 import uuid
-from serialization import JsonWrapper
+from .serialization import JsonWrapper
 try:
     import anyjson
 except ImportError:

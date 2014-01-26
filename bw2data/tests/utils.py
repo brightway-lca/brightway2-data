@@ -17,22 +17,22 @@ class UtilsTest(BW2DataTest):
 
     def test_combine_methods(self):
         d = Database("biosphere")
-        d.register("Tests", [], len(biosphere))
+        d.register(depends=[])
         d.write(biosphere)
-        m1 = Method(["test method 1"])
+        m1 = Method(("test method 1",))
         m1.register(unit="p", num_cfs=2)
         m1.write([
             (("biosphere", 1), 1, "GLO"),
             (("biosphere", 2), 2, "GLO")
         ])
-        m2 = Method(["test method 2"])
+        m2 = Method(("test method 2",))
         m2.register(unit="p", num_cfs=1)
         m2.write([
             (("biosphere", 2), 10, "GLO")
         ])
-        combine_methods(["test method 3"], ["test method 1"],
-            ["test method 2"])
-        cm = Method(["test method 3"])
+        combine_methods(("test method 3",), ("test method 1",),
+            ("test method 2",))
+        cm = Method(("test method 3",))
         self.assertEqual(sorted(cm.load()), [
             (("biosphere", 1), 1, "GLO"),
             (("biosphere", 2), 12, "GLO")

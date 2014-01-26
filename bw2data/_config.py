@@ -160,7 +160,13 @@ class Config(object):
     def biosphere(self):
         if not hasattr(self, "p"):
             self.load_preferences()
-        return self.p.get("biosphere_database", "biosphere")
+        return self.p.get("biosphere_database", u"biosphere")
+
+    @property
+    def global_location(self):
+        if not hasattr(self, "p"):
+            self.load_preferences()
+        return self.p.get("global_location", u"GLO")
 
 
 config = Config()

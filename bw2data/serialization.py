@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-import os
 from . import config
 from time import time
+import os
+import random
 try:
     import anyjson
 except ImportError:
@@ -126,6 +127,13 @@ class SerializedDict(object):
     def unpack(self, data):
         """Return serialized data to true form."""
         return data
+
+    def random(self):
+        """Return a random key."""
+        if not self.data:
+            return None
+        else:
+            return random.choice(self.data.keys())
 
     def backup(self):
         """Write a backup version of the data to the ``backups`` directory."""

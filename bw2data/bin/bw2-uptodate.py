@@ -20,40 +20,23 @@ import sys
 import warnings
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    from bw2data import config
-    from bw2data.upgrades import *
+    from bw2data import config, Updates
 from bw2data.colors import Fore, init, deinit
 
-EXPLANATIONS = {
-    "stats_array reformat": Fore.GREEN + "\nstats_array reformat:" + Fore.RESET + """
-    Upgrading to the ``stats_arrays`` package changes the data format of both inventory databases and impact assessment methods.
-    Read more about the stats_arrays data format: """ + Fore.BLUE + \
-        "\n\thttps://stats_arrays.readthedocs.org/en/latest/\n" + Fore.RESET,
-    "0.10 units restandardization": Fore.GREEN + "0.10 units restandardization:" + Fore.RESET + """
-    Brightway2 tries to normalize units so that they are consistent from machine to machine, and person to person. For example, ``m2a`` is changed to ``square meter-year``. This update adds more data normalizations, and needs to updates links across databases.""",
-}
 
-
-class Updater(object):
+class UpdaterInterface(object):
     def needed(self):
-        try:
-            import stats_arrays
-        except ImportError:
-            warnings.warn(STATS_ARRAY_WARNING)
-            sys.exit(0)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            updates_needed = check_status()
-        return updates_needed
+        return Updates.check_status(False)
 
     def list(self):
         updates_needed = self.needed()
+
         if not updates_needed:
             print(Fore.GREEN + "\n*** Brightway2 is up to date! ***\n")
         else:
             print(Fore.RED + "\n*** Updates found ***")
             for update in updates_needed:
-                print(EXPLANATIONS[update])
+                print(Updates.explain(update))
             print(Fore.RED + "\n*** Action needed ***" + Fore.RESET + \
                 "\nPlease run " + Fore.BLUE + "bw2-uptodate.py\n")
 
@@ -61,9 +44,9 @@ class Updater(object):
         updates_needed = self.needed()
 
         if updates_needed:
-            print(Fore.GREEN + "\nThe following upgrades will be applied:\n")
+            print(Fore.GREEN + "\nThe following updates will be applied:\n")
             for update in updates_needed:
-                print(EXPLANATIONS[update])
+                print(Updates.explain(update))
             if confirm:
                 confirmation = raw_input("\nType '" + Fore.MAGENTA  + "y" + \
                     Fore.RESET + "'to confirm, " + Fore.RED + "anything else" + \
@@ -73,13 +56,8 @@ class Updater(object):
                     print(Fore.MAGENTA + "\n*** Upgrade canceled ***\n")
                     sys.exit(0)
 
-            if "stats_array reformat" in updates_needed:
-                convert_from_stats_toolkit()
-                config.p["upgrades"]["stats_array reformat"] = True
-            if "0.10 units restandardization" in updates_needed:
-                units_renormalize()
-                config.p["upgrades"]["0.10 units restandardization"] = True
-            config.save_preferences()
+            for update in updates_needed:
+                Updates.do_update(update)
         else:
             print(Fore.GREEN + "\n*** Brightway2 is up to date! ***\n")
 
@@ -89,11 +67,11 @@ if __name__ == "__main__":
         init(autoreset=True)
         config.create_basic_directories()
         args = docopt(__doc__, version='Brightway2 up to date 0.1')
-        updater = Updater()
+        updater_interface = UpdaterInterface()
         if args['--list']:
-            updater.list()
+            updater_interface.list()
         else:
-            updater.update()
+            updater_interface.update()
     except:
         deinit()
         raise

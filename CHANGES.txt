@@ -1,0 +1,28 @@
+Changelog
+*********
+
+0.11 ()
+=======
+
+Upgrades to updates
+-------------------
+
+The update code filename was changed to ``updates.py``, and dramatically simplified. Code was organized and moved to an Updates class. All functionality was removed from utility scripts and ``bw2-uptodate.py``. Fresh installs should not have erroneous "updates needed" warnings.
+
+Generic DataStore makes new matrices easy
+-----------------------------------------
+
+``data_store.DataStore`` defines a template for all data stores which could be processed into matrix data, and provides a lot of functionality for free. New objects subclass ``DataStore`` or ``ImpactAssessmentDataStore``, and need only define their unique data fields, metadata store, and validator. Abstracting common functionality into a simple class hierarchy should also produce fewer bugs.
+
+Smaller changes
+---------------
+
+- BREAKING CHANGE: The abbreviate mess
+- BREAKING CHANGE: Register for all data store now takes any keyword arguments. There are no required or positional arguments.
+- BREAKING CHANGE: Database.process() doesn't raise an AssertionError for empty databases
+- FEATURE: Database.process() writes a geomapping processed array (linking activity IDs to locations), in addition to normal matrix arrays.
+- FEATURE: Tests now cover more functionality, and should allow for more worry-free development in the future.
+- CHANGE: Database datasets are not required to specify a unit.
+- CHANGE: The default biosphere database is no longer hard coded, and can be set in config.p['biosphere_database']. The default is still "biosphere".
+- CHANGE: The default global location is no longer hard coded, and can be set in config.p['global_location']. The default is still "GLO".
+- CHANGE: Ecospold 1 & 2 data extractors now only have classmethods, and these classes don't need to be instantiated. A more functional style was used to try to avoid unpleasant side effects.

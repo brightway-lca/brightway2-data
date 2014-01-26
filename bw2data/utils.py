@@ -184,13 +184,7 @@ def set_data_dir(dirpath):
 def setup():
     from io import download_biosphere, download_methods
     config.create_basic_directories()
-    config.is_temp_dir = False
-    config.load_preferences()
-    config.p["upgrades"] = {
-        "stats_array reformat": True,
-        "0.10 units restandardization": True,
-    }
-    config.save_preferences()
+    # config.is_temp_dir = False
     download_biosphere()
     download_methods()
 

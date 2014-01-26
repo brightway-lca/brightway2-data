@@ -1,4 +1,5 @@
-from serialization import SerializedDict, PickledDict, CompoundJSONDict
+from . import config
+from .serialization import SerializedDict, PickledDict, CompoundJSONDict
 
 
 class Mapping(PickledDict):
@@ -54,7 +55,7 @@ class GeoMapping(Mapping):
     def __init__(self, *args, **kwargs):
         super(GeoMapping, self).__init__(*args, **kwargs)
         # At a minimum, "GLO" should always be present
-        self.add(["GLO"])
+        self.add([config.global_location])
 
     def __unicode__(self):
         return u"Mapping from locations to parameter indices."
@@ -101,17 +102,17 @@ class NormalizationMeta(Methods):
 
 
 mapping = Mapping()
+geomapping = GeoMapping()
 databases = Databases()
 methods = Methods()
-geomapping = GeoMapping()
-weightings = WeightingMeta()
 normalizations = NormalizationMeta()
+weightings = WeightingMeta()
 
 
 def reset_meta():
     mapping.__init__()
+    geomapping.__init__()
     databases.__init__()
     methods.__init__()
-    geomapping.__init__()
-    weightings.__init__()
     normalizations.__init__()
+    weightings.__init__()
