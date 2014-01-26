@@ -28,8 +28,9 @@ class Updates(object):
     def explain(key):
         return Updates.UPDATES[key]['explanation']
 
+    @staticmethod
     def do_update(key):
-        method = getattr(Update, Updates.UPDATES[key]['method'])
+        method = getattr(Updates, Updates.UPDATES[key]['method'])
         method()
         config.p['updates'][key] = True
         config.save_preferences()
@@ -53,7 +54,7 @@ class Updates(object):
             config.p['updates'] = {key: True for key in Updates.UPDATES}
             config.save_preferences()
         else:
-            updates = sorted([key for key in Updates.UPDATES if not Updates.UPDATES.get(key)])
+            updates = sorted([key for key in Updates.UPDATES if not config.p['updates'].get(key)])
         if updates and verbose:
             with safe_colorama():
                 warnings.warn(UPTODATE_WARNING)
@@ -61,13 +62,33 @@ class Updates(object):
 
     @staticmethod
     def reprocess_all_methods():
-        for method_key in methods:
+        print "Updating all LCIA methods"
+
+        widgets = [
+            'Methods: ',
+            progressbar.Percentage(),
+            ' ',
+            progressbar.Bar(marker=progressbar.RotatingMarker()),
+            ' ',
+            progressbar.ETA()
+        ]
+        pbar = progressbar.ProgressBar(
+            widgets=widgets,
+            maxval=len(methods)
+        ).start()
+
+        for index, method_key in enumerate(methods):
             method = Method(method_key)
             method_data = method.load()
+            methods[method_key]['abbreviation_old'] = \
+                methods[method_key]['abbreviation']
             methods[method_key]['abbreviation'] = abbreviate(method_key)
+            methods.flush()
             method.write(method_data)
             method.process()
+            pbar.update(index)
 
+        pbar.finish()
 
     @staticmethod
     def units_renormalize():
@@ -126,7 +147,7 @@ class Updates(object):
             ]
             pbar = progressbar.ProgressBar(
                 widgets=widgets,
-                maxval=len(databases.list)
+                maxval=len(databases)
             ).start()
 
             for index, database in enumerate(databases.list):
@@ -155,7 +176,7 @@ class Updates(object):
             ]
             pbar = progressbar.ProgressBar(
                 widgets=widgets,
-                maxval=len(methods.list)
+                maxval=len(methods)
             ).start()
 
             for index, method in enumerate(methods.list):

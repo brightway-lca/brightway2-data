@@ -4,7 +4,7 @@
 
 Usage:
   bw2-uptodate.py
-  bw2-uptodate.py --list
+  bw2-uptodate.py -l | --list
   bw2-uptodate.py -h | --help
   bw2-uptodate.py --version
 
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         config.create_basic_directories()
         args = docopt(__doc__, version='Brightway2 up to date 0.1')
         updater_interface = UpdaterInterface()
-        if args['--list']:
+        if args['--list'] or args['-l']:
             updater_interface.list()
         else:
             updater_interface.update()
