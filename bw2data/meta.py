@@ -8,7 +8,7 @@ class Mapping(PickledDict):
     File data is saved in ``mapping.pickle``.
 
     This dictionary does not support setting items directly; instead, use the ``add`` method to add multiple keys."""
-    _filename = "mapping.pickle"
+    filename = "mapping.pickle"
 
     def add(self, keys):
         """Add a set of keys. These keys can already be in the mapping; only new keys will be added.
@@ -50,7 +50,7 @@ class GeoMapping(Mapping):
     File data is stored in ``geomapping.pickle``.
 
     This dictionary does not support setting items directly; instead, use the ``add`` method to add multiple keys."""
-    _filename = "geomapping.pickle"
+    filename = "geomapping.pickle"
 
     def __init__(self, *args, **kwargs):
         super(GeoMapping, self).__init__(*args, **kwargs)
@@ -63,7 +63,7 @@ class GeoMapping(Mapping):
 
 class Databases(SerializedDict):
     """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
-    _filename = "databases.json"
+    filename = "databases.json"
 
     def increment_version(self, database, number=None):
         """Increment the ``database`` version. Returns the new version."""
@@ -84,7 +84,7 @@ class Databases(SerializedDict):
 
 class Methods(CompoundJSONDict):
     """A dictionary for method metadata. File data is saved in ``methods.json``."""
-    _filename = "methods.json"
+    filename = "methods.json"
 
     def __unicode__(self):
         return u"Brightway2 methods metadata with %i objects" % len(
@@ -93,12 +93,12 @@ class Methods(CompoundJSONDict):
 
 class WeightingMeta(Methods):
     """A dictionary for weighting metadata. File data is saved in ``methods.json``."""
-    _filename = "weightings.json"
+    filename = "weightings.json"
 
 
 class NormalizationMeta(Methods):
     """A dictionary for normalization metadata. File data is saved in ``methods.json``."""
-    _filename = "normalizations.json"
+    filename = "normalizations.json"
 
 
 mapping = Mapping()

@@ -13,7 +13,7 @@ except ImportError:
 
 
 class Metadata(SerializedDict):
-    _filename = "mock-meta.json"
+    filename = "mock-meta.json"
 
 metadata = Metadata()
 

@@ -22,7 +22,7 @@ Ecospold version 1 is the data format of ecoinvent versions 1 and 2, and the US 
 
 .. note:: only **imports** are supported.
 
-.. autoclass:: bw2data.io.EcospoldImporter
+.. autoclass:: bw2data.io.Ecospold1Importer
     :members:
 
 .. autoclass:: bw2data.io.EcospoldImpactAssessmentImporter

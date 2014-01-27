@@ -62,6 +62,7 @@ class Updates(object):
 
     @staticmethod
     def reprocess_all_methods():
+        """Change name hashing function from random characters (!?) to MD5 hash. Need to update abbreviations and rewrite all data."""
         print "Updating all LCIA methods"
 
         widgets = [

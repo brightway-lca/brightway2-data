@@ -11,6 +11,13 @@ except ImportError:
 
 
 class DataStore(object):
+    """Base class for all Brightway2 data stores. Subclasses should define:
+
+        * **metadata**: A :ref:`serialized-dict` instance, e.g. ``databases`` or ``methods``. The custom is that each type of data store has a new metadata store, so the data store ``Foo`` would have a metadata store ``foos``.
+        * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``.
+        * **validator**: A data validator. Optional. See bw2data.validate.
+
+    """
     validator = None
     metadata = None
     dtype_fields = None
@@ -39,6 +46,7 @@ class DataStore(object):
 
     @property
     def filename(self):
+        """Can be overwritten in cases where the filename is not the name"""
         return self.name
 
     def register(self, **kwargs):
@@ -57,6 +65,7 @@ class DataStore(object):
         del self.metadata[self.name]
 
     def assert_registered(self):
+        """Raise ``UnknownObject`` if not yet registered"""
         if self.name not in self.metadata:
             raise UnknownObject(u"%s is not yet registered" % self)
 
@@ -79,10 +88,11 @@ class DataStore(object):
 
     @property
     def dtype(self):
+        """Get custom dtype fields plus generic uncertainty fields"""
         return self.dtype_fields + self.base_uncertainty_fields
 
     def copy(self, name):
-        """Make a copy of this object. Takes new name as argument."""
+        """Make a copy of this object. Takes new name as argument. Returns the new object."""
         assert name not in self.metadata, u"%s already exists" % name
         new_obj = self.__class__(name)
         new_obj.register(**self.metadata[self.name])

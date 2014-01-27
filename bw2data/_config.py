@@ -75,6 +75,18 @@ class Config(object):
                 "preferences.json"), "w") as f:
             json.dump(self.p, f, indent=2)
 
+    @property
+    def biosphere(self):
+        if not hasattr(self, "p"):
+            self.load_preferences()
+        return self.p.get("biosphere_database", u"biosphere")
+
+    @property
+    def global_location(self):
+        if not hasattr(self, "p"):
+            self.load_preferences()
+        return self.p.get("global_location", u"GLO")
+
     def get_home_directory(self, path=None):
         """Get data directory, trying in order:
 
@@ -155,18 +167,5 @@ class Config(object):
     def udir(self):
         """Return `dir` in Unicode"""
         return self.dir.decode('utf-8')
-
-    @property
-    def biosphere(self):
-        if not hasattr(self, "p"):
-            self.load_preferences()
-        return self.p.get("biosphere_database", u"biosphere")
-
-    @property
-    def global_location(self):
-        if not hasattr(self, "p"):
-            self.load_preferences()
-        return self.p.get("global_location", u"GLO")
-
 
 config = Config()

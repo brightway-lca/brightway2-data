@@ -12,7 +12,7 @@ except ImportError:
 
 
 class Metadata(CompoundJSONDict):
-    _filename = "mock-meta.json"
+    filename = "mock-meta.json"
 
 metadata = Metadata()
 

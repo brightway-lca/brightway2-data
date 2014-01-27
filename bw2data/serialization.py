@@ -50,9 +50,9 @@ class SerializedDict(object):
 
     Upon instantiation, the serialized dictionary is read from disk."""
     def __init__(self):
-        if not getattr(self, "_filename"):
+        if not getattr(self, "filename"):
             raise NotImplemented("SerializedDict must be subclassed, and the filename must be set.")
-        self._filepath = os.path.join(config.dir, self._filename)
+        self.filepath = os.path.join(config.dir, self.filename)
         self.load()
 
     def load(self):
@@ -114,11 +114,11 @@ class SerializedDict(object):
             * *filepath* (str, optional): Provide an alternate filepath (e.g. for backup).
 
         """
-        JsonWrapper.dump(self.pack(self.data), filepath or self._filepath)
+        JsonWrapper.dump(self.pack(self.data), filepath or self.filepath)
 
     def deserialize(self):
         """Load the serialized data. Can be replaced with other serialization formats."""
-        return self.unpack(JsonWrapper.load(self._filepath))
+        return self.unpack(JsonWrapper.load(self.filepath))
 
     def pack(self, data):
         """Transform the data, if necessary. Needed because JSON must have strings as dictionary keys."""
@@ -138,23 +138,23 @@ class SerializedDict(object):
     def backup(self):
         """Write a backup version of the data to the ``backups`` directory."""
         filepath = os.path.join(config.dir, "backups",
-            self._filename + ".%s.backup" % int(time()))
+            self.filename + ".%s.backup" % int(time()))
         self.serialize(filepath)
 
 
 class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
     def serialize(self):
-        with open(self._filepath, "wb") as f:
+        with open(self.filepath, "wb") as f:
             pickle.dump(self.pack(self.data), f,
                 protocol=pickle.HIGHEST_PROTOCOL)
 
     def deserialize(self):
-        return self.unpack(pickle.load(open(self._filepath, "rb")))
+        return self.unpack(pickle.load(open(self.filepath, "rb")))
 
 
 class CompoundJSONDict(SerializedDict):
-    """Subclass of ``SerializedDict`` that allows tuples as dictionary keys."""
+    """Subclass of ``SerializedDict`` that allows tuples as dictionary keys (not allowed in JSON)."""
     def pack(self, data):
         """Transform the dictionary to a list because JSON can't handle lists as keys"""
         return [(k, v) for k, v in data.iteritems()]

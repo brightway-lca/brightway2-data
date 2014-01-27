@@ -4,6 +4,8 @@ Changelog
 0.11 ()
 =======
 
+**bw2-uptodate.py is required for this update**
+
 Upgrades to updates
 -------------------
 
@@ -17,7 +19,8 @@ Generic DataStore makes new matrices easy
 Smaller changes
 ---------------
 
-- BREAKING CHANGE: The abbreviate mess
+- BREAKING CHANGE: The filenames for LCIA methods are now derived from the MD5 of the name. This breaks all method abbreviations.
+- BREAKING CHANGE: The filename and filepath attributes in SerializedDict and subclasses moved from ``_filename`` and ``filepath`` to ``filename`` and ``filepath``
 - BREAKING CHANGE: Register for all data store now takes any keyword arguments. There are no required or positional arguments.
 - BREAKING CHANGE: Database.process() doesn't raise an AssertionError for empty databases
 - FEATURE: Database.process() writes a geomapping processed array (linking activity IDs to locations), in addition to normal matrix arrays.
