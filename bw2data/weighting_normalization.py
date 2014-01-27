@@ -6,6 +6,19 @@ import numpy as np
 
 
 class Weighting(ImpactAssessmentDataStore):
+    """
+    LCIA weighting data - used to combine or compare different impact categories.
+
+    The data schema for weighting is a one-element list:
+
+    .. code-block:: python
+
+            Schema(All(
+                [uncertainty_dict],
+                Length(min=1, max=1)
+            ))
+
+    """
     metadata = weightings
     valdiator = weighting_validator
     dtype_fields = []
@@ -17,10 +30,27 @@ class Weighting(ImpactAssessmentDataStore):
         super(Weighting, self).write(data)
 
     def process_data(self, row):
-        return (), row
+        return ((), # don't know much,
+            row)    # but I know I love you
 
 
 class Normalization(ImpactAssessmentDataStore):
+    """
+    LCIA normalization data - used to transform meaningful units, like mass or damage, into "person-equivalents" or some such thing.
+
+    The data schema for IA normalization is:
+
+    .. code-block:: python
+
+            Schema([
+                [valid_tuple, maybe_uncertainty]
+            ])
+
+    where:
+        * ``valid_tuple`` is a dataset identifier, like ``("biosphere", "CO2")``
+        * ``maybe_uncertainty`` is either a number or an uncertainty dictionary
+
+    """
     metadata = normalizations
     valdiator = normalization_validator
     dtype_fields = [

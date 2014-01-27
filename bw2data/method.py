@@ -15,8 +15,19 @@ class Method(ImpactAssessmentDataStore):
 
     Methods are hierarchally structured, and this structure is preserved in the method name. It is a tuple of strings, like ``('ecological scarcity 2006', 'total', 'natural resources')``.
 
-    Method metadata should include the following:
-        ``unit``:
+    The data schema for IA methods is:
+
+    .. code-block:: python
+
+            Schema([Any(
+                [valid_tuple, maybe_uncertainty],         # site-generic
+                [valid_tuple, maybe_uncertainty, object]  # regionalized
+            )])
+
+    where:
+        * ``valid_tuple`` is a dataset identifier, like ``("biosphere", "CO2")``
+        * ``maybe_uncertainty`` is either a number or an uncertainty dictionary
+        * ``object`` is a location, needed only for regionalized LCIA
 
     Args:
         * *name* (tuple): Name of the method to manage. Must be a tuple of strings.

@@ -97,6 +97,11 @@ Brightway2-data defines the following data stores:
     * :ref:`weighting`
     * :ref:`normalization`
 
+Validation
+----------
+
+Data validation is done using the great `voluptuous library <https://pypi.python.org/pypi/voluptuous/>`_. Each data store can define its own validation schema. See the individual data stores documentation for details on its data format.
+
 Document and processed data
 ===========================
 
@@ -140,7 +145,7 @@ Default values will be provided if not directly specified.
 During processing, the uncertainty dictionaries are converted to rows in a NumPy array.
 
 Mappings
---------
+========
 
 Sometimes, important data can't be stored as a numeric value. For example, the location of an inventory activity is important for regionalization, but is given by a text string, not an integer. In this case, we use :ref:`serialized-dict` to store mappings between objects are integer indices. Brightway2-data uses two such mappings:
 

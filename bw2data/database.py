@@ -19,13 +19,38 @@ except ImportError:
 
 
 class Database(DataStore):
-    """A manager for a database. This class can register or deregister databases, write intermediate data, process data to parameter arrays, query, validate, and copy databases.
+    """
+    A data store for LCI databases.
 
     Databases are automatically versioned.
 
-    The Database class never holds intermediate data, but it can load or write intermediate data. The only attribute is *database*, which is the name of the database being managed.
-
     Instantiation does not load any data. If this database is not yet registered in the metadata store, a warning is written to ``stdout``.
+
+    The data schema for databases is:
+
+    .. code-block:: python
+
+        Schema({valid_tuple: {
+            Required("name"): basestring,
+            Required("type"): basestring,
+            Required("exchanges"): [{
+                Required("input"): valid_tuple,
+                Required("type"): basestring,
+                Required("amount"): Any(float, int),
+                **uncertainty_fields
+                }],
+            "categories": Any(list, tuple),
+            "location": object,
+            "unit": basestring
+            }}, extra=True)
+
+    where:
+        * ``valid_tuple`` is a dataset identifier, like ``("ecoinvent", "super strong steel")``
+        * ``uncertainty_fields`` are fields from an uncertainty dictionary
+
+    The data format is explained in more depth in the `Brightway2 documentation <http://brightway2.readthedocs.org/en/latest/key-concepts.html#documents>`_.
+
+    Processing a Database actually produces two parameter arrays: one for the exchanges, which make up the technosphere and biosphere matrices, and a geomapping array which links activities to locations.
 
     Args:
         *name* (str): Name of the database to manage.
@@ -125,42 +150,16 @@ class Database(DataStore):
         except OSError:
             raise MissingIntermediateData("This version (%i) not found" % version)
 
-
     def process(self, version=None):
         """
-Process intermediate data from a Python dictionary to a `stats_arrays <https://pypi.python.org/pypi/stats_arrays/>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
+Process inventory documents.
 
-Processed arrays are saved in the ``processed`` directory.
-
-Uses ``pickle`` instead of the native NumPy ``.tofile()``. Although pickle is ~2 times slower, this difference in speed has no practical effect (e.g. one twentieth of a second slower for ecoinvent 2.2), and the numpy ``fromfile`` and ``tofile`` functions don't preserve the datatype of structured arrays.
-
-The structure for processed inventory databases includes additional columns beyond the basic ``stats_arrays`` format:
-
-================ ======== ===================================
-Column name      Type     Description
-================ ======== ===================================
-uncertainty_type uint8    integer type defined in `stats_arrays.uncertainty_choices`
-input            uint32   integer value from `Mapping`
-output           uint32   integer value from `Mapping`
-geo              uint32   integer value from `GeoMapping`
-row              uint32   column filled with `NaN` values, used for matrix construction
-col              uint32   column filled with `NaN` values, used for matrix construction
-type             uint8    integer type defined in `bw2data.utils.TYPE_DICTIONARY`
-amount           float32  amount without uncertainty
-loc              float32  location parameter, e.g. mean
-scale            float32  scale parameter, e.g. standard deviation
-shape            float32  shape parameter
-minimum          float32  minimum bound
-maximum          float32  maximum bound
-negative         bool     `amount` < 0
-================ ======== ===================================
-
-See also `NumPy data types <http://docs.scipy.org/doc/numpy/user/basics.types.html>`_.
+Creates both a parameter array for exchanges, and a geomapping parameter array linking inventory activities to locations.
 
 Args:
     * *version* (int, optional): The version of the database to process
 
-Doesn't return anything, but writes a file to disk.
+Doesn't return anything, but writes two files to disk.
 
         """
         data = self.load(version)
@@ -230,7 +229,6 @@ Doesn't return anything, but writes a file to disk.
         )
         with open(filepath, "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
-
 
     def query(self, *queries):
         """Search through the database. See :class:`query.Query` for details."""
@@ -386,9 +384,10 @@ Doesn't return anything, but writes a file to disk.
             datetime.datetime.fromtimestamp(os.stat(os.path.join(
             config.dir, directory, name)).st_mtime)) for name in files])
 
-
     def write(self, data):
         """Serialize data to disk.
+
+        Normalizes units when found.
 
         Args:
             * *data* (dict): Inventory data

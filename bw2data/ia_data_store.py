@@ -23,25 +23,7 @@ def abbreviate(names, length=8):
 
 class ImpactAssessmentDataStore(DataStore):
     """
-A subclass of ``DataStore`` for impact assessment methods, which uses the ``abbreviate`` function to transform tuples of strings into a single string, and looks up abbreviations to generate filenames.
-
-A manager for a impact assessment data. This class can register or deregister methods, write intermediate data, and copy methods.
-
-This is meant to be subclassed, and should not be used directly.
-
-Subclasses should define the following:
-
-======== ========= ===========================================
-name     type      description
-======== ========= ===========================================
-metadata attribute metadata class instances, e.g. ``methods``
-validate method    method that validates input data
-process  method    method that writes processesd data to disk
-======== ========= ===========================================
-
-The ImpactAssessmentDataStore class never holds intermediate data, but it can load or write intermediate data. The only attribute is *name*, which is the name of the method being managed.
-
-Instantiation does not load any data. If this IA object is not yet registered in the metadata store, a warning is written to ``stdout``.
+A subclass of ``DataStore`` for impact assessment methods, which uses the ``abbreviate`` function to transform tuples of strings into a single string, and looks up abbreviations to generate filenames. Translated into less technical language, that means that we can't use ``('ReCiPe Endpoint (E,A)', 'human health', 'ionising radiation')`` as a filename, but we can use ``recipee(hhir-70eeef20a20deb6347ad428e3f6c5f3c``.
 
 IA objects are hierarchally structured, and this structure is preserved in the name. It is a tuple of strings, like ``('ecological scarcity 2006', 'total', 'natural resources')``.
 

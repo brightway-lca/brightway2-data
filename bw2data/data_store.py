@@ -11,11 +11,16 @@ except ImportError:
 
 
 class DataStore(object):
-    """Base class for all Brightway2 data stores. Subclasses should define:
+    """
+Base class for all Brightway2 data stores. Subclasses should define:
 
-        * **metadata**: A :ref:`serialized-dict` instance, e.g. ``databases`` or ``methods``. The custom is that each type of data store has a new metadata store, so the data store ``Foo`` would have a metadata store ``foos``.
-        * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``.
-        * **validator**: A data validator. Optional. See bw2data.validate.
+    * **metadata**: A :ref:`serialized-dict` instance, e.g. ``databases`` or ``methods``. The custom is that each type of data store has a new metadata store, so the data store ``Foo`` would have a metadata store ``foos``.
+    * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``. Uncertainty fields (``base_uncertainty_fields``) are added automatically.
+    * **validator**: A data validator. Optional. See bw2data.validate.
+
+In order to use ``dtype_fields``, subclasses should override the method ``process_data``. This function takes rows of data, and returns the correct values for the custom dtype fields (as a tuple), **and** the ``amount`` field with its associated uncertainty. This second part is a little flexible - if there is no uncertainty, a number can be returned; otherwise, an uncertainty dictionary should be returned.
+
+Subclasses should also override ``add_mappings``. This method takes the entire dataset, and loads objects to :ref:`mapping` or :ref:`geomapping` as needed.
 
     """
     validator = None
@@ -122,9 +127,13 @@ class DataStore(object):
         raise NotImplementedError
 
     def process(self):
-        """Process intermediate data from a Python dictionary to a `stats_arrays <https://pypi.python.org/pypi/stats_arrays/>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
+        """
+Process intermediate data from a Python dictionary to a `stats_arrays <https://pypi.python.org/pypi/stats_arrays/>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
 
-        Processed arrays are saved in the ``processed`` directory.
+Processed arrays are saved in the ``processed`` directory.
+
+Uses ``pickle`` instead of the native NumPy ``.tofile()``. Although pickle is ~2 times slower, this difference in speed has no practical effect (e.g. one twentieth of a second slower for ecoinvent 2.2), and the numpy ``fromfile`` and ``tofile`` functions don't preserve the datatype of structured arrays.
+
         """
         data = self.load()
         arr = np.zeros((len(data),), dtype=self.dtype)
@@ -165,6 +174,12 @@ class DataStore(object):
             )
 
     def add_mappings(self, data):
+        """Add objects to ``mapping`` or ``geomapping``, if necessary.
+
+        Args:
+            * *data* (object): The data
+
+        """
         return
 
     def validate(self, data):
