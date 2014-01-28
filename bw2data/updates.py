@@ -13,6 +13,12 @@ UPTODATE_WARNING = Fore.RED + "\n\nYour data needs to be updated." + Fore.RESET 
     + " Please run the following program on the command line:\n\n\t" + \
     Fore.BLUE + "bw2-uptodate.py\n" + Fore.RESET
 
+widgets = [
+    progressbar.SimpleProgress(sep="/"), " (",
+    progressbar.Percentage(), ') ',
+    progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
+    progressbar.ETA()
+]
 
 class Updates(object):
     UPDATES = {
@@ -65,14 +71,6 @@ class Updates(object):
         """Change name hashing function from random characters (!?) to MD5 hash. Need to update abbreviations and rewrite all data."""
         print "Updating all LCIA methods"
 
-        widgets = [
-            'Methods: ',
-            progressbar.Percentage(),
-            ' ',
-            progressbar.Bar(marker=progressbar.RotatingMarker()),
-            ' ',
-            progressbar.ETA()
-        ]
         pbar = progressbar.ProgressBar(
             widgets=widgets,
             maxval=len(methods)
@@ -101,14 +99,6 @@ class Updates(object):
 
             print "Updating inventory databases.\nFirst pass: Checking process IDs"
 
-            widgets = [
-                'Databases: ',
-                progressbar.Percentage(),
-                ' ',
-                progressbar.Bar(marker=progressbar.RotatingMarker()),
-                ' ',
-                progressbar.ETA()
-            ]
             pbar = progressbar.ProgressBar(
                 widgets=widgets,
                 maxval=len(databases.list)
@@ -138,14 +128,6 @@ class Updates(object):
 
             print "Second pass: Fixing links..."
 
-            widgets = [
-                'Databases: ',
-                progressbar.Percentage(),
-                ' ',
-                progressbar.Bar(marker=progressbar.RotatingMarker()),
-                ' ',
-                progressbar.ETA()
-            ]
             pbar = progressbar.ProgressBar(
                 widgets=widgets,
                 maxval=len(databases)
@@ -167,14 +149,6 @@ class Updates(object):
 
             print "Updating IA methods"
 
-            widgets = [
-                'Methods: ',
-                progressbar.Percentage(),
-                ' ',
-                progressbar.Bar(marker=progressbar.RotatingMarker()),
-                ' ',
-                progressbar.ETA()
-            ]
             pbar = progressbar.ProgressBar(
                 widgets=widgets,
                 maxval=len(methods)

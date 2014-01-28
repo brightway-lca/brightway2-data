@@ -75,12 +75,11 @@ class Ecospold2DataExtractor(object):
                     ]
 
         widgets = [
-            'Extracting activities: ',
-            progressbar.Percentage(),
-            ' ',
-            progressbar.Bar(marker=progressbar.RotatingMarker()),
-            ' ',
-            progressbar.ETA()]
+            progressbar.SimpleProgress(sep="/"), " (",
+            progressbar.Percentage(), ') ',
+            progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
+            progressbar.ETA()
+        ]
         pbar = progressbar.ProgressBar(
             widgets=widgets,
             maxval=len(filelist)

@@ -51,9 +51,12 @@ Does not have any arguments; instead, instantiate the class, and then import usi
             raise ValueError("Can't find biosphere database; check configuration.")
 
         if progressbar:
-            widgets = ['Files: ', progressbar.Percentage(), ' ',
+            widgets = [
+                progressbar.SimpleProgress(sep="/"), " (",
+                progressbar.Percentage(), ') ',
                 progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
-                progressbar.ETA()]
+                progressbar.ETA()
+            ]
             pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(files)
                 ).start()
 

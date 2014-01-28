@@ -57,9 +57,12 @@ class DatabaseToGEXF(object):
         nodes = []
         edges = []
 
-        widgets = ['Processes: ', progressbar.Percentage(), ' ',
+        widgets = [
+            progressbar.SimpleProgress(sep="/"), " (",
+            progressbar.Percentage(), ') ',
             progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
-            progressbar.ETA()]
+            progressbar.ETA()
+        ]
         pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(self.data)
             ).start()
 
