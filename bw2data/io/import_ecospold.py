@@ -19,6 +19,13 @@ import warnings
 
 BIOSPHERE = ("air", "water", "soil", "resource")
 
+widgets = [
+    progressbar.SimpleProgress(sep="/"), " (",
+    progressbar.Percentage(), ') ',
+    progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
+    progressbar.ETA()
+]
+
 
 class Ecospold1DataExtractor(object):
     @classmethod
@@ -29,9 +36,10 @@ class Ecospold1DataExtractor(object):
                 lambda x: x[-4:].lower() == ".xml", os.listdir(path))]
         else:
             files = [path]
-        widgets = ['Extracting data: ', progressbar.Percentage(), ' ',
-            progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
-            progressbar.ETA()]
+
+        if not files:
+            raise OSError("Provided path doesn't appear to have any XML files")
+
         pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(files)
             ).start()
 
@@ -57,7 +65,7 @@ class Ecospold1DataExtractor(object):
         ref_func = dataset.metaInformation.processInformation.\
             referenceFunction
         data = {
-            "name": ref_func.get("name"),
+            "name": ref_func.get("name").strip(),
             "type": "process",  # True for all ecospold?
             "categories": [ref_func.get("category"), ref_func.get(
                 "subCategory")],
@@ -111,7 +119,7 @@ class Ecospold1DataExtractor(object):
                 "categories": (exc.get("category"), exc.get("subCategory")),
                 "location": exc.get("location"),
                 "unit": normalize_units(exc.get("unit")),
-                "name": exc.get("name")
+                "name": exc.get("name").strip()
                 }
             }
 
@@ -208,7 +216,7 @@ class Ecospold1Importer(object):
     Does not have any arguments; instead, instantiate the class, and then import using the ``importer`` method, i.e. ``Ecospold1Importer().importer(filepath)``.
 
     """
-    def importer(self, path, name, depends=[config.biosphere]):
+    def importer(self, path, name, depends=[config.biosphere], remapping={}):
         """Import an inventory dataset, or a directory of inventory datasets.
 
         .. image:: images/import-method.png
@@ -226,6 +234,7 @@ class Ecospold1Importer(object):
         self.log, self.logfile = get_io_logger("lci-import")
         self.new_activities = []
         self.new_biosphere = []
+        self.remapping = remapping
 
         data = Ecospold1DataExtractor.extract(path, self.log)
         data = self.allocate_datasets(data)
@@ -237,9 +246,6 @@ class Ecospold1Importer(object):
             warnings.warn("No data found in XML file %s" % path)
             return
 
-        widgets = ['Linking exchanges:', progressbar.Percentage(), ' ',
-            progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
-            progressbar.ETA()]
         pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(data)
             ).start()
 
@@ -342,7 +348,7 @@ Exchanges should also be copied and allocated for any other co-products.
 
         """
         coproduct_codes = [exc["code"] for exc in ds["exchanges"] if exc.get(
-            "group", None) == 2]
+            "group", None) in (0, 2)]
         coproducts = dict([(x, copy.deepcopy(ds)) for x in coproduct_codes])
         exchanges = dict([(exc["code"], exc) for exc in ds["exchanges"
             ] if "code" in exc])
@@ -389,6 +395,9 @@ Exchanges should also be copied and allocated for any other co-products.
         return np.allclose(np.diff(codes), np.ones(np.diff(codes).shape))
 
     def link_exchange(self, exc, ds, data, depends, name):
+        """`name`: Name of database"""
+        if exc["matching"]["name"] in self.remapping:
+            exc["matching"]["name"] = self.remapping[exc["matching"]["name"]]
         # Has to happen before others because US LCI doesn't define categories
         # for product definitions...
         if exc.get("group", None) == 0:
@@ -397,7 +406,8 @@ Exchanges should also be copied and allocated for any other co-products.
             return exc
         # Hack for US LCI-specific bug - both "Energy recovered"
         # and "Energy, recovered" are present
-        elif exc["matching"]["categories"] == () and \
+        elif exc.get("group", None) == 1 and \
+            exc["matching"]["categories"] == () and \
                 exc["matching"]["name"] == "Recovered energy":
             exc["matching"].update(
                 name="Energy, recovered",
