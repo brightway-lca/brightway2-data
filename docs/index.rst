@@ -36,7 +36,7 @@ The ``config`` object also stores user preferences. User preferences include thi
 Data and metadata
 =================
 
-.. note:: For more detailed information, see tutorial XX: defining a new matrix.
+.. note:: For more detailed information, see `tutorial 5: defining a new matrix <http://nbviewer.ipython.org/url/brightwaylca.org/tutorials/Tutorial%205%20-%20Defining%20A%20New%20Matrix.ipynb>`_.
 
 The building blocks in Brightway2 data are the **data store** and the **metadata store**. The difference between the two can be easily explained in the example of LCI databases:
 
@@ -76,7 +76,7 @@ Metadata stores follow the `singleton pattern <http://en.wikipedia.org/wiki/Sing
 Data stores
 -----------
 
-.. note:: See also tutorial XX: manipulating databases and tutorial XX: defining a new matrix.
+.. note:: See also `tutorial 2: working with data <http://nbviewer.ipython.org/url/brightwaylca.org/tutorials/Tutorial%202%20-%20Working%20with%20data.ipynb>`_ and `tutorial 5: defining a new matrix <http://nbviewer.ipython.org/url/brightwaylca.org/tutorials/Tutorial%205%20-%20Defining%20A%20New%20Matrix.ipynb>`_.
 
 The base class for data stores is :ref:`datastore`. Each data store subclass defines a schema for its data. The normal methods provided by a data store are:
 
