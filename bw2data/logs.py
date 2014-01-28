@@ -24,6 +24,7 @@ def get_logger(name, level=logging.INFO):
     formatter = logging.Formatter(
         "%(asctime)s %(levelname)s %(lineno)d %(message)s")
     logger = logging.getLogger(name)
+    logger.propagate = False
     logger.setLevel(level)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
@@ -38,6 +39,7 @@ def get_io_logger(name):
     filepath = os.path.join(dirname, "%s.%s.log" % (name, random_string(6)))
     handler = logging.StreamHandler(codecs.open(filepath, "w", "utf-8"))
     logger = logging.getLogger(name)
+    logger.propagate = False
     logger.setLevel(logging.INFO)
     handler.setFormatter(logging.Formatter(u"%(message)s"))
     logger.addHandler(handler)
@@ -51,6 +53,7 @@ def get_verbose_logger(name, level=logging.WARNING):
         os.path.join(config.dir, 'logs', filename),
         maxBytes=50000, encoding='utf-8', backupCount=5)
     logger = logging.getLogger(name)
+    logger.propagate = False
     logger.setLevel(level)
     handler.setFormatter(logging.Formatter('''
 Message type:       %(levelname)s
