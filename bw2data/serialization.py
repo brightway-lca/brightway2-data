@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from . import config
 from time import time
+import bz2
 import os
 import random
 try:
@@ -17,11 +18,16 @@ except ImportError:
 class JsonWrapper(object):
     @classmethod
     def dump(self, data, file):
-        with open(file, "w") as f:
+        with open(file, "wb") as f:
             if anyjson:
                 f.write(anyjson.serialize(data))
             else:
                 json.dump(data, f, indent=2)
+
+    @classmethod
+    def dump_bz2(self, data, filepath):
+        with bz2.BZ2File(filepath, "wb") as f:
+            f.write(JsonWrapper.dumps(data))
 
     @classmethod
     def load(self, file):
@@ -29,6 +35,10 @@ class JsonWrapper(object):
             return anyjson.deserialize(open(file).read())
         else:
             return json.load(open(file))
+
+    @classmethod
+    def load_bz2(self, filepath):
+        return JsonWrapper.loads(bz2.BZ2File(filepath).read())
 
     @classmethod
     def dumps(self, data):

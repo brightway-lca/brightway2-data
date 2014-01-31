@@ -53,3 +53,15 @@ weighting_validator = Schema(All(
 normalization_validator = Schema([
     [valid_tuple, maybe_uncertainty]
 ])
+
+bw2package_validator = Schema({
+    Required('metadata'): {basestring: object},
+    Required('name'): Any(basestring, tuple),
+    'class': {
+        Required('module'): basestring,
+        Required('name'): basestring,
+        "unrolled dict": bool,
+    },
+    'unrolled_dict': bool,
+    Required('data'): object
+})

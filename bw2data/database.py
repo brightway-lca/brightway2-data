@@ -81,10 +81,11 @@ class Database(DataStore):
             File path of backup.
 
         """
-        from .io import BW2PackageExporter
-        return BW2PackageExporter.export_database(self.name,
-            folder="backups", extra_string="." + str(int(time()))
-            )
+        pass
+        # from .io import BW2PackageExporter
+        # return BW2PackageExporter.export_database(self.name,
+        #     folder="backups", extra_string="." + str(int(time()))
+        #     )
 
     def copy(self, name):
         """Make a copy of the database.
