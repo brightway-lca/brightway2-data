@@ -12,7 +12,7 @@ import warnings
 
 class BW2Package(object):
     APPROVED = {
-        'bwdata',
+        'bw2data',
         'bw2regional',
         'bw2calc'
     }
@@ -44,7 +44,7 @@ class BW2Package(object):
             return False
 
     @classmethod
-    def _is_whitelised(cls, metadata):
+    def _is_whitelisted(cls, metadata):
         return metadata['module'].split(".")[0] in cls.APPROVED
 
     @classmethod
@@ -56,7 +56,7 @@ class BW2Package(object):
         to:
 
             [
-                [[1,2], 3],
+                ((1,2), 3),
             ]
 
         Only looks at first level of dict, not recursive.
@@ -81,7 +81,7 @@ class BW2Package(object):
 
     @classmethod
     def _create_class(cls, metadata, apply_whitelist=True):
-        if apply_whitelist and not cls._is_whitelised(metadata):
+        if apply_whitelist and not cls._is_whitelisted(metadata):
             raise UnsafeData("{}.{} not a whitelisted class name".format(
                 metadata['module'], metadata['name']
             ))
@@ -121,29 +121,29 @@ class BW2Package(object):
 
     @classmethod
     def import_obj(cls, data, whitelist=True):
-        if not cls._is_valid_package(unprocessed):
+        if not cls._is_valid_package(data):
             raise InvalidPackage
-        obj = cls._create_class(unprocessed['class'], whitelist)
+        obj = cls._create_class(data['class'], whitelist)
 
-        if isinstance(unprocessed['name'], list):
-            name = tuple(unprocessed['name'])
+        if isinstance(data['name'], list):
+            name = tuple(data['name'])
         else:
-            name = unprocessed['name']
+            name = data['name']
 
         instance = obj(name)
 
         if name not in instance.metadata:
-            instance.register(**unprocessed['metadata'])
+            instance.register(**data['metadata'])
         else:
             obj(name).backup()
-            instance.metadata[name] = unprocessed['metadata']
+            instance.metadata[name] = data['metadata']
             # instance.metadata.flush()
 
-        data = unprocessed['data']
+        json_data = data['data']
         if instance['unrolled_dict']:
-            data = cls._reroll_dict(data)
+            json_data = cls._reroll_dict(json_data)
 
-        instance.write(data)
+        instance.write(json_data)
         instance.process()
         return instance
 

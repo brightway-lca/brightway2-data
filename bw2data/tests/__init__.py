@@ -11,3 +11,4 @@ from .sparse import SparseMatrixProxyTest
 from .utils import UtilsTest
 from .updates import UpdatesTest
 from .validation import ValidationTestCase
+from .packaging import BW2PackageTest
