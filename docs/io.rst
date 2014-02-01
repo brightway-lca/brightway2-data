@@ -4,15 +4,11 @@ Import and Export
 BW2Package
 ==========
 
-Brightway2 has its own data format for efficient saving, loading, and transfer. Read more at the `Brightway2 documentation <http://brightway2.readthedocs.org/en/latest/key-concepts.html#data-interchange>`_.
+Brightway2 has its own data format for archiving data which is both efficient and compatible across operating systems and programming languages. This is the default backup format for Brightway2 :ref:`datastore` objects.
 
 .. note:: **imports** and **exports** are supported.
 
-
-.. autoclass:: bw2data.io.BW2PackageImporter
-    :members:
-
-.. autoclass:: bw2data.io.BW2PackageExporter
+.. autoclass:: bw2data.io.BW2Package
     :members:
 
 Ecospold1

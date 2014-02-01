@@ -45,6 +45,8 @@ The building blocks in Brightway2 data are the **data store** and the **metadata
 
 Both the data and metadata objects *store* data, and provide easy ways to save and load data.
 
+.. _metadata-store:
+
 Metadata stores
 ---------------
 

@@ -6,7 +6,8 @@ from ..errors import UnsafeData, InvalidPackage
 from ..io import BW2Package
 from ..serialization import SerializedDict
 from fixtures import food, biosphere
-from voluptuous import Invalid
+import copy
+import fractions
 
 
 class MockMetadata(SerializedDict):
@@ -24,9 +25,6 @@ class MockDS(DataStore):
 
 
 class BW2PackageTest(BW2DataTest):
-    def test_foo(self):
-        pass
-
     def test_class_metadata(self):
         class_metadata = {
             'module': 'bw2data.tests.packaging',
@@ -38,7 +36,27 @@ class BW2PackageTest(BW2DataTest):
         )
 
     def test_validation(self):
-       pass
+        good_dict = {
+            'metadata': {'foo': 'bar'},
+            'name': 'Johnny',
+            'class': {
+                'module': 'some',
+                'name': 'thing'
+            },
+            'unrolled_dict': False,
+            'data': {}
+        }
+        self.assertTrue(BW2Package._is_valid_package(good_dict))
+        d = copy.deepcopy(good_dict)
+        del d['unrolled_dict']
+        self.assertTrue(BW2Package._is_valid_package(d))
+        d = copy.deepcopy(good_dict)
+        d['name'] = ()
+        self.assertTrue(BW2Package._is_valid_package(d))
+        for key in ['metadata', 'name', 'data']:
+            d = copy.deepcopy(good_dict)
+            del d[key]
+            self.assertFalse(BW2Package._is_valid_package(d))
 
     def test_whitelist(self):
         good_class_metadata = {
@@ -98,5 +116,37 @@ class BW2PackageTest(BW2DataTest):
         cls = BW2Package._create_class(class_metadata, False)
         self.assertEqual(cls, Database)
 
-    def test_io(self):
+    def test_load_object(self):
+        test_data = {
+            'metadata': {'foo': 'bar'},
+            'name': ['Johnny', 'B', 'Good'],
+            'class': {
+                'module': 'fractions',
+                'name': 'Fraction'
+            },
+            'unrolled_dict': False,
+            'data': {}
+        }
+        after = BW2Package._load_object(copy.deepcopy(test_data), False)
+        for key in test_data:
+            self.assertTrue(key in after)
+        with self.assertRaises(InvalidPackage):
+            BW2Package._load_object({})
+        self.assertEqual(after['class'], fractions.Fraction)
+        self.assertEqual(after['name'], ('Johnny', 'B', 'Good'))
+        self.assertTrue(isinstance(after, dict))
+
+    def test_create_obj(self):
+        pass
+
+    def test_export_filenames(self):
+        pass
+
+    def test_load_file(self):
+        pass
+
+    def test_roundtrip(self):
+        pass
+
+    def test_import_file(self):
         pass

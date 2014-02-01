@@ -56,7 +56,7 @@ normalization_validator = Schema([
 
 bw2package_validator = Schema({
     Required('metadata'): {basestring: object},
-    Required('name'): Any(basestring, tuple),
+    Required('name'): Any(basestring, tuple, list),
     'class': {
         Required('module'): basestring,
         Required('name'): basestring,

@@ -1,16 +1,37 @@
 # -*- coding: utf-8 -*
-from .. import Database, databases, config, JsonWrapper, methods, Method
+from .. import config, JsonWrapper
 from ..logs import get_logger
-from ..utils import database_hash, download_file
+from ..utils import download_file
 from ..errors import UnsafeData, InvalidPackage
 from ..validate import bw2package_validator
 from voluptuous import Invalid
 from time import time
 import os
-import warnings
 
 
 class BW2Package(object):
+    """This is a format for saving objects which implement the :ref:`datastore` API. Data is stored as a BZip2-compressed file of JSON data. This archive format is compatible across Python versions, and is, at least in theory, programming-language agnostic.
+
+    Validation is done with ``bw2data.validate.bw2package_validator``.
+
+    The data format is:
+
+    .. code-block:: python
+
+        {
+            'metadata': {},  # Dictionary of metadata to be written to metadata-store.
+            'name': basestring,  # Name of object
+            'class': {  # Data on the undying class. A new class is instantiated base on these strings. See _create_class.
+                'module': basestring,  # e.g. "bw2data.database"
+                'name': basestring  # e.g. "Database"
+            },
+            'unrolled_dict': bool,  # Flag indicating if dictionary keys needed to be modified for JSON
+            'data': object  # Object data, e.g. LCIA method or LCI database
+        }
+
+    .. note:: This class does not need to be instantiated, as all its methods are ``classmethods``, i.e. do ``BW2Package.import_obj("foo")`` instead of ``BW2Package().import_obj("foo")``
+
+    """
     APPROVED = {
         'bw2data',
         'bw2regional',
@@ -26,17 +47,6 @@ class BW2Package(object):
 
     @classmethod
     def _is_valid_package(cls, data):
-        """Valid packages must have the following structure:
-
-        {
-            'metadata': {
-                'module': str,
-                'name': str
-            },
-            'data': object
-        }
-
-        """
         try:
             bw2package_validator(data)
             return True
@@ -89,80 +99,144 @@ class BW2Package(object):
         return locals()[metadata['name']]
 
     @classmethod
-    def export_objs(cls, objs, folder="export"):
-        for obj in objs:
-            cls.export_obj(obj, folder)
-
-    @classmethod
-    def export_obj(cls, obj, folder="export"):
+    def _prepare_obj(cls, obj):
         data = obj.load()
         ready_data, unrolled = cls._unroll_dict(data)
-        to_export = {
+        return {
             'metadata': obj.metadata[obj.name],
             'name': obj.name,
             'class': cls._get_class_metadata(obj),
             'unrolled_dict': unrolled,
             'data': ready_data,
         }
-        filepath = os.path.join(
-            config.request_dir(folder),
-            obj.filename + u".bw2package"
-        )
-        JsonWrapper.dump_bz2(to_export, filepath)
 
     @classmethod
-    def import_objs(cls, filepath, whitelist=True):
-        unprocessed = JsonWrapper.load_bz2(filepath)
-        if isinstance(unprocessed, list):
-            for obj in list:
-                cls.import_obj(obj)
-        else:
-            cls.import_obj(unprocessed)
-
-    @classmethod
-    def import_obj(cls, data, whitelist=True):
+    def _load_object(cls, data, whitelist=True):
         if not cls._is_valid_package(data):
             raise InvalidPackage
-        obj = cls._create_class(data['class'], whitelist)
+        data['class'] = cls._create_class(data['class'], whitelist)
 
         if isinstance(data['name'], list):
-            name = tuple(data['name'])
-        else:
-            name = data['name']
+            data['name'] = tuple(data['name'])
 
-        instance = obj(name)
+        if data['unrolled_dict']:
+            data['data'] = cls._reroll_dict(data['data'])
 
-        if name not in instance.metadata:
+        return data
+
+    @classmethod
+    def _create_obj(cls, data):
+        instance = data['class'](data['name'])
+
+        if data['name'] not in instance.metadata:
             instance.register(**data['metadata'])
         else:
-            obj(name).backup()
-            instance.metadata[name] = data['metadata']
-            # instance.metadata.flush()
+            instance.backup()
+            instance.metadata[data['name']] = data['metadata']
 
-        json_data = data['data']
-        if instance['unrolled_dict']:
-            json_data = cls._reroll_dict(json_data)
-
-        instance.write(json_data)
+        instance.write(data['data'])
         instance.process()
         return instance
+
+    @classmethod
+    def export_objs(cls, objs, filename, folder="export"):
+        """Export a list of objects. Can have heterogeneous types.
+
+        Args:
+            * *objs* (list): List of objects to export.
+            * *filename* (str): Name of file to create.
+            * *folder* (str, optional): Folder to create file in. Default is ``export``.
+
+        Returns:
+            Filepath of created file.
+
+        """
+        filepath = os.path.join(
+            config.request_dir(folder),
+            filename + u".bw2package"
+        )
+        JsonWrapper.dump_bz2(
+            [cls._prepare_obj(o) for o in objs],
+            filepath
+        )
+        return filepath
+
+    @classmethod
+    def export_obj(cls, obj, filename=None, folder="export"):
+        """Export an object.
+
+        Args:
+            * *obj* (object): Object to export.
+            * *filename* (str, optional): Name of file to create. Default is ``obj.name``.
+            * *folder* (str, optional): Folder to create file in. Default is ``export``.
+
+        Returns:
+            Filepath of created file.
+
+        """
+        if filename is None:
+            filename = obj.name
+        filepath = os.path.join(
+            config.request_dir(folder),
+            filename + u".bw2package"
+        )
+        JsonWrapper.dump_bz2(cls._prepare_obj(obj), filepath)
+        return filepath
+
+    @classmethod
+    def load_file(cls, filepath, whitelist=True):
+        """Load a bw2package file with one or more objects. Does not create new objects.
+
+        Args:
+            * *filepath* (str): Path of file to import
+            * *whitelist* (bool): Apply whitelist to allowed types. Default is ``True``.
+
+        Returns the loaded data in the bw2package dict data format, with the following changes:
+            * ``"class"`` is an actual class.
+            * dictionaries are rerolled, if necessary.
+            * if ``"name"`` was a list, it is converted to a tuple.
+
+        """
+        raw_data = JsonWrapper.load_bz2(filepath)
+        if isinstance(raw_data, dict):
+            return cls._load_object(raw_data)
+        else:
+            return [cls._load_object(o) for o in raw_data]
+
+    @classmethod
+    def import_file(cls, filepath, whitelist=True):
+        """Import bw2package file, and create the loaded objects, including registering, writing, and processing the created objects.
+
+        Args:
+            * *filepath* (str): Path of file to import
+            * *whitelist* (bool): Apply whitelist to allowed types. Default is ``True``.
+
+        Returns:
+            Created object or list of created objects.
+
+        """
+        loaded = cls.load_file(filepath, whitelist)
+        if isinstance(loaded, dict):
+            return cls._import_obj(loaded)
+        else:
+            return [cls._import_obj(o) for o in loaded]
 
 
 def download_biosphere():
     logger = get_logger("io-performance.log")
     start = time()
-    filepath = download_file("biosphere.bw2package")
+    filepath = download_file("biosphere-new.bw2package")
     logger.info("Downloading biosphere package: %.4g" % (time() - start))
     start = time()
-    BW2PackageImporter.importer(filepath)
+    BW2Package.import_objs(filepath)
     logger.info("Importing biosphere package: %.4g" % (time() - start))
 
 
 def download_methods():
     logger = get_logger("io-performance.log")
     start = time()
-    filepath = download_file("methods.bw2iapackage")
+    filepath = download_file("methods-new.bw2iapackage")
     logger.info("Downloading methods package: %.4g" % (time() - start))
     start = time()
-    BW2PackageImporter.importer(filepath)
+    BW2Package.import_objs(filepath)
     logger.info("Importing methods package: %.4g" % (time() - start))
