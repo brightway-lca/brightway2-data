@@ -29,6 +29,10 @@ class BW2Package(object):
             'data': object  # Object data, e.g. LCIA method or LCI database
         }
 
+    Perfect roundtrips between machines are not guaranteed:
+        * All lists are converted to tuples (because JSON does not distinguish between lists and tuples).
+        * Absolute filepaths in metadata would be specific to a certain computer and user.
+
     .. note:: This class does not need to be instantiated, as all its methods are ``classmethods``, i.e. do ``BW2Package.import_obj("foo")`` instead of ``BW2Package().import_obj("foo")``
 
     """
