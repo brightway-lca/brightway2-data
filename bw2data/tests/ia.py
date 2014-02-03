@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
-from .. import Updates, config, Database, Method, mapping, geomapping
+from .. import config, Database, Method, mapping, geomapping, Weighting
 from ..ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS
 from ..serialization import CompoundJSONDict
 import hashlib
@@ -42,7 +42,11 @@ class IADSTest(BW2DataTest):
     def test_abbreviate(self):
         self.assertEqual(
             abbreviate(("foo", "bar")),
-            u"foob-%s" % hashlib.md5("foo-bar").hexdigest()
+            u"foob.%s" % hashlib.md5("foo-bar").hexdigest()
+        )
+        self.assertNotEqual(
+            abbreviate(("foo", "bar")),
+            abbreviate(("foo", "baz"))
         )
 
     def test_copy_no_name(self):
@@ -115,3 +119,24 @@ class MethodTest(BW2DataTest):
         self.assertFalse(fieldnames.difference(set(array.dtype.names)))
 
 
+class WeightingTest(BW2DataTest):
+    def test_write_good_data(self):
+        w = Weighting(("foo",))
+        w.register()
+        w.write([2])
+        w.write([{'amount': 2}])
+        w.write([{'amount': 2, 'uncertainty type': 0}])
+
+    def test_write_invalid_data(self):
+        w = Weighting(("foo",))
+        w.register()
+        with self.assertRaises(ValueError):
+            w.write(2)
+        with self.assertRaises(ValueError):
+            w.write([2, 4])
+
+    def test_process(self):
+        w = Weighting(("foo",))
+        w.register()
+        w.write([2])
+        w.process()
