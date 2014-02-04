@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from . import config
 from time import time
+import bz2
 import os
 import random
 try:
@@ -17,11 +18,16 @@ except ImportError:
 class JsonWrapper(object):
     @classmethod
     def dump(self, data, file):
-        with open(file, "w") as f:
+        with open(file, "wb") as f:
             if anyjson:
                 f.write(anyjson.serialize(data))
             else:
                 json.dump(data, f, indent=2)
+
+    @classmethod
+    def dump_bz2(self, data, filepath):
+        with bz2.BZ2File(filepath, "wb") as f:
+            f.write(JsonWrapper.dumps(data))
 
     @classmethod
     def load(self, file):
@@ -29,6 +35,10 @@ class JsonWrapper(object):
             return anyjson.deserialize(open(file).read())
         else:
             return json.load(open(file))
+
+    @classmethod
+    def load_bz2(self, filepath):
+        return JsonWrapper.loads(bz2.BZ2File(filepath).read())
 
     @classmethod
     def dumps(self, data):
@@ -43,6 +53,43 @@ class JsonWrapper(object):
             return anyjson.deserialize(data)
         else:
             return json.loads(data)
+
+
+class JSONSanitizer(object):
+    @classmethod
+    def sanitize(cls, data):
+        if isinstance(data, tuple):
+            return {
+                '__tuple__': True,
+                'data': [cls.sanitize(x) for x in data]
+            }
+        elif isinstance(data, dict):
+            return {
+                '__dict__': True,
+                'keys': [cls.sanitize(x) for x in data.keys()],
+                'values': [cls.sanitize(x) for x in data.values()]
+            }
+        elif isinstance(data, list):
+            return [cls.sanitize(x) for x in data]
+        else:
+            return data
+
+    @classmethod
+    def load(cls, data):
+        if isinstance(data, dict):
+            if "__tuple__" in data:
+                return tuple([cls.load(x) for x in data['data']])
+            elif "__dict__" in data:
+                return dict(zip(
+                    [cls.load(x) for x in data['keys']],
+                    [cls.load(x) for x in data['values']]
+                ))
+            else:
+                raise ValueError
+        elif isinstance(data, list):
+            return [cls.load(x) for x in data]
+        else:
+            return data
 
 
 class SerializedDict(object):
