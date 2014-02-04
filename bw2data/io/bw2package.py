@@ -8,6 +8,7 @@ from ..validate import bw2package_validator
 from voluptuous import Invalid
 from time import time
 import os
+import warnings
 
 
 class BW2Package(object):
@@ -180,10 +181,12 @@ class BW2Package(object):
 
         """
         loaded = cls.load_file(filepath, whitelist)
-        if isinstance(loaded, dict):
-            return cls._create_obj(loaded)
-        else:
-            return [cls._create_obj(o) for o in loaded]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            if isinstance(loaded, dict):
+                return cls._create_obj(loaded)
+            else:
+                return [cls._create_obj(o) for o in loaded]
 
 
 def download_biosphere():

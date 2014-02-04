@@ -1,6 +1,11 @@
 Changelog
 *********
 
+0.12.2 (2014-02-04)
+===================
+
+- CHANGE: BW2Package import file ignores warnings
+
 0.12.1 (2014-02-04)
 ===================
 
