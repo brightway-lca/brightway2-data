@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*
-from .. import config, JsonWrapper
+from .. import config
+from ..serialization import JsonWrapper, JsonSanitizer
 from ..logs import get_logger
 from ..utils import download_file
 from ..errors import UnsafeData, InvalidPackage
@@ -62,38 +63,6 @@ class BW2Package(object):
         return metadata['module'].split(".")[0] in cls.APPROVED
 
     @classmethod
-    def _unroll_dict(cls, data):
-        """If data is a dictionary with keys that aren't keys in JSON, turn dict from:
-
-            {(1, 2): 3}
-
-        to:
-
-            [
-                ((1,2), 3),
-            ]
-
-        Only looks at first level of dict, not recursive.
-
-        Returns:
-            obj: data (either original or modified)
-            bool: data needed modification
-
-        """
-        try:
-            JsonWrapper.dumps(data)
-            return data, False
-        except:
-            if not isinstance(data, dict):
-                raise ValueError("Data not a dict, and can't be JSON serialized")
-            return zip(data.keys(), data.values()), True
-
-    @classmethod
-    def _reroll_dict(cls, data):
-        """Return JSON list to proper python dict form with tuple keys"""
-        return {tuple(x): y for x, y in data}
-
-    @classmethod
     def _create_class(cls, metadata, apply_whitelist=True):
         if apply_whitelist and not cls._is_whitelisted(metadata):
             raise UnsafeData("{}.{} not a whitelisted class name".format(
@@ -104,14 +73,11 @@ class BW2Package(object):
 
     @classmethod
     def _prepare_obj(cls, obj):
-        data = obj.load()
-        ready_data, unrolled = cls._unroll_dict(data)
         return {
             'metadata': obj.metadata[obj.name],
             'name': obj.name,
             'class': cls._get_class_metadata(obj),
-            'unrolled_dict': unrolled,
-            'data': ready_data,
+            'data': obj.load()
         }
 
     @classmethod
@@ -119,12 +85,6 @@ class BW2Package(object):
         if not cls._is_valid_package(data):
             raise InvalidPackage
         data['class'] = cls._create_class(data['class'], whitelist)
-
-        if isinstance(data['name'], list):
-            data['name'] = tuple(data['name'])
-
-        if data['unrolled_dict']:
-            data['data'] = cls._reroll_dict(data['data'])
 
         return data
 
@@ -160,7 +120,7 @@ class BW2Package(object):
             filename + u".bw2package"
         )
         JsonWrapper.dump_bz2(
-            [cls._prepare_obj(o) for o in objs],
+            JsonSanitizer.sanitize([cls._prepare_obj(o) for o in objs]),
             filepath
         )
         return filepath
@@ -197,11 +157,9 @@ class BW2Package(object):
 
         Returns the loaded data in the bw2package dict data format, with the following changes:
             * ``"class"`` is an actual class.
-            * dictionaries are rerolled, if necessary.
-            * if ``"name"`` was a list, it is converted to a tuple.
 
         """
-        raw_data = JsonWrapper.load_bz2(filepath)
+        raw_data = JsonSanitizer.load(JsonWrapper.load_bz2(filepath))
         if isinstance(raw_data, dict):
             return cls._load_object(raw_data)
         else:
