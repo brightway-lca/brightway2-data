@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
-from .. import Database, config, databases
+from .. import Database
 from ..data_store import DataStore
 from ..errors import UnsafeData, InvalidPackage
 from ..io import BW2Package
 from ..serialization import SerializedDict
-from fixtures import food, biosphere
 import copy
 import fractions
-import json
 
 
 class MockMetadata(SerializedDict):
