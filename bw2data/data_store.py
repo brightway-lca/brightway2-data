@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*
 from . import config
-from .errors import UnknownObject
+from .errors import UnknownObject, MissingIntermediateData
 from .utils import safe_filename
 import numpy as np
 import os
@@ -106,6 +106,16 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         new_obj.process()
         return new_obj
 
+    def backup(self):
+        """Save a backup to ``backups`` folder.
+
+        Returns:
+            File path of backup.
+
+        """
+        from .io import BW2Package
+        return BW2Package.export_obj(self)
+
     def write(self, data):
         """Serialize intermediate data to disk.
 
@@ -189,8 +199,3 @@ Uses ``pickle`` instead of the native NumPy ``.tofile()``. Although pickle is ~2
         Need some metaprogramming because class methods have `self` injected automatically."""
         self.validator(data)
         return True
-
-    def backup(self):
-        """Backup data to compressed JSON file"""
-        raise NotImplementedError
-

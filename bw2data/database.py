@@ -73,19 +73,6 @@ class Database(DataStore):
         ('col', np.uint32),
     ]
 
-
-    def backup(self):
-        """Save a backup to ``backups`` folder.
-
-        Returns:
-            File path of backup.
-
-        """
-        from .io import BW2PackageExporter
-        return BW2PackageExporter.export_database(self.name,
-            folder="backups", extra_string="." + str(int(time()))
-            )
-
     def copy(self, name):
         """Make a copy of the database.
 
