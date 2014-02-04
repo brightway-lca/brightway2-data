@@ -14,11 +14,13 @@ import json
 class MockMetadata(SerializedDict):
     filename = "mock-meta.json"
 
+mocks = MockMetadata()
+
 
 class MockDS(DataStore):
     """Mock DataStore for testing"""
-    metadata = MockMetadata()
-    validator = lambda x: True
+    metadata = mocks
+    validator = lambda x, y: True
     dtype_fields = []
 
     def process_data(self, row):
@@ -26,6 +28,9 @@ class MockDS(DataStore):
 
 
 class BW2PackageTest(BW2DataTest):
+    def extra_setup(self):
+        mocks.__init__()
+
     def test_class_metadata(self):
         class_metadata = {
             'module': 'bw2data.tests.packaging',
@@ -92,7 +97,7 @@ class BW2PackageTest(BW2DataTest):
         cls = BW2Package._create_class(class_metadata, False)
         self.assertEqual(cls, Database)
 
-    def test_load_object(self):
+    def test_load_obj(self):
         test_data = {
             'metadata': {'foo': 'bar'},
             'name': ['Johnny', 'B', 'Good'],
@@ -102,24 +107,39 @@ class BW2PackageTest(BW2DataTest):
             },
             'data': {}
         }
-        after = BW2Package._load_object(copy.deepcopy(test_data), False)
+        after = BW2Package._load_obj(copy.deepcopy(test_data), False)
         for key in test_data:
             self.assertTrue(key in after)
         with self.assertRaises(InvalidPackage):
-            BW2Package._load_object({})
+            BW2Package._load_obj({})
         self.assertEqual(after['class'], fractions.Fraction)
 
     def test_create_obj(self):
-        pass
+        mock_data = {
+            'class': {'module': 'bw2data.tests.packaging', 'name': 'MockDS'},
+            'metadata': {'circle': 'square'},
+            'data': [],
+            'name': 'Wilhelm'
+        }
+        data = BW2Package._load_obj(mock_data)
+        obj = BW2Package._create_obj(data)
+        self.assertTrue(isinstance(obj, MockDS))
+        self.assertTrue("Wilhelm" in mocks)
+        self.assertEqual(mocks['Wilhelm'], {'circle': 'square'})
+        self.assertEqual(MockDS("Wilhelm").load(), [])
 
-    def test_export_filenames(self):
-        pass
+    def test_roundtrip_obj(self):
+        obj = MockDS("Slick Al")
+        obj.register()
+        obj.write(["a boring string", {'foo': 'bar'}, (1,2,3)])
+        fp = BW2Package.export_obj(obj)
+        obj.deregister()
+        del obj
+        self.assertFalse('Slick Al' in mocks)
+        obj = BW2Package.import_file(fp)
+        self.assertTrue('Slick Al' in mocks)
+        self.assertTrue(isinstance(obj, MockDS))
+        self.assertEqual(obj.load(), ["a boring string", {'foo': 'bar'}, (1,2,3)])
 
-    def test_load_file(self):
-        pass
-
-    def test_roundtrip(self):
-        pass
-
-    def test_import_file(self):
+    def test_roundtrip_objs(self):
         pass

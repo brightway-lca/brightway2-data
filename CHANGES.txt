@@ -1,6 +1,14 @@
 Changelog
 *********
 
+0.12.1 (2014-02-04)
+===================
+
+New BW2Package format
+---------------------
+
+The new BW2Package is not specific to databases or methods, but should work for any data store that implements the DataStore API. This allows for normalization, weighting, regionalization, and others, and makes it easy to backup and restore.
+
 0.12 (2014-02-04)
 =================
 

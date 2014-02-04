@@ -135,6 +135,9 @@ class SerializedDict(object):
     def __str__(self):
         return unicode(self).encode('utf-8')
 
+    def __unicode__(self):
+        return u"Brightway2 serialized dictionary with {} entries".format(len(self))
+
     def __delitem__(self, name):
         del self.data[name]
         self.flush()

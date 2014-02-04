@@ -81,11 +81,10 @@ class BW2Package(object):
         }
 
     @classmethod
-    def _load_object(cls, data, whitelist=True):
+    def _load_obj(cls, data, whitelist=True):
         if not cls._is_valid_package(data):
             raise InvalidPackage
         data['class'] = cls._create_class(data['class'], whitelist)
-
         return data
 
     @classmethod
@@ -101,6 +100,12 @@ class BW2Package(object):
         instance.write(data['data'])
         instance.process()
         return instance
+
+    @classmethod
+    def _write_file(cls, filepath, data):
+        JsonWrapper.dump_bz2(
+            JsonSanitizer.sanitize(data), filepath
+        )
 
     @classmethod
     def export_objs(cls, objs, filename, folder="export"):
@@ -119,10 +124,7 @@ class BW2Package(object):
             config.request_dir(folder),
             filename + u".bw2package"
         )
-        JsonWrapper.dump_bz2(
-            JsonSanitizer.sanitize([cls._prepare_obj(o) for o in objs]),
-            filepath
-        )
+        cls._write_file(filepath, [cls._prepare_obj(o) for o in objs])
         return filepath
 
     @classmethod
@@ -144,7 +146,7 @@ class BW2Package(object):
             config.request_dir(folder),
             filename + u".bw2package"
         )
-        JsonWrapper.dump_bz2(cls._prepare_obj(obj), filepath)
+        cls._write_file(filepath, cls._prepare_obj(obj))
         return filepath
 
     @classmethod
@@ -161,9 +163,9 @@ class BW2Package(object):
         """
         raw_data = JsonSanitizer.load(JsonWrapper.load_bz2(filepath))
         if isinstance(raw_data, dict):
-            return cls._load_object(raw_data)
+            return cls._load_obj(raw_data)
         else:
-            return [cls._load_object(o) for o in raw_data]
+            return [cls._load_obj(o) for o in raw_data]
 
     @classmethod
     def import_file(cls, filepath, whitelist=True):
@@ -179,9 +181,9 @@ class BW2Package(object):
         """
         loaded = cls.load_file(filepath, whitelist)
         if isinstance(loaded, dict):
-            return cls._import_obj(loaded)
+            return cls._create_obj(loaded)
         else:
-            return [cls._import_obj(o) for o in loaded]
+            return [cls._create_obj(o) for o in loaded]
 
 
 def download_biosphere():
@@ -190,15 +192,15 @@ def download_biosphere():
     filepath = download_file("biosphere-new.bw2package")
     logger.info("Downloading biosphere package: %.4g" % (time() - start))
     start = time()
-    BW2Package.import_objs(filepath)
+    BW2Package.import_file(filepath)
     logger.info("Importing biosphere package: %.4g" % (time() - start))
 
 
 def download_methods():
     logger = get_logger("io-performance.log")
     start = time()
-    filepath = download_file("methods-new.bw2iapackage")
+    filepath = download_file("methods-new.bw2package")
     logger.info("Downloading methods package: %.4g" % (time() - start))
     start = time()
-    BW2Package.import_objs(filepath)
+    BW2Package.import_file(filepath)
     logger.info("Importing methods package: %.4g" % (time() - start))

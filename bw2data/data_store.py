@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*
 from . import config
-from .errors import UnknownObject
+from .errors import UnknownObject, MissingIntermediateData
 from .utils import safe_filename
 import numpy as np
 import os
