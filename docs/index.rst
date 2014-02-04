@@ -3,15 +3,16 @@ Brightway2-data
 
 This is the documentation for Brightway2-data, part of the `Brightway2 <http://brightwaylca.org>`_ life cycle assessment framework.
 
-Surprisingly enough, Brightway2-data (abbreviated to bw2data in code) is the package the manages different types of data in Brightway2. In general, Brightway2-data can save, load, process, validate, import and export different kinds of data. It also includes code to setup the data directory, query datasets, and normalize units.
+Surprisingly enough, Brightway2-data (abbreviated to ``bw2data`` in code) is the package the manages different types of data in Brightway2. In general, Brightway2-data can save, load, process, validate, import and export different kinds of data. It also includes code to setup the data directory, query datasets, and normalize units.
 
-This page of the documentation covers the basic concepts in Brightway2-data. Documentation on querying, and import and export of data in different formats, are in separate sections.
+This page of the documentation covers the basic concepts in Brightway2-data. There is also detailed technical documentation, as well as separate sectiosn on querying and import and export of data in different formats.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 4
 
+   self
    querying
-   io
+   technical
 
 Other resources
 ---------------
@@ -20,7 +21,7 @@ The following online resources are available:
 
 * `Source code <https://bitbucket.org/cmutel/brightway2-data>`_
 * `Documentation on Read the Docs <http://bw2data.readthedocs.org>`_
-* `Test coverage report <http://coverage.brightwaylca.org/data/index.html>`_
+* `Report on how well the tests cover the code base <http://coverage.brightwaylca.org/data/index.html>`_
 
 Configuration
 =============
@@ -32,6 +33,8 @@ The ``config`` object stores the Brightway2 directory, and can also change it, a
 The ``config`` object also stores user preferences. User preferences include things like the default number of Monte Carlo iterations to run, but it is just a dictionary, and can be added to as desired.
 
 .. warning:: Preferences are not saved automatically - you must call ``config.save_preferences()``.
+
+.. _data-and-metadata:
 
 Data and metadata
 =================
@@ -170,15 +173,6 @@ Building the documentation
 --------------------------
 
 Install `sphinx <http://sphinx.pocoo.org/>`_, and then change to the ``docs`` directory, and run ``make html`` (or ``make.bat html`` in Windows).
-
-Table of Contents
------------------
-
-.. toctree::
-   :maxdepth: 4
-
-   querying
-   technical
 
 Indices and tables
 ==================

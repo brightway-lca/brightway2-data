@@ -35,7 +35,7 @@ class Config(object):
         self.cache = {}
 
     def check_dir(self, directory=None):
-        """Check is directory is a directory and writeable."""
+        """Check if given directory is a directory and writeable."""
         return os.path.isdir(self.dir) and \
             os.access(directory or self.dir, os.W_OK)
 
