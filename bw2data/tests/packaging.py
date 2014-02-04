@@ -44,13 +44,9 @@ class BW2PackageTest(BW2DataTest):
                 'module': 'some',
                 'name': 'thing'
             },
-            'unrolled_dict': False,
             'data': {}
         }
         self.assertTrue(BW2Package._is_valid_package(good_dict))
-        d = copy.deepcopy(good_dict)
-        del d['unrolled_dict']
-        self.assertTrue(BW2Package._is_valid_package(d))
         d = copy.deepcopy(good_dict)
         d['name'] = ()
         self.assertTrue(BW2Package._is_valid_package(d))
@@ -70,27 +66,6 @@ class BW2PackageTest(BW2DataTest):
         }
         self.assertTrue(BW2Package._is_whitelisted(good_class_metadata))
         self.assertFalse(BW2Package._is_whitelisted(bad_class_metadata))
-
-    def test_unroll_dict(self):
-        good_dict = {"a": "b", 1: 2}
-        bad_dict = {("a", "composite", "key"): "some value"}
-        bad_dict_result = [(("a", "composite", "key"), "some value")]
-        self.assertEqual(
-            BW2Package._unroll_dict(good_dict),
-            (good_dict, False)
-        )
-        self.assertEqual(
-            BW2Package._unroll_dict(bad_dict),
-            (bad_dict_result, True)
-        )
-
-    def test_reroll_dict(self):
-        bad_dict = {("a", "composite", "key"): "some value"}
-        bad_dict_result = [(("a", "composite", "key"), "some value")]
-        self.assertEqual(
-            BW2Package._reroll_dict(bad_dict_result),
-            bad_dict
-        )
 
     def test_create_class_whitelist(self):
         bad_class_metadata = {
@@ -125,7 +100,6 @@ class BW2PackageTest(BW2DataTest):
                 'module': 'fractions',
                 'name': 'Fraction'
             },
-            'unrolled_dict': False,
             'data': {}
         }
         after = BW2Package._load_object(copy.deepcopy(test_data), False)
@@ -134,11 +108,6 @@ class BW2PackageTest(BW2DataTest):
         with self.assertRaises(InvalidPackage):
             BW2Package._load_object({})
         self.assertEqual(after['class'], fractions.Fraction)
-        self.assertEqual(after['name'], ('Johnny', 'B', 'Good'))
-        self.assertTrue(isinstance(after, dict))
-
-    def test_tupleize(self):
-        pass
 
     def test_create_obj(self):
         pass
