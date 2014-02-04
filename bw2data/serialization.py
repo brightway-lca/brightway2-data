@@ -55,7 +55,7 @@ class JsonWrapper(object):
             return json.loads(data)
 
 
-class JSONSanitizer(object):
+class JsonSanitizer(object):
     @classmethod
     def sanitize(cls, data):
         if isinstance(data, tuple):
