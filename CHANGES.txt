@@ -1,8 +1,18 @@
 Changelog
 *********
 
-0.11 ()
-=======
+0.12 (2014-02-04)
+=================
+
+**bw2-uptodate.py is required for this update**
+
+Safe filenames
+--------------
+
+The algorithm to create filenames was changed to prevent illegal characters being used. See `utils.safe_filename`.
+
+0.11 (2014-01-28)
+=================
 
 **bw2-uptodate.py is required for this update**
 

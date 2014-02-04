@@ -1,4 +1,4 @@
-from voluptuous import *
+from voluptuous import Invalid
 import unittest2
 from ..validate import *
 

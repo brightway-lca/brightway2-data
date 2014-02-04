@@ -7,6 +7,7 @@ import random
 import re
 import requests
 import string
+import unicodedata
 import zipfile
 try:
     import cStringIO as StringIO
@@ -24,6 +25,8 @@ TYPE_DICTIONARY = {
 }
 
 DOWNLOAD_URL = "http://brightwaylca.org/data/"
+
+re_slugify = re.compile('[^\w\s-]', re.UNICODE)
 
 
 def natural_sort(l):
@@ -85,6 +88,27 @@ def combine_methods(name, *ms):
     method.write(data)
     method.process()
     return method
+
+
+def safe_filename(string, add_hash=True):
+    """Convert arbitrary strings to make them safe for filenames. Substitutes strange characters, and uses unicode normalization. Appends hash of name to avoid collisions.
+
+    From http://stackoverflow.com/questions/295135/turn-a-string-into-a-valid-filename-in-python"""
+    hashed = hashlib.md5(string).hexdigest()
+    safe = re.sub(
+        '[-\s]+',
+        '-',
+        unicode(
+            re_slugify.sub(
+                '',
+                unicodedata.normalize('NFKD', unicode(string))
+            ).strip()
+        )
+    )
+    if add_hash:
+        return safe + u"." + hashed
+    else:
+        return safe
 
 
 def combine_databases(name, *dbs):

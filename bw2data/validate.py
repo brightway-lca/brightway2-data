@@ -14,7 +14,7 @@ def valid_tuple(obj):
 
 uncertainty_dict = {
     Required("amount"): Any(float, int),
-    "uncertainty_type": int,
+    "uncertainty type": int,
     "loc": Any(float, int),
     "scale": Any(float, int),
     "shape": Any(float, int),

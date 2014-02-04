@@ -5,7 +5,7 @@ from .config import ConfigTest
 from .database import DatabaseTest
 from .data_store import DataStoreTestCase
 from .geo import GeoTest
-from .ia import IADSTest, MethodTest, WeightingTest
+from .ia import IADSTest, MethodTest, WeightingTest, NormalizationTest
 from .simapro import SimaProImportTest
 from .sparse import SparseMatrixProxyTest
 from .utils import UtilsTest

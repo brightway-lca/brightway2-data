@@ -1,24 +1,16 @@
 # -*- coding: utf-8 -*-
-from . import config
 from .data_store import DataStore
-from copy import copy
-from errors import UnknownObject, MissingIntermediateData
-from utils import random_string
+from .utils import safe_filename
 import hashlib
-import os
 import string
-import warnings
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 
 
 def abbreviate(names, length=8):
+    safe_names = [safe_filename(x, False) for x in names]
     abbrev = lambda x: x if x[0] in string.digits else x[0].lower()
-    name = u" ".join(names).split(" ")[0].lower() + \
-        u"".join([abbrev(x) for x in u" ".join(names).split(" ")[1:]])
-    return name + u"-" + hashlib.md5(unicode(u"-".join(names))).hexdigest()
+    name = u" ".join(safe_names).split(" ")[0].lower() + \
+        u"".join([abbrev(x) for x in u" ".join(safe_names).split(" ")[1:]])
+    return name + u"." + hashlib.md5(unicode(u"-".join(names))).hexdigest()
 
 
 class ImpactAssessmentDataStore(DataStore):

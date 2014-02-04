@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*
-from .errors import UnknownObject
 from . import config
+from .errors import UnknownObject
+from .utils import safe_filename
 import numpy as np
 import os
 import warnings
@@ -52,7 +53,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
     @property
     def filename(self):
         """Can be overwritten in cases where the filename is not the name"""
-        return self.name
+        return safe_filename(self.name)
 
     def register(self, **kwargs):
         """Register an object with the metadata store.
@@ -186,7 +187,7 @@ Uses ``pickle`` instead of the native NumPy ``.tofile()``. Although pickle is ~2
         """Validate data. Must be called manually.
 
         Need some metaprogramming because class methods have `self` injected automatically."""
-        self.validator.__func__(data)
+        self.validator(data)
         return True
 
     def backup(self):

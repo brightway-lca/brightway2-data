@@ -4,7 +4,7 @@ from .errors import MissingIntermediateData
 from .query import Query
 from .data_store import DataStore
 from .units import normalize_units
-from .utils import natural_sort, MAX_INT_32, TYPE_DICTIONARY
+from .utils import natural_sort, MAX_INT_32, TYPE_DICTIONARY, safe_filename
 from .validate import db_validator
 from time import time
 import datetime
@@ -57,7 +57,7 @@ class Database(DataStore):
 
     """
     metadata = databases
-    valdiator = db_validator
+    validator = db_validator
     dtype_fields = [
         ('input', np.uint32),
         ('output', np.uint32),
@@ -117,8 +117,8 @@ class Database(DataStore):
             Filename (not path)
 
         """
-        return "%s.%i" % (
-            self.name,
+        return u"%s.%i" % (
+            safe_filename(self.name),
             version or self.version
         )
 
@@ -378,7 +378,7 @@ Doesn't return anything, but writes two files to disk.
         """
         directory = os.path.join(config.dir, "intermediate")
         files = natural_sort(filter(
-            lambda x: ".".join(x.split(".")[:-2]) == self.name,
+            lambda x: ".".join(x.split(".")[:-2]) == safe_filename(self.name),
             os.listdir(directory)))
         return sorted([(int(name.split(".")[-2]),
             datetime.datetime.fromtimestamp(os.stat(os.path.join(

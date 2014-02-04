@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
-from . import Database, databases, Method, methods, config
+from . import Database, databases, Method, methods, config, Weighting, \
+    weightings, Normalization, normalizations
 from .colors import Fore, safe_colorama
 from .ia_data_store import abbreviate
 from .units import normalize_units
 from .utils import activity_hash
-import numpy as np
 import progressbar
-import sys
+import os
 import warnings
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 UPTODATE_WARNING = Fore.RED + "\n\nYour data needs to be updated." + Fore.RESET \
     + " Please run the following program on the command line:\n\n\t" + \
@@ -25,9 +29,15 @@ class Updates(object):
         '0.10 units restandardization': {
             "method": "units_renormalize",
             "explanation": Fore.GREEN + "0.10 units restandardization:" + Fore.RESET + """\n\tBrightway2 tries to normalize units so that they are consistent from machine to machine, and person to person. For example, ``m2a`` is changed to ``square meter-year``. This update adds more data normalizations, and needs to updates links across databases."""},
-        '0.11 reprocess IA methods': {
-            "method": "reprocess_all_methods",
-            "explanation": Fore.GREEN + "0.11 reprocess IA methods" + Fore.RESET + """\n\t0.11 changed the format for processed IA methods, and the algorithm used to shorten IA method names."""},
+        # '0.11 reprocess IA methods': {
+        #     "method": "reprocess_all_lcia",
+        #     "explanation": Fore.GREEN + "0.11 reprocess IA methods" + Fore.RESET + """\n\t0.11 changed the format for processed IA methods, and the algorithm used to shorten IA method names."""},
+        "0.12 reprocess inventory databases": {
+            'method': "redo_all_databases_0_12",
+            "explanation": Fore.GREEN + "0.12 reprocess inventory databases" + Fore.RESET + "\n\t0.12 changed the algorithm to create filenames based on database and LCIA method names, to make sure they don't contain illegal characters."},
+        "0.12 reprocess IA databases": {
+            "method": "reprocess_all_lcia",
+            "explanation": Fore.GREEN + "0.12 reprocess IA databases" + Fore.RESET + "\n\t0.12 changed the algorithm to create filenames based on database and LCIA method names, to make sure they don't contain illegal characters."},
     }
 
     @staticmethod
@@ -51,7 +61,7 @@ class Updates(object):
         """
         updates = []
 
-        # Remove in 0.12
+        # Remove in 1.0
         if "upgrades" in config.p:
             config.p['updates'] = config.p['upgrades']
             del config.p['upgrades']
@@ -67,27 +77,66 @@ class Updates(object):
         return updates
 
     @staticmethod
-    def reprocess_all_methods():
-        """Change name hashing function from random characters (!?) to MD5 hash. Need to update abbreviations and rewrite all data."""
-        print "Updating all LCIA methods"
+    def redo_all_databases_0_12():
+        def load_data_old_filename(name, version):
+            return pickle.load(open(os.path.join(
+                config.dir,
+                u"intermediate",
+                name + u"." + unicode(version) + u".pickle"
+            ), "rb"))
+
+        print "Updating all LCI databases"
 
         pbar = progressbar.ProgressBar(
             widgets=widgets,
-            maxval=len(methods)
+            maxval=len(databases)
         ).start()
 
-        for index, method_key in enumerate(methods):
-            method = Method(method_key)
-            method_data = method.load()
-            methods[method_key]['abbreviation_old'] = \
-                methods[method_key]['abbreviation']
-            methods[method_key]['abbreviation'] = abbreviate(method_key)
-            methods.flush()
-            method.write(method_data)
-            method.process()
+        for index, name in enumerate(databases):
+            db = Database(name)
+            data = load_data_old_filename(name, db.version)
+            db.write(data)
+            db.process()
+
+            databases[name]['filename'] = db.filename
+            databases.flush()
+
             pbar.update(index)
 
         pbar.finish()
+
+    @staticmethod
+    def reprocess_all_lcia():
+        """0.11: Change name hashing function from random characters (!?) to MD5 hash. Need to update abbreviations and rewrite all data.
+
+        0.12: Make sure strings are sanitized to be able to be used in filenames. Need to update abbreviations and rewrite all data."""
+        LCIA = [
+            (methods, Method, "LCIA methods"),
+            (weightings, Weighting, "LCIA weightings"),
+            (normalizations, Normalization, "LCIA normalizations")
+        ]
+
+        for (meta, klass, name) in LCIA:
+            if meta.list:
+                print "Updating all %s" % name
+
+                pbar = progressbar.ProgressBar(
+                    widgets=widgets,
+                    maxval=len(meta)
+                ).start()
+
+                for index, key in enumerate(meta):
+                    obj = klass(key)
+                    data = obj.load()
+                    meta[key]['abbreviation_old'] = \
+                        meta[key]['abbreviation']
+                    meta[key]['abbreviation'] = abbreviate(key)
+                    meta.flush()
+                    obj.write(data)
+                    obj.process()
+                    pbar.update(index)
+
+                pbar.finish()
 
     @staticmethod
     def units_renormalize():

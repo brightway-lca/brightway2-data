@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
-from .. import Database, databases, mapping, geomapping, config
+from .. import config
+from ..database import Database
 from ..errors import UnknownObject
+from ..meta import mapping, geomapping, databases
+from ..validate import db_validator
 from .fixtures import food, biosphere
 import copy
 import os
@@ -65,6 +68,18 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(Database("food").load(), food)
         with self.assertRaises(AssertionError):
             d.revert(10)
+
+    def test_versions(self):
+        d = Database("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        self.assertEqual(
+            [x[0] for x in d.versions()], [1]
+        )
+        d.write(biosphere)
+        self.assertEqual(
+            [x[0] for x in d.versions()], [1, 2]
+        )
 
     def test_register(self):
         database = Database("testy")
@@ -148,7 +163,15 @@ class DatabaseTest(BW2DataTest):
     def test_processed_array(self):
         database = Database("a database")
         database.register()
-        database.write({})
+        database.write({("a database", 2): {
+            'type': 'process',
+            'exchanges': [{
+                'input': ("a database", 2),
+                'amount': 42,
+                'uncertainty type': 7,
+                'type': 'production'
+            }]
+        }})
         database.process()
         fp = os.path.join(
             config.dir,
@@ -158,4 +181,24 @@ class DatabaseTest(BW2DataTest):
         array = pickle.load(open(fp, "rb"))
         fieldnames = {'input', 'output', 'row', 'col', 'type'}
         self.assertFalse(fieldnames.difference(set(array.dtype.names)))
+        self.assertEqual(array.shape, (1,))
+        self.assertEqual(array[0]['uncertainty_type'], 7)
+        self.assertEqual(array[0]['amount'], 42)
+
+    def test_validator(self):
+        database = Database("a database")
+        self.assertTrue(database.validate({}))
+
+    def test_base_class(self):
+        database = Database("a database")
+        self.assertEqual(database.validator, db_validator)
+        self.assertEqual(database.metadata, databases)
+        self.assertEqual(
+            [x[0] for x in database.dtype_fields],
+            ['input', 'output', 'row', 'col', 'type']
+        )
+        self.assertEqual(
+            [x[0] for x in database.dtype_fields],
+            ['input', 'output', 'row', 'col', 'type']
+        )
 

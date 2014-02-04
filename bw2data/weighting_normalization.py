@@ -20,12 +20,12 @@ class Weighting(ImpactAssessmentDataStore):
 
     """
     metadata = weightings
-    valdiator = weighting_validator
+    validator = weighting_validator
     dtype_fields = []
 
     def write(self, data):
         """Because of DataStore assumptions, need a one-element list"""
-        if not len(data) == 1 or not isinstance(data, list):
+        if not isinstance(data, list) or not len(data) == 1:
             raise ValueError("Weighting data must be one-element list")
         super(Weighting, self).write(data)
 
@@ -52,7 +52,7 @@ class Normalization(ImpactAssessmentDataStore):
 
     """
     metadata = normalizations
-    valdiator = normalization_validator
+    validator = normalization_validator
     dtype_fields = [
         ('flow', np.uint32),
         ('index', np.uint32),

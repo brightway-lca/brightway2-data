@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
-from .. import config, Database, Method, mapping, geomapping, Weighting
+from .. import config
+from ..database import Database
 from ..ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS
+from ..meta import mapping, geomapping, weightings, normalizations, methods
+from ..method import Method
 from ..serialization import CompoundJSONDict
+from ..validate import weighting_validator, normalization_validator, ia_validator
+from ..weighting_normalization import Normalization, Weighting
 import hashlib
 import os
 try:
@@ -110,13 +115,24 @@ class MethodTest(BW2DataTest):
     def test_processed_array(self):
         method = Method(("a", "method"))
         method.register()
-        method.write([])
+        method.write([[("foo", "bar"), 42]])
         method.process()
         fp = os.path.join(config.dir, u"processed", method.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
 
-        fieldnames = {'flow', 'geo', 'row', 'col'}
-        self.assertFalse(fieldnames.difference(set(array.dtype.names)))
+        fieldnames = {x[0] for x in method.base_uncertainty_fields}.union({'flow', 'geo', 'row', 'col'})
+        self.assertEqual(fieldnames, set(array.dtype.names))
+        self.assertEqual(array[0]['amount'], 42)
+
+    def test_base_class(self):
+        method = Method(("a", "method"))
+        self.assertEqual(method.validator, ia_validator)
+        self.assertEqual(method.metadata, methods)
+        self.assertEqual([x[0] for x in method.dtype_fields], ['flow', 'geo', 'row', 'col'])
+
+    def test_validator(self):
+        method = Method(("a", "method"))
+        self.assertTrue(method.validate([]))
 
 
 class WeightingTest(BW2DataTest):
@@ -136,7 +152,52 @@ class WeightingTest(BW2DataTest):
             w.write([2, 4])
 
     def test_process(self):
-        w = Weighting(("foo",))
-        w.register()
-        w.write([2])
-        w.process()
+        weighting = Weighting(("foo",))
+        weighting.register()
+        weighting.write([42])
+        weighting.process()
+
+        fp = os.path.join(config.dir, u"processed", weighting.filename + u".pickle")
+        array = pickle.load(open(fp, "rb"))
+
+        fieldnames = {x[0] for x in weighting.base_uncertainty_fields}
+        self.assertEqual(fieldnames, set(array.dtype.names))
+        self.assertEqual(array[0]['amount'], 42)
+
+    def test_base_class(self):
+        weighting = Weighting(("foo",))
+        self.assertEqual(weighting.validator, weighting_validator)
+        self.assertEqual(weighting.metadata, weightings)
+        self.assertEqual(weighting.dtype_fields, [])
+
+    def test_validator(self):
+        weighting = Weighting(("foo",))
+        self.assertTrue(weighting.validate([{'amount': 1}]))
+
+
+class NormalizationTest(BW2DataTest):
+    def test_base_class(self):
+        norm = Normalization(("foo",))
+        self.assertEqual(norm.validator, normalization_validator)
+        self.assertEqual(norm.metadata, normalizations)
+        self.assertEqual([x[0] for x in norm.dtype_fields], ['flow', 'index'])
+
+    def test_add_mappings(self):
+        norm = Normalization(("foo",))
+        norm.register()
+        norm.write([[("foo", "bar"), 42]])
+        self.assertTrue(("foo", "bar") in mapping)
+
+    def test_process_data(self):
+        norm = Normalization(("foo",))
+        norm.register()
+        norm.write([[("foo", "bar"), 42]])
+        norm.process()
+
+        fp = os.path.join(config.dir, u"processed", norm.filename + u".pickle")
+        array = pickle.load(open(fp, "rb"))
+
+        fieldnames = {x[0] for x in norm.base_uncertainty_fields}.union({'flow', 'index'})
+        self.assertEqual(fieldnames, set(array.dtype.names))
+        self.assertEqual(array[0]['amount'], 42)
+        self.assertEqual(array[0]['flow'], mapping[("foo", "bar")])

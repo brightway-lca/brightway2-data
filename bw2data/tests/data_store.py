@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
-from .. import config, Database, mapping
+from .. import config
 from ..data_store import DataStore
-from ..serialization import SerializedDict
 from ..errors import UnknownObject
-import hashlib
+from ..serialization import SerializedDict
+from voluptuous import Schema
 import os
 try:
     import cPickle as pickle
@@ -21,11 +21,11 @@ metadata = Metadata()
 class MockDS(DataStore):
     """Mock DataStore for testing"""
     metadata = metadata
-    validator = lambda x: True
+    validator = Schema(int)
     dtype_fields = []
 
     def process_data(self, row):
-        return (), 0
+        return (), row
 
 
 class DataStoreTestCase(BW2DataTest):
@@ -91,15 +91,18 @@ class DataStoreTestCase(BW2DataTest):
 
     def test_validation(self):
         d = MockDS("cat")
-        self.assertTrue(d.validate("dog"))
+        self.assertTrue(d.validate(4))
 
     def test_processed_array(self):
         d = MockDS("happy")
         d.register()
-        d.write([])
+        d.write([{'amount': 42, 'uncertainty type': 7}])
         d.process()
         fp = os.path.join(config.dir, u"processed", d.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
 
         fieldnames = {x[0] for x in d.base_uncertainty_fields}
-        self.assertFalse(fieldnames.difference(set(array.dtype.names)))
+        self.assertEqual(fieldnames, set(array.dtype.names))
+        self.assertEqual(array.shape, (1,))
+        self.assertEqual(array[0]['uncertainty_type'], 7)
+        self.assertEqual(array[0]['amount'], 42)
