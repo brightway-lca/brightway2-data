@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
-from .. import Database, databases, geomapping, reset_meta, config, Method
+from .. import Database, geomapping, config, Method
 from fixtures import food, biosphere
 import copy
 import numpy as np

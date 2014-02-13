@@ -3,7 +3,7 @@ from __future__ import division
 from .. import Database, databases, mapping
 from ..logs import get_io_logger
 from ..units import normalize_units
-from lxml import objectify, etree
+from lxml import objectify
 from stats_arrays.distributions import *
 import hashlib
 import os

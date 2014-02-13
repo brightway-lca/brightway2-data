@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
 from .. import Updates, config
-# from fixtures import biosphere
-# from ..utils import natural_sort, random_string, combine_methods
 import random
 
 class UpdatesTest(BW2DataTest):

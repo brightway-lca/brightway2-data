@@ -6,7 +6,6 @@ from .data_store import DataStore
 from .units import normalize_units
 from .utils import natural_sort, MAX_INT_32, TYPE_DICTIONARY, safe_filename
 from .validate import db_validator
-from time import time
 import datetime
 import numpy as np
 import os

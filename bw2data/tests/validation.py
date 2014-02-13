@@ -1,9 +1,9 @@
 from voluptuous import Invalid
-import unittest2
+import unittest
 from ..validate import *
 
 
-class ValidationTestCase(unittest2.TestCase):
+class ValidationTestCase(unittest.TestCase):
     def test_valid_tuple(self):
         with self.assertRaises(Invalid):
             valid_tuple(())
