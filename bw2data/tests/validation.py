@@ -10,7 +10,7 @@ class ValidationTestCase(unittest2.TestCase):
         with self.assertRaises(Invalid):
             valid_tuple(["a", "b"])
         with self.assertRaises(Invalid):
-            valid_tuple([1, "b"])
+            valid_tuple((1, "b"))
         self.assertTrue(valid_tuple(("a", "b")))
         self.assertTrue(valid_tuple(("a", ())))
         self.assertTrue(valid_tuple(("a", [])))
