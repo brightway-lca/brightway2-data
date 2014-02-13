@@ -1,12 +1,6 @@
 Metadata
 ********
 
-.. toctree::
-   :hidden:
-   :maxdepth: 2
-
-   self
-
 Base classes for metadata
 =========================
 

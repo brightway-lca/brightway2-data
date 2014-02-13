@@ -43,8 +43,8 @@ Data and metadata
 
 The building blocks in Brightway2 data are the **data store** and the **metadata store**. The difference between the two can be easily explained in the example of LCI databases:
 
-    * The data store object, :ref:`databases`, has the actual activity data for each database.
-    * The metadata store, :ref:`database`, has information about the database, like the format it is in, its version number, and what other databases it links to.
+    * The data store object, :ref:`database`, has the actual activity data for each database.
+    * The metadata store, :ref:`databases`, has information about the database, like the format it is in, its version number, and what other databases it links to.
 
 Both the data and metadata objects *store* data, and provide easy ways to save and load data.
 
