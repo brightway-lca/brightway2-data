@@ -160,6 +160,32 @@ class DatabaseTest(BW2DataTest):
         fieldnames = {'activity', 'geo', 'row', 'col'}
         self.assertFalse(fieldnames.difference(set(array.dtype.names)))
 
+    def test_only_processes_in_geomapping(self):
+        database = Database("a database")
+        database.register()
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [],
+                'type': 'process'
+            },
+            ("a database", "bar"): {
+                'exchanges': [],
+                'type': 'process'
+            },
+            ("a database", "baz"): {
+                'exchanges': [],
+                'type': 'not a process'
+            },
+        })
+        database.process()
+        fp = os.path.join(
+            config.dir,
+            u"processed",
+            database.name + u".geomapping.pickle"
+        )
+        array = pickle.load(open(fp, "rb"))
+        self.assertEqual(array.shape, (2,))
+
     def test_geomapping_array_includes_only_processes(self):
         database = Database("a database")
         database.register()
@@ -225,4 +251,3 @@ class DatabaseTest(BW2DataTest):
             [x[0] for x in database.dtype_fields],
             ['input', 'output', 'row', 'col', 'type']
         )
-

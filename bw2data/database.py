@@ -155,14 +155,17 @@ Doesn't return anything, but writes two files to disk.
         gl = config.global_location
 
         # Create geomapping array
+        count = 0
         arr = np.zeros((len(data), ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
-        for index, key in enumerate(sorted(data.keys(), key=lambda x: x[1])):
-            arr[index] = (
-                mapping[key],
-                geomapping[data[key].get("location", gl) or gl],
-                MAX_INT_32, MAX_INT_32,
-                0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
-            )
+        for key in sorted(data.keys(), key=lambda x: x[1]):
+            if data[key].get('type') == 'process':
+                arr[count] = (
+                    mapping[key],
+                    geomapping[data[key].get("location", gl) or gl],
+                    MAX_INT_32, MAX_INT_32,
+                    0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
+                )
+                count += 1
 
         filepath = os.path.join(
             config.dir,
@@ -170,7 +173,7 @@ Doesn't return anything, but writes two files to disk.
             self.name + u".geomapping.pickle"
         )
         with open(filepath, "wb") as f:
-            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(arr[:count], f, protocol=pickle.HIGHEST_PROTOCOL)
 
         arr = np.zeros((num_exchanges + len(data), ), dtype=self.dtype)
         count = 0
