@@ -1,6 +1,11 @@
 Changelog
 *********
 
+0.13 (2014-02-13)
+===================
+
+- BREAKING CHANGE: ``Database.process()`` now only includes datasets with type ``process`` in constructing geomapping array.
+
 0.12.2 (2014-02-04)
 ===================
 

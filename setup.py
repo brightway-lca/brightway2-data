@@ -16,7 +16,7 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="0.12.2",
+    version="0.13",
     packages=packages,
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
@@ -24,7 +24,6 @@ setup(
     # Use a fork of progressbar that support ipython notebooks
     dependency_links = ['https://github.com/fnoble/python-progressbar/tarball/master#egg=progressbar-2.4'],
     install_requires=[
-        "brightway2",
         "colorama",
         "docopt",
         "lxml",
