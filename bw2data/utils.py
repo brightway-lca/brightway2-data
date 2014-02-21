@@ -143,7 +143,7 @@ def activity_hash(data):
 
     Uses the following, in order:
         * *name* Lower case
-        * *categories* In string form, joined together with ``""``.
+        * *categories* In string form, joined together with ``""``, default is ``[]``.
         * *unit* Lower case, default is ``""``.
         * *location* Lower case, default is ``""``.
 
@@ -155,7 +155,7 @@ def activity_hash(data):
 
     """
     string = (data["name"].lower() + \
-        u"".join(data["categories"]) + \
+        u"".join(data.get("categories", [])) + \
         (data.get("unit", u"") or u"").lower() + \
         (data.get("location", u"") or u"").lower())
     return unicode(hashlib.md5(string.encode('utf-8')).hexdigest())

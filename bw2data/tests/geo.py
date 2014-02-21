@@ -36,7 +36,6 @@ class GeoTest(BW2DataTest):
         self.assertTrue("foobar" in geomapping)
 
     def test_glo_always_present(self):
-        print geomapping.data
         self.assertTrue(config.global_location in geomapping)
 
     def test_method_adds_correct_geo(self):

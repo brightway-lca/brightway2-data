@@ -1,6 +1,11 @@
 Changelog
 *********
 
+0.13.1 (2014-XX-XX)
+===================
+
+- CHANGE: ``categories`` is no longer required by ``utils.activity_hash``.
+
 0.13 (2014-02-13)
 ===================
 
