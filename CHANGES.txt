@@ -5,6 +5,7 @@ Changelog
 ===================
 
 - CHANGE: ``categories`` is no longer required by ``utils.activity_hash``.
+- CHANGE: ``Database.copy()`` no longer emits a not registered warning.
 
 0.13 (2014-02-13)
 ===================

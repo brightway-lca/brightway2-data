@@ -83,12 +83,15 @@ class Database(DataStore):
         """
         assert name not in databases, ValueError("This database exists")
         data = self.relabel_data(self.load(), name)
-        new_database = Database(name)
-        new_database.register(
-            format="Brightway2 copy",
-            depends=databases[self.name]["depends"],
-            num_processes=len(data)
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            new_database = Database(name)
+            new_database.register(
+                format="Brightway2 copy",
+                depends=databases[self.name]["depends"],
+                num_processes=len(data)
+            )
+
         new_database.write(data)
         return new_database
 
