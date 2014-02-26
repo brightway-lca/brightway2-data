@@ -33,6 +33,30 @@ class DatabaseTest(BW2DataTest):
         d.copy("repas")
         self.assertTrue("repas" in databases.list)
 
+    def test_copy_does_deepcopy(self):
+        data = {
+            ("old name", 1): {
+                "exchanges": [{"input": ("old name", 1), "amount": 1.0}]
+            }
+        }
+        d = Database("old name")
+        d.register()
+        d.write(data)
+        new_db = d.copy("new name")
+        new_data = new_db.load()
+        self.assertEqual(
+            new_data.values()[0]['exchanges'][0]['input'],
+            ('new name', 1)
+        )
+        self.assertEqual(
+            data.values()[0]['exchanges'][0]['input'],
+            ('old name', 1)
+        )
+        self.assertEqual(
+            d.load().values()[0]['exchanges'][0]['input'],
+            ('old name', 1)
+        )
+
     def test_relabel_data(self):
         old_data = {
             ("old and boring", 1): {

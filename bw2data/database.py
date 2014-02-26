@@ -6,6 +6,7 @@ from .data_store import DataStore
 from .units import normalize_units
 from .utils import natural_sort, MAX_INT_32, TYPE_DICTIONARY, safe_filename
 from .validate import db_validator
+import copy
 import datetime
 import numpy as np
 import os
@@ -82,7 +83,7 @@ class Database(DataStore):
 
         """
         assert name not in databases, ValueError("This database exists")
-        data = self.relabel_data(self.load(), name)
+        data = self.relabel_data(copy.deepcopy(self.load()), name)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             new_database = Database(name)
