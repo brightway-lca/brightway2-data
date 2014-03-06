@@ -1,17 +1,24 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 from . import Database, databases, Method, methods, config, Weighting, \
     weightings, Normalization, normalizations
 from .colors import Fore, safe_colorama
 from .ia_data_store import abbreviate
 from .units import normalize_units
 from .utils import activity_hash
-import progressbar
 import os
+import pprint
+import progressbar
+import re
 import warnings
+
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
+
+hash_re = re.compile("^[a-zA-Z0-9]{32}$")
+is_hash = lambda x: bool(hash_re.match(x))
 
 UPTODATE_WARNING = Fore.RED + "\n\nYour data needs to be updated." + Fore.RESET \
     + " Please run the following program on the command line:\n\n\t" + \
@@ -38,6 +45,9 @@ class Updates(object):
         "0.12 reprocess IA databases": {
             "method": "reprocess_all_lcia",
             "explanation": Fore.GREEN + "0.12 reprocess IA databases" + Fore.RESET + "\n\t0.12 changed the algorithm to create filenames based on database and LCIA method names, to make sure they don't contain illegal characters."},
+        "0.14 update biosphere hashes": {
+            "method": "update_biosphere_hashes",
+            "explanation": Fore.GREEN + "0.14 update biosphere hashes" + Fore.RESET + "\n\tPrevious upgrades didn't correctly apply the new hashing algorithm to the biosphere database. This update fixes the ``config.biosphere`` database, all of its children, and all LCIA methods."},
     }
 
     @staticmethod
@@ -85,7 +95,7 @@ class Updates(object):
                 name + u"." + unicode(version) + u".pickle"
             ), "rb"))
 
-        print "Updating all LCI databases"
+        print("Updating all LCI databases")
 
         pbar = progressbar.ProgressBar(
             widgets=widgets,
@@ -118,7 +128,7 @@ class Updates(object):
 
         for (meta, klass, name) in LCIA:
             if meta.list:
-                print "Updating all %s" % name
+                print("Updating all %s" % name)
 
                 pbar = progressbar.ProgressBar(
                     widgets=widgets,
@@ -146,7 +156,7 @@ class Updates(object):
         try:
             mapping = {}
 
-            print "Updating inventory databases.\nFirst pass: Checking process IDs"
+            print("Updating inventory databases.\nFirst pass: Checking process IDs")
 
             pbar = progressbar.ProgressBar(
                 widgets=widgets,
@@ -175,7 +185,7 @@ class Updates(object):
 
             pbar.finish()
 
-            print "Second pass: Fixing links..."
+            print("Second pass: Fixing links...")
 
             pbar = progressbar.ProgressBar(
                 widgets=widgets,
@@ -196,7 +206,7 @@ class Updates(object):
 
             pbar.finish()
 
-            print "Updating IA methods"
+            print("Updating IA methods")
 
             pbar = progressbar.ProgressBar(
                 widgets=widgets,
@@ -217,7 +227,96 @@ class Updates(object):
             pbar.finish()
 
         except:
-            print "Oops, something went wrong. Reverting all changes..."
+            print("Oops, something went wrong. Reverting all changes...")
             for database in databases.list:
                 Database(database).revert(db_versions[database])
+            raise
+
+    @staticmethod
+    def update_biosphere_hashes():
+        Updates.update_ids_new_hashes(config.biosphere)
+
+    @staticmethod
+    def update_ids_new_hashes(database):
+        assert database in databases
+        child_databases = [name for name in databases if database in databases[name]['depends']]
+        # Version number of known good data
+        previous_versions = {name: databases[name]['version'] for name in child_databases + [database]}
+        database_obj = Database(database)
+        data = database_obj.load()
+        # Mapping from old values to new values
+        mapping = {
+            key: (database, activity_hash(data[key])) if is_hash(key[1]) else key
+            for key in data
+        }
+        processed = []
+        backup_methods = []
+
+        try:
+            print("Updating database and child databases...")
+
+            pbar = progressbar.ProgressBar(
+                widgets=widgets,
+                maxval=len(child_databases) + 1
+            ).start()
+
+            new_data = {
+                (mapping[key] if key in mapping else key): value
+                for key, value in data.iteritems()
+            }
+            database_obj.write(new_data)
+            database_obj.process()
+            processed.append(database)
+            pbar.update(1)
+
+            for index, child_name in enumerate(child_databases):
+                child_obj = Database(child_name)
+                child_data = child_obj.load()
+
+                for data in child_data.values():
+                    for exchange in data['exchanges']:
+                        if exchange['input'] in mapping:
+                            exchange['input'] = mapping[exchange['input']]
+
+                child_obj.write(child_data)
+                child_obj.process()
+                processed.append(child_name)
+                pbar.update(index + 1)
+
+            pbar.finish()
+
+            if database == config.biosphere:
+                print("Updating all IA methods")
+
+                pbar = progressbar.ProgressBar(
+                    widgets=widgets,
+                    maxval=len(methods)
+                ).start()
+
+                for index, method in enumerate(methods):
+                    method_obj = Method(method)
+                    backup_name = method_obj.backup()
+                    method_data = method_obj.load()
+
+                    method_data = [
+                        [mapping.get(obj[0], obj[0])] + list(obj[1:])
+                        for obj in method_data
+                    ]
+
+                    method_obj.write(method_data)
+                    method_obj.process()
+                    backup_methods.append(backup_name)
+                    pbar.update(index)
+
+                pbar.finish()
+        except:
+            print("ERROR: Reverting all changes...")
+            for name in processed:
+                Database(name).revert(previous_versions[name])
+
+            if backup_methods:
+                print("The following method caused an error: {}".format(method))
+                print("The following methods backups must be reverted manually:")
+                pprint.pprint(backup_methods)
+
             raise
