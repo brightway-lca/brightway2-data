@@ -142,7 +142,7 @@ class BW2Package(object):
 
         """
         if filename is None:
-            filename = obj.name
+            filename = obj.filename
         filepath = os.path.join(
             config.request_dir(folder),
             filename + u".bw2package"

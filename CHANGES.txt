@@ -1,9 +1,12 @@
 Changelog
 *********
 
-0.13.1 (2014-XX-XX)
+0.14 (2014-XX-XX)
 ===================
 
+**bw2-uptodate.py is required for this update**
+
+- CHANGE: ``BW2Package.export_obj`` now uses ``obj.filename`` instead of ``obj.name`` for filepath of backup file (needed for LCIA methods).
 - CHANGE: ``categories`` is no longer required by ``utils.activity_hash``.
 - CHANGE: ``Database.copy()`` no longer emits a not registered warning.
 - CHANGE: ``Database.copy()`` makes a deep copy of data before modification.
