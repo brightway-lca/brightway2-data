@@ -7,6 +7,7 @@ Changelog
 - CHANGE: ``categories`` is no longer required by ``utils.activity_hash``.
 - CHANGE: ``Database.copy()`` no longer emits a not registered warning.
 - CHANGE: ``Database.copy()`` makes a deep copy of data before modification.
+- CHANGE: ``bw2data.__init__`` no longer imports the ``io`` and ``proxies`` directories, to avoid namespace conflicts with io standard library package.
 
 0.13 (2014-02-13)
 ===================

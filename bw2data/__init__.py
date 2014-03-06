@@ -12,7 +12,6 @@ from .weighting_normalization import Weighting, Normalization
 from .query import Query, Filter, Result
 # Don't confuse nose tests
 from .utils import set_data_dir, setup as bw2setup
-from . import proxies, io
 from .updates import Updates
 
 Updates.check_status()
