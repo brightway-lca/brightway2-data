@@ -183,7 +183,7 @@ Doesn't return anything, but writes two files to disk.
         for key in sorted(data.keys(), key=lambda x: x[1]):
             production_found = False
             for exc in sorted(
-                    data[key]["exchanges"],
+                    data[key].get("exchanges", []),
                     key=lambda x: x["input"][1]):
                 if key == exc["input"]:
                     production_found = True
