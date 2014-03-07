@@ -66,7 +66,7 @@ class Ecospold1DataExtractor(object):
             referenceFunction
         data = {
             "name": ref_func.get("name").strip(),
-            "type": "process",  # True for all ecospold?
+            "type": "process",
             "categories": [ref_func.get("category"), ref_func.get(
                 "subCategory")],
             "location": dataset.metaInformation.processInformation.\

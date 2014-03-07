@@ -184,6 +184,21 @@ class DatabaseTest(BW2DataTest):
         fieldnames = {'activity', 'geo', 'row', 'col'}
         self.assertFalse(fieldnames.difference(set(array.dtype.names)))
 
+    def test_process_checks_process_type(self):
+        database = Database("a database")
+        database.register()
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [],
+                'type': 'process'
+            },
+            ("a database", "bar"): {
+                'type': 'definitely not a process'
+            },
+        })
+        # This shouldn't raise an error
+        database.process()
+
     def test_only_processes_in_geomapping(self):
         database = Database("a database")
         database.register()

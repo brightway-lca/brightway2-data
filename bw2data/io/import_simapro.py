@@ -254,7 +254,8 @@ class SimaProImporter(object):
             'name': name,
             'unit': normalize_units(line[2]),
             'location': geo or self.default_geo,
-            'categories': line[5].split('\\')
+            'categories': line[5].split('\\'),
+            'type': 'process',
         }
         data['code'] = activity_hash(data)
         return data

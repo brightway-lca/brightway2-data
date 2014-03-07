@@ -153,7 +153,11 @@ Doesn't return anything, but writes two files to disk.
 
         """
         data = self.load(version)
-        num_exchanges = sum([len(obj["exchanges"]) for obj in data.values()])
+        num_exchanges = sum([
+            len(obj["exchanges"])
+            for obj in data.values()
+            if obj.get("type") == u"process"
+        ])
 
         gl = config.global_location
 
@@ -161,7 +165,7 @@ Doesn't return anything, but writes two files to disk.
         count = 0
         arr = np.zeros((len(data), ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
         for key in sorted(data.keys(), key=lambda x: x[1]):
-            if data[key].get('type') == 'process':
+            if data[key].get('type') == u'process':
                 arr[count] = (
                     mapping[key],
                     geomapping[data[key].get("location", gl) or gl],
@@ -182,6 +186,8 @@ Doesn't return anything, but writes two files to disk.
         count = 0
         for key in sorted(data.keys(), key=lambda x: x[1]):
             production_found = False
+            if data[key].get('type') != u"process":
+                continue
             for exc in sorted(
                     data[key].get("exchanges", []),
                     key=lambda x: x["input"][1]):
@@ -203,7 +209,7 @@ Doesn't return anything, but writes two files to disk.
                     exc["amount"] < 0
                 )
                 count += 1
-            if not production_found and data[key]["type"] == "process":
+            if not production_found and data[key].get("type") == u"process":
                 # Add amount produced for each process (default 1)
                 arr[count] = (
                     mapping[key], mapping[key],

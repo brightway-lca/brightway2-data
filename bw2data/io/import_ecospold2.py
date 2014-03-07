@@ -281,7 +281,7 @@ class Ecospold2Importer(object):
         print "Processing database"
         for elem in activities:
             elem["unit"] = ""
-            elem["type"] = "product"
+            elem["type"] = "process"
             for exc in elem["exchanges"]:
                 exc['uncertainty type'] = 0
                 if exc['product']:

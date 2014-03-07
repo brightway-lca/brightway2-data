@@ -1,10 +1,10 @@
 Changelog
 *********
 
-0.14.2.dev (2014-XX-XX)
+0.15 (2014-XX-XX)
 =======================
 
-- CHANGE: ``Database.process`` skips exchanges if ``type`` is not ``process``.
+- BREAKING CHANGE: ``Database.process`` skips exchanges if ``type`` is not ``process``.
 
 0.14.1 (2014-03-07)
 ===================

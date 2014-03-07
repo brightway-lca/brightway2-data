@@ -94,6 +94,7 @@ class SimaProImportTest(BW2DataTest):
             "name": "Fish food",
             "unit": "unit",
             "location": "GLO",
+            "type": "process",
             "categories": ["Agricultural", "Animal production", "Animal foods"],
             "code": u'6524377b64855cc3daf13bd1bcfe0385',
             "exchanges": [{
