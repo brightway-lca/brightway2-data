@@ -40,6 +40,10 @@ db_validator = Schema({valid_tuple: {
     }},
     extra=True)
 
+# TODO: elements in a list don't maintain order
+# See https://github.com/alecthomas/voluptuous/issues/59
+# Each list needs to be a separate function...
+
 ia_validator = Schema([Any(
     [valid_tuple, maybe_uncertainty],         # site-generic
     [valid_tuple, maybe_uncertainty, object]  # regionalized
