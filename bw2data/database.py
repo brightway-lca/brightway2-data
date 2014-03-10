@@ -112,14 +112,28 @@ class Database(DataStore):
             version or self.version
         )
 
-    def find_dependents(self):
-        """Get sorted list of dependent databases (databases linked from exchanges)."""
+    def find_dependents(self, data=None, ignore=None):
+        """Get sorted list of dependent databases (databases linked from exchanges).
+
+        Args:
+            * *data* (dict, optional): Inventory data
+            * *ignore* (list): List of database names to ignore
+
+        Returns:
+            List of database names
+
+        """
+        ignore = set(ignore if ignore is not None else [])
+        if data is None:
+            data = self.load()
+            ignore.add(self.name)
         dependents = {
             exc.get('input')[0]
-            for ds in self.load().values()
+            for ds in data.values()
             for exc in ds.get('exchanges', [])
             if ds.get('type') == u'process'
-            and exc.get('input', [None])[0] not in (None, self.name)
+            and exc.get('input', [None])[0] is not None
+            and exc.get('input', [None])[0] not in ignore
         }
         return sorted(list(dependents))
 
