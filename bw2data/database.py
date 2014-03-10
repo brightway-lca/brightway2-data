@@ -112,6 +112,17 @@ class Database(DataStore):
             version or self.version
         )
 
+    def find_dependents(self):
+        """Get sorted list of dependent databases (databases linked from exchanges)."""
+        dependents = {
+            exc.get('input')[0]
+            for ds in self.load().values()
+            for exc in ds.get('exchanges', [])
+            if ds.get('type') == u'process'
+            and exc.get('input', [None])[0] not in (None, self.name)
+        }
+        return sorted(list(dependents))
+
     def load(self, version=None):
         """Load the intermediate data for this database.
 

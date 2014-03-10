@@ -290,3 +290,26 @@ class DatabaseTest(BW2DataTest):
             [x[0] for x in database.dtype_fields],
             ['input', 'output', 'row', 'col', 'type']
         )
+
+    def test_find_dependents(self):
+        database = Database("a database")
+        database.register()
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [
+                    {'input': ("foo", "bar")},
+                    {'input': ("biosphere", "bar")}
+                ],
+                'type': 'process',
+                'location': 'bar'
+            },
+            ("a database", "baz"): {
+                'exchanges': [{'input': ("baz", "w00t")}],
+                'type': 'emission'
+            },
+        })
+        self.assertEqual(
+            database.find_dependents(),
+            ["biosphere", "foo"]
+        )
+
