@@ -59,11 +59,11 @@ class Result(object):
             data = dict([(key, self.result[key]) for key in \
                 self.result.keys()[:20]])
         elif not len(self.result):
-            return "Query result:\n\tNo query results found."
+            return u"Query result:\n\tNo query results found."
         else:
             data = self.result
-        return "Query result: (total %i)\n" % len(self.result) \
-            + "\n".join(["%s: %s" % (key, data[key]["name"]) for key in data])
+        return u"Query result: (total %i)\n" % len(self.result) \
+            + u"\n".join([u"%s: %s" % (key, data[key]["name"]) for key in data])
 
     def sort(self, field, reverse=False):
         """Sort the filtered dataset. Operates in place; does not return anything.
