@@ -11,7 +11,7 @@ Process name	bikes rule, cars drool
 
 
 Products
-Fish food	1	p	100	not defined	Agricultural\Animal production\Animal foods
+Fish food	1	p	100	not defined	Agricultural\Animal production\Animal foods	
 
 Materials/fuels
 lunch/CA U	1	kg	Undefined
@@ -27,7 +27,7 @@ Process name	raining cats and dogs
 
 
 Products
-Cat food	1	p	100	not defined	Agricultural\Animal production\Pet food
+Cat food	1	p	100	not defined	Agricultural\Animal production\Pet food	
 
 Materials/fuels
 dinner/CH/I S	1	kg	Undefined

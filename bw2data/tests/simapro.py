@@ -92,7 +92,7 @@ class SimaProImportTest(BW2DataTest):
         data = Database("W00t").load().values()[0]
         self.assertEqual(data, {
             "name": "Fish food",
-            "unit": "unit",
+            "unit": u"unit",
             "location": "GLO",
             "type": "process",
             "categories": ["Agricultural", "Animal production", "Animal foods"],
@@ -102,7 +102,12 @@ class SimaProImportTest(BW2DataTest):
                 'loc': 1.0,
                 'input': ('W00t', u'6524377b64855cc3daf13bd1bcfe0385'),
                 'type': 'production',
-                'uncertainty type': 0}],
+                'uncertainty type': 0,
+                'allocation': {'factor': 100.0, 'type': 'not defined'},
+                'unit': 'unit',
+                'folder': 'Agricultural\Animal production\Animal foods',
+                'comment': '',
+            }],
             "simapro metadata": {
                 "Category type": "material",
                 "Process identifier": "InsertSomethingCleverHere",
@@ -120,7 +125,11 @@ class SimaProImportTest(BW2DataTest):
             'loc': 1.0,
             'input': ('W00t', u'6524377b64855cc3daf13bd1bcfe0385'),
             'type': 'production',
-            'uncertainty type': 0
+            'uncertainty type': 0,
+            'allocation': {'factor': 100.0, 'type': 'not defined'},
+            'unit': 'unit',
+            'folder': 'Agricultural\Animal production\Animal foods',
+            'comment': '',
         }])
 
     def test_simapro_metadata(self):
@@ -152,5 +161,54 @@ class SimaProImportTest(BW2DataTest):
         sp = SimaProImporter(self.filepath("missing"), depends=[])
         with self.assertRaises(MissingExchange):
             sp.importer()
+
+    def test_comments(self):
+        self.maxDiff = None
+        database = Database("background")
+        database.register(
+            format="Test data",
+            depends=["background"],
+            num_processes=2
+        )
+        database.write(background_data)
+        sp = SimaProImporter(self.filepath("comments"), depends=["background"])
+        sp.importer()
+        data = Database("W00t").load().values()[0]
+        self.assertEqual(data['exchanges'], [{
+            'amount': 2.5e-10,
+            'comment': 'single line comment',
+            'input': ('background', 1),
+            'label': 'Materials/fuels',
+            'loc': 2.5e-10,
+            'location': 'CA',
+            'name': 'lunch',
+            'type': 'technosphere',
+            'uncertainty': 'Lognormal',
+            'uncertainty type': 0,
+            'unit': u'kilogram'
+        }, {
+            'amount': 1.0,
+            'comment': 'first line of the comment\nsecond line of the comment',
+            'input': ('background', 2),
+            'label': 'Materials/fuels',
+            'loc': 1.0,
+            'location': 'CH',
+            'name': 'dinner',
+            'type': 'technosphere',
+            'uncertainty': 'Lognormal',
+            'uncertainty type': 0,
+            'unit': u'kilogram'
+        },{
+            'amount': 1.0,
+            'loc': 1.0,
+            'input': ('W00t', u'6524377b64855cc3daf13bd1bcfe0385'),
+            'type': 'production',
+            'uncertainty type': 0,
+            'allocation': {'factor': 100.0, 'type': 'not defined'},
+            'unit': u'unit',
+            'folder': 'Agricultural\Animal production\Animal foods',
+            'comment': 'first line of comment\nsecond line of comment',
+        }])
+
 
     # Test multiple background DBs

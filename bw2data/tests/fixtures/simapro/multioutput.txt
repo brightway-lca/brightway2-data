@@ -33,7 +33,7 @@ System description
 
 Products
 Fish food	1	p	100	not defined	Agricultural\Animal production\Animal foods	
-Turtle food	1	p	100	not defined	Agricultural\Animal production\Animal foods
+Turtle food	1	p	100	not defined	Agricultural\Animal production\Animal foods	
 
 Avoided products
 

@@ -11,7 +11,7 @@ Process name	bikes rule, cars drool
 
 
 Products
-Fish food	1	p	100	not defined	Agricultural\Animal production\Animal foods
+Fish food	1	p	100	not defined	Agricultural\Animal production\Animal foods	
 
 Materials/fuels
 Dog food	1	p	Undefined

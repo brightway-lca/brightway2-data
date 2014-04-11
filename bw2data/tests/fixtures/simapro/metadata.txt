@@ -10,7 +10,7 @@ Multiline	This too
 But stops	in time
 
 Products
-Fish food	1	p	100	not defined	Agricultural\Animal production\Animal foods
+Fish food	1	p	100	not defined	Agricultural\Animal production\Animal foods	
 
 Avoided products
 

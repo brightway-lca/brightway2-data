@@ -81,10 +81,14 @@ class SimaProImporter(object):
         * Multioutput datasets are not supported.
         * Uncertainty data is not imported.
         * Social and economic flows are ignored.
-        * Linking against datasets other than ecoinvent is not tested (most are not available otherwise).
+        * Linking against datasets other than ecoinvent is not tested (most other databases are not publicly available in any case).
         * Modifying an existing database is not supported; it can only be overwritten completely.
         * Not all SimaPro unit changes from ecoinvent are included (no comprehensive list seems to be available)
         * SimaPro unit conversions will cause problems matching to background databases (e.g. if you specify an import in megajoules, and the ecoinvent process is defined in kWh, they won't match)
+
+    Multioutput processes could be easily supported with a bit of work; there are comments about what is needed in the source code.
+
+    Uncertainty data could also be easily supported, but it would take someone willing to implement it.
 
     **Instantiation**
 
@@ -290,6 +294,18 @@ class SimaProImporter(object):
     def get_exchanges(self, dataset):
         """Structure the list of exchanges.
 
+        For a normal exchange line, the fields are:
+            0: Name
+            1: Amount
+            2: Unit
+            3: Uncertainty type
+            4: Uncertainty field (not sure)
+            5: Uncertainty field (not sure)
+            6: Uncertainty field (not sure)
+            7: Comment (but can also confusingly be position 6!?)
+
+        However, it looks like this schema could depend on the uncertainty type. It also doesn't apply to biosphere fields.
+
         Args:
             *dataset*: The activity dataset.
 
@@ -299,18 +315,30 @@ class SimaProImporter(object):
         """
         exchanges = []
         x = self.get_exchanges_index(dataset)
-        assert len(dataset[x + 2]) == 0, "Can't import multioutput datasets"
+        assert self.is_comment(dataset[x + 2]) or len(dataset[x + 2]) == 0, \
+            "Can't currently import multioutput datasets"
 
-        for line in dataset[x + 3:]:
-            if len(line) == 0:
+        for index, line in enumerate(dataset[x + 3:]):
+            if len(line) == 0 or self.is_comment(line):
                 continue
             elif len(line) == 1:
                 label = line[0]
-            elif label in SIMAPRO_BIOSPHERE:
+                continue
+
+            try:
+                assert len(line) > 5
+                comment = line[-1]
+            except:
+                comment = ''
+
+            comment += self.get_multiline_comment(dataset, x + index + 4)
+
+            if label in SIMAPRO_BIOSPHERE:
                 categories = [
                     SIMAPRO_BIOSPHERE[label],
                     SIMAPRO_BIO_SUBCATEGORIES.get(line[1], line[1])
                 ]
+                # What is line[1]? Is it always blank???
                 exchanges.append({
                     'name': line[0],
                     'categories': filter(lambda x: x, categories),
@@ -319,17 +347,20 @@ class SimaProImporter(object):
                     'uncertainty type': 0,
                     'unit': normalize_units(line[3]),
                     'uncertainty': line[4],
+                    'comment': comment,
                     'biosphere': True,
                 })
             else:
                 # Try to interpret as ecoinvent
                 name, geo = detoxify(line[0], self.log)
+
                 exchanges.append({
                     'name': name,
                     'amount': float(line[1]),
                     'loc': float(line[1]),
                     'uncertainty type': 0,
-                    'comment': label,
+                    'label': label,
+                    'comment': comment,
                     'unit': normalize_units(line[2]),
                     'uncertainty': line[3],
                     'location': geo
@@ -342,15 +373,62 @@ class SimaProImporter(object):
             if dataset[x] and dataset[x][0] == 'Products':
                 return x
 
+    def is_comment(self, line):
+        return (len(line) == 7) and (''.join(line[:6]) == '')
+
+    def get_multiline_comment(self, data, index):
+        """Start at data[index], and consume all comment lines.
+
+        Returns comments, with lines split with '\\n'. Returned comment starts with '\\n' because it is already the second line of a multiline comment."""
+        comment = ''
+        try:
+            while self.is_comment(data[index]):
+                comment += ("\n" + data[index][6])
+                index += 1  # Creates new object; doesn't clobber parent index value
+        except IndexError:
+            pass
+        return comment
+
     def get_production_exchange(self, data, dataset):
-        """Get the production exchange"""
-        line = dataset[self.get_exchanges_index(dataset) + 1]
+        """Get the production exchange.
+
+        Support for multioutput processes can be added here."""
+        return self.create_production_exchange(
+            data,
+            dataset,
+            self.get_exchanges_index(dataset) + 1
+        )
+
+    def create_production_exchange(self, data, dataset, index):
+        """For a production exchange line, the fields are:
+            0: Name
+            1: Amount
+            2: Unit
+            3: Allocation factor (out of 100)
+            4: Allocation type (?)
+            5: Category/subcategory, separated by '\\'
+            6: Comment
+
+        """
+        line = dataset[index]
+        try:
+            comment = line[6]
+        except:
+            comment = ''
+        comment += self.get_multiline_comment(dataset, index + 1)
         return {
+            'input': (self.db_name, data['code']),
             'amount': float(line[1]),
             'loc': float(line[1]),
-            'input': (self.db_name, data['code']),
             'uncertainty type': 0,
-            'type': 'production'
+            'unit': normalize_units(line[2]),
+            'folder': line[5],
+            'comment': comment,
+            'type': 'production',
+            'allocation': {
+                'factor': float(line[3]),
+                'type': line[4]
+            }
         }
 
     def create_foreground(self, data):
