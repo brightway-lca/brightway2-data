@@ -1,8 +1,13 @@
 Changelog
 *********
 
+0.15.1 (2014-XX-XX)
+===================
+
+- CHANGE: SimaPro importer can now add unlinked exchanges as new process datasets
+
 0.15 (2014-04-11)
-=======================
+=================
 
 - BREAKING CHANGE: ``Database.process`` skips exchanges if ``type`` is not ``process``.
 - FEATURE: ``Database.list_dependents`` traverses datasets to get linked databases.

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*
+from __future__ import print_function
 from .. import Database, databases, config
 from ..logs import get_io_logger
 from ..utils import activity_hash
@@ -112,7 +113,8 @@ class SimaProImporter(object):
 
     """
     def __init__(self, filepath, delimiter="\t", depends=['ecoinvent 2.2'],
-                 overwrite=False, name=None, default_geo="GLO"):
+                 overwrite=False, name=None, default_geo="GLO",
+                 fix_missing=False):
         assert os.path.exists(filepath), "Can't find file %s" % filepath
         self.filepath = filepath
         self.delimiter = delimiter
@@ -120,13 +122,14 @@ class SimaProImporter(object):
         self.overwrite = overwrite
         self.db_name = name
         self.default_geo = default_geo
-        self.log, self.logfile = get_io_logger("SimaPro importer")
+        self.fix_missing = fix_missing
+        self.log, self.logfile = get_io_logger("SimaPro-importer")
 
     def importer(self):
         """Import the SimaPro file."""
         self.log.info(INTRODUCTION % (
             self.filepath,
-            self.delimiter,
+            repr(self.delimiter),
             ", ".join(self.depends),
             self.db_name,
             self.default_geo
@@ -139,8 +142,21 @@ class SimaProImporter(object):
         data = [self.process_data(obj) for obj in data]
         self.create_foreground(data)
         self.load_background()
-        data = [self.link_exchanges(obj) for obj in data]
-        if not self.overwrite:
+        self.new_processes = []
+        data = [self.link_exchanges(obj) for obj in data] + self.new_processes
+        if self.overwrite:
+            with warnings.catch_warnings():
+                database = Database(self.db_name)
+
+            if self.db_name in databases:
+                self.log.warning("Overwriting database %s" % self.db_name)
+            else:
+                database.register(
+                    format=format,
+                    depends=self.depends,
+                    num_processes=len(data)
+                )
+        else:
             assert self.db_name not in databases, (
                 "Already imported this project\n"
                 "Delete existing database, give new name, or use ``overwrite``."
@@ -153,14 +169,13 @@ class SimaProImporter(object):
                     depends=self.depends,
                     num_processes=len(data)
                 )
-        else:
-            if self.db_name in databases:
-                self.log.warning("Overwriting database %s" % self.db_name)
-            database = Database(self.db_name)
         database.write(dict([
             ((self.db_name, obj['code']), obj) for obj in data
         ]))
         database.process()
+
+        print("SimaPro file imported successfully. Please check the logfile:\n\t" + self.logfile)
+
         return self.db_name, self.logfile
 
     def load_file(self):
@@ -261,6 +276,23 @@ class SimaProImporter(object):
             'categories': line[5].split('\\'),
             'type': 'process',
         }
+        data['code'] = activity_hash(data)
+        return data
+
+    def create_missing_dataset(self, exc):
+        """Create new dataset from unlinked exchange."""
+        data = {
+            'name': exc['name'],
+            'unit': normalize_units(exc['unit']),
+            'location': exc['location'] or self.default_geo,
+            'categories': [exc['label']],
+            'type': 'process',
+            'comment': exc['comment'],
+            'exchanges': [],
+        }
+        self.log.warning(u"Created new process for unlinked exchange:\n%s" \
+            % pprint.pformat(exc, indent=4)
+        )
         data['code'] = activity_hash(data)
         return data
 
@@ -374,7 +406,7 @@ class SimaProImporter(object):
                 return x
 
     def is_comment(self, line):
-        return (len(line) == 7) and (''.join(line[:6]) == '')
+        return (len(line) in {7,8}) and (''.join(line[:6]) == '')
 
     def get_multiline_comment(self, data, index):
         """Start at data[index], and consume all comment lines.
@@ -514,6 +546,13 @@ class SimaProImporter(object):
         if found:
             exc["type"] = "technosphere"
             exc['uncertainty type'] = 0
+            return exc
+        elif self.fix_missing:
+            new_process = self.create_missing_dataset(exc)
+            exc['type'] = "technosphere"
+            exc['uncertainty type'] = 0
+            exc['input'] = (self.db_name, new_process['code'])
+            self.new_processes.append(new_process)
             return exc
         else:
             raise MissingExchange(
