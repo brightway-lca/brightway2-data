@@ -107,9 +107,10 @@ class SimaProImporter(object):
         * ``filepath``: Filepath for file to important.
         * ``delimiter`` (str, default=tab character): Delimiter character for CSV file.
         * ``depends`` (list, default= ``['ecoinvent 2.2']`` ): List of databases referenced by datasets in this file. The database *biosphere* is always matched against.
-        * ``overwrite`` (bool, default=False): Overwrite existing database.
+        * ``overwrite`` (bool, default= ``False`` ): Overwrite existing database.
         * ``name`` (str, default=None): Name of the database to import. If not specified, the SimaPro project name will be used.
         * ``default_geo`` (str, default= ``GLO`` ): Default location for datasets with no location is specified.
+        * ``fix_missing`` (bool, default= ``False`` ): Add new processes when exchanges can't be linked. SimaPro will add so-called dummy processes, like "Waste to treatment", which don't exist in any database. If `fix_missing` is False, then these exchanges can't be linked, and an error will be raise; if it is True, then new processes in the import database will be created and linked to.
 
     """
     def __init__(self, filepath, delimiter="\t", depends=['ecoinvent 2.2'],
