@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import config, reset_meta
+from .errors import WebUIError
 import codecs
 import hashlib
 import os
@@ -8,6 +9,8 @@ import re
 import requests
 import string
 import unicodedata
+import urllib
+import webbrowser
 import zipfile
 try:
     import cStringIO as StringIO
@@ -185,6 +188,27 @@ def download_file(filename):
                 break
             f.write(segment)
     return filepath
+
+
+def web_ui_accessible():
+    base_url = config.p.get('web_ui_address', "http://127.0.0.1:5000") + "/ping"
+    try:
+        response = requests.get(base_url)
+    except requests.ConnectionError:
+        return False
+    return response.text == u"pong"
+
+
+def open_activity_in_webbrowser(activity):
+    base_url = config.p.get('web_ui_address', "http://127.0.0.1:5000")
+    if not web_ui_accessible():
+        raise WebUIError("Can't find bw2-web UI (tried %s)" % base_url)
+    url = base_url + u"/view/%s/%s" % (
+        urllib.quote(activity[0]),
+        urllib.quote(activity[1])
+    )
+    webbrowser.open_new_tab(url)
+    return url
 
 
 def set_data_dir(dirpath):

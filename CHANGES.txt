@@ -4,6 +4,8 @@ Changelog
 0.15.1 (2014-XX-XX)
 ===================
 
+- FEATURE: Utility functions to view process dataset, database, and LCIA methods in web browser 
+- FEATURE: utils.test_web_ui_accessible tests if web UI is running and accessible
 - CHANGE: SimaPro importer can now add unlinked exchanges as new process datasets
 
 0.15 (2014-04-11)
