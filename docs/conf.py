@@ -18,7 +18,7 @@
 # The short X.Y version.
 version = '0.15'
 # The full version, including alpha/beta/rc tags.
-release = '0.15'
+release = '0.15.1'
 
 import sys
 from os.path import abspath, dirname
