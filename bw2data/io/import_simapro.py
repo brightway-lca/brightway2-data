@@ -4,7 +4,7 @@ from .. import Database, databases, config
 from ..logs import get_io_logger
 from ..utils import activity_hash
 from ..units import normalize_units
-import csv
+import unicodecsv
 import itertools
 import os
 import pprint
@@ -186,9 +186,10 @@ class SimaProImporter(object):
             The loaded data: a list of lists.
 
         """
-        return [x for x in csv.reader(
+        return [x for x in unicodecsv.reader(
             open(self.filepath),
-            delimiter=self.delimiter
+            delimiter=self.delimiter,
+            encoding="latin1",
         )]
 
     def verify_simapro_file(self, data):
