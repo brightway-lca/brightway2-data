@@ -2,7 +2,7 @@
 from __future__ import division
 from .. import Database, mapping, config
 from ..logs import get_io_logger
-from ..utils import activity_hash
+from ..utils import activity_hash, recursive_str_to_unicode
 from ..units import normalize_units
 from lxml import objectify
 try:
@@ -237,6 +237,8 @@ class Ecospold1Importer(object):
         self.remapping = remapping
 
         data = Ecospold1DataExtractor.extract(path, self.log)
+        # XML is encoded in UTF-8, but we want unicode strings
+        data = recursive_str_to_unicode(data)
         data = self.allocate_datasets(data)
         data = self.apply_transforms(data)
         data = self.add_hashes(data)

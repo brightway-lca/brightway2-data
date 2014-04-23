@@ -2,7 +2,7 @@
 from .. import Database, Method, methods, mapping, config
 from ..logs import get_io_logger
 from ..units import normalize_units
-from ..utils import activity_hash
+from ..utils import activity_hash, recursive_str_to_unicode
 from lxml import objectify
 import os
 import pprint
@@ -86,8 +86,11 @@ Does not have any arguments; instead, instantiate the class, and then import usi
             # Could be considered dirty to .pop() inside list comprehension
             # but it works. The dictionary constructor also eliminates
             # duplicates.
-            biosphere_data.update(dict([((config.biosphere, o.pop("hash")), o
-                ) for o in self.new_flows]))
+            biosphere_data.update(recursive_str_to_unicode(
+                dict([((config.biosphere, o.pop("hash")), o
+                    ) for o in self.new_flows]
+                )
+            ))
             biosphere.write(biosphere_data)
             biosphere.process()
 
@@ -95,9 +98,10 @@ Does not have any arguments; instead, instantiate the class, and then import usi
             warnings.simplefilter("ignore")
             method = Method(name)
             method.register(unit=unit, description=description, num_cfs=len(data))
-            method.write([
+            method.write(recursive_str_to_unicode([
                 [(config.biosphere, o[0]), o[1], config.global_location]
-                for o in data])
+                for o in data
+            ]))
             method.process()
 
     def add_cf(self, cf):

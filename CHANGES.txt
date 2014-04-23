@@ -1,6 +1,15 @@
 Changelog
 *********
 
+0.16 (2014-XX-XX)
+=================
+
+**bw2-uptodate.py is required for this update**
+
+- FEATURE: Added ``Database.filepath_intermediate`` and ``Database.filepath_processed`` for easier access to raw data files.
+- BREAKING CHANGE: All importers now produce unicode strings. Before, the SimaPro importer produced Latin-1 strings, while the XML importers produced UTF-8.
+- CHANGE: ``Database.process()`` now uses ``obj.filename``, not ``obj.name``, as this is not always safe for filenames.
+
 0.15.1 (2014-04-17)
 ===================
 

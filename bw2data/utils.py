@@ -2,7 +2,9 @@
 from . import config, reset_meta
 from .errors import WebUIError
 import codecs
+import collections
 import hashlib
+import itertools
 import os
 import random
 import re
@@ -112,6 +114,39 @@ def safe_filename(string, add_hash=True):
         return safe + u"." + hashed
     else:
         return safe
+
+
+def clean_exchanges(data):
+    """Make sure all exchange inputs are tuples"""
+    def tupleize(value):
+        for exc in value.get('exchanges', []):
+            exc['input'] = tuple(exc['input'])
+        return value
+    return {key: tupleize(value) for key, value in data}
+
+
+def recursive_str_to_unicode(data, encoding="utf8"):
+    """Convert a nested python object (like a database) from byte strings to unicode strings using encoding"""
+    # Adapted from
+    # http://stackoverflow.com/questions/1254454/fastest-way-to-convert-a-dicts-keys-values-from-unicode-to-str
+    if isinstance(data, str):
+        return data.decode(encoding)
+    elif isinstance(data, unicode):
+        return data
+    elif isinstance(data, collections.Mapping):
+        return dict(itertools.imap(
+            recursive_str_to_unicode,
+            data.iteritems(),
+            itertools.repeat(encoding)
+        ))
+    elif isinstance(data, collections.Iterable):
+        return type(data)(itertools.imap(
+            recursive_str_to_unicode,
+            data,
+            itertools.repeat(encoding)
+        ))
+    else:
+        return data
 
 
 def combine_databases(name, *dbs):

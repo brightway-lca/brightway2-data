@@ -3,6 +3,7 @@ from __future__ import division
 from .. import Database, databases, mapping
 from ..logs import get_io_logger
 from ..units import normalize_units
+from ..utils import recursive_str_to_unicode
 from lxml import objectify
 from stats_arrays.distributions import *
 import hashlib
@@ -250,6 +251,12 @@ class Ecospold2Importer(object):
             self.datapath,
             self.metadatapath
         )
+
+        # XML is encoded in UTF-8, but we want unicode strings
+        activities = recursive_str_to_unicode(activities)
+        biosphere = recursive_str_to_unicode(biosphere)
+        technosphere = recursive_str_to_unicode(technosphere)
+
         self.create_biosphere3_database(biosphere)
         self.create_database(biosphere, technosphere, activities)
 
