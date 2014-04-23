@@ -178,7 +178,7 @@ class DatabaseTest(BW2DataTest):
         fp = os.path.join(
             config.dir,
             u"processed",
-            database.name + u".geomapping.pickle"
+            database.filename + u".geomapping.pickle"
         )
         array = pickle.load(open(fp, "rb"))
         fieldnames = {'activity', 'geo', 'row', 'col'}
@@ -220,7 +220,7 @@ class DatabaseTest(BW2DataTest):
         fp = os.path.join(
             config.dir,
             u"processed",
-            database.name + u".geomapping.pickle"
+            database.filename + u".geomapping.pickle"
         )
         array = pickle.load(open(fp, "rb"))
         self.assertEqual(array.shape, (2,))
@@ -243,7 +243,7 @@ class DatabaseTest(BW2DataTest):
         fp = os.path.join(
             config.dir,
             u"processed",
-            database.name + u".geomapping.pickle"
+            database.filename + u".geomapping.pickle"
         )
         array = pickle.load(open(fp, "rb"))
         self.assertEqual(array.shape, (1,))
@@ -265,7 +265,7 @@ class DatabaseTest(BW2DataTest):
         fp = os.path.join(
             config.dir,
             u"processed",
-            database.name + u".pickle"
+            database.filename + u".pickle"
         )
         array = pickle.load(open(fp, "rb"))
         fieldnames = {'input', 'output', 'row', 'col', 'type'}

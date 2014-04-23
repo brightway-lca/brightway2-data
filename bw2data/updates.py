@@ -48,6 +48,9 @@ class Updates(object):
         "0.14 update biosphere hashes": {
             "method": "update_biosphere_hashes",
             "explanation": Fore.GREEN + "0.14 update biosphere hashes" + Fore.RESET + "\n\tPrevious upgrades didn't correctly apply the new hashing algorithm to the biosphere database. This update fixes the ``config.biosphere`` database, all of its children, and all LCIA methods."},
+        "0.16 reprocess inventory databases": {
+            'method': "redo_all_databases_0_16",
+            "explanation": Fore.GREEN + "0.16 reprocess inventory databases" + Fore.RESET + "\n\t0.16 changed the filename of processed databases."},
     }
 
     @staticmethod
@@ -113,6 +116,19 @@ class Updates(object):
 
             pbar.update(index)
 
+        pbar.finish()
+
+    @staticmethod
+    def redo_all_databases_0_16():
+        print("Updating all LCI databases")
+        pbar = progressbar.ProgressBar(
+            widgets=widgets,
+            maxval=len(databases)
+        ).start()
+        for index, name in enumerate(databases):
+            db = Database(name)
+            db.process()
+            pbar.update(index)
         pbar.finish()
 
     @staticmethod

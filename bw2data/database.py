@@ -112,6 +112,27 @@ class Database(DataStore):
             version or self.version
         )
 
+    def filepath_intermediate(self, version=None):
+        return os.path.join(
+            config.dir,
+            u"intermediate",
+            self.filename_for_version(version) + u".pickle"
+        )
+
+    def filepath_processed(self):
+        return os.path.join(
+            config.dir,
+            u"processed",
+            self.filename + u".pickle"
+        )
+
+    def filepath_geomapping(self):
+        return os.path.join(
+            config.dir,
+            u"processed",
+            self.filename + u".geomapping.pickle"
+        )
+
     def find_dependents(self, data=None, ignore=None):
         """Get sorted list of dependent databases (databases linked from exchanges).
 
@@ -154,11 +175,7 @@ class Database(DataStore):
                 self.name in config.cache:
             return config.cache[self.name]
         try:
-            data = pickle.load(open(os.path.join(
-                config.dir,
-                u"intermediate",
-                self.filename_for_version(version) + u".pickle"
-            ), "rb"))
+            data = pickle.load(open(self.filepath_intermediate(version), "rb"))
             if version is None and config.p.get("use_cache", False):
                 config.cache[self.name] = data
             return data
@@ -199,12 +216,7 @@ Doesn't return anything, but writes two files to disk.
                 )
                 count += 1
 
-        filepath = os.path.join(
-            config.dir,
-            u"processed",
-            self.name + u".geomapping.pickle"
-        )
-        with open(filepath, "wb") as f:
+        with open(self.filepath_geomapping(), "wb") as f:
             pickle.dump(arr[:count], f, protocol=pickle.HIGHEST_PROTOCOL)
 
         arr = np.zeros((num_exchanges + len(data), ), dtype=self.dtype)
@@ -246,12 +258,7 @@ Doesn't return anything, but writes two files to disk.
         # The array is too big, because it can include a default production
         # amount for each activity. Trim to actual size.
         arr = arr[:count]
-        filepath = os.path.join(
-            config.dir,
-            u"processed",
-            self.name + u".pickle"
-        )
-        with open(filepath, "wb") as f:
+        with open(self.filepath_processed(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def query(self, *queries):
@@ -427,10 +434,5 @@ Doesn't return anything, but writes two files to disk.
                        x.get("location", False)})
         if config.p.get("use_cache", False) and self.name in config.cache:
             config.cache[self.name] = data
-        filepath = os.path.join(
-            config.dir,
-            u"intermediate",
-            self.filename + u".pickle"
-        )
-        with open(filepath, "wb") as f:
+        with open(self.filepath_intermediate(), "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
