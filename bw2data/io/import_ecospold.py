@@ -260,7 +260,7 @@ class Ecospold1Importer(object):
         data = linked_data + self.new_activities
 
         if self.new_biosphere:
-            self.new_biosphere = dict([((config.biosphere, o.pop("hash")), o) \
+            self.new_biosphere = dict([((config.biosphere, o.pop(u"hash")), o) \
                 for o in self.new_biosphere])
             biosphere = Database(config.biosphere)
             biosphere_data = biosphere.load()
@@ -271,14 +271,14 @@ class Ecospold1Importer(object):
         data = self.set_exchange_types(data)
         data = self.clean_exchanges(data)
         # Dictionary constructor eliminates duplicate activities
-        data = dict([((name, o.pop("hash")), o) for o in data])
+        data = dict([((name, o.pop(u"hash")), o) for o in data])
         self.write_database(name, data, depends)
 
     def allocate_datasets(self, data):
         activities = []
         for ds in data:
-            multi_output = [exc for exc in ds["exchanges"] \
-                if "reference" in exc]
+            multi_output = [exc for exc in ds[u"exchanges"] \
+                if u"reference" in exc]
             if multi_output:
                 for activity in self.allocate_exchanges(ds):
                     activities.append(activity)
@@ -349,30 +349,30 @@ It should be changed to:
 Exchanges should also be copied and allocated for any other co-products.
 
         """
-        coproduct_codes = [exc["code"] for exc in ds["exchanges"] if exc.get(
-            "group", None) in (0, 2)]
+        coproduct_codes = [exc[u"code"] for exc in ds[u"exchanges"] if exc.get(
+            u"group", None) in (0, 2)]
         coproducts = dict([(x, copy.deepcopy(ds)) for x in coproduct_codes])
-        exchanges = dict([(exc["code"], exc) for exc in ds["exchanges"
-            ] if "code" in exc])
-        allocations = [a for a in ds["exchanges"] if "fraction" in a]
+        exchanges = dict([(exc[u"code"], exc) for exc in ds[u"exchanges"
+            ] if u"code" in exc])
+        allocations = [a for a in ds[u"exchanges"] if u"fraction" in a]
         # First, get production amounts for each coproduct.
         # these aren't included in the allocations
         for key, product in coproducts.iteritems():
-            product["exchanges"] = [exc for exc in product["exchanges"] if exc.get("code", None) == key]
+            product[u"exchanges"] = [exc for exc in product[u"exchanges"] if exc.get(u"code", None) == key]
         # Next, correct names, location, and unit
         for key, product in coproducts.iteritems():
-            for label in ("unit", "name", "location"):
-                if exchanges[key]["matching"].get(label, None):
-                    product[label] = exchanges[key]["matching"][label]
+            for label in (u"unit", u"name", u"location"):
+                if exchanges[key][u"matching"].get(label, None):
+                    product[label] = exchanges[key][u"matching"][label]
         # Finally, add the allocated exchanges
         for allocation in allocations:
-            if allocation["fraction"] == 0:
+            if allocation[u"fraction"] == 0:
                 continue
-            product = coproducts[allocation["reference"]]
-            for exc_code in allocation["exchanges"]:
+            product = coproducts[allocation[u"reference"]]
+            for exc_code in allocation[u"exchanges"]:
                 copied = copy.deepcopy(exchanges[exc_code])
-                copied["amount"] = copied["amount"] * allocation["fraction"]
-                product["exchanges"].append(copied)
+                copied[u"amount"] = copied[u"amount"] * allocation[u"fraction"]
+                product[u"exchanges"].append(copied)
         return coproducts.values()
 
     def apply_transforms(self, data):
@@ -382,127 +382,127 @@ Exchanges should also be copied and allocated for any other co-products.
 
     def add_hashes(self, ds):
         for o in ds:
-            o["hash"] = activity_hash(o)
+            o[u"hash"] = activity_hash(o)
         return ds
 
     def link_exchanges(self, ds, data, depends, name):
         if self.sequential_exchanges(ds):
-            del ds["code"]
-        ds["exchanges"] = [self.link_exchange(exc, ds, data, depends, name
-            ) for exc in ds["exchanges"]]
+            del ds[u"code"]
+        ds[u"exchanges"] = [self.link_exchange(exc, ds, data, depends, name
+            ) for exc in ds[u"exchanges"]]
         return ds
 
     def sequential_exchanges(self, ds):
-        codes = np.array([x["code"] for x in ds["exchanges"]])
+        codes = np.array([x[u"code"] for x in ds["exchanges"]])
         return np.allclose(np.diff(codes), np.ones(np.diff(codes).shape))
 
     def link_exchange(self, exc, ds, data, depends, name):
         """`name`: Name of database"""
-        if exc["matching"]["name"] in self.remapping:
-            exc["matching"]["name"] = self.remapping[exc["matching"]["name"]]
+        if exc[u"matching"][u"name"] in self.remapping:
+            exc[u"matching"][u"name"] = self.remapping[exc[u"matching"][u"name"]]
         # Has to happen before others because US LCI doesn't define categories
         # for product definitions...
-        if exc.get("group", None) == 0:
+        if exc.get(u"group", None) == 0:
             # Activity dataset production
-            exc["input"] = (name, activity_hash(ds))
+            exc[u"input"] = (name, activity_hash(ds))
             return exc
         # Hack for US LCI-specific bug - both "Energy recovered"
         # and "Energy, recovered" are present
-        elif exc.get("group", None) == 1 and \
-            exc["matching"]["categories"] == () and \
-                exc["matching"]["name"] == "Recovered energy":
-            exc["matching"].update(
-                name="Energy, recovered",
-                categories=("resource",),
+        elif exc.get(u"group", None) == 1 and \
+            exc[u"matching"][u"categories"] == () and \
+                exc[u"matching"][u"name"] == u"Recovered energy":
+            exc[u"matching"].update(
+                name=u"Energy, recovered",
+                categories=(u"resource",),
                 )
-        elif not exc["matching"]["categories"]:
+        elif not exc[u"matching"][u"categories"]:
             # US LCI doesn't list categories, subcategories for
             # technosphere inputs. Try to find based on name. Need to lowercase
             # because US LCI is not consistent within itself (!!!)
             for other_ds in data:
-                if other_ds["name"].lower() == \
-                        exc["matching"]["name"].lower():
-                    exc["input"] = (name, other_ds["hash"])
+                if other_ds[u"name"].lower() == \
+                        exc[u"matching"][u"name"].lower():
+                    exc[u"input"] = (name, other_ds[u"hash"])
                     return exc
             # Can't find matching process - but could be a US LCI "dummy"
             # activity
-            if exc["matching"]["name"][:5].lower() == "dummy":
+            if exc[u"matching"][u"name"][:5].lower() == u"dummy":
                 self.log.warning(u"New activity created by:\n%s" % \
                     pprint.pformat(exc))
-                exc["input"] = (name, self.create_activity(exc["matching"]))
+                exc[u"input"] = (name, self.create_activity(exc[u"matching"]))
                 return exc
             else:
                 raise ValueError("Exchange can't be matched:\n%s" % \
                     pprint.pformat(exc))
-        exc["hash"] = activity_hash(exc["matching"])
-        if exc["matching"].get("categories", [None])[0] in BIOSPHERE:
+        exc[u"hash"] = activity_hash(exc[u"matching"])
+        if exc[u"matching"].get(u"categories", [None])[0] in BIOSPHERE:
             return self.link_biosphere(exc)
         else:
             return self.link_activity(exc, ds, data, depends, name)
 
     def link_biosphere(self, exc):
-        exc["input"] = (config.biosphere, exc["hash"])
-        if (config.biosphere, exc["hash"]) in Database(config.biosphere).load():
+        exc[u"input"] = (config.biosphere, exc[u"hash"])
+        if (config.biosphere, exc[u"hash"]) in Database(config.biosphere).load():
             return exc
         else:
-            new_flow = copy.deepcopy(exc["matching"])
+            new_flow = copy.deepcopy(exc[u"matching"])
             new_flow.update({
-                "hash": activity_hash(exc["matching"]),
-                "type": "resource" if new_flow["categories"][0] == "resource" \
-                    else "emission",
-                "exchanges": []
+                u"hash": activity_hash(exc[u"matching"]),
+                u"type": u"resource" if new_flow[u"categories"][0] == u"resource" \
+                    else u"emission",
+                u"exchanges": []
                 })
             # Biosphere flows don't have locations
-            del new_flow["location"]
+            del new_flow[u"location"]
             self.new_biosphere.append(new_flow)
             return exc
 
     def link_activity(self, exc, ds, data, depends, name):
-        if exc["hash"] in [o["hash"] for o in data]:
-            exc["input"] = (name, exc["hash"])
+        if exc[u"hash"] in [o[u"hash"] for o in data]:
+            exc[u"input"] = (name, exc[u"hash"])
             return exc
         else:
             return self.link_activity_dependent_database(exc, depends, name)
 
     def link_activity_dependent_database(self, exc, depends, name):
         for database in depends:
-            if (database, exc["hash"]) in mapping:
-                exc["input"] = (database, exc["hash"])
+            if (database, exc[u"hash"]) in mapping:
+                exc[u"input"] = (database, exc[u"hash"])
                 return exc
         # Create new activity in this database and log
         self.log.warning(u"New activity created by:\n%s" % pprint.pformat(exc))
-        exc["input"] = (name, self.create_activity(exc["matching"]))
+        exc[u"input"] = (name, self.create_activity(exc[u"matching"]))
         return exc
 
     def create_activity(self, exc):
         exc = copy.deepcopy(exc)
         exc.update({
-            "exchanges": [],
-            "type": "process",
-            "hash": activity_hash(exc),
+            u"exchanges": [],
+            u"type": u"process",
+            u"hash": activity_hash(exc),
             })
         self.new_activities.append(exc)
-        return exc["hash"]
+        return exc[u"hash"]
 
     def set_exchange_types(self, data):
         """Set the ``type`` attribute for each exchange, one of either (``production``, ``technosphere``, ``biosphere``). ``production`` defines the amount produced by the activity dataset (default is 1)."""
         for ds in data:
-            for exc in ds["exchanges"]:
-                if exc["input"][0] == config.biosphere:
-                    exc["type"] = "biosphere"
+            for exc in ds[u"exchanges"]:
+                if exc[u"input"][0] == config.biosphere:
+                    exc[u"type"] = u"biosphere"
                 elif exc["input"][1] == ds["hash"]:
-                    exc["type"] = "production"
+                    exc[u"type"] = u"production"
                 else:
-                    exc["type"] = "technosphere"
+                    exc[u"type"] = u"technosphere"
         return data
 
     def clean_exchanges(self, data):
         for ds in data:
-            for exc in ds["exchanges"]:
-                if "matching" in exc:
-                    del exc["matching"]
-                if "hash" in exc:
-                    del exc["hash"]
+            for exc in ds[u"exchanges"]:
+                if u"matching" in exc:
+                    del exc[u"matching"]
+                if u"hash" in exc:
+                    del exc[u"hash"]
         return data
 
     def write_database(self, name, data, depends):
@@ -510,7 +510,7 @@ Exchanges should also be copied and allocated for any other co-products.
             warnings.simplefilter("ignore")
             manager = Database(name)
             manager.register(
-                format="Ecospold1",
+                format=u"Ecospold1",
                 depends=depends,
                 num_processes=len(data),
             )
