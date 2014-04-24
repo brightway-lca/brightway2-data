@@ -41,19 +41,19 @@ INTRODUCTION = """Starting SimaPro import:
 """
 
 SIMAPRO_BIOSPHERE = {
-    "Emissions to air": "air",
-    "Resources": "resource",
-    "Emissions to water": "water",
-    "Emissions to soil": "soil",
+    u"Emissions to air": u"air",
+    u"Resources": u"resource",
+    u"Emissions to water": u"water",
+    u"Emissions to soil": u"soil",
 }
 
 SIMAPRO_BIO_SUBCATEGORIES = {
-    "high. pop.": u'high population density',
-    "low. pop.": u'low population density',
-    "low. pop., long-term": u'low population density, long-term',
-    "stratosphere + troposphere": u'lower stratosphere + upper troposphere',
-    "groundwater": u'ground-',
-    "groundwater, long-term": u'ground-, long-term',
+    u"high. pop.": u'high population density',
+    u"low. pop.": u'low population density',
+    u"low. pop., long-term": u'low population density, long-term',
+    u"stratosphere + troposphere": u'lower stratosphere + upper troposphere',
+    u"groundwater": u'ground-',
+    u"groundwater, long-term": u'ground-, long-term',
 }
 
 
@@ -114,7 +114,7 @@ class SimaProImporter(object):
 
     """
     def __init__(self, filepath, delimiter="\t", depends=['ecoinvent 2.2'],
-                 overwrite=False, name=None, default_geo="GLO",
+                 overwrite=False, name=None, default_geo=u"GLO",
                  fix_missing=False):
         assert os.path.exists(filepath), "Can't find file %s" % filepath
         self.filepath = filepath
@@ -199,7 +199,7 @@ class SimaProImporter(object):
             *data*: The raw data loaded from the CSV file.
 
         """
-        assert 'SimaPro' in data[0][0], "File is not valid SimaPro export"
+        assert u'SimaPro' in data[0][0], "File is not valid SimaPro export"
 
     def clean_data(self, data):
         """Clean the raw data.
@@ -215,7 +215,7 @@ class SimaProImporter(object):
 
         """
         if self.db_name is None:
-            assert data[1][0] == 'Project', "Can't determine SimaPro project name"
+            assert data[1][0] == u'Project', "Can't determine SimaPro project name"
             self.db_name = data[1][1]
         process_indices = self.get_process_indices(data)
         process_data = [
@@ -235,7 +235,7 @@ class SimaProImporter(object):
 
         """
         return [x for x in range(2, len(data))
-            if data[x] and data[x][0] == "Process" and len(data[x]) == 1
+            if data[x] and data[x][0] == u"Process" and len(data[x]) == 1
             ] + [len(data) + 1]
 
     def process_data(self, dataset):
@@ -252,9 +252,9 @@ class SimaProImporter(object):
 
         """
         data = self.define_dataset(dataset)
-        data['simapro metadata'] = self.get_dataset_metadata(dataset)
-        data['exchanges'] = self.get_exchanges(dataset)
-        data['exchanges'].append(self.get_production_exchange(data, dataset))
+        data[u'simapro metadata'] = self.get_dataset_metadata(dataset)
+        data[u'exchanges'] = self.get_exchanges(dataset)
+        data[u'exchanges'].append(self.get_production_exchange(data, dataset))
         return data
 
     def define_dataset(self, dataset):
@@ -272,30 +272,30 @@ class SimaProImporter(object):
         line = dataset[self.get_exchanges_index(dataset) + 1]
         name, geo = detoxify(line[0], self.log)
         data = {
-            'name': name,
-            'unit': normalize_units(line[2]),
-            'location': geo or self.default_geo,
-            'categories': line[5].split('\\'),
-            'type': 'process',
+            u'name': name,
+            u'unit': normalize_units(line[2]),
+            u'location': geo or self.default_geo,
+            u'categories': line[5].split('\\'),
+            u'type': u'process',
         }
-        data['code'] = activity_hash(data)
+        data[u'code'] = activity_hash(data)
         return data
 
     def create_missing_dataset(self, exc):
         """Create new dataset from unlinked exchange."""
         data = {
-            'name': exc['name'],
-            'unit': normalize_units(exc['unit']),
-            'location': exc['location'] or self.default_geo,
-            'categories': [exc['label']],
-            'type': 'process',
-            'comment': exc['comment'],
-            'exchanges': [],
+            u'name': exc[u'name'],
+            u'unit': normalize_units(exc[u'unit']),
+            u'location': exc[u'location'] or self.default_geo,
+            u'categories': [exc[u'label']],
+            u'type': u'process',
+            u'comment': exc[u'comment'],
+            u'exchanges': [],
         }
         self.log.warning(u"Created new process for unlinked exchange:\n%s" \
             % pprint.pformat(exc, indent=4)
         )
-        data['code'] = activity_hash(data)
+        data[u'code'] = activity_hash(data)
         return data
 
     def get_dataset_metadata(self, dataset):
@@ -310,7 +310,7 @@ class SimaProImporter(object):
         """
         metadata = {}
         for index, line in enumerate(dataset):
-            if line and line[0] == 'Products':
+            if line and line[0] == u'Products':
                 break
             elif not bool(line and len(line) > 1 and line[0] and line[1]):
                 continue
@@ -374,37 +374,37 @@ class SimaProImporter(object):
                 ]
                 # What is line[1]? Is it always blank???
                 exchanges.append({
-                    'name': line[0],
-                    'categories': filter(lambda x: x, categories),
-                    'amount': float(line[2]),
-                    'loc': float(line[2]),
-                    'uncertainty type': 0,
-                    'unit': normalize_units(line[3]),
-                    'uncertainty': line[4],
-                    'comment': comment,
-                    'biosphere': True,
+                    u'name': line[0],
+                    u'categories': filter(lambda x: x, categories),
+                    u'amount': float(line[2]),
+                    u'loc': float(line[2]),
+                    u'uncertainty type': 0,
+                    u'unit': normalize_units(line[3]),
+                    u'uncertainty': line[4],
+                    u'comment': comment,
+                    u'biosphere': True,
                 })
             else:
                 # Try to interpret as ecoinvent
                 name, geo = detoxify(line[0], self.log)
 
                 exchanges.append({
-                    'name': name,
-                    'amount': float(line[1]),
-                    'loc': float(line[1]),
-                    'uncertainty type': 0,
-                    'label': label,
-                    'comment': comment,
-                    'unit': normalize_units(line[2]),
-                    'uncertainty': line[3],
-                    'location': geo
+                    u'name': name,
+                    u'amount': float(line[1]),
+                    u'loc': float(line[1]),
+                    u'uncertainty type': 0,
+                    u'label': label,
+                    u'comment': comment,
+                    u'unit': normalize_units(line[2]),
+                    u'uncertainty': line[3],
+                    u'location': geo
                 })
         return exchanges
 
     def get_exchanges_index(self, dataset):
         """Get index for start of exchanges in activity dataset."""
         for x in range(len(dataset)):
-            if dataset[x] and dataset[x][0] == 'Products':
+            if dataset[x] and dataset[x][0] == u'Products':
                 return x
 
     def is_comment(self, line):
@@ -417,7 +417,7 @@ class SimaProImporter(object):
         comment = ''
         try:
             while self.is_comment(data[index]):
-                comment += ("\n" + data[index][6])
+                comment += (u"\n" + data[index][6])
                 index += 1  # Creates new object; doesn't clobber parent index value
         except IndexError:
             pass
@@ -451,17 +451,17 @@ class SimaProImporter(object):
             comment = ''
         comment += self.get_multiline_comment(dataset, index + 1)
         return {
-            'input': (self.db_name, data['code']),
-            'amount': float(line[1]),
-            'loc': float(line[1]),
-            'uncertainty type': 0,
-            'unit': normalize_units(line[2]),
-            'folder': line[5],
-            'comment': comment,
-            'type': 'production',
-            'allocation': {
-                'factor': float(line[3]),
-                'type': line[4]
+            u'input': (self.db_name, data[u'code']),
+            u'amount': float(line[1]),
+            u'loc': float(line[1]),
+            u'uncertainty type': 0,
+            u'unit': normalize_units(line[2]),
+            u'folder': line[5],
+            u'comment': comment,
+            u'type': u'production',
+            u'allocation': {
+                u'factor': float(line[3]),
+                u'type': line[4]
             }
         }
 
@@ -476,7 +476,7 @@ class SimaProImporter(object):
 
         """
         self.foreground = dict([
-            ((ds['name'], ds['unit']), (self.db_name, ds['code']))
+            ((ds[u'name'], ds[u'unit']), (self.db_name, ds[u'code']))
             for ds in data
         ])
 
@@ -498,16 +498,16 @@ class SimaProImporter(object):
 
         self.background = {}
         for key, value in background_data.iteritems():
-            self.background[(value['name'].lower(), value['unit'],
-                            value['location'])] = key
-            self.background[(value['name'].lower(), value['unit'])] = key
+            self.background[(value[u'name'].lower(), value[u'unit'],
+                            value[u'location'])] = key
+            self.background[(value[u'name'].lower(), value[u'unit'])] = key
 
         self.biosphere = Database(config.biosphere).load()
 
     def link_exchanges(self, dataset):
         """Link all exchanges in a given dataset"""
-        dataset['exchanges'] = [
-            self.link_exchange(exc) for exc in dataset['exchanges']
+        dataset[u'exchanges'] = [
+            self.link_exchange(exc) for exc in dataset[u'exchanges']
         ]
         return dataset
 
@@ -519,41 +519,41 @@ class SimaProImporter(object):
         This method looks first in the foreground, then the background; if an exchange isn't found an error is rasied."""
         if exc.get('type', None) == 'production':
             return exc
-        elif exc.get('biosphere', False):
+        elif exc.get(u'biosphere', False):
             try:
                 code = ('biosphere', activity_hash(exc))
                 assert code in self.biosphere
-                exc['input'] = code
-                exc['type'] = 'biosphere'
-                exc['uncertainty type'] = 0
-                del exc['biosphere']
+                exc[u'input'] = code
+                exc[u'type'] = u'biosphere'
+                exc[u'uncertainty type'] = 0
+                del exc[u'biosphere']
                 return exc
             except:
-                raise MissingExchange("Can't find biosphere flow\n%s" % \
+                raise MissingExchange(u"Can't find biosphere flow\n%s" % \
                     pprint.pformat(exc, indent=4))
-        elif (exc["name"], exc["unit"]) in self.foreground:
-            exc["input"] = self.foreground[(exc["name"], exc["unit"])]
+        elif (exc[u"name"], exc[u"unit"]) in self.foreground:
+            exc[u"input"] = self.foreground[(exc[u"name"], exc[u"unit"])]
             found = True
-        elif (exc["name"].lower(), exc["unit"], exc['location']) in \
+        elif (exc[u"name"].lower(), exc[u"unit"], exc[u'location']) in \
                 self.background:
-            exc["input"] = self.background[(exc["name"].lower(), exc["unit"],
-                exc['location'])]
+            exc[u"input"] = self.background[(exc[u"name"].lower(), exc[u"unit"],
+                exc[u'location'])]
             found = True
-        elif (exc["name"].lower(), exc["unit"]) in self.background:
-            exc["input"] = self.background[(exc["name"].lower(), exc["unit"])]
+        elif (exc[u"name"].lower(), exc[u"unit"]) in self.background:
+            exc[u"input"] = self.background[(exc[u"name"].lower(), exc[u"unit"])]
             found = True
         else:
             found = False
 
         if found:
-            exc["type"] = "technosphere"
-            exc['uncertainty type'] = 0
+            exc[u"type"] = u"technosphere"
+            exc[u'uncertainty type'] = 0
             return exc
         elif self.fix_missing:
             new_process = self.create_missing_dataset(exc)
-            exc['type'] = "technosphere"
-            exc['uncertainty type'] = 0
-            exc['input'] = (self.db_name, new_process['code'])
+            exc[u'type'] = u"technosphere"
+            exc[u'uncertainty type'] = 0
+            exc[u'input'] = (self.db_name, new_process[u'code'])
             self.new_processes.append(new_process)
             return exc
         else:

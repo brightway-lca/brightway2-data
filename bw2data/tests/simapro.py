@@ -162,6 +162,16 @@ class SimaProImportTest(BW2DataTest):
         with self.assertRaises(MissingExchange):
             sp.importer()
 
+    def test_unicode_strings(self):
+        sp = SimaProImporter(self.filepath("empty"), depends=[], default_geo=u"Where?")
+        sp.importer()
+        for obj in Database("W00t").load().values():
+            for key, value in obj.iteritems():
+                if isinstance(key, basestring):
+                    self.assertTrue(isinstance(key, unicode))
+                if isinstance(value, basestring):
+                    self.assertTrue(isinstance(value, unicode))
+
     def test_comments(self):
         self.maxDiff = None
         database = Database("background")
