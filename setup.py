@@ -21,14 +21,12 @@ setup(
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
     license=open('LICENSE.txt').read(),
-    # Use a fork of progressbar that support ipython notebooks
-    dependency_links = ['https://github.com/fnoble/python-progressbar/tarball/master#egg=progressbar-2.4'],
     install_requires=[
         "colorama",
         "docopt",
         "lxml",
         "numpy",
-        "progressbar>=2.4",
+        "progressbar-ipython",
         "requests>=1.1.0",
         "scipy",
         "stats_arrays",
