@@ -44,6 +44,7 @@ def natural_sort(l):
 
 
 def recursively_sort(obj):
+    """Recursively sort a nested data structure."""
     if isinstance(obj, dict):
         return sorted([(k, recursively_sort(v)) for k, v in obj.iteritems()])
     elif hasattr(obj, "__iter__"):
@@ -84,7 +85,7 @@ def combine_methods(name, *ms):
             data[(key, geo)] = data.get((key, geo), 0) + cf
     meta = {
         "description": "Combination of the following methods: " +
-            ", ".join([str(x) for x in ms]),
+        ", ".join([str(x) for x in ms]),
         "num_cfs": len(data),
         "unit": list(units)[0] if len(units) == 1 else "Unknown"
     }
@@ -182,7 +183,9 @@ Returns the modified dataset.
 
 
 def recursive_str_to_unicode(data, encoding="utf8"):
-    """Convert a nested python object (like a database) from byte strings to unicode strings using encoding"""
+    """Convert a nested python object (like a database) from byte strings to unicode strings using encoding.
+
+    ``data`` is some data, and ``encoding`` is something like ``"utf-8"`` (default)."""
     # Adapted from
     # http://stackoverflow.com/questions/1254454/fastest-way-to-convert-a-dicts-keys-values-from-unicode-to-str
     if isinstance(data, str):
@@ -248,10 +251,10 @@ def activity_hash(data):
         A MD5 hash string, hex-encoded.
 
     """
-    string = (data["name"].lower() + \
-        u"".join(data.get("categories", [])) + \
-        (data.get("unit", u"") or u"").lower() + \
-        (data.get("location", u"") or u"").lower())
+    string = (data["name"].lower() +
+              u"".join(data.get("categories", [])) +
+              (data.get("unit", u"") or u"").lower() +
+              (data.get("location", u"") or u"").lower())
     return unicode(hashlib.md5(string.encode('utf-8')).hexdigest())
 
 
@@ -282,6 +285,7 @@ def download_file(filename):
 
 
 def web_ui_accessible():
+    """Test if Brightway2 web is accessible. Returns a boolean."""
     base_url = config.p.get('web_ui_address', "http://127.0.0.1:5000") + "/ping"
     try:
         response = requests.get(base_url)
@@ -291,6 +295,9 @@ def web_ui_accessible():
 
 
 def open_activity_in_webbrowser(activity):
+    """Open a dataset document in the Brightway2 web UI. Requires web UI to be running.
+
+    ``activity`` is a dataset key, e.g. ``("foo", "bar")``."""
     base_url = config.p.get('web_ui_address', "http://127.0.0.1:5000")
     if not web_ui_accessible():
         raise WebUIError("Can't find bw2-web UI (tried %s)" % base_url)
@@ -303,6 +310,11 @@ def open_activity_in_webbrowser(activity):
 
 
 def set_data_dir(dirpath):
+    """Set the Brightway2 data directory to ``dirpath``.
+
+    Also creates basic directories, and resets metadata.
+
+    Creates ``dirpath`` if needed."""
     if not os.path.exists(dirpath):
         os.mkdir(dirpath)
 
@@ -321,6 +333,7 @@ def set_data_dir(dirpath):
 
 
 def setup():
+    """Create basic directories, and download biosphere and LCIA methods"""
     from .io import download_biosphere, download_methods
     config.create_basic_directories()
     # config.is_temp_dir = False
