@@ -9,6 +9,7 @@ import os
 import random
 import re
 import requests
+import stats_arrays as sa
 import string
 import unicodedata
 import urllib
@@ -123,6 +124,61 @@ def clean_exchanges(data):
             exc['input'] = tuple(exc['input'])
         return value
     return {key: tupleize(value) for key, value in data}
+
+
+def uncertainify(data, distribution=None, bounds_factor=0.1, sd_factor=0.1):
+    """
+Add some rough uncertainty to exchanges.
+
+.. warning:: Only changes exchanges with no uncertainty type or uncertainty type ``UndefinedUncertainty``, and does not change production exchanges!
+
+Can only apply normal or uniform (default) distributions. Distribution, if specified, must be a ``stats_array`` object.
+
+``data`` is a dictionary of data, e.g. what you get from ``Database.load()``.
+
+If normal distribution:
+
+* ``sd_factor`` will be multiplied by the mean to calculate the standard deviation.
+* If no bounds are desired, set ``bounds_factor`` to ``None``.
+* Otherwise, the bounds will be ``[(1 - bounds_factor) * mean, (1 + bounds_factor) * mean]``.
+
+If uniform distribution, then the bounds are ``[(1 - bounds_factor) * mean, (1 + bounds_factor) * mean]``.
+
+Returns the modified dataset.
+    """
+    assert distribution in {None, sa.UniformUncertainty, sa.NormalUncertainty}, \
+        u"``uncertainfy`` only supports normal and uniform distributions"
+    assert bounds_factor is None or bounds_factor * 1. > 0, \
+        "bounds_factor must be a positive number"
+    assert sd_factor * 1. > 0, "sd_factor must be a positive number"
+
+    for key, value in data.iteritems():
+        for exchange in value.get(u'exchanges', []):
+            if (exchange.get(u'type') == u'production') or \
+                    (exchange.get(u'uncertainty type',
+                                  sa.UndefinedUncertainty.id) \
+                    != sa.UndefinedUncertainty.id):
+                continue
+
+            if bounds_factor is not None:
+                exchange.update({
+                    "minimum": (1 - bounds_factor) * exchange['amount'],
+                    "maximum": (1 + bounds_factor) * exchange['amount'],
+                })
+
+            if distribution == sa.NormalUncertainty:
+                exchange.update({
+                    "uncertainty type": sa.NormalUncertainty.id,
+                    "loc": exchange['amount'],
+                    "scale": sd_factor * exchange['amount'],
+                })
+            else:
+                assert bounds_factor is not None, \
+                    "must specify bounds_factor for uniform distribution"
+                exchange.update({
+                    "uncertainty type": sa.UniformUncertainty.id,
+                })
+    return data
 
 
 def recursive_str_to_unicode(data, encoding="utf8"):

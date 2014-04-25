@@ -2,7 +2,8 @@
 from . import BW2DataTest
 from .. import Database, Method, methods
 from fixtures import biosphere
-from ..utils import natural_sort, random_string, combine_methods
+from ..utils import natural_sort, random_string, combine_methods, uncertainify
+import stats_arrays as sa
 
 
 class UtilsTest(BW2DataTest):
@@ -38,3 +39,71 @@ class UtilsTest(BW2DataTest):
             (("biosphere", 2), 12, "GLO")
         ])
         self.assertEqual(methods[["test method 3"]]["unit"], "p")
+
+
+class UncertainifyTestCase(BW2DataTest):
+    def test_wrong_distribution(self):
+        with self.assertRaises(AssertionError):
+            uncertainify({}, sa.LognormalUncertainty)
+
+    def test_factors_valid(self):
+        with self.assertRaises(AssertionError):
+            uncertainify({}, bounds_factor=-1)
+        with self.assertRaises(TypeError):
+            uncertainify({}, bounds_factor="foo")
+        with self.assertRaises(AssertionError):
+            uncertainify({}, sd_factor=-1)
+        with self.assertRaises(TypeError):
+            uncertainify({}, sd_factor="foo")
+
+    def test_bounds_factor_none_ok(self):
+        uncertainify({}, bounds_factor=None)
+
+    def test_skips(self):
+        data = {1: {'exchanges': [
+            {'type': 'production'},
+            {'uncertainty type': sa.LognormalUncertainty.id}
+        ]}}
+        # Doesn't raise KeyError for 'amount'
+        data = uncertainify(data)
+
+    def test_uniform(self):
+        data = {1: {'exchanges': [
+            {'amount': 10.}
+        ]}}
+        data = uncertainify(data)
+        new_dict = {
+            'amount': 10.,
+            'minimum': 9.,
+            'maximum': 11.,
+            'uncertainty type': sa.UniformUncertainty.id,
+        }
+        self.assertEqual(data[1]['exchanges'][0], new_dict)
+
+    def test_normal_bounded(self):
+        data = {1: {'exchanges': [
+            {'amount': 10.}
+        ]}}
+        data = uncertainify(data, sa.NormalUncertainty)
+        new_dict = {
+            'amount': 10.,
+            'loc': 10.,
+            'scale': 1.,
+            'minimum': 9.,
+            'maximum': 11.,
+            'uncertainty type': sa.NormalUncertainty.id,
+        }
+        self.assertEqual(data[1]['exchanges'][0], new_dict)
+
+    def test_normal_unbounded(self):
+        data = {1: {'exchanges': [
+            {'amount': 10.}
+        ]}}
+        data = uncertainify(data, sa.NormalUncertainty, bounds_factor=None)
+        new_dict = {
+            'amount': 10.,
+            'loc': 10.,
+            'scale': 1.,
+            'uncertainty type': sa.NormalUncertainty.id,
+        }
+        self.assertEqual(data[1]['exchanges'][0], new_dict)
