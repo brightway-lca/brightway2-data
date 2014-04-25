@@ -4,6 +4,8 @@ from .. import Database, databases
 from ..io.import_simapro import SimaProImporter, MissingExchange, detoxify_re
 from .fixtures.simapro_reference import background as background_data
 import os
+from stats_arrays import UndefinedUncertainty, NoUncertainty
+
 
 SP_FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "simapro")
 
@@ -102,7 +104,7 @@ class SimaProImportTest(BW2DataTest):
                 'loc': 1.0,
                 'input': ('W00t', u'6524377b64855cc3daf13bd1bcfe0385'),
                 'type': 'production',
-                'uncertainty type': 0,
+                'uncertainty type': NoUncertainty.id,
                 'allocation': {'factor': 100.0, 'type': 'not defined'},
                 'unit': 'unit',
                 'folder': 'Agricultural\Animal production\Animal foods',
@@ -125,7 +127,7 @@ class SimaProImportTest(BW2DataTest):
             'loc': 1.0,
             'input': ('W00t', u'6524377b64855cc3daf13bd1bcfe0385'),
             'type': 'production',
-            'uncertainty type': 0,
+            'uncertainty type': NoUncertainty.id,
             'allocation': {'factor': 100.0, 'type': 'not defined'},
             'unit': 'unit',
             'folder': 'Agricultural\Animal production\Animal foods',
@@ -194,7 +196,7 @@ class SimaProImportTest(BW2DataTest):
             'name': 'lunch',
             'type': 'technosphere',
             'uncertainty': 'Lognormal',
-            'uncertainty type': 0,
+            'uncertainty type': UndefinedUncertainty.id,
             'unit': u'kilogram'
         }, {
             'amount': 1.0,
@@ -206,14 +208,14 @@ class SimaProImportTest(BW2DataTest):
             'name': 'dinner',
             'type': 'technosphere',
             'uncertainty': 'Lognormal',
-            'uncertainty type': 0,
+            'uncertainty type': UndefinedUncertainty.id,
             'unit': u'kilogram'
         },{
             'amount': 1.0,
             'loc': 1.0,
             'input': ('W00t', u'6524377b64855cc3daf13bd1bcfe0385'),
             'type': 'production',
-            'uncertainty type': 0,
+            'uncertainty type': NoUncertainty.id,
             'allocation': {'factor': 100.0, 'type': 'not defined'},
             'unit': u'unit',
             'folder': 'Agricultural\Animal production\Animal foods',

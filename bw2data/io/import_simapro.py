@@ -2,13 +2,14 @@
 from __future__ import print_function
 from .. import Database, databases, config
 from ..logs import get_io_logger
-from ..utils import activity_hash
 from ..units import normalize_units
-import unicodecsv
+from ..utils import activity_hash
+from stats_arrays import UndefinedUncertainty, NoUncertainty
 import itertools
 import os
 import pprint
 import re
+import unicodecsv
 import warnings
 
 # Pattern for SimaPro munging of ecoinvent names
@@ -378,7 +379,7 @@ class SimaProImporter(object):
                     u'categories': filter(lambda x: x, categories),
                     u'amount': float(line[2]),
                     u'loc': float(line[2]),
-                    u'uncertainty type': 0,
+                    u'uncertainty type': UndefinedUncertainty.id,
                     u'unit': normalize_units(line[3]),
                     u'uncertainty': line[4],
                     u'comment': comment,
@@ -392,7 +393,7 @@ class SimaProImporter(object):
                     u'name': name,
                     u'amount': float(line[1]),
                     u'loc': float(line[1]),
-                    u'uncertainty type': 0,
+                    u'uncertainty type': UndefinedUncertainty.id,
                     u'label': label,
                     u'comment': comment,
                     u'unit': normalize_units(line[2]),
@@ -454,7 +455,7 @@ class SimaProImporter(object):
             u'input': (self.db_name, data[u'code']),
             u'amount': float(line[1]),
             u'loc': float(line[1]),
-            u'uncertainty type': 0,
+            u'uncertainty type': NoUncertainty.id,
             u'unit': normalize_units(line[2]),
             u'folder': line[5],
             u'comment': comment,
@@ -525,7 +526,7 @@ class SimaProImporter(object):
                 assert code in self.biosphere
                 exc[u'input'] = code
                 exc[u'type'] = u'biosphere'
-                exc[u'uncertainty type'] = 0
+                exc[u'uncertainty type'] = UndefinedUncertainty.id
                 del exc[u'biosphere']
                 return exc
             except:
@@ -547,12 +548,12 @@ class SimaProImporter(object):
 
         if found:
             exc[u"type"] = u"technosphere"
-            exc[u'uncertainty type'] = 0
+            exc[u'uncertainty type'] = UndefinedUncertainty.id
             return exc
         elif self.fix_missing:
             new_process = self.create_missing_dataset(exc)
             exc[u'type'] = u"technosphere"
-            exc[u'uncertainty type'] = 0
+            exc[u'uncertainty type'] = UndefinedUncertainty.id
             exc[u'input'] = (self.db_name, new_process[u'code'])
             self.new_processes.append(new_process)
             return exc
