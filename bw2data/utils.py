@@ -9,7 +9,7 @@ import os
 import random
 import re
 import requests
-# import stats_arrays as sa
+import stats_arrays as sa
 import string
 import unicodedata
 import urllib
@@ -147,7 +147,6 @@ If uniform distribution, then the bounds are ``[(1 - bounds_factor) * mean, (1 +
 
 Returns the modified dataset.
     """
-    return
     assert distribution in {None, sa.UniformUncertainty, sa.NormalUncertainty}, \
         u"``uncertainfy`` only supports normal and uniform distributions"
     assert bounds_factor is None or bounds_factor * 1. > 0, \
