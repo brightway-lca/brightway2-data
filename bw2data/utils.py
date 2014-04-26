@@ -124,7 +124,7 @@ def clean_exchanges(data):
         for exc in value.get('exchanges', []):
             exc['input'] = tuple(exc['input'])
         return value
-    return {key: tupleize(value) for key, value in data}
+    return {key: tupleize(value) for key, value in data.iteritems()}
 
 
 def uncertainify(data, distribution=None, bounds_factor=0.1, sd_factor=0.1):

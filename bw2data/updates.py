@@ -5,7 +5,7 @@ from . import Database, databases, Method, methods, config, Weighting, \
 from .colors import Fore, safe_colorama
 from .ia_data_store import abbreviate
 from .units import normalize_units
-from .utils import activity_hash
+from .utils import activity_hash, recursive_str_to_unicode
 import os
 import pprint
 import progressbar
@@ -31,6 +31,7 @@ widgets = [
     progressbar.ETA()
 ]
 
+
 class Updates(object):
     UPDATES = {
         '0.10 units restandardization': {
@@ -48,9 +49,9 @@ class Updates(object):
         "0.14 update biosphere hashes": {
             "method": "update_biosphere_hashes",
             "explanation": Fore.GREEN + "0.14 update biosphere hashes" + Fore.RESET + "\n\tPrevious upgrades didn't correctly apply the new hashing algorithm to the biosphere database. This update fixes the ``config.biosphere`` database, all of its children, and all LCIA methods."},
-        "0.16 reprocess inventory databases": {
-            'method': "redo_all_databases_0_16",
-            "explanation": Fore.GREEN + "0.16 reprocess inventory databases" + Fore.RESET + "\n\t0.16 changed the filename of processed databases."},
+        "0.16 decode inventory databases": {
+            'method': "decode_inventory_databases_0_16",
+            'explanation': Fore.GREEN + "0.16 decode inventory databases" + Fore.RESET + "\n\tAll inventory database strings should be unicode, not byte strings. However, as Brightway2 doesn't know how the strings are encoded, you will need to fix this manually. This update only gives instructions; it doesn't actually do anything."},
     }
 
     @staticmethod
@@ -119,17 +120,48 @@ class Updates(object):
         pbar.finish()
 
     @staticmethod
-    def redo_all_databases_0_16():
-        print("Updating all LCI databases")
+    def decode_inventory_databases_0_16():
+        print(Fore.GREEN + u"Updating LCIA methods" + Fore.RESET)
+
         pbar = progressbar.ProgressBar(
             widgets=widgets,
-            maxval=len(databases)
+            maxval=len(methods)
         ).start()
-        for index, name in enumerate(databases):
-            db = Database(name)
-            db.process()
+
+        for index, name in enumerate(methods):
+            method = Method(name)
+            data = recursive_str_to_unicode(method.load())
+            method.write(data)
+            method.process()
+
             pbar.update(index)
+
         pbar.finish()
+
+        print(u"Processing databases. Anything other than '" +
+              Fore.RED + u"n" + Fore.RESET + u"' is interpreted as yes.")
+
+        skipped = []
+
+        for name in databases:
+            database = Database(name)
+            data = database.load()
+            windows = raw_input(u"Was the database " + Fore.BLUE +
+                                database.name + Fore.RESET + u" imported from XML files? [Y/n]")
+            try:
+                if windows.lower() == "n":
+                    data = recursive_str_to_unicode(data, "latin-1")
+                else:
+                    data = recursive_str_to_unicode(data)
+            except UnicodeDecodeError:
+                skipped.append(database.name)
+                print(u"Can't handle the encoding of database " + Fore.BLUE + database.name +
+                      Fore.RESET + u". It is skipped; you will have to fix it manually")
+            database.write(data)
+            database.process()
+
+        if skipped:
+            print(Fore.RED + u"\nERROR" + Fore.RESET + u": Some databases must be fixed manually:\n\t" + u"\n\t".join(skipped))
 
     @staticmethod
     def reprocess_all_lcia():
@@ -257,7 +289,8 @@ class Updates(object):
         assert database in databases
         child_databases = [name for name in databases if database in databases[name]['depends']]
         # Version number of known good data
-        previous_versions = {name: databases[name]['version'] for name in child_databases + [database]}
+        previous_versions = {name: databases[name]['version']
+                             for name in child_databases + [database]}
         database_obj = Database(database)
         data = database_obj.load()
         # Mapping from old values to new values
@@ -269,7 +302,7 @@ class Updates(object):
         backup_methods = []
 
         try:
-            print("Updating database and child databases...")
+            print(Fore.GREEN + "Updating database and child databases..." + Fore.RESET)
 
             pbar = progressbar.ProgressBar(
                 widgets=widgets,
