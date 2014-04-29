@@ -1,7 +1,12 @@
 Changelog
 *********
 
-0.16 (2014-XX-XX)
+0.17 (2014-04-29)
+=================
+
+- BREAKING CHANGE: Database 'depends' is now calculated automatically when calling Database.process().
+
+0.16 (2014-04-28)
 =================
 
 **bw2-uptodate.py is required for this update**
