@@ -156,7 +156,7 @@ class Database(DataStore):
             and exc.get('input', [None])[0] is not None
             and exc.get('input', [None])[0] not in ignore
         }
-        return sorted(list(dependents))
+        return sorted(dependents)
 
     def load(self, version=None):
         """Load the intermediate data for this database.
@@ -221,6 +221,7 @@ Doesn't return anything, but writes two files to disk.
 
         arr = np.zeros((num_exchanges + len(data), ), dtype=self.dtype)
         count = 0
+
         for key in sorted(data.keys(), key=lambda x: x[1]):
             production_found = False
             if data[key].get('type') != u"process":
@@ -254,6 +255,10 @@ Doesn't return anything, but writes two files to disk.
                     0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
                 )
                 count += 1
+
+        # Automatically set 'depends'
+        self.metadata[self.name]['depends'] = self.find_dependents()
+        self.metadata.flush()
 
         # The array is too big, because it can include a default production
         # amount for each activity. Trim to actual size.

@@ -313,3 +313,29 @@ class DatabaseTest(BW2DataTest):
             ["biosphere", "foo"]
         )
 
+    def test_set_dependents(self):
+        database = Database("a database")
+        database.register()
+        self.assertEqual(databases['a database']['depends'], [])
+        keys = [("biosphere", "bar"), ("baz", "w00t"), ("foo", "bar")]
+        mapping.add(keys)
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [
+                    {'input': ("foo", "bar"), 'type': 'technosphere', 'amount': 1},
+                    {'input': ("biosphere", "bar"), 'type': 'biosphere', 'amount': 1}
+                ],
+                'type': 'process',
+                'location': 'bar'
+            },
+            ("a database", "baz"): {
+                'exchanges': [{'input': ("baz", "w00t"), 'type': 'technosphere', 'amount': 1}],
+                'type': 'emission'
+            },
+        })
+        database.process()
+        # 'baz' ignored because not a process
+        self.assertEqual(
+            databases['a database']['depends'],
+            ["biosphere", "foo"]
+        )
