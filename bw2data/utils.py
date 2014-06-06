@@ -98,10 +98,11 @@ def combine_methods(name, *ms):
 
 
 def safe_filename(string, add_hash=True):
-    """Convert arbitrary strings to make them safe for filenames. Substitutes strange characters, and uses unicode normalization. Appends hash of name to avoid collisions.
+    """Convert arbitrary strings to make them safe for filenames. Substitutes strange characters, and uses unicode normalization.
+
+    Optionally appends hash of name to avoid collisions.
 
     From http://stackoverflow.com/questions/295135/turn-a-string-into-a-valid-filename-in-python"""
-    hashed = hashlib.md5(string).hexdigest()
     safe = re.sub(
         '[-\s]+',
         '-',
@@ -113,7 +114,7 @@ def safe_filename(string, add_hash=True):
         )
     )
     if add_hash:
-        return safe + u"." + hashed
+        return safe + u"." + hashlib.md5(string).hexdigest()
     else:
         return safe
 

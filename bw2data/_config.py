@@ -24,6 +24,7 @@ class Config(object):
     """
     version = 0.1
     basic_directories = ("processed", "intermediate", "backups", "logs")
+    backends = {}
     _windows = platform.system() == "Windows"
     _ipython = _ran_from_ipython()
 
