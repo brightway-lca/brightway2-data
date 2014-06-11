@@ -1,7 +1,7 @@
 Changelog
 *********
 
-0.17.1 (2014-XX-XX)
+0.17.1 (2014-06-11)
 ===================
 
 - CHANGE: Improve resiliency of SimaPro import.
