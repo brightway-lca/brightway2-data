@@ -42,10 +42,10 @@ class JSONDatabase(LCIBackend):
 
         mapping.add(data.keys())
         for ds in data.values():
-            if 'unit' in ds:
-                ds["unit"] = normalize_units(ds["unit"])
-        geomapping.add({x["location"] for x in data.values() if
-                       x.get("location", False)})
+            if u'unit' in ds:
+                ds[u"unit"] = normalize_units(ds[u"unit"])
+        geomapping.add({x[u"location"] for x in data.values() if
+                       x.get(u"location", False)})
 
         if isinstance(data, SynchronousJSONDict) and \
                 data.dirpath == self.filepath_intermediate():

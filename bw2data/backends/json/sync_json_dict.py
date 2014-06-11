@@ -3,6 +3,7 @@ from ...utils import safe_filename
 from .mapping import get_mapping
 import collections
 import os
+import json
 
 
 class SynchronousJSONDict(collections.MutableMapping):
@@ -25,7 +26,9 @@ class SynchronousJSONDict(collections.MutableMapping):
         return os.path.join(self.dirpath, self.mapping[key] + ".json")
 
     def save_file(self, key, data):
-        JsonWrapper.dump(data, self.filepath(key))
+        # Use json instead of anyjson because need indent for version control
+        with open(self.filepath(key), "w") as f:
+            json.dump(data, f, indent=2)
 
     def load_file(self, key):
         return self.from_json(JsonWrapper.load(self.filepath(key)))
@@ -53,6 +56,7 @@ class SynchronousJSONDict(collections.MutableMapping):
         return self.cache[key]
 
     def __setitem__(self, key, value):
+        assert isinstance(value, dict), "Can only store `dict`s as values"
         value[u"key"] = key
         self.cache[key] = value
         self.save_file(key, value)
