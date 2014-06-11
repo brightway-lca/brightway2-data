@@ -370,21 +370,8 @@ Doesn't return anything, but writes two files to disk.
     def write(self, data):
         """Serialize data to disk.
 
-        Normalizes units when found.
-
         Args:
             * *data* (dict): Inventory data
 
         """
-        self.assert_registered()
-        databases.increment_version(self.name, len(data))
-        mapping.add(data.keys())
-        for ds in data.values():
-            if 'unit' in ds:
-                ds["unit"] = normalize_units(ds["unit"])
-        geomapping.add({x["location"] for x in data.values() if
-                       x.get("location", False)})
-        if config.p.get("use_cache", False) and self.name in config.cache:
-            config.cache[self.name] = data
-        with open(self.filepath_intermediate(), "wb") as f:
-            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        raise NotImplementedError

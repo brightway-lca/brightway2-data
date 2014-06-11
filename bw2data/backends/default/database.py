@@ -97,7 +97,7 @@ class SingleFileDatabase(LCIBackend):
             if version is None and config.p.get("use_cache", False):
                 config.cache[self.name] = data
             return data
-        except OSError:
+        except (OSError, IOError):
             raise MissingIntermediateData("This version (%i) not found" % version)
 
     def register(self, **kwargs):

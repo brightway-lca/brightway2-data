@@ -3,7 +3,7 @@ from . import BW2DataTest
 from .. import config
 from ..database import DatabaseChooser
 from ..backends.default.database import SingleFileDatabase
-from ..errors import UnknownObject
+from ..errors import UnknownObject, MissingIntermediateData
 from ..meta import mapping, geomapping, databases
 from ..validate import db_validator
 from .fixtures import food, biosphere
@@ -323,6 +323,13 @@ class SingleFileDatabaseTest(BW2DataTest):
         self.assertEqual(
             [x[0] for x in d.versions()], [1, 2]
         )
+
+    def test_wrong_version(self):
+        d = SingleFileDatabase("biosphere")
+        d.register()
+        d.write(biosphere)
+        with self.assertRaises(MissingIntermediateData):
+            d.load(version=-1)
 
     def test_register(self):
         database = SingleFileDatabase("testy")
