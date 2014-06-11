@@ -6,7 +6,7 @@ from .data_store import DataStoreTestCase
 from .database import DatabaseTest, SingleFileDatabaseTest
 from .geo import GeoTest
 from .ia import IADSTest, MethodTest, WeightingTest, NormalizationTest
-from .json_database import JSONDatabaseTest
+from .json_database import JSONDatabaseTest, SynchronousJSONDictTest
 from .packaging import BW2PackageTest
 from .serialization import JsonSantizierTestCase
 from .simapro import SimaProImportTest
