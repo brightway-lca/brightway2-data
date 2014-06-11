@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
 from .. import config
-from ..database import Database
+from ..database import DatabaseChooser as Database
 from ..ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS
 from ..meta import mapping, geomapping, weightings, normalizations, methods
 from ..method import Method

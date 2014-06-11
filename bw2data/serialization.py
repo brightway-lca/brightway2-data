@@ -96,10 +96,13 @@ class SerializedDict(object):
     """Base class for dictionary that can be serlialized to of unserialized from disk. Uses JSON as its storage format. Has most of the methods of a dictionary.
 
     Upon instantiation, the serialized dictionary is read from disk."""
-    def __init__(self):
+    def __init__(self, dirpath=None):
         if not getattr(self, "filename"):
             raise NotImplemented("SerializedDict must be subclassed, and the filename must be set.")
-        self.filepath = os.path.join(config.dir, self.filename)
+        self.filepath = os.path.join(
+            dirpath or config.dir,
+            self.filename
+        )
         self.load()
 
     def load(self):
