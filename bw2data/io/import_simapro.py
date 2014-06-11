@@ -8,6 +8,7 @@ from stats_arrays import UndefinedUncertainty, NoUncertainty
 import itertools
 import os
 import pprint
+import progressbar
 import re
 import unicodecsv
 import warnings
@@ -16,6 +17,12 @@ import warnings
 detoxify_pattern = '/(?P<geo>[A-Z]{2,10})(/I)? [SU]$'
 detoxify_re = re.compile(detoxify_pattern)
 
+widgets = [
+    progressbar.SimpleProgress(sep="/"), " (",
+    progressbar.Percentage(), ') ',
+    progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
+    progressbar.ETA()
+]
 
 class MissingExchange(StandardError):
     """Exchange can't be matched"""
@@ -141,11 +148,22 @@ class SimaProImporter(object):
         format = data[0][0]
         data = self.clean_data(data)
         self.log.info("Found %s datasets" % len(data))
-        data = [self.process_data(obj) for obj in data]
+
+        pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(data)
+            ).start()
+        data = [self.process_data(obj, index, pbar)
+            for index, obj in enumerate(data)]
+        pbar.finish()
+
         self.create_foreground(data)
         self.load_background()
         self.new_processes = []
-        data = [self.link_exchanges(obj) for obj in data] + self.new_processes
+
+        pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(data)
+            ).start()
+        data = [self.link_exchanges(obj, index, pbar) for index, obj in enumerate(data)] + self.new_processes
+        pbar.finish()
+
         if self.overwrite:
             with warnings.catch_warnings():
                 database = Database(self.db_name)
@@ -239,7 +257,7 @@ class SimaProImporter(object):
             if data[x] and data[x][0] == u"Process" and len(data[x]) == 1
             ] + [len(data) + 1]
 
-    def process_data(self, dataset):
+    def process_data(self, dataset, index, pbar):
         """Transform the raw dataset data to a more structured format.
 
         1. Add metadata like name, unit, etc.
@@ -256,10 +274,11 @@ class SimaProImporter(object):
         data[u'simapro metadata'] = self.get_dataset_metadata(dataset)
         data[u'exchanges'] = self.get_exchanges(dataset)
         data[u'exchanges'].append(self.get_production_exchange(data, dataset))
+        pbar.update(index)
         return data
 
     def define_dataset(self, dataset):
-        """Use the first *Products* line to define the dataset.
+        """Use the first *Products* or *Waste treatment* line to define the dataset.
 
         Unfortunately, all SimaPro metadata is unreliable, and can't be used.
 
@@ -311,7 +330,7 @@ class SimaProImporter(object):
         """
         metadata = {}
         for index, line in enumerate(dataset):
-            if line and line[0] == u'Products':
+            if line and line[0] in (u'Products', u"Waste treatment"):
                 break
             elif not bool(line and len(line) > 1 and line[0] and line[1]):
                 continue
@@ -385,6 +404,20 @@ class SimaProImporter(object):
                     u'comment': comment,
                     u'biosphere': True,
                 })
+            elif label ==u"Final waste flows":
+                name, geo = detoxify(line[0], self.log)
+
+                exchanges.append({
+                    u'name': name,
+                    u'amount': float(line[2]),
+                    u'loc': float(line[2]),
+                    u'uncertainty type': UndefinedUncertainty.id,
+                    u'label': label,
+                    u'comment': comment,
+                    u'unit': normalize_units(line[2]),
+                    u'uncertainty': line[3],
+                    u'location': geo
+                })
             else:
                 # Try to interpret as ecoinvent
                 name, geo = detoxify(line[0], self.log)
@@ -405,11 +438,12 @@ class SimaProImporter(object):
     def get_exchanges_index(self, dataset):
         """Get index for start of exchanges in activity dataset."""
         for x in range(len(dataset)):
-            if dataset[x] and dataset[x][0] == u'Products':
+            if dataset[x] and dataset[x][0] in (u'Products', u"Waste treatment"):
                 return x
+        raise ValueError("Can't find where exchanges start for dataset")
 
     def is_comment(self, line):
-        return (len(line) in {7,8}) and (''.join(line[:6]) == '')
+        return (len(line) in {7,8,9}) and (''.join(line[:6]) == '')
 
     def get_multiline_comment(self, data, index):
         """Start at data[index], and consume all comment lines.
@@ -428,11 +462,21 @@ class SimaProImporter(object):
         """Get the production exchange.
 
         Support for multioutput processes can be added here."""
-        return self.create_production_exchange(
-            data,
-            dataset,
-            self.get_exchanges_index(dataset) + 1
-        )
+        index = self.get_exchanges_index(dataset)
+        if dataset[index][0] == u"Products":
+            return self.create_production_exchange(
+                data,
+                dataset,
+                index + 1
+            )
+        elif dataset[index][0] == u"Waste treatment":
+            return self.create_waste_treatment_exchange(
+                data,
+                dataset,
+                index + 1
+            )
+        else:
+            raise ValueError("Can't find production exchange")
 
     def create_production_exchange(self, data, dataset, index):
         """For a production exchange line, the fields are:
@@ -464,6 +508,33 @@ class SimaProImporter(object):
                 u'factor': float(line[3]),
                 u'type': line[4]
             }
+        }
+
+    def create_waste_treatment_exchange(self, data, dataset, index):
+        """For a waste treatment exchange line, the fields are:
+            0: Name
+            1: Amount
+            2: Unit
+            3: Waste types comment
+            4: Category/subcategory, separated by '\\'
+            5: Comment
+
+        """
+        line = dataset[index]
+        try:
+            comment = line[5]
+        except:
+            comment = ''
+        comment += self.get_multiline_comment(dataset, index + 1)
+        return {
+            u'input': (self.db_name, data[u'code']),
+            u'amount': float(line[1]),
+            u'loc': float(line[1]),
+            u'uncertainty type': NoUncertainty.id,
+            u'unit': normalize_units(line[2]),
+            u'folder': line[4],
+            u'comment': comment,
+            u'type': u'production'
         }
 
     def create_foreground(self, data):
@@ -500,16 +571,17 @@ class SimaProImporter(object):
         self.background = {}
         for key, value in background_data.iteritems():
             self.background[(value[u'name'].lower(), value[u'unit'],
-                            value[u'location'])] = key
+                            value.get(u'location', self.default_geo))] = key
             self.background[(value[u'name'].lower(), value[u'unit'])] = key
 
         self.biosphere = Database(config.biosphere).load()
 
-    def link_exchanges(self, dataset):
+    def link_exchanges(self, dataset, index, pbar):
         """Link all exchanges in a given dataset"""
         dataset[u'exchanges'] = [
             self.link_exchange(exc) for exc in dataset[u'exchanges']
         ]
+        pbar.update(index)
         return dataset
 
     def link_exchange(self, exc):
@@ -522,7 +594,7 @@ class SimaProImporter(object):
             return exc
         elif exc.get(u'biosphere', False):
             try:
-                code = ('biosphere', activity_hash(exc))
+                code = (u'biosphere', activity_hash(exc))
                 assert code in self.biosphere
                 exc[u'input'] = code
                 exc[u'type'] = u'biosphere'
