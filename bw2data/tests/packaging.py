@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
-from .. import Database
 from ..data_store import DataStore
 from ..errors import UnsafeData, InvalidPackage
 from ..io import BW2Package
+from ..method import Method
 from ..serialization import SerializedDict
 import copy
 import fractions
@@ -89,11 +89,11 @@ class BW2PackageTest(BW2DataTest):
         import collections
         self.assertEqual(cls, collections.Counter)
         class_metadata = {
-            'module': 'bw2data.database',
-            'name': 'Database'
+            'module': 'bw2data.method',
+            'name': 'Method'
         }
         cls = BW2Package._create_class(class_metadata, False)
-        self.assertEqual(cls, Database)
+        self.assertEqual(cls, Method)
 
     def test_load_obj(self):
         test_data = {

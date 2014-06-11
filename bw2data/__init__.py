@@ -5,7 +5,7 @@ from ._config import config
 from .meta import databases, methods, mapping, reset_meta, geomapping, \
     weightings, normalizations
 from .serialization import JsonWrapper
-from .database import Database
+from .database import DatabaseChooser as Database
 from .data_store import DataStore
 from .method import Method
 from .weighting_normalization import Weighting, Normalization

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
 from .. import config
-from ..database import Database
+from ..database import DatabaseChooser
+from ..backends.default.database import SingleFileDatabase
 from ..errors import UnknownObject
 from ..meta import mapping, geomapping, databases
 from ..validate import db_validator
@@ -16,16 +17,16 @@ except ImportError:
 
 class DatabaseTest(BW2DataTest):
     def test_setup(self):
-        d = Database("biosphere")
+        d = DatabaseChooser("biosphere")
         d.register(depends=[])
         d.write(biosphere)
-        d = Database("food")
+        d = DatabaseChooser("food")
         d.register(depends=["biosphere"])
         d.write(food)
         self.assertEqual(len(databases), 2)
 
     def test_copy(self):
-        d = Database("food")
+        d = DatabaseChooser("food")
         d.register(depends=["biosphere"])
         d.write(food)
         with self.assertRaises(AssertionError):
@@ -39,7 +40,7 @@ class DatabaseTest(BW2DataTest):
                 "exchanges": [{"input": ("old name", 1), "amount": 1.0}]
             }
         }
-        d = Database("old name")
+        d = DatabaseChooser("old name")
         d.register()
         d.write(data)
         new_db = d.copy("new name")
@@ -74,76 +75,32 @@ class DatabaseTest(BW2DataTest):
                 "exchanges": [{"input": ("shiny new", 1), "amount": 4.0}]
             }
         }
-        db = Database("foo")
+        db = DatabaseChooser("foo")
         self.assertEqual(shiny_new, db.relabel_data(old_data, "shiny new"))
 
-    def test_revert(self):
-        d = Database("biosphere")
-        d.register(depends=[])
-        d.write(biosphere)
-        d = Database("food")
-        d.register(depends=["biosphere"])
-        d.write(food)
-        d.write({})
-        self.assertEqual(databases["food"]["version"], 2)
-        self.assertEqual(Database("food").load(), {})
-        d.revert(1)
-        self.assertEqual(databases["food"]["version"], 1)
-        self.assertEqual(Database("food").load(), food)
-        with self.assertRaises(AssertionError):
-            d.revert(10)
-
-    def test_versions(self):
-        d = Database("biosphere")
-        d.register(depends=[])
-        d.write(biosphere)
-        self.assertEqual(
-            [x[0] for x in d.versions()], [1]
-        )
-        d.write(biosphere)
-        self.assertEqual(
-            [x[0] for x in d.versions()], [1, 2]
-        )
-
     def test_register(self):
-        database = Database("testy")
+        database = DatabaseChooser("testy")
         database.register()
         self.assertTrue("testy" in databases)
-        self.assertTrue('version' in databases['testy'])
         self.assertTrue('depends' in databases['testy'])
 
     def test_deregister(self):
-        d = Database("food")
+        d = DatabaseChooser("food")
         d.register(depends=["biosphere"])
         self.assertTrue("food" in databases)
         d.deregister()
         self.assertTrue("food" not in databases)
 
-    def test_load(self):
-        d = Database("food")
-        d.register(depends=["biosphere"])
-        d.write(food)
-        data = Database("food").load()
-        self.assertEqual(food, data)
-
-    def test_write_bumps_version_number(self):
-        d = Database("food")
-        d.register(depends=["biosphere"])
-        d.write(food)
-        self.assertEqual(databases["food"]["version"], 1)
-        d.write(food)
-        self.assertEqual(databases["food"]["version"], 2)
-
     def test_write_unregistered_database_raises_error(self):
-        d = Database("food")
+        d = DatabaseChooser("food")
         with self.assertRaises(UnknownObject):
             d.write(food)
 
     def test_rename(self):
-        d = Database("biosphere")
+        d = DatabaseChooser("biosphere")
         d.register(depends=[])
         d.write(biosphere)
-        d = Database("food")
+        d = DatabaseChooser("food")
         d.register(depends=["biosphere"])
         d.write(copy.deepcopy(food))
         ndb = d.rename("buildings")
@@ -156,7 +113,7 @@ class DatabaseTest(BW2DataTest):
                 self.assertTrue(exc['input'][0] in ('biosphere', 'buildings'))
 
     def test_process_adds_to_mappings(self):
-        database = Database("testy")
+        database = DatabaseChooser("testy")
         database.register()
         database_data = {
             ("testy", "A"): {'location': 'CH'},
@@ -171,7 +128,7 @@ class DatabaseTest(BW2DataTest):
         )
 
     def test_process_geomapping_array(self):
-        database = Database("a database")
+        database = DatabaseChooser("a database")
         database.register()
         database.write({})
         database.process()
@@ -185,7 +142,7 @@ class DatabaseTest(BW2DataTest):
         self.assertFalse(fieldnames.difference(set(array.dtype.names)))
 
     def test_process_checks_process_type(self):
-        database = Database("a database")
+        database = DatabaseChooser("a database")
         database.register()
         database.write({
             ("a database", "foo"): {
@@ -200,7 +157,7 @@ class DatabaseTest(BW2DataTest):
         database.process()
 
     def test_only_processes_in_geomapping(self):
-        database = Database("a database")
+        database = DatabaseChooser("a database")
         database.register()
         database.write({
             ("a database", "foo"): {
@@ -226,7 +183,7 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array.shape, (2,))
 
     def test_geomapping_array_includes_only_processes(self):
-        database = Database("a database")
+        database = DatabaseChooser("a database")
         database.register()
         database.write({
             ("a database", "foo"): {
@@ -250,7 +207,7 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array[0]['geo'], geomapping['bar'])
 
     def test_processed_array(self):
-        database = Database("a database")
+        database = DatabaseChooser("a database")
         database.register()
         database.write({("a database", 2): {
             'type': 'process',
@@ -274,13 +231,8 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array[0]['uncertainty_type'], 7)
         self.assertEqual(array[0]['amount'], 42)
 
-    def test_validator(self):
-        database = Database("a database")
-        self.assertTrue(database.validate({}))
-
     def test_base_class(self):
-        database = Database("a database")
-        self.assertEqual(database.validator, db_validator)
+        database = DatabaseChooser("a database")
         self.assertEqual(database.metadata, databases)
         self.assertEqual(
             [x[0] for x in database.dtype_fields],
@@ -292,7 +244,7 @@ class DatabaseTest(BW2DataTest):
         )
 
     def test_find_dependents(self):
-        database = Database("a database")
+        database = DatabaseChooser("a database")
         database.register()
         database.write({
             ("a database", "foo"): {
@@ -314,7 +266,7 @@ class DatabaseTest(BW2DataTest):
         )
 
     def test_set_dependents(self):
-        database = Database("a database")
+        database = DatabaseChooser("a database")
         database.register()
         self.assertEqual(databases['a database']['depends'], [])
         keys = [("biosphere", "bar"), ("baz", "w00t"), ("foo", "bar")]
@@ -339,3 +291,60 @@ class DatabaseTest(BW2DataTest):
             databases['a database']['depends'],
             ["biosphere", "foo"]
         )
+
+
+class SingleFileDatabaseTest(BW2DataTest):
+    # TODO: Better check .write?
+
+    def test_revert(self):
+        d = SingleFileDatabase("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        d = SingleFileDatabase("food")
+        d.register(depends=["biosphere"])
+        d.write(food)
+        d.write({})
+        self.assertEqual(databases["food"]["version"], 2)
+        self.assertEqual(SingleFileDatabase("food").load(), {})
+        d.revert(1)
+        self.assertEqual(databases["food"]["version"], 1)
+        self.assertEqual(SingleFileDatabase("food").load(), food)
+        with self.assertRaises(AssertionError):
+            d.revert(10)
+
+    def test_versions(self):
+        d = SingleFileDatabase("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        self.assertEqual(
+            [x[0] for x in d.versions()], [1]
+        )
+        d.write(biosphere)
+        self.assertEqual(
+            [x[0] for x in d.versions()], [1, 2]
+        )
+
+    def test_register(self):
+        database = SingleFileDatabase("testy")
+        database.register()
+        self.assertEqual(databases['testy']['version'], 0)
+
+    def test_load(self):
+        d = SingleFileDatabase("food")
+        d.register(depends=["biosphere"])
+        d.write(food)
+        data = SingleFileDatabase("food").load()
+        self.assertEqual(food, data)
+
+    def test_write_bumps_version_number(self):
+        d = SingleFileDatabase("food")
+        d.register(depends=["biosphere"])
+        d.write(food)
+        self.assertEqual(databases["food"]["version"], 1)
+        d.write(food)
+        self.assertEqual(databases["food"]["version"], 2)
+
+    def test_validator(self):
+        database = SingleFileDatabase("a database")
+        self.assertEqual(database.validator, db_validator)
+        self.assertTrue(database.validate({}))
