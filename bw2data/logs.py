@@ -8,7 +8,6 @@ import logging
 import os
 import requests
 import uuid
-from .serialization import JsonWrapper
 try:
     import anyjson
 except ImportError:
