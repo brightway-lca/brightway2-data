@@ -92,7 +92,7 @@ class SimaProImporter(object):
         * Social and economic flows are ignored.
         * Linking against datasets other than ecoinvent is not tested (most other databases are not publicly available in any case).
         * Modifying an existing database is not supported; it can only be overwritten completely.
-        * Not all SimaPro unit changes from ecoinvent are included (no comprehensive list seems to be available)
+        * Not all SimaPro unit changes from ecoinvent are included (e.g. where ecoinvent uses 'vehicle kilometers', simapro uses 'kilometers', making matching difficult; no comprehensive list seems to be available)
         * SimaPro unit conversions will cause problems matching to background databases (e.g. if you specify an import in megajoules, and the ecoinvent process is defined in kWh, they won't match)
 
     Multioutput processes could be easily supported with a bit of work; there are comments about what is needed in the source code.
@@ -414,8 +414,8 @@ class SimaProImporter(object):
                     u'uncertainty type': UndefinedUncertainty.id,
                     u'label': label,
                     u'comment': comment,
-                    u'unit': normalize_units(line[2]),
-                    u'uncertainty': line[3],
+                    u'unit': normalize_units(line[3]),
+                    u'uncertainty': line[4],
                     u'location': geo
                 })
             else:

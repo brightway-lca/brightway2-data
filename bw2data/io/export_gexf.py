@@ -87,7 +87,8 @@ class DatabaseToGEXF(object):
                     edges.append(E.edge(
                         id=str(count.next()),
                         source=self.id_mapping[exc["input"]],
-                        target=self.id_mapping[key]
+                        target=self.id_mapping[key],
+                        label="%.3g" % exc['amount'],
                     ))
             pbar.update(i)
         pbar.finish()
