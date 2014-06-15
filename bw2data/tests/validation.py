@@ -43,27 +43,25 @@ class ValidationTestCase(unittest.TestCase):
         self.assertTrue(schema({'amount': 1, 'input': ('a', 1), 'type': 'foo'}))
 
     def test_db_validator(self):
-        with self.assertRaises(Invalid):
-            db_validator({
-                ("a", 1): {
-                    'type': 'foo',
-                    'exchanges': [],
-                    }
-            })
-        with self.assertRaises(Invalid):
-            db_validator({
-                ("a", 1): {
-                    'name': 'foo',
-                    'exchanges': [],
-                    }
-            })
-        with self.assertRaises(Invalid):
-            db_validator({
-                ("a", 1): {
-                    'name': 'foo',
-                    'type': 'bar',
-                    }
-            })
+        self.assertTrue(db_validator({("a", 1): {}}))
+        self.assertTrue(db_validator({
+            ("a", 1): {
+                'type': 'foo',
+                'exchanges': [],
+                }
+        }))
+        self.assertTrue(db_validator({
+            ("a", 1): {
+                'name': 'foo',
+                'exchanges': [],
+                }
+        }))
+        self.assertTrue(db_validator({
+            ("a", 1): {
+                'name': 'foo',
+                'type': 'bar',
+                }
+        }))
         self.assertTrue(db_validator({
             ("a", 1): {
                 'name': 'foo',

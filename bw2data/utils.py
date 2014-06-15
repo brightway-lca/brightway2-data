@@ -252,10 +252,10 @@ def activity_hash(data):
         A MD5 hash string, hex-encoded.
 
     """
-    string = (data["name"].lower() +
-              u"".join(data.get("categories", [])) +
-              (data.get("unit", u"") or u"").lower() +
-              (data.get("location", u"") or u"").lower())
+    string = (data.get(u"name", u"").lower() +
+              u"".join(data.get(u"categories", [])) +
+              (data.get(u"unit", u"") or u"").lower() +
+              (data.get(u"location", u"") or u"").lower())
     return unicode(hashlib.md5(string.encode('utf-8')).hexdigest())
 
 

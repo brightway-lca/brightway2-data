@@ -216,7 +216,7 @@ class Updates(object):
                 db_data = db.load()
                 for key, ds in db_data.iteritems():
                     old_hash = (database, activity_hash(ds))
-                    ds['unit'] = normalize_units(ds['unit'])
+                    ds['unit'] = normalize_units(ds.get('unit', ''))
                     if key[1] != old_hash:
                         continue
                     new_hash = (database, activity_hash(ds))
@@ -244,7 +244,7 @@ class Updates(object):
                 db = Database(database)
                 db_data = db.load()
                 for ds in db_data.values():
-                    for exc in ds['exchanges']:
+                    for exc in ds.get("exchanges", []):
                         if tuple(exc['input']) in mapping:
                             exc['input'] = mapping[tuple(exc['input'])]
 
@@ -323,7 +323,7 @@ class Updates(object):
                 child_data = child_obj.load()
 
                 for data in child_data.values():
-                    for exchange in data['exchanges']:
+                    for exchange in data.get("exchanges", []):
                         if exchange['input'] in mapping:
                             exchange['input'] = mapping[exchange['input']]
 

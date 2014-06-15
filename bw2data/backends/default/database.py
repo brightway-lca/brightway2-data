@@ -89,12 +89,12 @@ class SingleFileDatabase(LCIBackend):
 
         """
         self.assert_registered()
-        if version is None and config.p.get("use_cache", False) and \
+        if version is None and config.p.get(u"use_cache", False) and \
                 self.name in config.cache:
             return config.cache[self.name]
         try:
             data = pickle.load(open(self.filepath_intermediate(version), "rb"))
-            if version is None and config.p.get("use_cache", False):
+            if version is None and config.p.get(u"use_cache", False):
                 config.cache[self.name] = data
             return data
         except (OSError, IOError):
@@ -109,7 +109,7 @@ class SingleFileDatabase(LCIBackend):
 
         """
         kwargs.update(
-            version=kwargs.get('version', None) or 0
+            version=kwargs.get(u'version', None) or 0
         )
         super(SingleFileDatabase, self).register(**kwargs)
 
@@ -124,8 +124,8 @@ class SingleFileDatabase(LCIBackend):
         """
         assert version in [x[0] for x in self.versions()], "Version not found"
         self.backup()
-        databases[self.name]["version"] = version
-        if config.p.get("use_cache", False) and self.name in config.cache:
+        databases[self.name][u"version"] = version
+        if config.p.get(u"use_cache", False) and self.name in config.cache:
             config.cache[self.name] = self.load(version)
         self.process(version)
 
@@ -146,7 +146,7 @@ class SingleFileDatabase(LCIBackend):
             List of (version, datetime created) tuples.
 
         """
-        directory = os.path.join(config.dir, "intermediate")
+        directory = os.path.join(config.dir, u"intermediate")
         files = natural_sort(filter(
             lambda x: ".".join(x.split(".")[:-2]) == safe_filename(self.name),
             os.listdir(directory)))
@@ -168,12 +168,12 @@ class SingleFileDatabase(LCIBackend):
 
         mapping.add(data.keys())
         for ds in data.values():
-            if 'unit' in ds:
-                ds["unit"] = normalize_units(ds["unit"])
-        geomapping.add({x["location"] for x in data.values() if
-                       x.get("location", False)})
+            if u'unit' in ds:
+                ds[u"unit"] = normalize_units(ds[u"unit"])
+        geomapping.add({x[u"location"] for x in data.values() if
+                       x.get(u"location", False)})
 
-        if config.p.get("use_cache", False) and self.name in config.cache:
+        if config.p.get(u"use_cache", False) and self.name in config.cache:
             config.cache[self.name] = data
         with open(self.filepath_intermediate(), "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)

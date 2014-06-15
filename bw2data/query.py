@@ -63,7 +63,7 @@ class Result(object):
         else:
             data = self.result
         return u"Query result: (total %i)\n" % len(self.result) \
-            + u"\n".join([u"%s: %s" % (key, data[key]["name"]) for key in data])
+            + u"\n".join([u"%s: %s" % (key, data[key].get("name", "Unknown")) for key in data])
 
     def sort(self, field, reverse=False):
         """Sort the filtered dataset. Operates in place; does not return anything.
@@ -163,18 +163,3 @@ class Filter(object):
     def __call__(self, data):
         return dict(((k, v) for k, v in data.iteritems() if try_op(
             self.function, v.get(self.key, None), self.value)))
-
-
-# class Exchange(object):
-#     def __init__(self, *args):
-#         self.filters = args
-
-#     def __call__(self, data):
-#         """All filters should pass for at least one exchange"""
-#         return dict([
-#             (k, v) for k, v in data.iteritems() if \
-#                 any([
-#                     all([f.filter(e) for f in self.filters]) \
-#                     for e in v["exchanges"]
-#                 ])
-#             ])

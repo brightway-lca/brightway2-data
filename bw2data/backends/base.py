@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
 from .. import databases, config, mapping, geomapping
-from ..errors import MissingIntermediateData
 from ..query import Query
 from ..data_store import DataStore
-from ..units import normalize_units
-from ..utils import natural_sort, MAX_INT_32, TYPE_DICTIONARY, safe_filename
-from ..validate import db_validator
+from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename
 import copy
-import datetime
 import numpy as np
 import os
 import random
@@ -142,12 +138,12 @@ class LCIBackend(DataStore):
             data = self.load()
             ignore.add(self.name)
         dependents = {
-            exc.get('input')[0]
+            exc.get(u'input')[0]
             for ds in data.values()
-            for exc in ds.get('exchanges', [])
-            if ds.get('type') == u'process'
-            and exc.get('input', [None])[0] is not None
-            and exc.get('input', [None])[0] not in ignore
+            for exc in ds.get(u'exchanges', [])
+            if ds.get(u'type', u'process') == u'process'
+            and exc.get(u'input', [None])[0] is not None
+            and exc.get(u'input', [None])[0] not in ignore
         }
         return sorted(dependents)
 
@@ -185,9 +181,9 @@ Doesn't return anything, but writes two files to disk.
         """
         data = self.load(*args, **kwargs)
         num_exchanges = sum([
-            len(obj["exchanges"])
+            len(obj.get(u"exchanges", []))
             for obj in data.values()
-            if obj.get("type") == u"process"
+            if obj.get(u"type", u"process") == u"process"
         ])
 
         gl = config.global_location
@@ -196,10 +192,10 @@ Doesn't return anything, but writes two files to disk.
         count = 0
         arr = np.zeros((len(data), ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
         for key in sorted(data.keys(), key=lambda x: x[1]):
-            if data[key].get('type') == u'process':
+            if data[key].get(u'type', u'process') == u'process':
                 arr[count] = (
                     mapping[key],
-                    geomapping[data[key].get("location", gl) or gl],
+                    geomapping[data[key].get(u"location", gl) or gl],
                     MAX_INT_32, MAX_INT_32,
                     0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
                 )
@@ -213,34 +209,35 @@ Doesn't return anything, but writes two files to disk.
 
         for key in sorted(data.keys(), key=lambda x: x[1]):
             production_found = False
-            if data[key].get('type') != u"process":
+            if data[key].get('type', u'process') != u"process":
                 continue
             for exc in sorted(
-                    data[key].get("exchanges", []),
-                    key=lambda x: x["input"][1]):
-                if key == exc["input"]:
+                    data[key].get(u"exchanges", []),
+                    key=lambda x: x[u"input"][1]):
+                if key == exc[u"input"]:
                     production_found = True
                 arr[count] = (
-                    mapping[exc["input"]],
+                    mapping[exc[u"input"]],
                     mapping[key],
                     MAX_INT_32,
                     MAX_INT_32,
-                    TYPE_DICTIONARY[exc["type"]],
-                    exc.get("uncertainty type", 0),
-                    exc["amount"],
-                    exc.get("loc", np.NaN),
-                    exc.get("scale", np.NaN),
-                    exc.get("shape", np.NaN),
-                    exc.get("minimum", np.NaN),
-                    exc.get("maximum", np.NaN),
-                    exc["amount"] < 0
+                    TYPE_DICTIONARY[exc[u"type"]],
+                    exc.get(u"uncertainty type", 0),
+                    exc[u"amount"],
+                    exc.get(u"loc", np.NaN),
+                    exc.get(u"scale", np.NaN),
+                    exc.get(u"shape", np.NaN),
+                    exc.get(u"minimum", np.NaN),
+                    exc.get(u"maximum", np.NaN),
+                    exc[u"amount"] < 0
                 )
                 count += 1
-            if not production_found and data[key].get("type") == u"process":
+            if not production_found \
+                    and data[key].get(u"type", u'process') == u"process":
                 # Add amount produced for each process (default 1)
                 arr[count] = (
                     mapping[key], mapping[key],
-                    MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY["production"],
+                    MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY[u"production"],
                     0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
                 )
                 count += 1
@@ -281,9 +278,8 @@ Doesn't return anything, but writes two files to disk.
             * *num_processes* (int): Number of processes in this database.
 
         """
-        kwargs.update(
-            depends=kwargs.get('depends', []),
-        )
+        if u'depends' not in kwargs:
+            kwargs[u'depends'] = []
         super(LCIBackend, self).register(**kwargs)
 
     def relabel_data(self, data, new_name):
@@ -338,9 +334,9 @@ Doesn't return anything, but writes two files to disk.
 
         """
         def relabel_exchanges(obj, new_name):
-            for e in obj['exchanges']:
-                if e["input"] in data:
-                    e["input"] = (new_name, e["input"][1])
+            for e in obj.get(u'exchanges', []):
+                if e[u"input"] in data:
+                    e[u"input"] = (new_name, e[u"input"][1])
             return obj
 
         return dict([((new_name, k[1]), relabel_exchanges(v, new_name)) \

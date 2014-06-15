@@ -75,9 +75,9 @@ class DatabaseToGEXF(object):
                     )
                 ),
                 id=self.id_mapping[key],
-                label=value["name"]
+                label=value.get("name", "Unknown")
             ))
-            for exc in value["exchanges"]:
+            for exc in value.get("exchanges", []):
                 if exc["input"] not in self.id_mapping:
                     continue
                 elif exc["input"] == key:

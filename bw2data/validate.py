@@ -1,5 +1,5 @@
 # encoding: utf-8
-from voluptuous import Schema, Required, Invalid, Any, All, Length
+from voluptuous import Schema, Required, Invalid, Any, All, Length, Optional
 
 
 def valid_tuple(obj):
@@ -14,15 +14,13 @@ def valid_tuple(obj):
 
 uncertainty_dict = {
     Required("amount"): Any(float, int),
-    "uncertainty type": int,
-    "loc": Any(float, int),
-    "scale": Any(float, int),
-    "shape": Any(float, int),
-    "minimum": Any(float, int),
-    "maximum": Any(float, int)
+    Optional("uncertainty type"): int,
+    Optional("loc"): Any(float, int),
+    Optional("scale"): Any(float, int),
+    Optional("shape"): Any(float, int),
+    Optional("minimum"): Any(float, int),
+    Optional("maximum"): Any(float, int)
 }
-
-maybe_uncertainty = Any(float, int, uncertainty_dict)
 
 exchange = {
         Required("input"): valid_tuple,
@@ -30,19 +28,24 @@ exchange = {
         }
 exchange.update(**uncertainty_dict)
 
-db_validator = Schema({valid_tuple: {
-    "categories": Any(list, tuple),
-    "location": object,
-    "unit": basestring,
-    Required("name"): basestring,
-    Required("type"): basestring,
-    Required("exchanges"): [exchange]
-    }},
-    extra=True)
+db_validator = Schema(
+    {
+        valid_tuple: {
+            Optional("categories"): Any(list, tuple),
+            Optional("location"): object,
+            Optional("unit"): basestring,
+            Optional("name"): basestring,
+            Optional("type"): basestring,
+            Optional("exchanges"): [exchange]
+        }
+    }, extra=True
+)
 
 # TODO: elements in a list don't maintain order
 # See https://github.com/alecthomas/voluptuous/issues/59
 # Each list needs to be a separate function...
+
+maybe_uncertainty = Any(float, int, uncertainty_dict)
 
 ia_validator = Schema([Any(
     [valid_tuple, maybe_uncertainty],         # site-generic
@@ -66,6 +69,6 @@ bw2package_validator = Schema({
         Required('name'): basestring,
         "unrolled dict": bool,
     },
-    'unrolled_dict': bool,
+    Optional('unrolled_dict'): bool,
     Required('data'): object
 })
