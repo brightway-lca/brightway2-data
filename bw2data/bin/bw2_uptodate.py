@@ -62,7 +62,7 @@ class UpdaterInterface(object):
             print(Fore.GREEN + "\n*** Brightway2 is up to date! ***\n")
 
 
-if __name__ == "__main__":
+def main():
     try:
         init(autoreset=True)
         config.create_basic_directories()
@@ -77,3 +77,7 @@ if __name__ == "__main__":
         raise
     finally:
         deinit()
+
+
+if __name__ == "__main__":
+    main()

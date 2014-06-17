@@ -35,7 +35,12 @@ setup(
     ],
     url="https://bitbucket.org/cmutel/brightway2-data",
     long_description=open('README.rst').read(),
-    scripts=["bw2data/bin/bw2-uptodate.py"],
+    # scripts=["bw2data/bin/bw2-uptodate.py"],
+    entry_points = {
+        'console_scripts': [
+            'bw2-uptodate = bw2data.bin.bw2_uptodate:main',
+        ]
+    },
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: End Users/Desktop',
