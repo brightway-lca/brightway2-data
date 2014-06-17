@@ -16,7 +16,7 @@ def _ran_from_ipython():
 
 
 class Config(object):
-    """A singleton that store configuration settings. Default data directory is ``brightway`` in the user's home directory, and is stored as ``config.dir``. Other configuration settings can also be assigned as needed.
+    """A singleton that store configuration settings. Default data directory is ``brightway2`` in the user's home directory, and is stored as ``config.dir``. Other configuration settings can also be assigned as needed.
 
     Args:
         * *path* (str, optional): The path of the data directory. Must be writeable.
@@ -36,7 +36,7 @@ class Config(object):
         self.cache = {}
 
     def check_dir(self, directory=None):
-        """Check if given directory is a directory and writeable."""
+        """Returns ``True`` if given path is a directory and writeable, ``False`` otherwise. Default ``directory`` is the Brightway2 data directory."""
         return os.path.isdir(self.dir) and \
             os.access(directory or self.dir, os.W_OK)
 
@@ -59,7 +59,7 @@ class Config(object):
         self.load_preferences()
 
     def load_preferences(self):
-        """Load a set of preferences from a file in the home directory.
+        """Load a set of preferences from a file in the data directory.
 
         Preferences as stored as ``config.p``."""
         try:
@@ -78,12 +78,18 @@ class Config(object):
 
     @property
     def biosphere(self):
+        """Get name for ``biosphere`` database from user preferences.
+
+        Default name is ``biosphere``; change this by changing ``config.p["biosphere_database"]``. Don't forget ``config.save_preferences()`` to save changes."""
         if not hasattr(self, "p"):
             self.load_preferences()
         return self.p.get("biosphere_database", u"biosphere")
 
     @property
     def global_location(self):
+        """Get name for global location from user preferences.
+
+        Default name is ``GLO``; change this by changing ``config.p["global_location"]``. Don't forget ``config.save_preferences()`` to save changes."""
         if not hasattr(self, "p"):
             self.load_preferences()
         return self.p.get("global_location", u"GLO")
@@ -91,7 +97,7 @@ class Config(object):
     def get_home_directory(self, path=None):
         """Get data directory, trying in order:
 
-        * Provided path (optional)
+        * Provided ``path`` (optional)
         * ``BRIGHTWAY2_DIR`` environment variable
         * ``.brightway2path`` file in user's home directory
         * ``brightway2path.txt`` file in user's home directory
@@ -101,7 +107,7 @@ class Config(object):
 
         * Unix/Mac: ``export BRIGHTWAY2_DIR=/path/to/brightway2/directory``
         * Windows XP: Instead of an environment variable, just create a ``brightway2path.txt`` file in your home directory (C:\Users\Your Name\) with a single line that is the directory path you want to use.
-        * Windows 7: ``setx BRIGHTWAY2_DIR=\path\to\brightway2\directory``
+        * Windows 7/8: ``setx BRIGHTWAY2_DIR=\path\to\brightway2\directory``
 
         """
         if path:
@@ -134,7 +140,9 @@ class Config(object):
             return os.path.join(user_dir, "brightway2")
 
     def request_dir(self, dirname):
-        """Return directory path if writable, or ``False``."""
+        """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
+
+        Returns ``False`` if directory can't be created."""
         path = os.path.join(self.dir, dirname)
         if self.check_dir(path):
             return path
@@ -166,7 +174,7 @@ class Config(object):
 
     @property
     def udir(self):
-        """Return `dir` in Unicode"""
+        """Return ``config.dir`` in Unicode"""
         return self.dir.decode('utf-8')
 
 config = Config()
