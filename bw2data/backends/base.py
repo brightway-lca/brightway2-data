@@ -31,6 +31,12 @@ class LCIBackend(DataStore):
     * ``random``
     * ``process``
 
+    For new classes to be recognized by the ``DatabaseChooser``, they need to be registered with the ``config`` object, e.g.:
+
+    .. code-block:: python
+
+        config.backends['backend type string'] = BackendClass
+
     Instantiation does not load any data. If this database is not yet registered in the metadata store, a warning is written to ``stdout``.
 
     The data schema for databases is:
@@ -55,7 +61,7 @@ class LCIBackend(DataStore):
         * ``valid_tuple`` is a dataset identifier, like ``("ecoinvent", "super strong steel")``
         * ``uncertainty_fields`` are fields from an uncertainty dictionary
 
-    The data format is explained in more depth in the `Brightway2 documentation <http://brightway2.readthedocs.org/en/latest/key-concepts.html#documents>`_.
+    The data format is explained in more depth in the `Brightway2 key concepts documentation <http://brightway2.readthedocs.org/en/latest/key-concepts/data-formats.html#database-documents>`_.
 
     Processing a Database actually produces two parameter arrays: one for the exchanges, which make up the technosphere and biosphere matrices, and a geomapping array which links activities to locations.
 

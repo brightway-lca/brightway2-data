@@ -8,11 +8,15 @@ def DatabaseChooser(name, backend=None):
 
     New database types can be registered with the config object like this:
 
-        config.backends['backend type string'] = BackendClass
+    .. code-block:: python
+
+        config.backends['backend type string'] = MyNewBackendClass
 
     Registering new backends must be done each time you start the Python interpreter.
 
-    Breaks isinstance(my_database, Database). Use this instead:
+    To test whether an object is a ``Database`` subclass, do:
+
+    .. code-block:: python
 
         from bw2data.backends import DatabaseBase
         isinstance(my_database, DatabaseBase)
