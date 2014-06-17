@@ -107,7 +107,7 @@ class Config(object):
 
         * Unix/Mac: ``export BRIGHTWAY2_DIR=/path/to/brightway2/directory``
         * Windows XP: Instead of an environment variable, just create a ``brightway2path.txt`` file in your home directory (C:\Users\Your Name\) with a single line that is the directory path you want to use.
-        * Windows 7/8: ``setx BRIGHTWAY2_DIR=\path\to\brightway2\directory``
+        * Windows 7/8: ``setx BRIGHTWAY2_DIR=\path\\to\\brightway2\directory``
 
         """
         if path:
