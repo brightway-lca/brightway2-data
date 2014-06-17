@@ -28,18 +28,16 @@ exchange = {
         }
 exchange.update(**uncertainty_dict)
 
-db_validator = Schema(
-    {
-        valid_tuple: {
-            Optional("categories"): Any(list, tuple),
-            Optional("location"): object,
-            Optional("unit"): basestring,
-            Optional("name"): basestring,
-            Optional("type"): basestring,
-            Optional("exchanges"): [exchange]
-        }
-    }, extra=True
-)
+lci_dataset = {
+    Optional("categories"): Any(list, tuple),
+    Optional("location"): object,
+    Optional("unit"): basestring,
+    Optional("name"): basestring,
+    Optional("type"): basestring,
+    Optional("exchanges"): [exchange]
+}
+
+db_validator = Schema({valid_tuple: lci_dataset}, extra=True)
 
 # TODO: elements in a list don't maintain order
 # See https://github.com/alecthomas/voluptuous/issues/59
