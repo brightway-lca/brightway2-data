@@ -25,6 +25,7 @@ class JSONDatabase(LCIBackend):
 
     def register(self, *args, **kwargs):
         """Register a database with the metadata store, and creates database directory."""
+        kwargs[u"backend"] = u"json"
         super(JSONDatabase, self).register(*args, **kwargs)
         if not os.path.exists(self.filepath_intermediate()):
             os.mkdir(self.filepath_intermediate())
