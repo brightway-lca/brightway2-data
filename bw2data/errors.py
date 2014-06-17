@@ -17,5 +17,5 @@ class InvalidPackage(StandardError):
 
 
 class WebUIError(StandardError):
-    """Can't find running instance of bw2-web.py"""
+    """Can't find running instance of bw2-web"""
     pass

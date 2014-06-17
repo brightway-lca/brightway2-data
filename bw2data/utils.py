@@ -240,7 +240,7 @@ def activity_hash(data):
     Used to import data formats like ecospold 1 (ecoinvent v1-2) and SimaPro, where no unique attributes for datasets are given. This is clearly an imperfect and brittle solution, but there is no other obvious approach at this time.
 
     Uses the following, in order:
-        * *name* Lower case
+        * *name* Lower case, defult is ``""``.
         * *categories* In string form, joined together with ``""``, default is ``[]``.
         * *unit* Lower case, default is ``""``.
         * *location* Lower case, default is ``""``.

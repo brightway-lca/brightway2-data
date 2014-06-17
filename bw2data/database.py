@@ -31,3 +31,7 @@ def DatabaseChooser(name, backend=None):
         return config.backends[backend](name)
     else:
         raise ValueError(u"Backend {} not found".format(backend))
+
+
+# Backwards compatibility
+Database = DatabaseChooser
