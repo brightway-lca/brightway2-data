@@ -148,6 +148,7 @@ class LCIBackend(DataStore):
             for ds in data.values()
             for exc in ds.get(u'exchanges', [])
             if ds.get(u'type', u'process') == u'process'
+            and exc.get(u'type') is not u"unknown"
             and exc.get(u'input', [None])[0] is not None
             and exc.get(u'input', [None])[0] not in ignore
         }
@@ -238,8 +239,7 @@ Doesn't return anything, but writes two files to disk.
                     exc[u"amount"] < 0
                 )
                 count += 1
-            if not production_found \
-                    and data[key].get(u"type", u'process') == u"process":
+            if not production_found:
                 # Add amount produced for each process (default 1)
                 arr[count] = (
                     mapping[key], mapping[key],

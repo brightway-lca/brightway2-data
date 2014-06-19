@@ -25,6 +25,7 @@ MAX_INT_32 = 4294967295
 
 # Type of technosphere/biosphere exchanges used in processed Databases
 TYPE_DICTIONARY = {
+    "unknown": -1,
     "production": 0,
     "technosphere": 1,
     "biosphere": 2,
