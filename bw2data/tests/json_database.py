@@ -13,8 +13,9 @@ class JSONDatabaseTest(BW2DataTest):
     def test_load_write(self):
         jd = JSONDatabase("foo")
         jd.register()
+        key = ("foobar", "spaghetti")
         data = {
-            ("foobar", "spaghetti"): {
+            key: {
                 'categories': ['stuff', 'meals'],
                 'code': 1,
                 'exchanges': [],
@@ -26,11 +27,9 @@ class JSONDatabaseTest(BW2DataTest):
         }
         jd.write(data)
         loaded = jd.load()
+        data[key]["key"] = key
         self.assertTrue(isinstance(loaded, SynchronousJSONDict))
-        self.assertEqual(
-            loaded[("foobar", "spaghetti")],
-            data[("foobar", "spaghetti")]
-        )
+        self.assertEqual(loaded[key], data[key])
 
     def test_register_creates_directory(self):
         self.assertFalse(os.path.exists(os.path.join(
