@@ -82,3 +82,11 @@ def upload_logs_to_server(metadata={}):
         data=metadata,
         files=files
     )
+
+
+def close_log(log):
+    """Detach log handlers; flush to disk"""
+    handlers = log.handlers[:]
+    for handler in handlers:
+        handler.close()
+        log.removeHandler(handler)
