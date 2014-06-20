@@ -20,6 +20,13 @@ PM_MAPPING = {
     u'geographicalCorrelation': u'geographical correlation',
     u'furtherTechnologyCorrelation': u'further technological correlation'
 }
+KNOWN_ISSUES = {
+    u"waste packaging glass, unsorted",
+    u"heat, future",
+    u"heat, central or small-scale, other than natural gas",
+    u"natural gas, low pressure",
+    u"roundwood, azobe from sustainable forest management, CM, debarked",
+}
 
 
 class Ecospold2DataExtractor(object):
@@ -252,8 +259,10 @@ class Ecospold2Importer(object):
 
     def __init__(self, datapath, metadatapath, name):
         warnings.warn(
-            u"Ecospold2 importer is still experimental! "
-            u"Correct results are not guaranteed!"
+            u"Ecospold2 importer is not perfect. The ecoinvent 3 known issues "
+            u"(http://www.ecoinvent.org/database/ecoinvent-version-3/"
+            u"reports-of-changes/known-data-issues/) lists reasons why some "
+            u"results may be incorrect."
         )
         self.datapath = unicode(datapath)
         self.metadatapath = unicode(metadatapath)
@@ -264,9 +273,9 @@ class Ecospold2Importer(object):
     def importer(self):
         self.log, self.logfile = get_io_logger("es3-import")
 
-        self.log.info(u"Starting ecospold2 import."
-            u"\n\tDatabase name: %s" % self.name
-            u"\n\tDatapath: %s" % self.datapath
+        self.log.info(u"Starting ecospold2 import." + \
+            u"\n\tDatabase name: %s" % self.name    + \
+            u"\n\tDatapath: %s" % self.datapath     + \
             u"\n\tMetadatapath: %s" % self.metadatapath)
 
         try:
@@ -354,8 +363,13 @@ class Ecospold2Importer(object):
                     x for x in elem[u"exchanges"]
                     if not x[u'input']
             ]:
-                self.log.warning(u"Dropped missing exchange: %s" %
-                                 pprint.pformat(exc, indent=2))
+                if exc[u'name'] in KNOWN_ISSUES:
+                    self.log.info(u"Dropped known missing exchange: {}".format(
+                        exc[u'name']))
+                else:
+                    self.log.warning(u"Dropped missing exchange: %s" %
+                                     pprint.pformat(exc, indent=2))
+
             elem[u"exchanges"] = [
                 x for x in elem[u"exchanges"]
                 if x[u'input']
@@ -381,8 +395,10 @@ class Ecospold2Importer(object):
                 for exc in [x for x in value[u'exchanges']
                             if x[u'input'] not in mapping]:
                     rewrite = True
-                    self.log.critical(u"Purging unlinked exchange:\n%s" %
-                                      pprint.pformat(exc, indent=2))
+                    self.log.critical(
+                        u"Purging unlinked exchange:\nFilename: %s\n%s" % \
+                        (value[u'filename'], pprint.pformat(exc, indent=2))
+                    )
                 value[u'exchanges'] = [x for x in value[u'exchanges'] if
                                       x[u'input'] in mapping]
 
