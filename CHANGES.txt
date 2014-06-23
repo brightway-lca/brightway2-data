@@ -1,8 +1,8 @@
 Changelog
 *********
 
-1.0 (2014-XX-XX)
-================
+1.0 RC1 (2014-06-23)
+====================
 
 - FEATURE: Pluggable LCI backends. Two backends are provided - SingleFileDatabase and and JSONDatabase, and others can be easily added.
 - FEATURE: `bw2-uptodate` should now work without PATH hassles on windows. Name changed from `bw2-uptodate.py`.
