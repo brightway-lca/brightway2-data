@@ -250,18 +250,21 @@ class DatabaseTest(BW2DataTest):
             ("a database", "foo"): {
                 'exchanges': [
                     {'input': ("foo", "bar")},
-                    {'input': ("biosphere", "bar")}
+                    {'input': ("biosphere", "bar")},
+                    {'input': ("awkward", "silence")}, # Ignore becuase of 'ignore'
+                    {'input': ("who", "am I?"), "type": "unknown"}, # Ignored because of 'unknown' type
+                    {'input': ("biosphere", "bar")},
                 ],
-                'type': 'process',
                 'location': 'bar'
             },
             ("a database", "baz"): {
                 'exchanges': [{'input': ("baz", "w00t")}],
-                'type': 'emission'
+                'type': 'emission' # Ignored because of type
             },
+            ("a database", "nonce"): {},  # OK not to have 'exchanges'
         })
         self.assertEqual(
-            database.find_dependents(),
+            database.find_dependents(ignore={"awkward"}),
             ["biosphere", "foo"]
         )
 

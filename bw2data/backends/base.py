@@ -148,7 +148,7 @@ class LCIBackend(DataStore):
             for ds in data.values()
             for exc in ds.get(u'exchanges', [])
             if ds.get(u'type', u'process') == u'process'
-            and exc.get(u'type') is not u"unknown"
+            and exc.get(u'type') != u"unknown"
             and exc.get(u'input', [None])[0] is not None
             and exc.get(u'input', [None])[0] not in ignore
         }
