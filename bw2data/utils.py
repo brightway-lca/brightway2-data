@@ -115,6 +115,8 @@ def safe_filename(string, add_hash=True):
         )
     )
     if add_hash:
+        if isinstance(string, unicode):
+            string = string.encode("utf8")
         return safe + u"." + hashlib.md5(string).hexdigest()
     else:
         return safe

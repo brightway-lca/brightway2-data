@@ -2,7 +2,8 @@
 from . import BW2DataTest
 from .. import Database, Method, methods
 from fixtures import biosphere
-from ..utils import natural_sort, random_string, combine_methods, uncertainify
+from ..utils import natural_sort, random_string, combine_methods, \
+    uncertainify, safe_filename
 import stats_arrays as sa
 
 
@@ -39,6 +40,9 @@ class UtilsTest(BW2DataTest):
             (("biosphere", 2), 12, "GLO")
         ])
         self.assertEqual(methods[["test method 3"]]["unit"], "p")
+
+    def test_safe_filename_unicode_input(self):
+        self.assertTrue(safe_filename(u"Søren Kierkegaard"))
 
 
 class UncertainifyTestCase(BW2DataTest):
