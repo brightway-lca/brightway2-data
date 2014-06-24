@@ -30,8 +30,11 @@ class Weighting(ImpactAssessmentDataStore):
         super(Weighting, self).write(data)
 
     def process_data(self, row):
-        return ((), # don't know much,
-            row)    # but I know I love you
+        """Return an empty tuple (as ``dtype_fields`` is empty), and the weighting uncertainty dictionary."""
+        return (
+            (), # don't know much,
+            row # but I know I love you
+        )
 
 
 class Normalization(ImpactAssessmentDataStore):
@@ -59,9 +62,11 @@ class Normalization(ImpactAssessmentDataStore):
     ]
 
     def add_mappings(self, data):
+        """Add each normalization flow (should be biosphere flows) to global mapping"""
         mapping.add({obj[0] for obj in data})
 
     def process_data(self, row):
+        """Return values that match ``dtype_fields``, as well as number or uncertainty dictionary"""
         return (
             mapping[row[0]],
             MAX_INT_32,
