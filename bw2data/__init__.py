@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*
-__version__ = (1, 0, "RC1")
+__version__ = (1, 0, "RC2")
 
 from ._config import config
 from .meta import databases, methods, mapping, reset_meta, geomapping, \
