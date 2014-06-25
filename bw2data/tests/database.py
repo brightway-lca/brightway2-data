@@ -295,6 +295,20 @@ class DatabaseTest(BW2DataTest):
             ["biosphere", "foo"]
         )
 
+    def test_process_without_exchanges_still_in_processed_array(self):
+        database = DatabaseChooser("a database")
+        database.register()
+        database.write({("a database", "foo"): {}})
+        database.process()
+        fp = os.path.join(
+            config.dir,
+            u"processed",
+            database.filename + u".pickle"
+        )
+        array = pickle.load(open(fp, "rb"))
+        self.assertEqual(array['amount'][0], 1)
+        self.assertEqual(array.shape, (1,))
+
 
 class SingleFileDatabaseTest(BW2DataTest):
     # TODO: Better check .write?
