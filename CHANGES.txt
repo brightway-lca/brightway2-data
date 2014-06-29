@@ -1,8 +1,10 @@
 Changelog
 *********
 
-1.0 RC1 (2014-06-23)
+1.0 (2014-XX-XX)
 ====================
+
+**bw2-uptodate.py is required for this update**
 
 - FEATURE: Pluggable LCI backends. Two backends are provided - SingleFileDatabase and and JSONDatabase, and others can be easily added.
 - FEATURE: `bw2-uptodate` should now work without PATH hassles on windows. Name changed from `bw2-uptodate.py`.
@@ -11,6 +13,7 @@ Changelog
 - CHANGE: The order of database exchanges in processed arrays is sorted is changed.
 - CHANGE: LCI database format is now more flexible, and almost all required elements are removed. For example, `{}` is now a valid LCI dataset.
 - BUGFIX: Allow unicode in `utils.safe_filename`.
+- BUGFIX: `reset_meta() now also reset config preferences`.
 
 0.17.1 (2014-06-11)
 ===================

@@ -116,3 +116,4 @@ def reset_meta():
     methods.__init__()
     normalizations.__init__()
     weightings.__init__()
+    config.load_preferences()

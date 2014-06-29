@@ -52,6 +52,9 @@ class Updates(object):
         "0.16 decode inventory databases": {
             'method': "decode_inventory_databases_0_16",
             'explanation': Fore.GREEN + "0.16 decode inventory databases" + Fore.RESET + "\n\tAll inventory database strings should be unicode, not byte strings. However, as Brightway2 doesn't know how the strings are encoded, you will need to fix this manually. This update only gives instructions; it doesn't actually do anything."},
+        "1.0 reprocess all objects": {
+            'method': "reprocess_all_1_0",
+            'explanation': Fore.GREEN + "1.0 relaxed previous restrictions on what had to be included in Databases, IA methods, etc. These objects need to be reprocessed to put in default values."},
     }
 
     @staticmethod
@@ -162,6 +165,32 @@ class Updates(object):
 
         if skipped:
             print(Fore.RED + u"\nERROR" + Fore.RESET + u": Some databases must be fixed manually:\n\t" + u"\n\t".join(skipped))
+
+    @staticmethod
+    def reprocess_all_1_0():
+        """1.0: Reprocess all to make sure default 'loc' value inserted when not specified."""
+        objects = [
+            (methods, Method, "LCIA methods"),
+            (weightings, Weighting, "LCIA weightings"),
+            (normalizations, Normalization, "LCIA normalizations"),
+            (databases, Database, "LCI databases"),
+        ]
+
+        for (meta, klass, name) in objects:
+            if meta.list:
+                print("Updating all %s" % name)
+
+                pbar = progressbar.ProgressBar(
+                    widgets=widgets,
+                    maxval=len(meta)
+                ).start()
+
+                for index, key in enumerate(meta):
+                    obj = klass(key)
+                    obj.process()
+                    pbar.update(index)
+
+                pbar.finish()
 
     @staticmethod
     def reprocess_all_lcia():
