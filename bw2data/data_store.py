@@ -16,7 +16,7 @@ class DataStore(object):
 Base class for all Brightway2 data stores. Subclasses should define:
 
     * **metadata**: A :ref:`serialized-dict` instance, e.g. ``databases`` or ``methods``. The custom is that each type of data store has a new metadata store, so the data store ``Foo`` would have a metadata store ``foos``.
-    * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``. Uncertainty fields (``base_uncertainty_fields``) are added automatically.
+    * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``. Fields names **must** be bytestrings, not unicode (i.e. ``"foo"`` instead of ``u"foo"``). Uncertainty fields (``base_uncertainty_fields``) are added automatically.
     * **validator**: A data validator. Optional. See bw2data.validate.
 
 In order to use ``dtype_fields``, subclasses should override the method ``process_data``. This function takes rows of data, and returns the correct values for the custom dtype fields (as a tuple), **and** the ``amount`` field with its associated uncertainty. This second part is a little flexible - if there is no uncertainty, a number can be returned; otherwise, an uncertainty dictionary should be returned.
@@ -27,6 +27,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
     validator = None
     metadata = None
     dtype_fields = None
+    # Numpy columns names can't be unicode
     base_uncertainty_fields = [
         ('uncertainty_type', np.uint8),
         ('amount', np.float32),
@@ -145,6 +146,10 @@ Processed arrays are saved in the ``processed`` directory.
 
 Uses ``pickle`` instead of the native NumPy ``.tofile()``. Although pickle is ~2 times slower, this difference in speed has no practical effect (e.g. one twentieth of a second slower for ecoinvent 2.2), and the numpy ``fromfile`` and ``tofile`` functions don't preserve the datatype of structured arrays.
 
+If the uncertainty type is no uncertainty, undefined, or not specified, then the 'amount' value is used for 'loc' as well. This is needed for the random number generator.
+
+Doesn't return anything, but writes a file to disk.
+
         """
         data = self.load()
         arr = np.zeros((len(data),), dtype=self.dtype)
@@ -153,16 +158,18 @@ Uses ``pickle`` instead of the native NumPy ``.tofile()``. Although pickle is ~2
             values, number = self.process_data(row)
             uncertainties = self.as_uncertainty_dict(number)
             assert len(values) == len(self.dtype_fields)
-            assert 'amount' in uncertainties, "Must provide at least `amount` field in `uncertainties`"
+            assert u'amount' in uncertainties, "Must provide at least `amount` field in `uncertainties`"
             arr[index] = values + (
-                uncertainties.get("uncertainty type", 0),
-                uncertainties["amount"],
-                uncertainties.get("loc", np.NaN),
-                uncertainties.get("scale", np.NaN),
-                uncertainties.get("shape", np.NaN),
-                uncertainties.get("minimum", np.NaN),
-                uncertainties.get("maximum", np.NaN),
-                uncertainties.get("amount" < 0),
+                uncertainties.get(u"uncertainty type", 0),
+                uncertainties[u"amount"],
+                uncertainties[u"amount"] \
+                    if uncertainties.get(u"uncertainty type", 0) in (0, 1) \
+                    else uncertainties.get(u"loc", np.NaN),
+                uncertainties.get(u"scale", np.NaN),
+                uncertainties.get(u"shape", np.NaN),
+                uncertainties.get(u"minimum", np.NaN),
+                uncertainties.get(u"maximum", np.NaN),
+                uncertainties.get(u"amount" < 0),
             )
         filepath = os.path.join(
             config.dir,

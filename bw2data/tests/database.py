@@ -9,10 +9,7 @@ from ..validate import db_validator
 from .fixtures import food, biosphere
 import copy
 import os
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+import pickle
 
 
 class DatabaseTest(BW2DataTest):
@@ -230,6 +227,26 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array.shape, (1,))
         self.assertEqual(array[0]['uncertainty_type'], 7)
         self.assertEqual(array[0]['amount'], 42)
+
+    def test_loc_value_if_no_uncertainty(self):
+        database = DatabaseChooser("a database")
+        database.register()
+        database.write({("a database", 2): {
+            'type': 'process',
+            'exchanges': [{
+                'input': ("a database", 2),
+                'amount': 42,
+                'type': 'technosphere'
+            }]
+        }})
+        database.process()
+        fp = os.path.join(
+            config.dir,
+            u"processed",
+            database.filename + u".pickle"
+        )
+        array = pickle.load(open(fp, "rb"))
+        self.assertEqual(array['loc'][0], 42.)
 
     def test_base_class(self):
         database = DatabaseChooser("a database")

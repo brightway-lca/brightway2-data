@@ -180,6 +180,8 @@ Process inventory documents.
 
 Creates both a parameter array for exchanges, and a geomapping parameter array linking inventory activities to locations.
 
+If the uncertainty type is no uncertainty, undefined, or not specified, then the 'amount' value is used for 'loc' as well. This is needed for the random number generator.
+
 Args:
     * *version* (int, optional): The version of the database to process
 
@@ -231,7 +233,9 @@ Doesn't return anything, but writes two files to disk.
                     TYPE_DICTIONARY[exc[u"type"]],
                     exc.get(u"uncertainty type", 0),
                     exc[u"amount"],
-                    exc.get(u"loc", np.NaN),
+                    exc[u"amount"] \
+                        if exc.get(u"uncertainty type", 0) in (0,1) \
+                        else exc.get(u"loc", np.NaN),
                     exc.get(u"scale", np.NaN),
                     exc.get(u"shape", np.NaN),
                     exc.get(u"minimum", np.NaN),

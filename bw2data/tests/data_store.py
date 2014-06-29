@@ -6,10 +6,8 @@ from ..errors import UnknownObject
 from ..serialization import SerializedDict
 from voluptuous import Schema
 import os
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+import numpy as np
+import pickle
 
 
 class Metadata(SerializedDict):
@@ -106,3 +104,12 @@ class DataStoreTestCase(BW2DataTest):
         self.assertEqual(array.shape, (1,))
         self.assertEqual(array[0]['uncertainty_type'], 7)
         self.assertEqual(array[0]['amount'], 42)
+
+    def test_loc_value_if_no_uncertainty(self):
+        d = MockDS("happy meal")
+        d.register()
+        d.write(range(10))
+        d.process()
+        fp = os.path.join(config.dir, u"processed", d.filename + u".pickle")
+        array = pickle.load(open(fp, "rb"))
+        self.assertTrue(np.allclose(np.arange(10), array['loc']))
