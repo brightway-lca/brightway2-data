@@ -255,7 +255,7 @@ Doesn't return anything, but writes two files to disk.
                 arr[count] = (
                     mapping[key], mapping[key],
                     MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY[u"production"],
-                    0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
+                    0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
                 )
                 count += 1
 
