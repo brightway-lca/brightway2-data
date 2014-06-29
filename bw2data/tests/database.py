@@ -3,7 +3,8 @@ from . import BW2DataTest
 from .. import config
 from ..database import DatabaseChooser
 from ..backends.default.database import SingleFileDatabase
-from ..errors import UnknownObject, MissingIntermediateData
+from ..errors import UnknownObject, MissingIntermediateData, UntypedExchange, \
+    InvalidExchange
 from ..meta import mapping, geomapping, databases
 from ..validate import db_validator
 from .fixtures import food, biosphere
@@ -123,6 +124,42 @@ class DatabaseTest(BW2DataTest):
         self.assertTrue(
             "CH" in geomapping and "DE" in geomapping
         )
+
+    def test_untyped_exchange_error(self):
+        database = DatabaseChooser("testy")
+        database.register()
+        database_data = {
+            ("testy", "A"): {'exchanges': [
+                {'amount': 1, 'input': ('testy', 'A')}
+            ]},
+        }
+        database.write(database_data)
+        with self.assertRaises(UntypedExchange):
+            database.process()
+
+    def test_no_input_raises_invalid_exchange(self):
+        database = DatabaseChooser("testy")
+        database.register()
+        database_data = {
+            ("testy", "A"): {'exchanges': [
+                {'amount': 1}
+            ]},
+        }
+        database.write(database_data)
+        with self.assertRaises(InvalidExchange):
+            database.process()
+
+    def test_no_amount_raises_invalid_exchange(self):
+        database = DatabaseChooser("testy")
+        database.register()
+        database_data = {
+            ("testy", "A"): {'exchanges': [
+                {'input': ('testy', 'A')}
+            ]},
+        }
+        database.write(database_data)
+        with self.assertRaises(InvalidExchange):
+            database.process()
 
     def test_process_geomapping_array(self):
         database = DatabaseChooser("a database")

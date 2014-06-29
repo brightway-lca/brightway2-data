@@ -3,6 +3,7 @@ from .. import databases, config, mapping, geomapping
 from ..query import Query
 from ..data_store import DataStore
 from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename
+from ..errors import UntypedExchange, InvalidExchange
 import copy
 import numpy as np
 import os
@@ -222,7 +223,13 @@ Doesn't return anything, but writes two files to disk.
                 continue
             for exc in sorted(
                     data[key].get(u"exchanges", []),
-                    key=lambda x: x[u"input"][1]):
+                    key=lambda x: x.get(u"input")):
+
+                if u"amount" not in exc or u"input" not in exc:
+                    raise InvalidExchange
+                if u"type" not in exc:
+                    raise UntypedExchange
+
                 if key == exc[u"input"]:
                     production_found = True
                 arr[count] = (

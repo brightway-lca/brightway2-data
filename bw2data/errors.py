@@ -1,3 +1,13 @@
+class InvalidExchange(StandardError):
+    """Exchange is missing 'amount' or 'input'"""
+    pass
+
+
+class InvalidPackage(StandardError):
+    """bw2package data doesn't validate"""
+    pass
+
+
 class MissingIntermediateData(StandardError):
     pass
 
@@ -11,8 +21,8 @@ class UnsafeData(StandardError):
     pass
 
 
-class InvalidPackage(StandardError):
-    """bw2package data doesn't validate"""
+class UntypedExchange(StandardError):
+    """Exchange doesn't have 'type' attribute"""
     pass
 
 
