@@ -7,6 +7,9 @@ Surprisingly enough, Brightway2-data (abbreviated to ``bw2data`` in code) is the
 
 This page of the documentation covers the basic concepts in Brightway2-data. There is also detailed technical documentation, as well as separate sectiosn on querying and import and export of data in different formats.
 
+Table of Contents
+-----------------
+
 .. toctree::
    :maxdepth: 4
 
