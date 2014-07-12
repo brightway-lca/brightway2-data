@@ -7,6 +7,7 @@ Changelog
 **bw2-uptodate.py is required for this update**
 
 - FEATURE: Pluggable LCI backends. Two backends are provided - SingleFileDatabase and and JSONDatabase, and others can be easily added.
+- FEATURE: Ecospold2 importer is out of alpha status as of Ecoinvent 3.1.
 - FEATURE: `bw2-uptodate` should now work without PATH hassles on windows. Name changed from `bw2-uptodate.py`.
 - CHANGE: Database exchanges without `type` now raise UntypedExchange error when processed. 
 - CHANGE: Database exchanges without `amount` or `input` now raise InvalidExchange error when processed.

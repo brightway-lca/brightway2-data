@@ -258,12 +258,6 @@ class Ecospold2DataExtractor(object):
 class Ecospold2Importer(object):
 
     def __init__(self, datapath, metadatapath, name):
-        warnings.warn(
-            u"Ecospold2 importer is not perfect. The ecoinvent 3 known issues "
-            u"(http://www.ecoinvent.org/database/ecoinvent-version-3/"
-            u"reports-of-changes/known-data-issues/) lists reasons why some "
-            u"results may be incorrect."
-        )
         self.datapath = unicode(datapath)
         self.metadatapath = unicode(metadatapath)
         if name in databases:
