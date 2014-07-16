@@ -402,6 +402,13 @@ class SingleFileDatabaseTest(BW2DataTest):
         with self.assertRaises(MissingIntermediateData):
             d.load(version=-1)
 
+    def test_noninteger_version(self):
+        d = SingleFileDatabase("biosphere")
+        d.register()
+        d.write(biosphere)
+        with self.assertRaises(ValueError):
+            d.load(version="foo")
+
     def test_register(self):
         database = SingleFileDatabase("testy")
         database.register()

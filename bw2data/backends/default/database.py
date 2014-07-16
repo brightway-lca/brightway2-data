@@ -60,6 +60,11 @@ class SingleFileDatabase(LCIBackend):
             The intermediate data, a dictionary.
 
         """
+        if version is not None:
+            try:
+                version = int(version)
+            except:
+                raise ValueError("Version number must be an integer")
         self.assert_registered()
         if version is None and config.p.get(u"use_cache", False) and \
                 self.name in config.cache:
