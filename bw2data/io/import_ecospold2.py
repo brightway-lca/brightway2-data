@@ -75,7 +75,7 @@ class Ecospold2DataExtractor(object):
         return [extract_metadata(ds) for ds in root.iterchildren()]
 
     @classmethod
-    def extract_activities(cls, dirpath):
+    def extract_activities(cls, dirpath, multioutput=False):
         assert os.path.exists(dirpath)
         filelist = [filename for filename in os.listdir(dirpath)
                     if os.path.isfile(os.path.join(dirpath, filename))
@@ -95,48 +95,48 @@ class Ecospold2DataExtractor(object):
 
         data = []
         for index, filename in enumerate(filelist):
-            data.append(cls.extract_activity(dirpath, filename))
+            data.append(cls.extract_activity(dirpath, filename, multioutput))
             pbar.update(index)
         pbar.finish()
 
         return data
 
     @classmethod
-    def extract_activity(cls, dirpath, filename):
+    def extract_activity(cls, dirpath, filename, multioutput=False):
         root = objectify.parse(open(os.path.join(dirpath, filename))).getroot()
         if hasattr(root, u"activityDataset"):
             stem = root.activityDataset
         else:
             stem = root.childActivityDataset
         data = {
-            u'name': stem.activityDescription.activity.activityName.text,
-            u'location': stem.activityDescription.geography.shortname.text,
-            u'exchanges': [cls.extract_exchange(exc) for exc in stem.flowData.iterchildren()],
-            u'filename': filename,
-            u'activity': stem.activityDescription.activity.get('id')
+            u'name':      stem.activityDescription.activity.activityName.text,
+            u'location':  stem.activityDescription.geography.shortname.text,
+            u'exchanges': [cls.extract_exchange(exc, multioutput)
+                           for exc in stem.flowData.iterchildren()],
+            u'filename':  filename,
+            u'activity':  stem.activityDescription.activity.get('id'),
         }
+        data[u'products'] = [exc for exc in data[u'exchanges'] if exc.get(u'product', 0)]
 
         # Multi-output datasets, when allocated, keep all product exchanges,
         # but set some amounts to zero...
-        candidates = [exc for exc in data[u'exchanges']
-                      if exc.get(u'product', False)
-                      and exc[u'amount']
-                      ]
+        ref_product_candidates = [exc for exc in data[u'products'] if exc[u'amount']]
         # Allocation datasets only have one product actually produced
-        assert len(candidates) == 1
-        flow = candidates[0][u'flow']
+        assert len(ref_product_candidates) == 1
+        flow = ref_product_candidates[0][u'flow']
 
         # Despite using a million UUIDs, there is actually no unique ID in
         # an ecospold2 dataset. Datasets are uniquely identified by the
         # combination of activity and flow UUIDs.
         data[u'id'] = hashlib.md5(data[u'activity'] + flow).hexdigest()
         data[u'flow'] = flow
+        data[u'reference product'] = ref_product_candidates[0][u'name']
 
-        # Purge empties (where `extract_exchange` returns `{}`)
+        # Purge parameters (where `extract_exchange` returns `{}`)
         # and exchanges with `amount` of zero
-        # and parameters (amount of zero)
         # and byproducts (amount of zero),
         # and non-allocated reference products (amount of zero)
+        # Multioutput products are kept in 'products'
         data[u'exchanges'] = [
             x for x in data[u'exchanges']
             if x
@@ -145,7 +145,7 @@ class Ecospold2DataExtractor(object):
         return data
 
     @classmethod
-    def extract_exchange(cls, exc):
+    def extract_exchange(cls, exc, multioutput=False):
         if exc.tag == u"{http://www.EcoInvent.org/EcoSpold02}intermediateExchange":
             flow = "intermediateExchangeId"
             is_biosphere = False
@@ -165,7 +165,7 @@ class Ecospold2DataExtractor(object):
                       and exc.outputGroup.text == u"0")
         amount = float(exc.get(u'amount'))
 
-        if is_product and amount == 0.:
+        if is_product and amount == 0. and not multioutput:
             # This is system modeled multi-output dataset
             # and a "fake" exchange. It represents a possible
             # output which isn't actualized in this allocation
@@ -179,6 +179,7 @@ class Ecospold2DataExtractor(object):
             u'biosphere': is_biosphere,
             u'product': is_product,
             u'name': exc.name.text,
+            u'production volume': float(exc.get("productionVolumeAmount") or 0)
             # 'xml': etree.tostring(exc, pretty_print=True)
         }
         if not is_biosphere:
@@ -249,17 +250,18 @@ class Ecospold2DataExtractor(object):
         return data
 
     @classmethod
-    def extract(cls, files_dir, meta_dir):
+    def extract(cls, files_dir, meta_dir, multioutput=False):
         biosphere, technosphere = cls.extract_metadata(meta_dir)
-        activities = cls.extract_activities(files_dir)
+        activities = cls.extract_activities(files_dir, multioutput)
         return activities, biosphere, technosphere
 
 
 class Ecospold2Importer(object):
 
-    def __init__(self, datapath, metadatapath, name):
+    def __init__(self, datapath, metadatapath, name, multioutput=False):
         self.datapath = unicode(datapath)
         self.metadatapath = unicode(metadatapath)
+        self.multioutput = multioutput
         if name in databases:
             raise AttributeError(u"Database {} already registered".format(name))
         self.name = unicode(name)
@@ -275,7 +277,8 @@ class Ecospold2Importer(object):
         try:
             activities, biosphere, technosphere = Ecospold2DataExtractor.extract(
                 self.datapath,
-                self.metadatapath
+                self.metadatapath,
+                self.multioutput,
             )
 
             # XML is encoded in UTF-8, but we want unicode strings
@@ -323,14 +326,16 @@ class Ecospold2Importer(object):
     def create_database(self, biosphere, technosphere, activities):
         print(u"Processing database")
         for elem in activities:
-            elem[u"unit"] = u""
-            elem[u"type"] = u"process"
             for exc in elem[u"exchanges"]:
                 # TODO: Map exchange uncertainty types
                 exc[u'uncertainty type'] = 0
                 if exc[u'product']:
                     exc[u'type'] = u'production'
                     exc[u'input'] = (self.name, elem[u'id'])
+                    # Activities do not have units, per se - products have units. However,
+                    # it is nicer to give the unit of the reference product than nothing.
+                    assert "unit" not in elem
+                    elem[u"unit"] = exc[u'unit']
                 elif exc[u'biosphere']:
                     exc[u'type'] = 'biosphere'
                     exc[u'input'] = (u'biosphere3', exc[u'flow'])
@@ -345,11 +350,14 @@ class Ecospold2Importer(object):
                     exc[u'type'] = u'unknown'
                     exc[u'unlinked'] = True
                 else:
+                    # Normal input from technosphere
                     exc[u'type'] = u'technosphere'
                     exc[u'input'] = (
                         self.name,
                         hashlib.md5(exc[u'activity'] + exc[u'flow']).hexdigest()
                     )
+
+            assert "unit" in elem
 
         # Drop "missing" exchanges
         for elem in activities:
