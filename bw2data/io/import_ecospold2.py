@@ -6,6 +6,7 @@ from ..units import normalize_units
 from ..utils import recursive_str_to_unicode
 from lxml import objectify
 from stats_arrays.distributions import *
+import copy
 import hashlib
 import os
 import pprint
@@ -47,7 +48,7 @@ class Ecospold2DataExtractor(object):
         def extract_metadata(o):
             return {
                 u'name': o.name.text,
-                u'unit': o.unitName.text,
+                u'unit': normalize_units(o.unitName.text),
                 u'id': o.get(u'id')
             }
 
@@ -61,7 +62,7 @@ class Ecospold2DataExtractor(object):
         def extract_metadata(o):
             return {
                 u'name': o.name.text,
-                u'unit': o.unitName.text,
+                u'unit': normalize_units(o.unitName.text),
                 u'id': o.get(u'id'),
                 u'categories': (
                     o.compartment.compartment.text,
@@ -113,23 +114,28 @@ class Ecospold2DataExtractor(object):
             u'location':  stem.activityDescription.geography.shortname.text,
             u'exchanges': [cls.extract_exchange(exc, multioutput)
                            for exc in stem.flowData.iterchildren()],
-            u'filename':  filename,
-            u'activity':  stem.activityDescription.activity.get('id'),
+            u'linking': {
+                u'activity':  stem.activityDescription.activity.get('id'),
+                u'filename':  filename,
+            },
         }
-        data[u'products'] = [exc for exc in data[u'exchanges'] if exc.get(u'product', 0)]
+        data[u'products'] = [copy.deepcopy(exc)
+            for exc in data[u'exchanges']
+            if exc.get(u'product', 0)
+        ]
 
         # Multi-output datasets, when allocated, keep all product exchanges,
         # but set some amounts to zero...
         ref_product_candidates = [exc for exc in data[u'products'] if exc[u'amount']]
         # Allocation datasets only have one product actually produced
         assert len(ref_product_candidates) == 1
-        flow = ref_product_candidates[0][u'flow']
+        data[u"linking"][u'flow'] = ref_product_candidates[0][u'flow']
 
         # Despite using a million UUIDs, there is actually no unique ID in
         # an ecospold2 dataset. Datasets are uniquely identified by the
         # combination of activity and flow UUIDs.
-        data[u'id'] = hashlib.md5(data[u'activity'] + flow).hexdigest()
-        data[u'flow'] = flow
+        data[u'id'] = hashlib.md5(data[u"linking"][u'activity'] +
+            data[u"linking"][u'flow']).hexdigest()
         data[u'reference product'] = ref_product_candidates[0][u'name']
 
         # Purge parameters (where `extract_exchange` returns `{}`)
@@ -186,7 +192,7 @@ class Ecospold2DataExtractor(object):
             # Biosphere flows not produced by an activity
             data[u"activity"] = exc.get(u"activityLinkId")
         if hasattr(exc, u"unitName"):
-            data[u'unit'] = exc.unitName.text
+            data[u'unit'] = normalize_units(exc.unitName.text)
 
         # Uncertainty fields
         if hasattr(exc, u"uncertainty"):
@@ -198,54 +204,47 @@ class Ecospold2DataExtractor(object):
                 ])
 
             if hasattr(unc, "lognormal"):
-                if unc.lognormal.get("variance") is not None:
-                    variance = float(unc.lognormal.get("variance"))
-                elif unc.lognormal.get("varianceWithPedigreeUncertainty"
-                                       ) is not None:
-                    variance = float(unc.lognormal.get(
-                        "varianceWithPedigreeUncertainty"))
-                else:
-                    variance = None
-
-                data['uncertainty'] = {
-                    'type': 'lognormal',
-                    'mu': float(unc.lognormal.get('mu')),
-                    'sigma': variance
-                }
-            elif hasattr(unc, 'normal'):
-                if unc.normal.get('variance') is not None:
-                    variance = float(unc.normal.get('variance'))
-                elif unc.normal.get('varianceWithPedigreeUncertainty'
-                                    ) is not None:
-                    variance = float(unc.normal.get(
-                        'varianceWithPedigreeUncertainty'))
-                else:
-                    variance = None
-
-                data['uncertainty'] = {
-                    'type': 'normal',
-                    'mu': float(unc.normal.get('meanValue')),
-                    'sigma': variance
-                }
-            elif hasattr(unc, 'triangular'):
-                data['uncertainty'] = {
-                    'type': 'triangular',
-                    'min': float(unc.triangular.get('minValue')),
-                    'mode': float(unc.triangular.get('mostLikelyValue')),
-                    'mean': float(unc.triangular.get('maxValue'))
-                }
-            elif hasattr(unc, 'uniform'):
-                data['uncertainty'] = {
-                    'type': 'uniform',
-                    'min': float(unc.uniform.get('minValue')),
-                    'max': float(unc.uniform.get('maxValue'))
-                }
-            elif hasattr(unc, 'undefined'):
-                data['uncertainty'] = {'type': 'undefined'}
+                data.update(**{
+                    u'uncertainty type': LognormalUncertainty.id,
+                    u"loc": float(unc.lognormal.get('mu')),
+                    u"scale": float(unc.lognormal.get("varianceWithPedigreeUncertainty")),
+                })
+                if unc.lognormal.get('variance'):
+                    data[u"scale without pedigree"] = float(unc.lognormal.get('variance'))
+            elif hasattr(unc, u'normal'):
+                data.update(**{
+                    u"uncertainty type": NormalUncertainty.id,
+                    u"loc": float(unc.normal.get('meanValue')),
+                    u"scale": float(unc.normal.get('varianceWithPedigreeUncertainty')),
+                })
+                if unc.normal.get('variance'):
+                    data[u"scale without pedigree"] = float(unc.normal.get('variance'))
+            elif hasattr(unc, u'triangular'):
+                data.update(**{
+                    u'uncertainty type': TriangularUncertainty.id,
+                    u'minimum': float(unc.triangular.get('minValue')),
+                    u'loc': float(unc.triangular.get('mostLikelyValue')),
+                    u'maximum': float(unc.triangular.get('maxValue'))
+                })
+            elif hasattr(unc, u'uniform'):
+                data.update(**{
+                    u"uncertainty type": UniformUncertainty.id,
+                    u"loc": data[u'amount'],
+                    u'minimum': float(unc.uniform.get('minValue')),
+                    u'maximum': float(unc.uniform.get('maxValue')),
+                })
+            elif hasattr(unc, u'undefined'):
+                data.update(**{
+                    u"uncertainty type": UndefinedUncertainty.id,
+                    u"loc": data[u'amount'],
+                })
             else:
-                raise ValueError("Unknown uncertainty type")
+                raise ValueError(u"Unknown uncertainty type")
         else:
-            data[u'uncertainty'] = {u'type': u'unknown'}
+            data.update(**{
+                u"uncertainty type": UndefinedUncertainty.id,
+                u"loc": data[u'amount'],
+            })
 
         return data
 
@@ -258,10 +257,21 @@ class Ecospold2DataExtractor(object):
 
 class Ecospold2Importer(object):
 
-    def __init__(self, datapath, metadatapath, name, multioutput=False):
+    def __init__(self, datapath, metadatapath, name, multioutput=False, debug=False):
+        """Create a new ecospold2 importer object.
+
+        Args:
+            * *datapath*: Absolute filepath to directory containing the datasets
+            * *metadatapath*: Absolute filepath to the *"MasterData"* directory
+            * *name*: Name of the created database
+            * *multioutput*: Boolean. When importing allocated datasets, include the other outputs in a special *"products"* list.
+            * *debug*: Boolean. Include additional debugging information.
+
+        """
         self.datapath = unicode(datapath)
         self.metadatapath = unicode(metadatapath)
         self.multioutput = multioutput
+        self.debug = debug
         if name in databases:
             raise AttributeError(u"Database {} already registered".format(name))
         self.name = unicode(name)
@@ -301,7 +311,6 @@ class Ecospold2Importer(object):
 
     def create_biosphere3_database(self, data):
         for elem in data:
-            elem[u"unit"] = normalize_units(elem[u"unit"])
             elem[u"type"] = "emission" if elem[u'categories'][0] in EMISSIONS \
                 else elem[u'categories'][0]
             elem[u"exchanges"] = []
@@ -327,8 +336,6 @@ class Ecospold2Importer(object):
         print(u"Processing database")
         for elem in activities:
             for exc in elem[u"exchanges"]:
-                # TODO: Map exchange uncertainty types
-                exc[u'uncertainty type'] = 0
                 if exc[u'product']:
                     exc[u'type'] = u'production'
                     exc[u'input'] = (self.name, elem[u'id'])
@@ -378,6 +385,21 @@ class Ecospold2Importer(object):
             ]
 
         data = dict([((self.name, elem[u'id']), elem) for elem in activities])
+
+        if not self.debug:
+            # Remove 'product' and 'biosphere' keys from exchange dictionaries
+            for ds in data.values():
+                del ds[u'id']
+                for exc in ds.get(u"exchanges", []):
+                    del exc[u"product"]
+                    del exc[u"biosphere"]
+                    del exc[u"flow"]
+                    if u"activity" in exc:
+                        del exc[u"activity"]
+                for product in ds.get(u"products", []):
+                    del product[u"product"]
+                    del product[u"biosphere"]
+                    del product[u"activity"]
 
         print(u"Writing new database")
         with warnings.catch_warnings():
