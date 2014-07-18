@@ -35,6 +35,8 @@ setup(
     ],
     url="https://bitbucket.org/cmutel/brightway2-data",
     long_description=open('README.rst').read(),
+    description=('Tools for the management of inventory databases '
+                 'and impact assessment methods. Part of the Brightway2LCA Framework'),
     # scripts=["bw2data/bin/bw2-uptodate.py"],
     entry_points = {
         'console_scripts': [
