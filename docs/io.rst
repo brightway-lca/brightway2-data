@@ -24,6 +24,16 @@ Ecospold version 1 is the data format of ecoinvent versions 1 and 2, and the US 
 .. autoclass:: bw2data.io.EcospoldImpactAssessmentImporter
     :members:
 
+Ecospold2
+=========
+
+Ecospold version 2 is the data format of ecoinvent version 3. It is a complicated XML data format, but can be more powerful than ecospold 1.
+
+.. note:: only **imports** are supported.
+
+.. autoclass:: bw2data.io.Ecospold2Importer
+    :members:
+
 SimaPro
 =======
 
