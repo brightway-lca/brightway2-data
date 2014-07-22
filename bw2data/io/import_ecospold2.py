@@ -33,17 +33,6 @@ KNOWN_ISSUES = {
 class Ecospold2DataExtractor(object):
 
     @classmethod
-    def extract_metadata(cls, dirpath):
-        for filename in (
-            u"IntermediateExchanges.xml",
-            u"ElementaryExchanges.xml"
-        ):
-            assert os.path.exists(os.path.join(dirpath, filename))
-        biosphere = cls.extract_biosphere_metadata(dirpath)
-        technosphere = cls.extract_technosphere_metadata(dirpath)
-        return biosphere, technosphere
-
-    @classmethod
     def extract_technosphere_metadata(cls, dirpath):
         def extract_metadata(o):
             return {
@@ -52,9 +41,9 @@ class Ecospold2DataExtractor(object):
                 u'id': o.get(u'id')
             }
 
-        root = objectify.parse(open(os.path.join(
-            dirpath, u"IntermediateExchanges.xml"))
-        ).getroot()
+        fp = os.path.join(dirpath, u"IntermediateExchanges.xml")
+        assert os.path.exists(fp), u"Can't find IntermediateExchanges.xml"
+        root = objectify.parse(open(fp)).getroot()
         return [extract_metadata(ds) for ds in root.iterchildren()]
 
     @classmethod
@@ -70,9 +59,9 @@ class Ecospold2DataExtractor(object):
                 )
             }
 
-        root = objectify.parse(open(os.path.join(
-            dirpath, u"ElementaryExchanges.xml"))
-        ).getroot()
+        fp = os.path.join(dirpath, u"ElementaryExchanges.xml")
+        assert os.path.exists(fp), u"Can't find ElementaryExchanges.xml"
+        root = objectify.parse(open(fp)).getroot()
         return [extract_metadata(ds) for ds in root.iterchildren()]
 
     @classmethod
@@ -248,16 +237,11 @@ class Ecospold2DataExtractor(object):
 
         return data
 
-    @classmethod
-    def extract(cls, files_dir, meta_dir, multioutput=False):
-        biosphere, technosphere = cls.extract_metadata(meta_dir)
-        activities = cls.extract_activities(files_dir, multioutput)
-        return activities, biosphere, technosphere
-
 
 class Ecospold2Importer(object):
 
-    def __init__(self, datapath, metadatapath, name, multioutput=False, debug=False):
+    def __init__(self, datapath, metadatapath, name, multioutput=False,
+                 debug=False, new_biosphere=False):
         """Create a new ecospold2 importer object.
 
         .. warning:: You should always check the import log after an ecospold 2 import, because the background database could have missing links that will produce incorrect LCI results.
@@ -270,6 +254,7 @@ class Ecospold2Importer(object):
             * *name*: Name of the created database.
             * *multioutput*: Boolean. When importing allocated datasets, include the other outputs in a special *"products"* list.
             * *debug*: Boolean. Include additional debugging information.
+            * new_biosphere*: Boolean. Force writing of a new biosphere database.
 
         The data schema for ecospold2 databases is slightly different from ecospold1 databases, as there is some additional data included (only additional data shown here):
 
@@ -309,6 +294,7 @@ class Ecospold2Importer(object):
         self.metadatapath = unicode(metadatapath)
         self.multioutput = multioutput
         self.debug = debug
+        self.force_new_biosphere = new_biosphere
         if name in databases:
             raise AttributeError(u"Database {} already registered".format(name))
         self.name = unicode(name)
@@ -322,19 +308,25 @@ class Ecospold2Importer(object):
                       u"\n\tMetadatapath: %s" % self.metadatapath)
 
         try:
-            activities, biosphere, technosphere = Ecospold2DataExtractor.extract(
+            # XML is encoded in UTF-8, but we want unicode strings
+            activities = Ecospold2DataExtractor.extract_activities(
                 self.datapath,
-                self.metadatapath,
                 self.multioutput,
             )
-
-            # XML is encoded in UTF-8, but we want unicode strings
+            print(u"Encoding strings to unicode")
             activities = recursive_str_to_unicode(activities)
-            biosphere = recursive_str_to_unicode(biosphere)
-            technosphere = recursive_str_to_unicode(technosphere)
 
-            self.create_biosphere3_database(biosphere)
-            self.create_database(biosphere, technosphere, activities)
+            if u"biosphere3" in databases and not self.force_new_biosphere:
+                pass
+            else:
+                biosphere = recursive_str_to_unicode(
+                    Ecospold2DataExtractor.extract_biosphere_metadata(
+                        self.metadatapath
+                    )
+                )
+                self.create_biosphere3_database(biosphere)
+
+            self.create_database(activities)
 
             print(u"Ecospold2 database imported successfully. "
                   u"Please check the logfile:\n\t" + self.logfile)
@@ -369,7 +361,7 @@ class Ecospold2Importer(object):
             db.write(data)
             db.process()
 
-    def create_database(self, biosphere, technosphere, activities):
+    def create_database(self, activities):
         print(u"Processing database")
         for elem in activities:
             for exc in elem[u"exchanges"]:

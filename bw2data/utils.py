@@ -185,17 +185,16 @@ Returns the modified dataset.
                 })
     return data
 
-
 def recursive_str_to_unicode(data, encoding="utf8"):
     """Convert a nested python object (like a database) from byte strings to unicode strings using encoding.
 
     ``data`` is some data, and ``encoding`` is something like ``"utf-8"`` (default)."""
     # Adapted from
     # http://stackoverflow.com/questions/1254454/fastest-way-to-convert-a-dicts-keys-values-from-unicode-to-str
-    if isinstance(data, str):
-        return data.decode(encoding)
-    elif isinstance(data, unicode):
+    if isinstance(data, unicode):
         return data
+    elif isinstance(data, str):
+        return unicode(data, encoding)  # Faster than str.encode
     elif isinstance(data, collections.Mapping):
         return dict(itertools.imap(
             recursive_str_to_unicode,
