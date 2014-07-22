@@ -120,9 +120,9 @@ class Ecospold2DataExtractor(object):
             },
         }
         data[u'products'] = [copy.deepcopy(exc)
-            for exc in data[u'exchanges']
-            if exc.get(u'product', 0)
-        ]
+                             for exc in data[u'exchanges']
+                             if exc.get(u'product', 0)
+                             ]
 
         # Multi-output datasets, when allocated, keep all product exchanges,
         # but set some amounts to zero...
@@ -135,7 +135,7 @@ class Ecospold2DataExtractor(object):
         # an ecospold2 dataset. Datasets are uniquely identified by the
         # combination of activity and flow UUIDs.
         data[u'id'] = hashlib.md5(data[u"linking"][u'activity'] +
-            data[u"linking"][u'flow']).hexdigest()
+                                  data[u"linking"][u'flow']).hexdigest()
         data[u'reference product'] = ref_product_candidates[0][u'name']
 
         # Purge parameters (where `extract_exchange` returns `{}`)
@@ -316,10 +316,10 @@ class Ecospold2Importer(object):
     def importer(self):
         self.log, self.logfile = get_io_logger("es3-import")
 
-        self.log.info(u"Starting ecospold2 import." + \
-            u"\n\tDatabase name: %s" % self.name    + \
-            u"\n\tDatapath: %s" % self.datapath     + \
-            u"\n\tMetadatapath: %s" % self.metadatapath)
+        self.log.info(u"Starting ecospold2 import." +
+                      u"\n\tDatabase name: %s" % self.name +
+                      u"\n\tDatapath: %s" % self.datapath +
+                      u"\n\tMetadatapath: %s" % self.metadatapath)
 
         try:
             activities, biosphere, technosphere = Ecospold2DataExtractor.extract(
@@ -464,11 +464,12 @@ class Ecospold2Importer(object):
                             if x[u'input'] not in mapping]:
                     rewrite = True
                     self.log.critical(
-                        u"Purging unlinked exchange:\nFilename: %s\n%s" % \
-                        (value[u'filename'], pprint.pformat(exc, indent=2))
+                        u"Purging unlinked exchange:\nFilename: %s\n%s" %
+                        (value[u'linking'][u'filename'],
+                         pprint.pformat(exc, indent=2))
                     )
                 value[u'exchanges'] = [x for x in value[u'exchanges'] if
-                                      x[u'input'] in mapping]
+                                       x[u'input'] in mapping]
 
             if rewrite:
                 # Rewrite with correct data
