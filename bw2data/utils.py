@@ -312,25 +312,29 @@ def open_activity_in_webbrowser(activity):
     return url
 
 
-def set_data_dir(dirpath):
+def set_data_dir(dirpath, permanent=True):
     """Set the Brightway2 data directory to ``dirpath``.
 
-    Also creates basic directories, and resets metadata.
+    If ``permanent`` is ``True``, then set ``dirpath`` as the default data directory.
 
-    Creates ``dirpath`` if needed."""
+    Creates ``dirpath`` if needed. Also creates basic directories, and resets metadata.
+
+    """
     if not os.path.exists(dirpath):
         os.mkdir(dirpath)
 
-    user_dir = os.path.expanduser("~")
-    filename = "brightway2path.txt" if config._windows else ".brightway2path"
-    with codecs.open(
-            os.path.join(user_dir, filename),
-            "w",
-            encoding="utf-8") as f:
-        f.write(dirpath)
+    if permanent:
+        user_dir = os.path.expanduser("~")
+        filename = "brightway2path.txt" if config._windows else ".brightway2path"
+        with codecs.open(
+                os.path.join(user_dir, filename),
+                "w",
+                encoding="utf-8") as f:
+            f.write(dirpath)
 
-    config.reset()
-    config.is_temp_dir = False
+        config.reset()
+    else:
+        config.dir = dirpath
     config.create_basic_directories()
     reset_meta()
 

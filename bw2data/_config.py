@@ -44,6 +44,7 @@ class Config(object):
         """Reset to original configuration. Useful for testing."""
         try:
             self.dir = self.get_home_directory(path)
+            self.is_temp_dir = False
         except OSError:
             self.dir = tempfile.mkdtemp()
             self.is_temp_dir = True
