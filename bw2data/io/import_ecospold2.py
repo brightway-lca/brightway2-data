@@ -244,6 +244,8 @@ class Ecospold2Importer(object):
                  debug=False, new_biosphere=False):
         """Create a new ecospold2 importer object.
 
+        Only exchange numbers are imported, not parameters or formulas.
+
         .. warning:: You should always check the import log after an ecospold 2 import, because the background database could have missing links that will produce incorrect LCI results.
 
         Usage: ``Ecospold2Importer(**args).importer()``
@@ -254,7 +256,7 @@ class Ecospold2Importer(object):
             * *name*: Name of the created database.
             * *multioutput*: Boolean. When importing allocated datasets, include the other outputs in a special *"products"* list.
             * *debug*: Boolean. Include additional debugging information.
-            * new_biosphere*: Boolean. Force writing of a new biosphere database.
+            * *new_biosphere*: Boolean. Force writing of a new biosphere database.
 
         The data schema for ecospold2 databases is slightly different from ecospold1 databases, as there is some additional data included (only additional data shown here):
 
