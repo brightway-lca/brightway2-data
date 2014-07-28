@@ -18,13 +18,13 @@
 # The short X.Y version.
 version = '1.0'
 # The full version, including alpha/beta/rc tags.
-release = '1.0 RC4'
+release = '1.0'
 
-import sys
-from os.path import abspath, dirname
+# import sys
+# from os.path import abspath, dirname
 
 # Make sure we use this copy of Brightway2
-sys.path.insert(1, abspath(dirname(dirname(__file__))))
+# sys.path.insert(1, abspath(dirname(dirname(__file__))))
 
 # -- General configuration -----------------------------------------------------
 
