@@ -7,16 +7,20 @@ operators = {
     "<": operator.lt,
     "<=": operator.le,
     "==": operator.eq,
-    "is": operator.eq,
-    "not": operator.ne,
+    "is": operator.eq,  # Note: not pure python `is`!
+    "iis": lambda x, y: x.lower() == y.lower(),
     "!=": operator.ne,
+    "<>": operator.ne,
+    "not": operator.ne,
+    "inot": lambda x, y: x.lower() != y.lower(),
     ">=": operator.ge,
     ">": operator.gt,
-    "in": operator.contains,
-    "notin": lambda x, y: not operator.contains(x, y),
-    "iin": lambda x, y: x.lower() in y.lower(),
-    "inot": lambda x, y: x.lower() != y.lower(),
-    "iis": lambda x, y: x.lower() == y.lower(),
+    "has": operator.contains,
+    "ihas": lambda x, y: y.lower() in x.lower(),
+    "nothas": lambda x, y: not operator.contains(x, y),
+    "in": lambda x, y: operator.contains(y, x),
+    "notin": lambda x, y: not operator.contains(y, x),
+    # No iin because in normally doesn't take string inputs
     "len": lambda x, y: len(x) == y,
 }
 
@@ -29,9 +33,15 @@ def try_op(f, x, y):
 
 
 class Dictionaries(object):
-    """A wrapper for a single call to iteritems() for multiple dictionaries.
+    """Pretends to be a single dictionary when applying a ``Query`` to multiple databases.
 
-    Useful for a ``Query`` across multiple databases."""
+    Usage:
+        first_database = Database(...).load()
+        second_database = Database(...).load()
+        my_joined_dataset = Dictionaries(first_database, second_database)
+        search_results = Query(filter_1, filter_2)(my_joined_dataset)
+
+    """
     def __init__(self, *args):
         self.dicts = args
 
@@ -50,20 +60,20 @@ class Result(object):
     """
     def __init__(self, result):
         self.result = result
+        if not isinstance(result, dict):
+            raise ValueError(u"Must pass dictionary")
 
     def __str__(self):
         return "Query result with %i entries" % len(self.result)
 
     def __repr__(self):
-        if len(self.result) > 20:
-            data = dict([(key, self.result[key]) for key in \
-                self.result.keys()[:20]])
-        elif not len(self.result):
+        if not self.result:
             return u"Query result:\n\tNo query results found."
-        else:
-            data = self.result
-        return u"Query result: (total %i)\n" % len(self.result) \
-            + u"\n".join([u"%s: %s" % (key, data[key].get("name", "Unknown")) for key in data])
+        data = {k: v for k, v in self.result.items()[:20]}
+        return (u"Query result: (total %i)\n" % len(self.result) + \
+            u"\n".join([u"%s: %s" % (k, v.get("name", "Unknown"))
+                        for k, v in data.items()])
+            )
 
     def sort(self, field, reverse=False):
         """Sort the filtered dataset. Operates in place; does not return anything.
@@ -85,6 +95,9 @@ class Result(object):
 
     def keys(self):
         return self.result.keys()
+
+    def items(self):
+        return self.result.items()
 
     def iteritems(self):
         return self.result.iteritems()
@@ -138,9 +151,9 @@ class Filter(object):
 
     Examples:
 
-        * All ``name`` values are *foo*: ``Filter("name", "is", "foo")``
-        * All ``name`` values include the string *foo*: ``Filter("name", "in", "foo")``
-        * Category (a list of categories and subcategories) includes *foo*: ``Filter("category", "in", "foo")``
+        * All ``name`` values are *"foo"*: ``Filter("name", "is", "foo")``
+        * All ``name`` values include the string *"foo"*: ``Filter("name", "has", "foo")``
+        * Category (a list of categories and subcategories) includes *"foo"*: ``Filter("category", "has", "foo")``
 
     Args:
         * *key* (str): The field to filter on.
@@ -163,3 +176,13 @@ class Filter(object):
     def __call__(self, data):
         return dict(((k, v) for k, v in data.iteritems() if try_op(
             self.function, v.get(self.key, None), self.value)))
+
+
+def NF(value):
+    """Shortcut for a name filter"""
+    return Filter(u"name", u"has", value)
+
+
+def PF(value):
+    """Shortcut for a reference product filter"""
+    return Filter(u"reference product", u"has", value)

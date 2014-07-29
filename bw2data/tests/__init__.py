@@ -8,6 +8,7 @@ from .geo import GeoTest
 from .ia import IADSTest, MethodTest, WeightingTest, NormalizationTest
 from .json_database import JSONDatabaseTest, SynchronousJSONDictTest
 from .packaging import BW2PackageTest
+from .query import QueryTest, FilterTest, ResultTest
 from .serialization import JsonSantizierTestCase
 from .simapro import SimaProImportTest
 from .sparse import SparseMatrixProxyTest
