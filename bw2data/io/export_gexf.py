@@ -127,5 +127,5 @@ def keyword_to_gephi_graph(database, keyword):
         The filepath of the exported file.
 
     """
-    query = Database(database).query(Filter("name", "in", keyword))
+    query = Database(database).query(Filter("name", "ihas", keyword))
     return DatabaseSelectionToGEXF(database, set(query.keys())).export()
