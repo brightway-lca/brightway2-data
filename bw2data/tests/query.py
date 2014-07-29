@@ -198,6 +198,36 @@ class ResultTest(unittest.TestCase):
 19: foo19"""
         )
 
+
+    def test_sort_repr(self):
+        r = self.r()
+        r.sort('name', reverse=True)
+        self.assertEqual(
+            repr(r),
+            u"""Query result: (total 40)
+9: foo9
+8: foo8
+7: foo7
+6: foo6
+5: foo5
+4: foo4
+39: foo39
+38: foo38
+37: foo37
+36: foo36
+35: foo35
+34: foo34
+33: foo33
+32: foo32
+31: foo31
+30: foo30
+3: foo3
+29: foo29
+28: foo28
+27: foo27"""
+        )
+
+
     def test_wrong_arguments(self):
         with self.assertRaises(ValueError):
             Result([])
