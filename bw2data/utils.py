@@ -152,7 +152,7 @@ If uniform distribution, then the bounds are ``[(1 - bounds_factor) * mean, (1 +
 Returns the modified dataset.
     """
     assert distribution in {None, sa.UniformUncertainty, sa.NormalUncertainty}, \
-        u"``uncertainfy`` only supports normal and uniform distributions"
+        u"``uncertainify`` only supports normal and uniform distributions"
     assert bounds_factor is None or bounds_factor * 1. > 0, \
         "bounds_factor must be a positive number"
     assert sd_factor * 1. > 0, "sd_factor must be a positive number"
@@ -164,24 +164,28 @@ Returns the modified dataset.
                                   sa.UndefinedUncertainty.id) \
                     != sa.UndefinedUncertainty.id):
                 continue
+            if exchange[u"amount"] == 0:
+                continue
 
             if bounds_factor is not None:
                 exchange.update({
-                    "minimum": (1 - bounds_factor) * exchange['amount'],
-                    "maximum": (1 + bounds_factor) * exchange['amount'],
+                    u"minimum": (1 - bounds_factor) * exchange['amount'],
+                    u"maximum": (1 + bounds_factor) * exchange['amount'],
                 })
+                if exchange[u"amount"] < 0:
+                    exchange[u"minimum"], exchange[u"maximum"] = exchange[u"maximum"], exchange[u"minimum"]
 
             if distribution == sa.NormalUncertainty:
                 exchange.update({
-                    "uncertainty type": sa.NormalUncertainty.id,
-                    "loc": exchange['amount'],
-                    "scale": sd_factor * exchange['amount'],
+                    u"uncertainty type": sa.NormalUncertainty.id,
+                    u"loc": exchange[u'amount'],
+                    u"scale": abs(sd_factor * exchange[u'amount']),
                 })
             else:
                 assert bounds_factor is not None, \
                     "must specify bounds_factor for uniform distribution"
                 exchange.update({
-                    "uncertainty type": sa.UniformUncertainty.id,
+                    u"uncertainty type": sa.UniformUncertainty.id,
                 })
     return data
 
