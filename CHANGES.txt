@@ -1,10 +1,12 @@
 Changelog
 *********
 
-1.0 (2014-XX-XX)
-====================
+1.0 (2014-07-30)
+================
 
-**bw2-uptodate.py is required for this update**
+**bw2-uptodate.py is required for this update**. 
+
+Default values for various attributes need to be added when not previously specified.
 
 - FEATURE: Pluggable LCI backends. Two backends are provided - SingleFileDatabase and and JSONDatabase, and others can be easily added. A new notebook shows how to use JSONDatabase.
 - FEATURE: Ecospold2 importer is out of alpha status as of Ecoinvent 3.1.
@@ -16,7 +18,7 @@ Changelog
 - CHANGE: The order of database exchanges in processed arrays is sorted is changed.
 - CHANGE: LCI database format is now more flexible, and almost all required elements are removed. For example, `{}` is now a valid LCI dataset.
 - BUGFIX: Allow unicode in `utils.safe_filename`.
-- BUGFIX: `reset_meta() now also reset config preferences`.
+- BUGFIX: `reset_meta()` now also reset config preferences.
 
 0.17.1 (2014-06-11)
 ===================

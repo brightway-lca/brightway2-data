@@ -16,7 +16,7 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="1.0RC4",
+    version="1.0",
     packages=packages,
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
@@ -36,8 +36,7 @@ setup(
     url="https://bitbucket.org/cmutel/brightway2-data",
     long_description=open('README.rst').read(),
     description=('Tools for the management of inventory databases '
-                 'and impact assessment methods. Part of the Brightway2LCA Framework'),
-    # scripts=["bw2data/bin/bw2-uptodate.py"],
+                 'and impact assessment methods. Part of the Brightway2 LCA Framework'),
     entry_points = {
         'console_scripts': [
             'bw2-uptodate = bw2data.bin.bw2_uptodate:main',
