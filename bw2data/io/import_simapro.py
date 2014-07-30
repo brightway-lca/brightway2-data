@@ -589,7 +589,7 @@ class SimaProImporter(object):
 
         This isn't easy, as SimaPro only gives us names and units, and often the names are incorrect.
 
-        This method looks first in the foreground, then the background; if an exchange isn't found an error is rasied."""
+        This method looks first in the foreground, then the background; if an exchange isn't found an error is raised."""
         if exc.get('type', None) == 'production':
             return exc
         elif exc.get(u'biosphere', False):

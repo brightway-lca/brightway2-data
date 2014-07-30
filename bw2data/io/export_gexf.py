@@ -117,7 +117,7 @@ class DatabaseSelectionToGEXF(DatabaseToGEXF):
 
 
 def keyword_to_gephi_graph(database, keyword):
-    """Export a Gephi graph for a database for all activities which include the string ``keyword``, all all inputs for the filtered activities.
+    """Export a Gephi graph for a database for all activities whose names include the string ``keyword``.
 
     Args:
         * *database* (str): Database name.
