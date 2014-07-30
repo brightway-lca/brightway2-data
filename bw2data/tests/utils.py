@@ -111,3 +111,26 @@ class UncertainifyTestCase(BW2DataTest):
             'uncertainty type': sa.NormalUncertainty.id,
         }
         self.assertEqual(data[1]['exchanges'][0], new_dict)
+
+    def test_bounds_flipped_negative_amount(self):
+        data = {1: {'exchanges': [
+            {'amount': -10.}
+        ]}}
+        data = uncertainify(data)
+        new_dict = {
+            'amount': -10.,
+            'minimum': -11.,
+            'maximum': -9.,
+            'uncertainty type': sa.UniformUncertainty.id,
+        }
+        self.assertEqual(data[1]['exchanges'][0], new_dict)
+
+    def test_skip_zero_amounts(self):
+        data = {1: {'exchanges': [
+            {'amount': 0.}
+        ]}}
+        data = uncertainify(data)
+        new_dict = {
+            'amount': 0.,
+        }
+        self.assertEqual(data[1]['exchanges'][0], new_dict)
