@@ -21,13 +21,6 @@ PM_MAPPING = {
     u'geographicalCorrelation': u'geographical correlation',
     u'furtherTechnologyCorrelation': u'further technological correlation'
 }
-KNOWN_ISSUES = {
-    u"waste packaging glass, unsorted",
-    u"heat, future",
-    u"heat, central or small-scale, other than natural gas",
-    u"natural gas, low pressure",
-    u"roundwood, azobe from sustainable forest management, CM, debarked",
-}
 
 
 class Ecospold2DataExtractor(object):
@@ -140,6 +133,15 @@ class Ecospold2DataExtractor(object):
         return data
 
     @classmethod
+    def abort_exchange(cls, exc):
+        exc[u"uncertainty type"] = UndefinedUncertainty.id
+        exc[u"loc"] = exc[u"amount"]
+        for key in (u"scale", u"shape", u"minimum", u"maximum"):
+            if key in exc:
+                del exc[key]
+        exc[u"comment"] = u"Invalid parameters - set to undefined uncertainty."
+
+    @classmethod
     def extract_exchange(cls, exc, multioutput=False):
         if exc.tag == u"{http://www.EcoInvent.org/EcoSpold02}intermediateExchange":
             flow = "intermediateExchangeId"
@@ -200,6 +202,8 @@ class Ecospold2DataExtractor(object):
                 })
                 if unc.lognormal.get('variance'):
                     data[u"scale without pedigree"] = float(unc.lognormal.get('variance'))
+                if data[u"scale"] <= 0 or data[u"scale"] > 25:
+                    cls.abort_exchange(data)
             elif hasattr(unc, u'normal'):
                 data.update(**{
                     u"uncertainty type": NormalUncertainty.id,
@@ -208,6 +212,8 @@ class Ecospold2DataExtractor(object):
                 })
                 if unc.normal.get('variance'):
                     data[u"scale without pedigree"] = float(unc.normal.get('variance'))
+                if data[u"scale"] <= 0:
+                    cls.abort_exchange(data)
             elif hasattr(unc, u'triangular'):
                 data.update(**{
                     u'uncertainty type': TriangularUncertainty.id,
@@ -215,6 +221,8 @@ class Ecospold2DataExtractor(object):
                     u'loc': float(unc.triangular.get('mostLikelyValue')),
                     u'maximum': float(unc.triangular.get('maxValue'))
                 })
+                if data[u"minimum"] >= data[u"maximum"]:
+                    cls.abort_exchange(data)
             elif hasattr(unc, u'uniform'):
                 data.update(**{
                     u"uncertainty type": UniformUncertainty.id,
@@ -222,6 +230,8 @@ class Ecospold2DataExtractor(object):
                     u'minimum': float(unc.uniform.get('minValue')),
                     u'maximum': float(unc.uniform.get('maxValue')),
                 })
+                if data[u"minimum"] >= data[u"maximum"]:
+                    cls.abort_exchange(data)
             elif hasattr(unc, u'undefined'):
                 data.update(**{
                     u"uncertainty type": UndefinedUncertainty.id,
@@ -383,7 +393,7 @@ class Ecospold2Importer(object):
                     # See http://www.ecoinvent.org/database/ecoinvent-version-3/reports-of-changes/known-data-issues/
                     # We ignore it for now, but add attributes to log it later
                     exc[u'input'] = None
-                    exc[u'activity filename'] = elem[u'filename']
+                    exc[u'activity filename'] = elem[u"linking"][u'filename']
                     exc[u'activity name'] = elem[u'name']
                     exc[u'type'] = u'unknown'
                     exc[u'unlinked'] = True
@@ -403,12 +413,8 @@ class Ecospold2Importer(object):
                     x for x in elem[u"exchanges"]
                     if not x[u'input']
             ]:
-                if exc[u'name'] in KNOWN_ISSUES:
-                    self.log.info(u"Dropped known missing exchange: {}".format(
-                        exc[u'name']))
-                else:
-                    self.log.warning(u"Dropped missing exchange: %s" %
-                                     pprint.pformat(exc, indent=2))
+                self.log.warning(u"Dropped missing exchange: %s" %
+                                 pprint.pformat(exc, indent=2))
 
             elem[u"exchanges"] = [
                 x for x in elem[u"exchanges"]
