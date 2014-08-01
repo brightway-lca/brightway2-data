@@ -1,6 +1,13 @@
 Changelog
 *********
 
+1.0.1 (2014-08-01)
+==================
+
+- CHANGE: Ecospold2 importer is now more resilient to incorrect input data.
+- BUGFIX: uncertainify now correctly handles amount <= 0.
+- Small documentation fixes.
+
 1.0 (2014-07-30)
 ================
 

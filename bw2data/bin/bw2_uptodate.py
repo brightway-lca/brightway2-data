@@ -3,10 +3,10 @@
 """Brightway2 updating made simple.
 
 Usage:
-  bw2-uptodate.py
-  bw2-uptodate.py -l | --list
-  bw2-uptodate.py -h | --help
-  bw2-uptodate.py --version
+  bw2-uptodate
+  bw2-uptodate -l | --list
+  bw2-uptodate -h | --help
+  bw2-uptodate --version
 
 Options:
   --list        List the updates needed, but don't do anything
