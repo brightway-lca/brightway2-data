@@ -188,6 +188,9 @@ class Updates(object):
                 for index, key in enumerate(meta):
                     obj = klass(key)
                     obj.process()
+                    # Free memory
+                    obj = None
+                    config.cache = {}
                     pbar.update(index)
 
                 pbar.finish()

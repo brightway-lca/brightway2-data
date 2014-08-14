@@ -1,6 +1,11 @@
 Changelog
 *********
 
+1.0.2 (2014-08-14)
+==================
+
+- BUGFIX: Release memory during ``Updates.reprocess_all_1_0``.
+
 1.0.1 (2014-08-01)
 ==================
 
