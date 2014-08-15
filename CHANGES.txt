@@ -1,6 +1,11 @@
 Changelog
 *********
 
+1.0.3 (2014-08-16)
+==================
+
+- CHANGE: Automatically set ``num_cfs`` for methods and ``number`` for databases when ``.write()`` is called.
+
 1.0.2 (2014-08-14)
 ==================
 
