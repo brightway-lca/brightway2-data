@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
-from .. import config
+from .. import config, databases
 from ..backends.json import JSONDatabase, SynchronousJSONDict
 from ..backends.json.mapping import KeyMapping, cache as mapping_cache
 import os
@@ -47,6 +47,12 @@ class JSONDatabaseTest(BW2DataTest):
             u"intermediate",
             u"foo.acbd18db4cc2f85cedef654fccc4a4d8"
         )))
+
+    def test_write_sets_number_metadata(self):
+        db = JSONDatabase("foo")
+        db.register()
+        db.write({("foo", str(x)): {} for x in range(10)})
+        self.assertEqual(databases["foo"]["number"], 10)
 
 
 class SynchronousJSONDictTest(unittest.TestCase):

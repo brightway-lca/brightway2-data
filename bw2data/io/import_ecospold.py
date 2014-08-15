@@ -511,8 +511,6 @@ Exchanges should also be copied and allocated for any other co-products.
             manager = Database(name)
             manager.register(
                 format=u"Ecospold1",
-                depends=depends,
-                num_processes=len(data),
             )
             manager.write(data)
             manager.process()

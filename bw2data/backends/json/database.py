@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from ... import config, mapping, geomapping
+from ... import config, mapping, geomapping, databases
 from ...units import normalize_units
 from ..base import LCIBackend
 from .sync_json_dict import SynchronousJSONDict
@@ -54,6 +54,9 @@ class JSONDatabase(LCIBackend):
 
         """
         self.assert_registered()
+
+        databases[self.name]["number"] = len(data)
+        databases.flush()
 
         mapping.add(data.keys())
         for ds in data.values():

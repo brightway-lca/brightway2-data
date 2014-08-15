@@ -110,6 +110,12 @@ class DatabaseTest(BW2DataTest):
             for exc in ndb_data[key]['exchanges']:
                 self.assertTrue(exc['input'][0] in ('biosphere', 'buildings'))
 
+    def test_write_sets_databases_number_attribute(self):
+        d = DatabaseChooser("biosphere")
+        d.register()
+        d.write(biosphere)
+        self.assertEqual(databases["biosphere"]["number"], len(biosphere))
+
     def test_process_adds_to_mappings(self):
         database = DatabaseChooser("testy")
         database.register()

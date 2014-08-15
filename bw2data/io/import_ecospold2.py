@@ -367,8 +367,6 @@ class Ecospold2Importer(object):
             db = Database(u"biosphere3")
             db.register(
                 format=u"Ecospold2",
-                depends=[],
-                num_processes=len(data)
             )
             db.write(data)
             db.process()
@@ -451,8 +449,6 @@ class Ecospold2Importer(object):
             db = Database(self.name)
             db.register(
                 format=u"Ecospold2",
-                depends=[u"biosphere3"],
-                num_processes=len(data)
             )
             db.write(data)
 

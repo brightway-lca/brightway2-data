@@ -289,10 +289,12 @@ Doesn't return anything, but writes two files to disk.
 
         Databases must be registered before data can be written.
 
+        Writing data automatically sets the following metadata:
+            * *depends*: Names of the databases that this database references, e.g. "biosphere"
+            * *number*: Number of processes in this database.
+
         Args:
             * *format* (str): Format that the database was converted from, e.g. "Ecospold"
-            * *depends* (list): Names of the databases that this database references, e.g. "biosphere"
-            * *num_processes* (int): Number of processes in this database.
 
         """
         if u'depends' not in kwargs:
