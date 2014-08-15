@@ -22,13 +22,13 @@ class UtilsTest(BW2DataTest):
         d.register(depends=[])
         d.write(biosphere)
         m1 = Method(("test method 1",))
-        m1.register(unit="p", num_cfs=2)
+        m1.register(unit="p")
         m1.write([
             (("biosphere", 1), 1, "GLO"),
             (("biosphere", 2), 2, "GLO")
         ])
         m2 = Method(("test method 2",))
-        m2.register(unit="p", num_cfs=1)
+        m2.register(unit="p")
         m2.write([
             (("biosphere", 2), 10, "GLO")
         ])

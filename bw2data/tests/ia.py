@@ -112,6 +112,17 @@ class MethodTest(BW2DataTest):
         self.assertTrue("CH" in geomapping)
         self.assertTrue("DE" in geomapping)
 
+    def test_write_adds_num_cfs_to_metadata(self):
+        method_data = [
+            [("testy", "A"), 1],
+            [("testy", "B"), 1],
+        ]
+        name = ("a", "method")
+        method = Method(name)
+        method.register()
+        method.write(method_data)
+        self.assertTrue(methods[name]["num_cfs"], 2)
+
     def test_processed_array(self):
         method = Method(("a", "method"))
         method.register()

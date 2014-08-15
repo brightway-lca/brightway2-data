@@ -87,7 +87,6 @@ def combine_methods(name, *ms):
     meta = {
         "description": "Combination of the following methods: " +
         ", ".join([str(x) for x in ms]),
-        "num_cfs": len(data),
         "unit": list(units)[0] if len(units) == 1 else "Unknown"
     }
     data = [(key, cf, geo) for (key, geo), cf in data.iteritems()]

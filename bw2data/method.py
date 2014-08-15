@@ -54,3 +54,8 @@ class Method(ImpactAssessmentDataStore):
             MAX_INT_32,
             MAX_INT_32,
             ), row[1]
+
+    def write(self, data):
+        self.metadata[self.name][u"num_cfs"] = len(data)
+        self.metadata.flush()
+        super(Method, self).write(data)
