@@ -389,6 +389,20 @@ class SingleFileDatabaseTest(BW2DataTest):
         with self.assertRaises(AssertionError):
             d.revert(10)
 
+    def test_make_latest_version(self):
+        d = SingleFileDatabase("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        biosphere2 = copy.deepcopy(biosphere)
+        biosphere2[(u"biosphere", u"noodles")] = {}
+        for x in range(10):
+            d.write(biosphere2)
+        self.assertEqual(len(d.versions()), 11)
+        d.revert(1)
+        d.make_latest_version()
+        self.assertEqual(d.version, 12)
+        self.assertEqual(d.load(), biosphere)
+
     def test_versions(self):
         d = SingleFileDatabase("biosphere")
         d.register(depends=[])
