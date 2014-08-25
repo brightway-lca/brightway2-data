@@ -173,8 +173,6 @@ class SimaProImporter(object):
             else:
                 database.register(
                     format=format,
-                    depends=self.depends,
-                    num_processes=len(data)
                 )
         else:
             assert self.db_name not in databases, (
@@ -186,8 +184,6 @@ class SimaProImporter(object):
                 database = Database(self.db_name)
                 database.register(
                     format=format,
-                    depends=self.depends,
-                    num_processes=len(data)
                 )
         database.write(dict([
             ((self.db_name, obj['code']), obj) for obj in data

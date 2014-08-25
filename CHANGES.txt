@@ -1,6 +1,22 @@
 Changelog
 *********
 
+1.1 (2014-08-25)
+================
+
+- FEATURE: Add MATLAB LCI matrix exporter.
+- FEATURE: Add `make_latest_version` method for SingleFileDatabases, to make reverting easier.
+
+1.0.3 (2014-08-16)
+==================
+
+- CHANGE: Automatically set ``num_cfs`` for methods and ``number`` for databases when ``.write()`` is called.
+
+1.0.2 (2014-08-14)
+==================
+
+- BUGFIX: Release memory during ``Updates.reprocess_all_1_0``.
+
 1.0.1 (2014-08-01)
 ==================
 

@@ -77,6 +77,14 @@ class SingleFileDatabase(LCIBackend):
         except (OSError, IOError):
             raise MissingIntermediateData("This version (%i) not found" % version)
 
+    def make_latest_version(self):
+        """Make the current version the latest version.
+
+        Requires loading data because a new intermediate data file is created."""
+        data = self.load()
+        databases[self.name][u"version"] = self.versions()[-1][0]
+        self.write(data)
+
     def register(self, **kwargs):
         """Register a database with the metadata store.
 

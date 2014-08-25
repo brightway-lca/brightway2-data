@@ -16,8 +16,6 @@ class SimaProImportTest(BW2DataTest):
         database = Database("biosphere")
         database.register(
             format="Test data",
-            depends=[],
-            num_processes=0
         )
         database.write({})
 
@@ -32,14 +30,14 @@ class SimaProImportTest(BW2DataTest):
 
     def test_overwrite(self):
         database = Database("W00t")
-        database.register(format="", depends=[], num_processes=0)
+        database.register()
         sp = SimaProImporter(self.filepath("empty"), depends=[], overwrite=True)
         sp.importer()
         self.assertTrue("W00t" in databases)
 
     def test_no_overwrite(self):
         database = Database("W00t")
-        database.register(format="", depends=[], num_processes=0)
+        database.register()
         sp = SimaProImporter(self.filepath("empty"), depends=[])
         with self.assertRaises(AssertionError):
             sp.importer()
@@ -151,8 +149,6 @@ class SimaProImportTest(BW2DataTest):
         database = Database("background")
         database.register(
             format="Test data",
-            depends=["background"],
-            num_processes=2
         )
         database.write(background_data)
         sp = SimaProImporter(self.filepath("simple"), depends=["background"])
@@ -179,8 +175,6 @@ class SimaProImportTest(BW2DataTest):
         database = Database("background")
         database.register(
             format="Test data",
-            depends=["background"],
-            num_processes=2
         )
         database.write(background_data)
         sp = SimaProImporter(self.filepath("comments"), depends=["background"])

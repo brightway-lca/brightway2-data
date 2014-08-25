@@ -22,13 +22,13 @@ class UtilsTest(BW2DataTest):
         d.register(depends=[])
         d.write(biosphere)
         m1 = Method(("test method 1",))
-        m1.register(unit="p", num_cfs=2)
+        m1.register(unit="p")
         m1.write([
             (("biosphere", 1), 1, "GLO"),
             (("biosphere", 2), 2, "GLO")
         ])
         m2 = Method(("test method 2",))
-        m2.register(unit="p", num_cfs=1)
+        m2.register(unit="p")
         m2.write([
             (("biosphere", 2), 10, "GLO")
         ])
@@ -108,6 +108,21 @@ class UncertainifyTestCase(BW2DataTest):
             'amount': 10.,
             'loc': 10.,
             'scale': 1.,
+            'uncertainty type': sa.NormalUncertainty.id,
+        }
+        self.assertEqual(data[1]['exchanges'][0], new_dict)
+
+    def test_normal_negative_amount(self):
+        data = {1: {'exchanges': [
+            {'amount': -10.}
+        ]}}
+        data = uncertainify(data, sa.NormalUncertainty)
+        new_dict = {
+            'amount': -10.,
+            'loc': -10.,
+            'scale': 1.,
+            'minimum': -11.,
+            'maximum': -9.,
             'uncertainty type': sa.NormalUncertainty.id,
         }
         self.assertEqual(data[1]['exchanges'][0], new_dict)

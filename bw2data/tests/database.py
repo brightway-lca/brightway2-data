@@ -110,6 +110,12 @@ class DatabaseTest(BW2DataTest):
             for exc in ndb_data[key]['exchanges']:
                 self.assertTrue(exc['input'][0] in ('biosphere', 'buildings'))
 
+    def test_write_sets_databases_number_attribute(self):
+        d = DatabaseChooser("biosphere")
+        d.register()
+        d.write(biosphere)
+        self.assertEqual(databases["biosphere"]["number"], len(biosphere))
+
     def test_process_adds_to_mappings(self):
         database = DatabaseChooser("testy")
         database.register()
@@ -382,6 +388,20 @@ class SingleFileDatabaseTest(BW2DataTest):
         self.assertEqual(SingleFileDatabase("food").load(), food)
         with self.assertRaises(AssertionError):
             d.revert(10)
+
+    def test_make_latest_version(self):
+        d = SingleFileDatabase("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        biosphere2 = copy.deepcopy(biosphere)
+        biosphere2[(u"biosphere", u"noodles")] = {}
+        for x in range(10):
+            d.write(biosphere2)
+        self.assertEqual(len(d.versions()), 11)
+        d.revert(1)
+        d.make_latest_version()
+        self.assertEqual(d.version, 12)
+        self.assertEqual(d.load(), biosphere)
 
     def test_versions(self):
         d = SingleFileDatabase("biosphere")
