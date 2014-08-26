@@ -2,11 +2,16 @@
 from brightway2 import config, Database, LCA
 from bw2data.utils import safe_filename
 import scipy.io
-import xlsxwriter
 import os
+try:
+    import xlsxwriter
+except ImportError:
+    xlsxwriter = None
 
 
 def lci_matrices_to_matlab(database_name):
+    if not xlsxwriter:
+        raise ImportError(u"MATLAB export requires `xlsxwriter` (install with pip).")
     safe_name = safe_filename(database_name, False)
     dirpath = config.request_dir(u"export/%s-matlab" % safe_name)
 

@@ -1,6 +1,11 @@
 Changelog
 *********
 
+1.1.1 (2014-08-26)
+==================
+
+- BUGFIX: Don't die if `xlsxwriter` not installed.
+
 1.1 (2014-08-25)
 ================
 
