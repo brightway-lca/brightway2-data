@@ -339,6 +339,8 @@ class Ecospold2Importer(object):
                 self.create_biosphere3_database(biosphere)
 
             self.create_database(activities)
+            databases[self.name][u"directory"] = self.datapath
+            databases.flush()
 
             print(u"Ecospold2 database imported successfully. "
                   u"Please check the logfile:\n\t" + self.logfile)

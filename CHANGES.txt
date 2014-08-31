@@ -1,6 +1,12 @@
 Changelog
 *********
 
+1.2 (2014-XX-XX)
+================
+
+- CHANGE: Ecospold 1 & 2 importers now store file directory as `directory` in metadata.
+- FEATURE: Added Ecospold 1 & 2 comments importers. Comments are currently not imported by default.
+
 1.1.1 (2014-08-26)
 ==================
 
@@ -11,6 +17,7 @@ Changelog
 
 - FEATURE: Add MATLAB LCI matrix exporter.
 - FEATURE: Add `make_latest_version` method for SingleFileDatabases, to make reverting easier.
+- BUGFIX: Make sure `uncertainify` can handle negative amount values.
 
 1.0.3 (2014-08-16)
 ==================

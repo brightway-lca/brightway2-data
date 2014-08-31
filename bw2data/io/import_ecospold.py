@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*
 from __future__ import division
-from .. import Database, mapping, config
+from .. import Database, mapping, config, databases
 from ..logs import get_io_logger
 from ..utils import activity_hash, recursive_str_to_unicode
 from ..units import normalize_units
@@ -231,6 +231,7 @@ class Ecospold1Importer(object):
             warnings.warn("``stats_array`` not installed!")
             return
 
+        name, path = unicode(name), unicode(path)
         self.log, self.logfile = get_io_logger("lci-import")
         self.new_activities = []
         self.new_biosphere = []
@@ -273,6 +274,8 @@ class Ecospold1Importer(object):
         # Dictionary constructor eliminates duplicate activities
         data = dict([((name, o.pop(u"hash")), o) for o in data])
         self.write_database(name, data, depends)
+        databases[self.name][u"directory"] = self.path
+        databases.flush()
 
     def allocate_datasets(self, data):
         activities = []
