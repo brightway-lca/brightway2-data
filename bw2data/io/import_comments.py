@@ -23,6 +23,11 @@ def getattr2(obj, attr):
 
 
 class Ecospold1CommentExtractor(object):
+    """Extract comments from a directory of ecospold 1 XML files.
+
+    Usage: `Ecospold1CommentExtractor().extract(filepath)`.
+
+    Returns the a list of `(dataset id, comment, dataset data)` tuples."""
     def extract(self, path):
         data = []
         if os.path.isdir(path):
@@ -85,6 +90,11 @@ class Ecospold1CommentExtractor(object):
 
 
 class Ecospold2CommentExtractor(object):
+    """Extract comments from a directory of ecospold 2 SPOLD files.
+
+    Usage: `Ecospold2CommentExtractor().extract(filepath)`.
+
+    Returns the a list of `(filename, comment)` tuples."""
     def extract(self, dirpath):
         data = []
         filelist = [filename for filename in os.listdir(dirpath)
@@ -137,6 +147,14 @@ class Ecospold2CommentExtractor(object):
 
 
 def add_ecospold1_comments(name, filepath=None):
+    """Add comments from ecospold version 1 XML files.
+
+    Args:
+        * `name` (unicode): Name of database to add comments.
+        * `filepath` (unicode, optional): Filepath of XML files to extract comments from, if not specified in database metadata.
+
+    Doesn't return anything.
+    """
     if name not in databases:
         raise UnknownObject(u"Database %s not registered" % name)
     if not filepath and u"directory" not in databases[name]:
@@ -152,6 +170,14 @@ def add_ecospold1_comments(name, filepath=None):
 
 
 def add_ecospold2_comments(name, filepath=None):
+    """Add comments from ecospold version 2 SPOLD files.
+
+    Args:
+        * `name` (unicode): Name of database to add comments.
+        * `filepath` (unicode, optional): Filepath of XML files to extract comments from, if not specified in database metadata.
+
+    Doesn't return anything.
+    """
     if name not in databases:
         raise UnknownObject(u"Database %s not registered" % name)
     if not filepath and u"directory" not in databases[name]:
