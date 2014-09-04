@@ -24,6 +24,7 @@ class JSONDatabase(LCIBackend):
 
     Use this backend by setting ``"backend": "json"`` in the database metadata. This is done automatically if you call ``.register()`` from this class.
     """
+    backend = u"json"
 
     def filepath_intermediate(self):
         return os.path.join(

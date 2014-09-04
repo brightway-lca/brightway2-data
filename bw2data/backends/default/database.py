@@ -24,6 +24,7 @@ class SingleFileDatabase(LCIBackend):
 
     """
     validator = db_validator
+    backend = u"default"
 
     @property
     def filename(self):
