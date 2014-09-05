@@ -25,12 +25,12 @@ class Method(ImpactAssessmentDataStore):
             )])
 
     where:
-        * ``valid_tuple`` is a dataset identifier, like ``("biosphere", "CO2")``
-        * ``maybe_uncertainty`` is either a number or an uncertainty dictionary
-        * ``object`` is a location, needed only for regionalized LCIA
+        * *valid_tuple* (tuple): A dataset identifier, like ``("biosphere", "CO2")``.
+        * *maybe_uncertainty* (uncertainty dict or number): Either a number or an uncertainty dictionary.
+        * *object* (object, optional) is a location identifier, used only for regionalized LCIA.
 
     Args:
-        * *name* (tuple): Name of the method to manage. Must be a tuple of strings.
+        * *name* (tuple): Name of impact assessment method to manage.
 
     """
     metadata = methods
@@ -56,6 +56,9 @@ class Method(ImpactAssessmentDataStore):
             ), row[1]
 
     def write(self, data):
+        """Serialize intermediate data to disk.
+
+        Sets the metadata key ``num_cfs`` automatically."""
         self.metadata[self.name][u"num_cfs"] = len(data)
         self.metadata.flush()
         super(Method, self).write(data)

@@ -73,6 +73,8 @@ Args:
     def register(self, **kwargs):
         """Register an object with the metadata store.
 
+        The metadata key ``abbreviation`` is set automatically.
+
         Objects must be registered before data can be written. If this object is not yet registered in the metadata store, a warning is written to **stdout**.
 
         Takes any number of keyword arguments.

@@ -342,7 +342,7 @@ def set_data_dir(dirpath, permanent=True):
     reset_meta()
 
 
-def setup():
+def bw2setup():
     """Create basic directories, and download biosphere and LCIA methods"""
     from .io import download_biosphere, download_methods
     config.create_basic_directories()

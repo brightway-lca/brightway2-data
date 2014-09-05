@@ -345,14 +345,14 @@ class SimaProImporter(object):
         """Structure the list of exchanges.
 
         For a normal exchange line, the fields are:
-            0: Name
-            1: Amount
-            2: Unit
-            3: Uncertainty type
-            4: Uncertainty field (not sure)
-            5: Uncertainty field (not sure)
-            6: Uncertainty field (not sure)
-            7: Comment (but can also confusingly be position 6!?)
+            0. Name
+            1. Amount
+            2. Unit
+            3. Uncertainty type
+            4. Uncertainty field (not sure)
+            5. Uncertainty field (not sure)
+            6. Uncertainty field (not sure)
+            7. Comment (but can also confusingly be position 6!?)
 
         However, it looks like this schema could depend on the uncertainty type. It also doesn't apply to biosphere fields.
 
@@ -442,7 +442,7 @@ class SimaProImporter(object):
         return (len(line) in {7,8,9}) and (''.join(line[:6]) == '')
 
     def get_multiline_comment(self, data, index):
-        """Start at data[index], and consume all comment lines.
+        r"""Start at ``data[index]``, and consume all comment lines.
 
         Returns comments, with lines split with '\\n'. Returned comment starts with '\\n' because it is already the second line of a multiline comment."""
         comment = ''
@@ -475,14 +475,15 @@ class SimaProImporter(object):
             raise ValueError("Can't find production exchange")
 
     def create_production_exchange(self, data, dataset, index):
-        """For a production exchange line, the fields are:
-            0: Name
-            1: Amount
-            2: Unit
-            3: Allocation factor (out of 100)
-            4: Allocation type (?)
-            5: Category/subcategory, separated by '\\'
-            6: Comment
+        r"""For a production exchange line, the fields are:
+
+    0. Name
+    1. Amount
+    2. Unit
+    3. Allocation factor (out of 100)
+    4. Allocation type (?)
+    5. Category/subcategory, separated by '\\'
+    6. Comment
 
         """
         line = dataset[index]
@@ -507,13 +508,14 @@ class SimaProImporter(object):
         }
 
     def create_waste_treatment_exchange(self, data, dataset, index):
-        """For a waste treatment exchange line, the fields are:
-            0: Name
-            1: Amount
-            2: Unit
-            3: Waste types comment
-            4: Category/subcategory, separated by '\\'
-            5: Comment
+        r"""For a waste treatment exchange line, the fields are:
+
+    0. Name
+    1. Amount
+    2. Unit
+    3. Waste types comment
+    4. Category/subcategory, separated by '\\'
+    5. Comment
 
         """
         line = dataset[index]

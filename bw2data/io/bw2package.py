@@ -23,11 +23,13 @@ class BW2Package(object):
         {
             'metadata': {},  # Dictionary of metadata to be written to metadata-store.
             'name': basestring,  # Name of object
-            'class': {  # Data on the undying class. A new class is instantiated base on these strings. See _create_class.
+            'class': {  # Data on the underlying class. A new class is instantiated
+                        # based on these strings. See _create_class.
                 'module': basestring,  # e.g. "bw2data.database"
                 'name': basestring  # e.g. "Database"
             },
-            'unrolled_dict': bool,  # Flag indicating if dictionary keys needed to be modified for JSON
+            'unrolled_dict': bool,  # Flag indicating if dictionary keys needed to
+                                    # be modified for JSON (as JSON keys can't be tuples)
             'data': object  # Object data, e.g. LCIA method or LCI database
         }
 
@@ -156,10 +158,10 @@ class BW2Package(object):
 
         Args:
             * *filepath* (str): Path of file to import
-            * *whitelist* (bool): Apply whitelist to allowed types. Default is ``True``.
+            * *whitelist* (bool): Apply whitelist of approved classes to allowed types. Default is ``True``.
 
         Returns the loaded data in the bw2package dict data format, with the following changes:
-            * ``"class"`` is an actual class.
+            * ``"class"`` is an actual Python class object (but not instantiated).
 
         """
         raw_data = JsonSanitizer.load(JsonWrapper.load_bz2(filepath))

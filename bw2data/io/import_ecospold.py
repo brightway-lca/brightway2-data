@@ -295,62 +295,6 @@ Take a dataset, which has multiple outputs, and return a list of allocated datas
 
 Two things change in the allocated datasets. First, the name changes to the names of the individual outputs. Second, the list of exchanges is rewritten, and only the allocated exchanges are used.
 
-The list of ``exchanges`` looks like:
-
-.. code-block:: python
-
-    [
-        {
-        "code": 2,
-        "matching": {
-            "categories": data,
-            "location": data,
-            "unit": data,
-            "name": name
-            },
-        "uncertainty type": data
-        "amount": reference amount,
-        "group": 2
-        }, {
-        "code": 4,
-        "matching": {data},
-        "uncertainty type": data
-        "amount": 1,
-        "group": 5
-        }, {
-        "reference": 2,
-        "fraction": 0.5,
-        "exchanges": [4,]
-        }
-    ]
-
-It should be changed to:
-
-.. code-block:: python
-
-    [
-        {
-        "code": 2,
-        "matching": {
-            "categories": data,
-            "location": data,
-            "unit": data,
-            "name": name
-            },
-        "uncertainty type": data
-        "amount": number,
-        "group": 2
-        }, {
-        "code": 4,
-        "matching": {data},
-        "uncertainty type": data
-        "amount": 0.5,
-        "group": 5
-        }
-    ]
-
-Exchanges should also be copied and allocated for any other co-products.
-
         """
         coproduct_codes = [exc[u"code"] for exc in ds[u"exchanges"] if exc.get(
             u"group", None) in (0, 2)]
