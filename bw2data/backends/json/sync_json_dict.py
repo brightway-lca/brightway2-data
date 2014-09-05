@@ -28,7 +28,7 @@ class frozendict(dict):
 
 class SynchronousJSONDict(collections.MutableMapping):
 
-    """A dictionary which stores each value as a separate file on disk. Values are loaded asynchronously, but saved synchronously.
+    """A dictionary which stores each value as a separate file on disk. Values are loaded asynchronously (i.e. only as needed), but saved synchronously (i.e. immediately).
 
     Dictionary keys are strings, and do not correspond with filenames. The utility function `safe_filename` is used to translate keys into allowable filenames, and a separate mapping dictionary is kept to map dictionary keys to filenames.
 
@@ -44,6 +44,8 @@ class SynchronousJSONDict(collections.MutableMapping):
 
         my_sync_dict['foo'] = {'bar': 'baz'}
 
+    After which the 'foo' file would be updated.
+
     """
 
     def __init__(self, dirpath, dirname):
@@ -53,19 +55,23 @@ class SynchronousJSONDict(collections.MutableMapping):
         self.cache = {}
 
     def filepath(self, key):
+        """Use :func:`bw2data.utils.safe_filename` to get filename for key ``key``."""
         if key not in self.mapping:
             self.mapping[key] = safe_filename(key[1])
         return os.path.join(self.dirpath, self.mapping[key] + ".json")
 
-    def save_file(self, key, data):
+    def _save_file(self, key, data):
+        """Save data ``data`` to file for key ``key``."""
         # Use json instead of anyjson because need indent for version control
         with open(self.filepath(key), "w") as f:
             json.dump(data, f, indent=2)
 
-    def load_file(self, key):
+    def _load_file(self, key):
+        """Load the file for key ``key``."""
         return self.from_json(JsonWrapper.load(self.filepath(key)))
 
-    def delete_file(self, key):
+    def _delete_file(self, key):
+        """Delete the file associated with key ``key``."""
         os.remove(self.filepath(key))
         del self.mapping[key]
 
@@ -73,7 +79,7 @@ class SynchronousJSONDict(collections.MutableMapping):
         return self.mapping.keys()
 
     def from_json(self, data):
-        """Change exchange `inputs` from lists to tuples"""
+        """Change exchange `inputs` from lists to tuples (as there is no distinction in JSON, but Python only allows tuples as dictionary keys)."""
         for exc in data.get(u"exchanges", []):
             exc[u"input"] = tuple(exc[u"input"])
         if u"key" in data:
@@ -87,7 +93,7 @@ class SynchronousJSONDict(collections.MutableMapping):
         if key not in self.mapping:
             raise KeyError
         if key not in self.cache:
-            self.cache[key] = self.load_file(key)
+            self.cache[key] = self._load_file(key)
         return frozendict(self.cache[key])
 
     def __setitem__(self, key, value):
@@ -95,14 +101,14 @@ class SynchronousJSONDict(collections.MutableMapping):
         value = dict(value)  # Unfreeze if necessary
         value[u"key"] = key
         self.cache[key] = value
-        self.save_file(key, value)
+        self._save_file(key, value)
 
     def __delitem__(self, key):
         if key not in self.mapping:
             raise KeyError
         if key in self.cache:
             del self.cache[key]
-        self.delete_file(key)
+        self._delete_file(key)
 
     def __contains__(self, key):
         return key in self.mapping

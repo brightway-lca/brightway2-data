@@ -24,6 +24,8 @@ class LCIBackend(DataStore):
     * ``load()``
     * ``write(data)``
 
+    In addition, they should specify their backend with the ``backend`` attribute (a unicode string).
+
     ``LCIBackend`` provides the following, which should not need to be modified:
 
     * ``rename``
@@ -40,34 +42,33 @@ class LCIBackend(DataStore):
 
     Instantiation does not load any data. If this database is not yet registered in the metadata store, a warning is written to ``stdout``.
 
-    The data schema for databases is:
+    The data schema for databases in voluptuous is:
 
     .. code-block:: python
 
-        Schema({valid_tuple: {
-            Required("name"): basestring,
-            Required("type"): basestring,
-            Required("exchanges"): [{
+        exchange = {
                 Required("input"): valid_tuple,
                 Required("type"): basestring,
-                Required("amount"): Any(float, int),
-                **uncertainty_fields
-                }],
-            "categories": Any(list, tuple),
-            "location": object,
-            "unit": basestring
-            }}, extra=True)
+                }
+        exchange.update(**uncertainty_dict)
+        lci_dataset = {
+            Optional("categories"): Any(list, tuple),
+            Optional("location"): object,
+            Optional("unit"): basestring,
+            Optional("name"): basestring,
+            Optional("type"): basestring,
+            Optional("exchanges"): [exchange]
+        }
+        db_validator = Schema({valid_tuple: lci_dataset}, extra=True)
 
     where:
-        * ``valid_tuple`` is a dataset identifier, like ``("ecoinvent", "super strong steel")``
-        * ``uncertainty_fields`` are fields from an uncertainty dictionary
-
-    The data format is explained in more depth in the `Brightway2 key concepts documentation <http://brightway2.readthedocs.org/en/latest/key-concepts/data-formats.html#database-documents>`_.
+        * ``valid_tuple`` is a :ref:`dataset identifier <dataset-codes>`, like ``("ecoinvent", "super strong steel")``
+        * ``uncertainty_fields`` are fields from an :ref:`uncertainty dictionary <uncertainty-type>`.
 
     Processing a Database actually produces two parameter arrays: one for the exchanges, which make up the technosphere and biosphere matrices, and a geomapping array which links activities to locations.
 
     Args:
-        *name* (str): Name of the database to manage.
+        *name* (unicode string): Name of the database to manage.
 
     """
     metadata = databases
@@ -168,6 +169,7 @@ class LCIBackend(DataStore):
         * ``__len__``
         * ``keys()``
         * ``values()``
+        * ``items()``
         * ``iteritems()``
 
         It is recommended to subclass ``collections.MutableMapping`` (see ``SynchronousJSONDict`` for an example of data loaded on demand).
@@ -270,7 +272,7 @@ Doesn't return anything, but writes two files to disk.
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def query(self, *queries):
-        """Search through the database. See :class:`query.Query` for details."""
+        """Search through the database. See :ref:`searching-databases` for details."""
         return Query(*queries)(self.load())
 
     def random(self):
@@ -294,7 +296,7 @@ Doesn't return anything, but writes two files to disk.
             * *number*: Number of processes in this database.
 
         Args:
-            * *format* (str): Format that the database was converted from, e.g. "Ecospold"
+            * *format* (str, optional): Format that the database was converted from, e.g. "Ecospold"
 
         """
         if u'depends' not in kwargs:
@@ -345,11 +347,11 @@ Doesn't return anything, but writes two files to disk.
         In the example, the exchange to ``("old and boring", 42)`` does not change, as this is not part of the updated data.
 
         Args:
-            * *data* (dict): The database data to modify
+            * *data* (dict): The data to modify
             * *new_name* (str): The name of the modified database
 
         Returns:
-            The modified database
+            The modified data
 
         """
         def relabel_exchanges(obj, new_name):

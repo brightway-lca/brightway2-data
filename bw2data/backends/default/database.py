@@ -31,7 +31,7 @@ class SingleFileDatabase(LCIBackend):
         return self.filename_for_version()
 
     def filename_for_version(self, version=None):
-        """Filename for given version; Default is current.
+        """Filename for given version; Default is current version.
 
         Returns:
             Filename (not path)
@@ -55,7 +55,7 @@ class SingleFileDatabase(LCIBackend):
         Can also load previous versions of this database's intermediate data.
 
         Args:
-            * *version* (int): Version of the database to load. Default is *None*, for the latest version.
+            * *version* (int): Version of the database to load. Default ``version`` is the latest version.
 
         Returns:
             The intermediate data, a dictionary.
@@ -91,8 +91,6 @@ class SingleFileDatabase(LCIBackend):
 
         Databases must be registered before data can be written.
 
-        `kwargs` can include `depends` and `version`.
-
         """
         kwargs.update(
             version=kwargs.get(u'version', None) or 0
@@ -102,7 +100,7 @@ class SingleFileDatabase(LCIBackend):
     def revert(self, version):
         """Return data to a previous state.
 
-        .. warning:: Reverted changes can be overwritten.
+        .. warning:: Reverting can lead to data loss, e.g. if you revert from version 3 to version 1, and then save your database, you will overwrite version 2. Use :meth:`.make_latest_version` before saving, which will set the current version to 4.
 
         Args:
             * *version* (int): Number of the version to revert to.

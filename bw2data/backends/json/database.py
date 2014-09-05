@@ -10,7 +10,7 @@ class JSONDatabase(LCIBackend):
     """
     A data store for LCI databases. Stores each dataset in a separate file, serialized to JSON.
 
-    Instead of loading all the data at once, ``.load()`` creates a ``SynchronousJSONDict``, which loads values on demand, and saves changes as they are made. In order to make sure that changes are saved correctly, each dataset is returned as a ``frozendict``, which doesn't allow modifications. Any modifications must be done by creating a new dictionary, e.g.:
+    Instead of loading all the data at once, ``.load()`` creates a :class:`.SynchronousJSONDict`, which loads values on demand, and saves changes as they are made. In order to make sure that changes are saved correctly, each dataset is returned as a ``frozendict``, which doesn't allow modifications. Any modifications must be done by creating a new dictionary, e.g.:
 
     .. code-block:: python
 
@@ -22,7 +22,7 @@ class JSONDatabase(LCIBackend):
         >> my_new_ds["new key"] = "new value"
         >> my_db["some key"] = my_new_ds  # New data saved to disk
 
-    Use this backend by setting ``"backend": "json"`` in the database metadata. This is done automatically if you call ``.register()`` from this class.
+    Use this backend by setting ``"backend":"json"`` in the database metadata. This is done automatically if you call ``.register()`` from this class.
     """
     backend = u"json"
 
@@ -34,7 +34,7 @@ class JSONDatabase(LCIBackend):
         )
 
     def load(self, *args, **kwargs):
-        """Instantiate ``SynchronousJSONDict`` for this database."""
+        """Instantiate :class:`.SynchronousJSONDict` for this database."""
         self.assert_registered()
         return SynchronousJSONDict(self.filepath_intermediate(), self.name)
 
@@ -46,7 +46,7 @@ class JSONDatabase(LCIBackend):
             os.mkdir(self.filepath_intermediate())
 
     def write(self, data):
-        """Serialize data to disk. Most of the time, this data has already been saved to disk, so this is a no-op. The only exception is if ``data`` is a new database, instead of the result of a previous ``.load()`` call.
+        """Serialize data to disk. Most of the time, this data has already been saved to disk, so this is a no-op. The only exception is if ``data`` is a new database dictionary.
 
         Normalizes units when found.
 

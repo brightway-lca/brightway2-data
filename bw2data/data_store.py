@@ -53,7 +53,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
 
     @property
     def filename(self):
-        """Can be overwritten in cases where the filename is not the name"""
+        """Remove filesystem-unsafe characters and perform unicode normalization on ``self.name`` using :func:`.utils.safe_filename`."""
         return safe_filename(self.name)
 
     def register(self, **kwargs):
@@ -99,7 +99,17 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         return self.dtype_fields + self.base_uncertainty_fields
 
     def copy(self, name):
-        """Make a copy of this object. Takes new name as argument. Returns the new object."""
+        """Make a copy of this object with a new ``name``.
+
+        This method only changes the name, but not any of the data or metadata.
+
+        Args:
+            * *name* (object): Name of the new object.
+
+        Returns:
+            The new object.
+
+        """
         assert name not in self.metadata, u"%s already exists" % name
         new_obj = self.__class__(name)
         new_obj.register(**self.metadata[self.name])
@@ -201,8 +211,6 @@ Doesn't return anything, but writes a file to disk.
         return
 
     def validate(self, data):
-        """Validate data. Must be called manually.
-
-        Need some metaprogramming because class methods have `self` injected automatically."""
+        """Validate data. Must be called manually."""
         self.validator(data)
         return True
