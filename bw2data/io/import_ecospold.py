@@ -27,6 +27,13 @@ widgets = [
 ]
 
 
+def getattr2(obj, attr):
+    try:
+        return getattr(obj, attr)
+    except:
+        return {}
+
+
 class Ecospold1DataExtractor(object):
     @classmethod
     def extract(cls, path, log):
@@ -64,6 +71,23 @@ class Ecospold1DataExtractor(object):
     def process_dataset(cls, dataset):
         ref_func = dataset.metaInformation.processInformation.\
             referenceFunction
+        comments = [
+            ref_func.get("generalComment"),
+            ref_func.get("includedProcesses"),
+            (u"Location: ", dataset.metaInformation.processInformation.geography.get("text")),
+            (u"Technology: ", dataset.metaInformation.processInformation.technology.get("text")),
+            (u"Time period: ", getattr2(dataset.metaInformation.processInformation, "timePeriod").get("text")),
+            (u"Production volume: ", getattr2(dataset.metaInformation.modellingAndValidation, "representativeness").get("productionVolume")),
+            (u"Sampling: ", getattr2(dataset.metaInformation.modellingAndValidation, "representativeness").get("samplingProcedure")),
+            (u"Extrapolations: ", getattr2(dataset.metaInformation.modellingAndValidation, "representativeness").get("extrapolations")),
+            (u"Uncertainty: ", getattr2(dataset.metaInformation.modellingAndValidation, "representativeness").get("uncertaintyAdjustments")),
+        ]
+        comment = "\n".join([
+            (" ".join(x) if isinstance(x, tuple) else x)
+            for x in comments
+            if (x[1] if isinstance(x, tuple) else x)
+        ])
+
         data = {
             "name": ref_func.get("name").strip(),
             "type": "process",
@@ -73,7 +97,8 @@ class Ecospold1DataExtractor(object):
                 geography.get("location"),
             "code": int(dataset.get("number")),
             "unit": normalize_units(ref_func.get("unit")),
-            "exchanges": cls.process_exchanges(dataset)
+            "exchanges": cls.process_exchanges(dataset),
+            "comment": comment,
             }
         # Convert ("foo", "unspecified") to ("foo",)
         while data["categories"] and data["categories"][-1] in (
@@ -274,7 +299,8 @@ class Ecospold1Importer(object):
         # Dictionary constructor eliminates duplicate activities
         data = dict([((name, o.pop(u"hash")), o) for o in data])
         self.write_database(name, data, depends)
-        databases[self.name][u"directory"] = self.path
+
+        databases[name][u"directory"] = path
         databases.flush()
 
     def allocate_datasets(self, data):

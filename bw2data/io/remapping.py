@@ -45,3 +45,21 @@ US_LCI = {
     "Wood, NE-NC hardwood, purchased, combusted in industrial boiler": "Wood fuel, NE-NC hardwood, purchased, combusted in industrial boiler",
     'decomposition, corn, 15.5% moisture basis': "Corn, decomposition, 15.5% moisture",
 }
+
+ECOINVENT_301_TO_31 = {
+    'Silicon production, electronics grade': 'silicon production, electronics grade',
+    'anode production, for aluminium electrolysis': 'anode production, for metal electrolysis',
+    'floor heating from air-water heat pump': 'market for floor heating from air-water heat pump',
+    'floor heating from borehole heat pump': 'market for floor heating from borehole heat pump',
+    'heat and power co-generation, wood chips, 6400kW thermal, with extensive emission control': 'heat and power co-generation, wood chips, 6667 kW, state-of-the-art 2014',
+    'heat and power co-generation, wood chips, 6400kW thermal, with multicyclone emission control': 'heat and power co-generation, wood chips, 6667 kW',
+    'heat and power co-generation, wood chips, organic Rankine cycle, 1400kW thermal': 'heat and power co-generation, wood chips, 2000 kW',
+    'heat and power co-generation, wood chips, organic Rankine cycle, 1400kW thermal, with extensive emission control': 'heat and power co-generation, wood chips, 2000 kW, state-of-the-art 2014',
+    'heat production, wood pellet, at furnace 15kW': 'heat production, wood pellet, at furnace 9kW',
+    'market for anode, for aluminium electrolysis': 'market for anode, for metal electrolysis',
+    'market for sawnwood, hardwood, air / kiln dried, planed': 'market for sawnwood, hardwood, air dried, planed',
+    'market for sawnwood, softwood, raw, kiln dried, 20% water on dry mass basis': 'market for sawnwood, softwood, raw, kiln dried',
+    'market for water works': 'market for water works, capacity 1.1E10l/year',
+    'treatment of digester sludge by municipal incineration, future': 'treatment of digester sludge, municipal incineration, future',
+    'treatment of used industrial electronic device, WEEE collection': 'market for used industrial electronic device, WEEE collection'
+}

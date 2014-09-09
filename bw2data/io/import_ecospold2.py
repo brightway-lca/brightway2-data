@@ -23,6 +23,13 @@ PM_MAPPING = {
 }
 
 
+def getattr2(obj, attr):
+    try:
+        return getattr(obj, attr)
+    except:
+        return {}
+
+
 class Ecospold2DataExtractor(object):
 
     @classmethod
@@ -85,12 +92,40 @@ class Ecospold2DataExtractor(object):
         return data
 
     @classmethod
+    def condense_multiline_comment(cls, element):
+        try:
+            return u"\n".join([
+                child.text for child in element.iterchildren()
+                if child.tag == u"{http://www.EcoInvent.org/EcoSpold02}text"]
+            )
+        except:
+            return u""
+
+    @classmethod
     def extract_activity(cls, dirpath, filename, multioutput=False):
         root = objectify.parse(open(os.path.join(dirpath, filename))).getroot()
         if hasattr(root, u"activityDataset"):
             stem = root.activityDataset
         else:
             stem = root.childActivityDataset
+
+        comments = [
+            cls.condense_multiline_comment(getattr2(stem.activityDescription.activity, u"generalComment")),
+            (u"Included activities start: ", getattr2(stem.activityDescription.activity, u"includedActivitiesStart").get(u"text")),
+            (u"Included activities end: ", getattr2(stem.activityDescription.activity, u"includedActivitiesEnd").get(u"text")),
+            (u"Geography: ", cls.condense_multiline_comment(getattr2(
+                stem.activityDescription.geography, u"comment"))),
+            (u"Technology: ", cls.condense_multiline_comment(getattr2(
+                stem.activityDescription.technology, u"comment"))),
+            (u"Time period: ", cls.condense_multiline_comment(getattr2(
+                stem.activityDescription.timePeriod, u"comment"))),
+        ]
+        comment = "\n".join([
+            (" ".join(x) if isinstance(x, tuple) else x)
+            for x in comments
+            if (x[1] if isinstance(x, tuple) else x)
+        ])
+
         data = {
             u'name':      stem.activityDescription.activity.activityName.text,
             u'location':  stem.activityDescription.geography.shortname.text,
@@ -100,6 +135,7 @@ class Ecospold2DataExtractor(object):
                 u'activity':  stem.activityDescription.activity.get('id'),
                 u'filename':  filename,
             },
+            u"comment": comment,
         }
         data[u'products'] = [copy.deepcopy(exc)
                              for exc in data[u'exchanges']
