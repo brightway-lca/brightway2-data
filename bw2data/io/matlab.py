@@ -1,5 +1,6 @@
 # _*_ coding: utf-8
-from brightway2 import config, Database, LCA
+from .. import config, Database
+from bw2calc import LCA
 from bw2data.utils import safe_filename
 import scipy.io
 import os
