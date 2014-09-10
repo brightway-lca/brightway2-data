@@ -37,7 +37,7 @@ re_slugify = re.compile('[^\w\s-]', re.UNICODE)
 
 
 def natural_sort(l):
-    """Sort the given list in the way that humans expect"""
+    """Sort the given list in the way that humans expect, e.g. 9 before 10."""
     # http://nedbatchelder.com/blog/200712/human_sorting.html#comments
     convert = lambda text: int(text) if text.isdigit() else text
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
@@ -61,7 +61,7 @@ def random_string(length=8):
         * *length* (int): Length of string, default is 8
 
     Returns:
-        A string
+        A string (not unicode)
 
     """
     return ''.join(random.choice(string.letters + string.digits
@@ -72,10 +72,10 @@ def combine_methods(name, *ms):
     """Combine LCIA methods by adding duplicate characterization factors.
 
     Args:
-        * *ms* (one or more method ids): The method ids, e.g. ``("my method", "wow")``. Not the actual Method classes.
+        * *ms* (one or more method id tuples): Any number of method ids, e.g. ``("my method", "wow"), ("another method", "wheee")``.
 
     Returns:
-        The new Method
+        The new Method instance.
 
     """
     from . import Method, methods
@@ -100,7 +100,7 @@ def combine_methods(name, *ms):
 def safe_filename(string, add_hash=True):
     """Convert arbitrary strings to make them safe for filenames. Substitutes strange characters, and uses unicode normalization.
 
-    Optionally appends hash of name to avoid collisions.
+    if `add_hash`, appends hash of `string` to avoid name collisions.
 
     From http://stackoverflow.com/questions/295135/turn-a-string-into-a-valid-filename-in-python"""
     safe = re.sub(
@@ -122,7 +122,7 @@ def safe_filename(string, add_hash=True):
 
 
 def clean_exchanges(data):
-    """Make sure all exchange inputs are tuples"""
+    """Make sure all exchange inputs are tuples, not lists."""
     def tupleize(value):
         for exc in value.get('exchanges', []):
             exc['input'] = tuple(exc['input'])
@@ -134,21 +134,21 @@ def uncertainify(data, distribution=None, bounds_factor=0.1, sd_factor=0.1):
     """
 Add some rough uncertainty to exchanges.
 
-.. warning:: Only changes exchanges with no uncertainty type or uncertainty type ``UndefinedUncertainty``, and does not change production exchanges!
+.. warning:: This function only changes exchanges with no uncertainty type or uncertainty type ``UndefinedUncertainty``, and does not change production exchanges!
 
-Can only apply normal or uniform (default) distributions. Distribution, if specified, must be a ``stats_array`` object.
+Can only apply normal or uniform uncertainty distributions; default is uniform. Distribution, if specified, must be a ``stats_array`` uncertainty object.
 
-``data`` is a dictionary of data, e.g. what you get from ``Database.load()``.
+``data`` is a LCI data dictionary.
 
-If normal distribution:
+If using the normal distribution:
 
 * ``sd_factor`` will be multiplied by the mean to calculate the standard deviation.
 * If no bounds are desired, set ``bounds_factor`` to ``None``.
 * Otherwise, the bounds will be ``[(1 - bounds_factor) * mean, (1 + bounds_factor) * mean]``.
 
-If uniform distribution, then the bounds are ``[(1 - bounds_factor) * mean, (1 + bounds_factor) * mean]``.
+If using the uniform distribution, then the bounds are ``[(1 - bounds_factor) * mean, (1 + bounds_factor) * mean]``.
 
-Returns the modified dataset.
+Returns the modified data.
     """
     assert distribution in {None, sa.UniformUncertainty, sa.NormalUncertainty}, \
         u"``uncertainify`` only supports normal and uniform distributions"
@@ -189,9 +189,7 @@ Returns the modified dataset.
     return data
 
 def recursive_str_to_unicode(data, encoding="utf8"):
-    """Convert a nested python object (like a database) from byte strings to unicode strings using encoding.
-
-    ``data`` is some data, and ``encoding`` is something like ``"utf-8"`` (default)."""
+    """Convert the strings inside a (possibly nested) python data structure to unicode strings using `encoding`."""
     # Adapted from
     # http://stackoverflow.com/questions/1254454/fastest-way-to-convert-a-dicts-keys-values-from-unicode-to-str
     if isinstance(data, unicode):
@@ -227,7 +225,7 @@ def merge_databases(parent_db, *others):
 def database_hash(data):
     """Hash a Database.
 
-    Data is recursively sorted so that the hashes are consistent. Useful for exchanging data and making sure background databases are the same across computers.
+    Data is recursively sorted so that the hashes are consistent. Useful for ensuring integrity or compatibility when exchanging data.
 
     Args:
         * *data* (dict): The Database data.
@@ -245,13 +243,13 @@ def activity_hash(data):
     Used to import data formats like ecospold 1 (ecoinvent v1-2) and SimaPro, where no unique attributes for datasets are given. This is clearly an imperfect and brittle solution, but there is no other obvious approach at this time.
 
     Uses the following, in order:
-        * *name* Lower case, defult is ``""``.
-        * *categories* In string form, joined together with ``""``, default is ``[]``.
-        * *unit* Lower case, default is ``""``.
-        * *location* Lower case, default is ``""``.
+        * *name* Lower case, defult is ``""`` (empty string).
+        * *categories* In string form, joined together with ``""`` (empty string), default is ``[]``.
+        * *unit* Lower case, default is ``""`` (empty string).
+        * *location* Lower case, default is ``""`` (empty string).
 
     Args:
-        * *data* (list): The activity dataset data.
+        * *data* (dict): The :ref:`activity dataset data <database-documents>`.
 
     Returns:
         A MD5 hash string, hex-encoded.
@@ -265,7 +263,7 @@ def activity_hash(data):
 
 
 def download_file(filename):
-    """Download a file from ``DOWNLOAD_URL`` and write it to disk in ``downloads`` directory.
+    """Download a file from the Brightway2 website and write it to disk in ``downloads`` directory.
 
     Streams download to reduce memory usage.
 
@@ -291,7 +289,7 @@ def download_file(filename):
 
 
 def web_ui_accessible():
-    """Test if Brightway2 web is accessible. Returns a boolean."""
+    """Test if ``bw2-web`` is running and accessible. Returns ``True`` or ``False``."""
     base_url = config.p.get('web_ui_address', "http://127.0.0.1:5000") + "/ping"
     try:
         response = requests.get(base_url)
@@ -301,7 +299,7 @@ def web_ui_accessible():
 
 
 def open_activity_in_webbrowser(activity):
-    """Open a dataset document in the Brightway2 web UI. Requires web UI to be running.
+    """Open a dataset document in the Brightway2 web UI. Requires ``bw2-web`` to be running.
 
     ``activity`` is a dataset key, e.g. ``("foo", "bar")``."""
     base_url = config.p.get('web_ui_address', "http://127.0.0.1:5000")
