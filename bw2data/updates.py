@@ -22,7 +22,7 @@ is_hash = lambda x: bool(hash_re.match(x))
 
 UPTODATE_WARNING = Fore.RED + "\n\nYour data needs to be updated." + Fore.RESET \
     + " Please run the following program on the command line:\n\n\t" + \
-    Fore.BLUE + "bw2-uptodate.py\n" + Fore.RESET
+    Fore.BLUE + "bw2-uptodate\n" + Fore.RESET
 
 widgets = [
     progressbar.SimpleProgress(sep="/"), " (",

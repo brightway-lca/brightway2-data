@@ -38,7 +38,7 @@ class UpdaterInterface(object):
             for update in updates_needed:
                 print(Updates.explain(update))
             print(Fore.RED + "\n*** Action needed ***" + Fore.RESET + \
-                "\nPlease run " + Fore.BLUE + "bw2-uptodate.py\n")
+                "\nPlease run " + Fore.BLUE + "bw2-uptodate\n")
 
     def update(self, confirm=True):
         updates_needed = self.needed()
