@@ -281,7 +281,7 @@ Doesn't return anything, but writes two files to disk.
         Returns a random activity key, or ``None`` (and issues a warning) if the current database is empty."""
         keys = self.load().keys()
         if not keys:
-            warnings.warn("This database is empty")
+            warnings.warn(u"This database is empty")
             return None
         else:
             return random.choice(keys)

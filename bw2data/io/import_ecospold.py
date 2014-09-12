@@ -255,7 +255,7 @@ class Ecospold1Importer(object):
         """
 
         if LognormalUncertainty is None:
-            warnings.warn("``stats_array`` not installed!")
+            warnings.warn(u"``stats_array`` not installed!")
             return
 
         if depends is None:
@@ -278,12 +278,13 @@ class Ecospold1Importer(object):
 
         if not data:
             self.log.critical("No data found in XML file %s" % path)
-            warnings.warn("No data found in XML file %s" % path)
+            warnings.warn(u"No data found in XML file %s" % path)
             return
 
         # self.biosphere_hashed = {key: activity_hash(ds) for key, ds in foo}
 
         if flavor == "SimaPro8":
+            warnings.warn(u"SimaPro8 support is still experimental")
             print("Loading databases for SimaPro match")
             self.sp8_mangled_databases = [
                 SimaProMangler(db_name)

@@ -49,7 +49,7 @@ class Config(object):
             self.dir = tempfile.mkdtemp()
             self.is_temp_dir = True
             if not getattr(self, "dont_warn", False):
-                warnings.warn(u"\n\tYour changes will not be saved!\n"
+                warnings.warn(u"Your changes will not be saved!\n"
                               u"\tSet a writeable directory!\n"
                               u"\tCurrent data directory is:\n"
                               u"\t%s" % self.dir, UserWarning

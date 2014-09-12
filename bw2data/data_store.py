@@ -43,7 +43,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         self.name = name
         if self.name not in self.metadata and not \
                 getattr(config, "dont_warn", False):
-            warnings.warn(u"\n\t%s is not registered" % self, UserWarning)
+            warnings.warn(u"%s is not registered" % self)
 
     def __unicode__(self):
         return u"Brightway2 %s: %s" % (self.__class__.__name__, self.name)
