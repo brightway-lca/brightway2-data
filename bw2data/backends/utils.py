@@ -1,5 +1,6 @@
 from ..meta import databases
 import copy
+import warnings
 
 
 def convert_backend(database_name, backend):
@@ -19,9 +20,9 @@ def convert_backend(database_name, backend):
     data = db.load()
     metadata = copy.deepcopy(databases[database_name])
     del databases[database_name]
-    new_db = Database(database_name, backend)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        new_db = Database(database_name, backend)
         new_db.register(**metadata)
     new_db.write(data)
     new_db.process()
