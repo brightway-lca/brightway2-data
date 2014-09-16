@@ -17,8 +17,10 @@ def convert_backend(database_name, backend):
     db = Database(database_name)
     if db.backend == backend:
         return False
-    data = db.load()
+    # Needed to convert from async json dict
+    data = {key: dict(value) for key, value in db.load().items()}
     metadata = copy.deepcopy(databases[database_name])
+    metadata[u"backend"] = unicode(backend)
     del databases[database_name]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
