@@ -14,12 +14,21 @@ except ImportError:
     anyjson = None
 
 
+class FakeLog(object):
+    """Like a log object, but does nothing"""
+    def fake_function(cls, *args, **kwargs):
+        return
+
+    def __getattr__(self, attr):
+        return self.fake_function
+
+
 def get_logger(name, level=logging.INFO):
     filename = "%s-%s.log" % (
         name, datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"))
     handler = RotatingFileHandler(
         os.path.join(config.dir, 'logs', filename),
-        maxBytes=50000, encoding='utf-8', backupCount=5)
+        maxBytes=1e6, encoding='utf-8', backupCount=10)
     formatter = logging.Formatter(
         "%(asctime)s %(levelname)s %(lineno)d %(message)s")
     logger = logging.getLogger(name)
