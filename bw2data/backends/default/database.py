@@ -2,7 +2,7 @@
 from ... import databases, config, mapping, geomapping
 from ...errors import MissingIntermediateData
 from ...units import normalize_units
-from ...utils import natural_sort, safe_filename
+from ...utils import natural_sort, safe_filename, safe_save
 from ...validate import db_validator
 import datetime
 import os
@@ -159,5 +159,6 @@ class SingleFileDatabase(LCIBackend):
 
         if config.p.get(u"use_cache", False) and self.name in config.cache:
             config.cache[self.name] = data
-        with open(self.filepath_intermediate(), "wb") as f:
-            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with safe_save(self.filepath_intermediate()) as filepath:
+            with open(filepath, "wb") as f:
+                pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)

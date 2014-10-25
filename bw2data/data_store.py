@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*
 from . import config
 from .errors import UnknownObject, MissingIntermediateData
-from .utils import safe_filename
+from .utils import safe_filename, safe_save
 import numpy as np
 import os
 import warnings
@@ -141,8 +141,9 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             u"intermediate",
             self.filename + u".pickle"
         )
-        with open(filepath, "wb") as f:
-            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with safe_save(filepath) as filepath:
+            with open(filepath, "wb") as f:
+                pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def process_data(self, row):
         """Translate data into correct order"""

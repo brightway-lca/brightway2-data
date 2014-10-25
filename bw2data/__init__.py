@@ -2,6 +2,7 @@
 __version__ = (1, 2)
 
 from ._config import config
+from .utils import set_data_dir, bw2setup, safe_save
 from .meta import databases, methods, mapping, reset_meta, geomapping, \
     weightings, normalizations
 from .serialization import JsonWrapper
@@ -11,7 +12,6 @@ from .method import Method
 from .weighting_normalization import Weighting, Normalization
 from .query import Query, Filter, Result
 # Don't confuse nose tests
-from .utils import set_data_dir, bw2setup
 from .updates import Updates
 
 Updates.check_status()

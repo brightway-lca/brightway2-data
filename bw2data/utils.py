@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-from . import config, reset_meta
+from . import config
 from .errors import WebUIError
+from contextlib import contextmanager
 import codecs
 import collections
+import datetime
 import hashlib
 import itertools
 import os
@@ -119,6 +121,32 @@ def safe_filename(string, add_hash=True):
         return safe + u"." + hashlib.md5(string).hexdigest()
     else:
         return safe
+
+
+@contextmanager
+def safe_save(filepath):
+    """Safe to a temporary filename, and restore to the correct filename only upon a successful write.
+
+    This avoids data loss when a file is not completely written, for whatever reason. If an error occurs, the existing good data will not be overwritten. Usage:
+
+    .. code-block:: python
+
+        with safe_save("foo.txt") as filepath:
+            with open(filepath, "w") as f:
+                f.write("bar")
+
+    Inside the context block, ``filepath`` is transformed to ``".foo.txt"`` (keeping the correct path). As the context block is exited, the written file is renamed to ``"foo.txt"``.
+
+    Only needed in cases where you expect a data file to already be present on disk, e.g. metadata, or intermediate data. Not used on ``.process()`` as this can be repeated on error without data loss.
+
+    """
+    filepath = os.path.abspath(filepath)
+    save_filepath = os.path.join(
+        os.path.dirname(filepath),
+        u"." + os.path.basename(filepath)
+    )
+    yield save_filepath
+    os.rename(save_filepath, filepath)
 
 
 def clean_exchanges(data):
@@ -337,6 +365,7 @@ def set_data_dir(dirpath, permanent=True):
     else:
         config.dir = dirpath
     config.create_basic_directories()
+    from .meta import reset_meta
     reset_meta()
 
 
@@ -366,3 +395,31 @@ def create_in_memory_zipfile_from_directory(path):
     zf.close()
     memory_obj.seek(0)
     return memory_obj
+
+def create_snapshot():
+    """Take a snapshot of the current Brightway2 data directory. Includes the following objects:
+
+    * Database
+    * Weighting
+    * Normalization
+    * Method
+
+    Returns a filepath of the snapshot file."""
+    raise NotImplementedError("Not yet implement - this version has performance problems")
+    from . import Database, Weighting, Normalization, Weighting, databases, \
+        weightings, normalizations, methods, Method
+    from .io.bw2package import BW2Package
+
+    filename = u"Brightway2snapshot.%s" % datetime.datetime.now(
+        ).strftime("%d-%B-%Y-%I-%M%p")
+    use_cache = config.p.get(u"use_cache", False)
+    config.p[u"use_cache"] = False
+    objects = itertools.chain(
+        (Database(obj) for obj in databases),
+        (Weighting(obj) for obj in weightings),
+        (Normalization(obj) for obj in normalizations),
+        (Method(obj) for obj in methods)
+    )
+    fp = BW2Package.export_objs(objects, filename)
+    config.p[u"use_cache"] = use_cache
+    return fp
