@@ -1,10 +1,11 @@
 Changelog
 *********
 
-1.3 (2014-XX-XX)
+1.3 (2014-10-25)
 ================
 
 - FEATURE: Add SimaPro ecospold 1 imports, and create a new import "flavor" called "SimaPro8" that can handle the new way SimaPro breaks ecoinvent 3 activity names.
+- FEATURE: `utils.safe_save` makes sure a file write is successful before overwriting known good data.
 - CHANGE: Lots of documentation improvements.
 - CHANGE: Import comments by default in ecospold 1 & 2. Remove `import_comments.py` file.
 - CHANGE: Added some ecoinvent 3 units to `normalize_units`.
