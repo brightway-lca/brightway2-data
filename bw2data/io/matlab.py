@@ -1,18 +1,18 @@
 # _*_ coding: utf-8
 from .. import config, Database
-from bw2calc import LCA
 from bw2data.utils import safe_filename
 import scipy.io
 import os
 try:
     import xlsxwriter
+    from bw2calc import LCA
 except ImportError:
     xlsxwriter = None
 
 
 def lci_matrices_to_matlab(database_name):
     if not xlsxwriter:
-        raise ImportError(u"MATLAB export requires `xlsxwriter` (install with pip).")
+        raise ImportError(u"MATLAB export requires `xlsxwriter` and `bw2calc` (install with pip).")
     safe_name = safe_filename(database_name, False)
     dirpath = config.request_dir(u"export/%s-matlab" % safe_name)
 

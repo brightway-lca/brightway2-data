@@ -1,7 +1,13 @@
 Changelog
 *********
 
-1.3.1 (2014-XX-XX)
+1.3.2 (2014-10-27)
+==================
+
+- BUGFIX: Added missing `unidecode` dependency.
+- BUGFIX: Remove error when bw2calc is not installed.
+
+1.3.1 (2014-10-27)
 ==================
 
 - BUGFIX: `safe_save` now works on Windows.
