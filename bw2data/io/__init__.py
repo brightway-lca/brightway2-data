@@ -5,3 +5,4 @@ from .import_ecospold2 import Ecospold2Importer
 from .import_method import EcospoldImpactAssessmentImporter
 from .import_simapro import SimaProImporter
 from .matlab import lci_matrices_to_matlab
+from .snapshot import BW2Snapshot

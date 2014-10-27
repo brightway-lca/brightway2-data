@@ -395,31 +395,3 @@ def create_in_memory_zipfile_from_directory(path):
     zf.close()
     memory_obj.seek(0)
     return memory_obj
-
-def create_snapshot():
-    """Take a snapshot of the current Brightway2 data directory. Includes the following objects:
-
-    * Database
-    * Weighting
-    * Normalization
-    * Method
-
-    Returns a filepath of the snapshot file."""
-    raise NotImplementedError("Not yet implement - this version has performance problems")
-    from . import Database, Weighting, Normalization, Weighting, databases, \
-        weightings, normalizations, methods, Method
-    from .io.bw2package import BW2Package
-
-    filename = u"Brightway2snapshot.%s" % datetime.datetime.now(
-        ).strftime("%d-%B-%Y-%I-%M%p")
-    use_cache = config.p.get(u"use_cache", False)
-    config.p[u"use_cache"] = False
-    objects = itertools.chain(
-        (Database(obj) for obj in databases),
-        (Weighting(obj) for obj in weightings),
-        (Normalization(obj) for obj in normalizations),
-        (Method(obj) for obj in methods)
-    )
-    fp = BW2Package.export_objs(objects, filename)
-    config.p[u"use_cache"] = use_cache
-    return fp
