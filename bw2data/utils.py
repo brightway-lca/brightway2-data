@@ -145,7 +145,17 @@ def safe_save(filepath):
         os.path.dirname(filepath),
         u"." + os.path.basename(filepath)
     )
+    if os.path.exists(save_filepath):
+        os.unlink(save_filepath)
     yield save_filepath
+    if os.path.exists(filepath):
+        backup_filepath = os.path.join(
+            os.path.dirname(filepath),
+            u"." + os.path.basename(filepath) + u".backup"
+        )
+        if os.path.exists(backup_filepath):
+            os.unlink(backup_filepath)
+        os.rename(filepath, backup_filepath)
     os.rename(save_filepath, filepath)
 
 
