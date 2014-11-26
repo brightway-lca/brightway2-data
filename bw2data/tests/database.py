@@ -2,7 +2,7 @@
 from . import BW2DataTest
 from .. import config
 from ..database import DatabaseChooser
-from ..backends.default.database import SingleFileDatabase
+from ..backends.single_file.database import SingleFileDatabase
 from ..errors import UnknownObject, MissingIntermediateData, UntypedExchange, \
     InvalidExchange
 from ..meta import mapping, geomapping, databases

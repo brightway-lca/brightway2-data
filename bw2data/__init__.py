@@ -9,6 +9,8 @@ from .serialization import JsonWrapper
 from .database import DatabaseChooser as Database
 from .data_store import DataStore
 from .method import Method
+from .proxies.activity import Activity
+from .proxies.exchange import Exchange, Exchanges
 from .weighting_normalization import Weighting, Normalization
 from .query import Query, Filter, Result
 # Don't confuse nose tests

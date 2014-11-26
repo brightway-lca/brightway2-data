@@ -1,7 +1,13 @@
 Changelog
 *********
 
-1.4 (2014-XX-XX)
+2.0 (2014-XX-XX)
+================
+
+- FEATURE: Brightway2-simple Activity and Exchange proxies are now included
+- FEATURE: New backend, blitzdb, which is the default. Should massively reduce memory consumption in most cases, as entire databases don't need to be loaded.
+
+1.4 (2014-11-26)
 ================
 
 - BUGFIX: JSONDatabases are now JSON-serializable. Database variants must now support the keyword argument ``as_dict``, and return an actual ``dict`` if ``as_dict=True``.

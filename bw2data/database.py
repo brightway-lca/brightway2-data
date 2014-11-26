@@ -1,5 +1,5 @@
 from . import databases, config
-from .backends.default import SingleFileDatabase
+from .backends.single_file import SingleFileDatabase
 from .backends.json import JSONDatabase
 
 
