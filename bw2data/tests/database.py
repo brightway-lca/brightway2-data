@@ -6,6 +6,7 @@ from ..backends.default.database import SingleFileDatabase
 from ..errors import UnknownObject, MissingIntermediateData, UntypedExchange, \
     InvalidExchange
 from ..meta import mapping, geomapping, databases
+from ..serialization import JsonWrapper, JsonSanitizer
 from ..validate import db_validator
 from .fixtures import food, biosphere
 import copy
@@ -440,6 +441,20 @@ class SingleFileDatabaseTest(BW2DataTest):
         d.write(food)
         data = SingleFileDatabase("food").load()
         self.assertEqual(food, data)
+
+    def test_load_as_dict(self):
+        d = SingleFileDatabase("food")
+        d.register(depends=["biosphere"])
+        d.write(food)
+        data = SingleFileDatabase("food").load(as_dict=True)
+        self.assertTrue(isinstance(data, dict))
+
+    def test_db_is_json_serializable(self):
+        d = SingleFileDatabase("food")
+        d.register(depends=["biosphere"])
+        d.write(food)
+        data = SingleFileDatabase("food").load(as_dict=True)
+        JsonWrapper.dumps(JsonSanitizer.sanitize(data))
 
     def test_write_bumps_version_number(self):
         d = SingleFileDatabase("food")

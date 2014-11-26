@@ -3,10 +3,12 @@ from . import BW2DataTest
 from .. import config, databases
 from ..backends.json import JSONDatabase, SynchronousJSONDict
 from ..backends.json.mapping import KeyMapping, cache as mapping_cache
-import os
-import unittest
-import shutil
+from ..serialization import JsonWrapper, JsonSanitizer
+from .fixtures import food2
 import json
+import os
+import shutil
+import unittest
 
 
 class JSONDatabaseTest(BW2DataTest):
@@ -53,6 +55,22 @@ class JSONDatabaseTest(BW2DataTest):
         db.register()
         db.write({("foo", str(x)): {} for x in range(10)})
         self.assertEqual(databases["foo"]["number"], 10)
+
+    def test_load_as_dict(self):
+        d = JSONDatabase("food")
+        d.register()
+        d.write(food2)
+        data = d.load(as_dict=True)
+        self.assertTrue(isinstance(data, dict))
+        data = d.load()
+        self.assertFalse(isinstance(data, dict))
+
+    def test_db_is_json_serializable(self):
+        d = JSONDatabase("food")
+        d.register()
+        d.write(food2)
+        data = d.load(as_dict=True)
+        JsonWrapper.dumps(JsonSanitizer.sanitize(data))
 
 
 class SynchronousJSONDictTest(unittest.TestCase):

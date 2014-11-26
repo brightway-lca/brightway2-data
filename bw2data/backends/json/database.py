@@ -33,10 +33,14 @@ class JSONDatabase(LCIBackend):
             self.filename
         )
 
-    def load(self, *args, **kwargs):
+    def load(self, as_dict=False, *args, **kwargs):
         """Instantiate :class:`.SynchronousJSONDict` for this database."""
         self.assert_registered()
-        return SynchronousJSONDict(self.filepath_intermediate(), self.name)
+        dct = SynchronousJSONDict(self.filepath_intermediate(), self.name)
+        if as_dict:
+            return {key: dict(value) for key, value in dct.iteritems()}
+        else:
+            return dct
 
     def register(self, *args, **kwargs):
         """Register a database with the metadata store, using the correct value for ``backend``, and creates database directory."""

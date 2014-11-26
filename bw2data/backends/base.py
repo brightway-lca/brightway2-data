@@ -172,6 +172,8 @@ class LCIBackend(DataStore):
         * ``items()``
         * ``iteritems()``
 
+        However, this method **must** support the keyword argument ``as_dict``, and ``.load(as_dict=True)`` must return a normal dictionary with all Database data. This is necessary for JSON serialization.
+
         It is recommended to subclass ``collections.MutableMapping`` (see ``SynchronousJSONDict`` for an example of data loaded on demand).
 
         """

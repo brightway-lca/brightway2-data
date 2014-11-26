@@ -49,7 +49,7 @@ class SingleFileDatabase(LCIBackend):
             self.filename_for_version(version) + u".pickle"
         )
 
-    def load(self, version=None):
+    def load(self, version=None, **kwargs):
         """Load the intermediate data for this database.
 
         Can also load previous versions of this database's intermediate data.
