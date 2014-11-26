@@ -182,13 +182,17 @@ class BW2Package(object):
             Created object or list of created objects.
 
         """
+        use_cache = config.p['use_cache']
+        config.cache, config.p['use_cache'] = {}, False  # Save memory during import
         loaded = cls.load_file(filepath, whitelist)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             if isinstance(loaded, dict):
-                return cls._create_obj(loaded)
+                retv = cls._create_obj(loaded)
             else:
-                return [cls._create_obj(o) for o in loaded]
+                retv = [cls._create_obj(o) for o in loaded]
+        config.p['use_cache'] = use_cache
+        return retv
 
 
 def download_biosphere():
