@@ -6,6 +6,7 @@ from ...utils import natural_sort, safe_filename, safe_save
 from ...validate import db_validator
 import datetime
 import os
+import random
 try:
     import cPickle as pickle
 except ImportError:
@@ -85,6 +86,14 @@ class SingleFileDatabase(LCIBackend):
         data = self.load()
         databases[self.name][u"version"] = self.versions()[-1][0]
         self.write(data)
+
+    def random(self):
+        """Use mapping a index to select random activity key."""
+        return random.choice([
+            key for key in mapping
+            if isinstance(key, tuple)
+            and key[0] == self.name
+        ])
 
     def register(self, **kwargs):
         """Register a database with the metadata store.
