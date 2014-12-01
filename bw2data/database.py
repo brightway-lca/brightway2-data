@@ -1,6 +1,7 @@
 from . import databases, config
 from .backends.single_file import SingleFileDatabase
 from .backends.json import JSONDatabase
+from .backends.blitz import BlitzLCIDatabase
 
 
 def DatabaseChooser(name, backend=None):
@@ -23,11 +24,13 @@ def DatabaseChooser(name, backend=None):
 
     """
     if name in databases:
-        backend = databases[name].get(u"backend", u"default")
+        backend = databases[name].get(u"backend", u"blitz")
     else:
-        backend = backend or u"default"
+        backend = backend or u"blitz"
 
-    if backend == u"default":
+    if backend == u"blitz":
+        return BlitzLCIDatabase(name)
+    elif backend == u"singlefile":
         return SingleFileDatabase(name)
     elif backend == u"json":
         return JSONDatabase(name)

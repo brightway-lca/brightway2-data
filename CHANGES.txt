@@ -4,8 +4,10 @@ Changelog
 2.0 (2014-XX-XX)
 ================
 
-- FEATURE: Brightway2-simple Activity and Exchange proxies are now included
+- FEATURE: Backend now return activity and exchange proxies instead of raw data, making for easier manipulation and construction.
 - FEATURE: New backend, blitzdb, which is the default. Should massively reduce memory consumption in most cases, as entire databases don't need to be loaded.
+
+.. note:: This release makes the package ``bw2simple`` obsolete, as it funcationality is now included in ``bw2data`` by default.
 
 1.4 (2014-11-26)
 ================
