@@ -7,16 +7,18 @@ lci_database_backend = blitzdb.FileBackend(
     {'serializer_class': 'pickle'}
 )
 
+from .documents import ActivityDocument, ExchangeDocument
+from .database import BlitzLCIDatabase
+
 
 def create_indices():
-    lci_database_backend.create_index(Dataset, "code")
-    lci_database_backend.create_index(Dataset, "database")
-    lci_database_backend.create_index(Dataset, "name")
-    lci_database_backend.create_index(Exchange, "input")
+    lci_database_backend.create_index(ActivityDocument, "code")
+    lci_database_backend.create_index(ActivityDocument, "database")
+    lci_database_backend.create_index(ActivityDocument, "name")
+    lci_database_backend.create_index(ExchangeDocument, "input")
+    lci_database_backend.create_index(ExchangeDocument, "output")
+    lci_database_backend.create_index(ExchangeDocument, "input.0")
+    lci_database_backend.create_index(ExchangeDocument, "output.0")
 
 if not len(lci_database_backend.indexes) > 1:
     create_indices()
-
-
-from .documents import ActivityDocument, ExchangeDocument
-from .database import BlitzLCIDatabase

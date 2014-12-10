@@ -24,11 +24,16 @@ def DatabaseChooser(name, backend=None):
 
     """
     if name in databases:
-        backend = databases[name].get(u"backend", u"blitz")
+        backend = databases[name].get(u"backend", backend or u"blitz")
     else:
         backend = backend or u"blitz"
 
-    if backend == u"blitz":
+    # Backwards compatibility
+    if backend == u"default":
+        databases[name][u'backend'] = u'singlefile'
+        databases.flush()
+        return SingleFileDatabase(name)
+    elif backend == u"blitz":
         return BlitzLCIDatabase(name)
     elif backend == u"singlefile":
         return SingleFileDatabase(name)

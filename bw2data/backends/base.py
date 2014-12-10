@@ -193,7 +193,7 @@ Args:
 Doesn't return anything, but writes two files to disk.
 
         """
-        data = self.load(*args, **kwargs)
+        data = self.load(as_dict=True, *args, **kwargs)
         num_exchanges = sum([
             len(obj.get(u"exchanges", []))
             for obj in data.values()
