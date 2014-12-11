@@ -10,7 +10,10 @@ class ResultDict(collections.MutableMapping):
 
     @property
     def qs(self):
-        return self.backend.filter(ActivityDocument, {u'database': })
+        return self.backend.filter(
+            ActivityDocument,
+            {u'database': self.database.name}
+        )
 
     def keys(self):
         for obj in self.qs:
