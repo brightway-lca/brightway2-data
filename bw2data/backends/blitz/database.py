@@ -2,6 +2,7 @@ from . import lci_database_backend
 from ...utils import recursive_str_to_unicode
 from ..base import LCIBackend
 from .documents import ActivityDocument, ExchangeDocument
+from .result_dict import ResultDict
 from blitzdb.backends.file.queryset import QuerySet
 from copy import deepcopy
 import random
@@ -33,40 +34,58 @@ class BlitzLCIDatabase(LCIBackend):
         .. warning:: This method does not delete datasets not in ``data``.
 
         """
-        def process_exchange(exc, key):
-            exc = recursive_str_to_unicode(deepcopy(exc))
-            exc[u'output'] = key
-            ed = ExchangeDocument(exc)
-            ed.save()
-            return ed
-
         if data is not None:
             lci_database_backend.begin()
             for index, (key, ds) in enumerate(data.iteritems()):
                 ds = recursive_str_to_unicode(deepcopy(ds))
                 ds[u'database'], ds[u'code'] = key
-                ad = ActivityDocument(ds)
-                ad.exchanges = [process_exchange(exc, key) for exc in ds.get(u'exchanges')]
-                ad.save()
+                self.add(ds, False)
                 if index and not index % 1000:
                     lci_database_backend.commit()
                     lci_database_backend.begin()
             lci_database_backend.commit()
         lci_database_backend.commit()
 
+    def add(self, ds, commit=True):
+        def process_exchange(exc, ds):
+            exc = recursive_str_to_unicode(deepcopy(exc))
+            exc[u'output'] = (ds[u'database'], ds[u'code'])
+            ed = ExchangeDocument(exc)
+            ed.save()
+            return ed
+
+        assert u"database" and u"code" in ds, \
+            u"New dataset must have `database` and `code` values"
+        ad = ActivityDocument(ds)
+        ad.exchanges = [process_exchange(exc, ds) for exc in ds.get(u'exchanges', [])]
+        ad.save()
+        if commit:
+            lci_database_backend.commit()
+
     def random(self):
-        code = random.choice(lci_database_backend.indexes['activitydocument'][
+        pk = random.choice(lci_database_backend.indexes['activitydocument'][
                              'code']._index.keys())
-        return self.get(code)
+        return self.get(pk)
 
     def load(self, as_dict=False):
+        def unroll_exchanges(ds):
+            ds[u'exchanges'] = [obj.attributes for obj in ds.get(u'exchanges', [])]
+            return ds
+
         if not as_dict:
-            return lci_database_backend.filter(ActivityDocument, {})
+            return ResultDict(lci_database_backend, self)
+        else:
+            return {(obj[u'database'], obj[u'code']): unroll_exchanges(obj)
+                    for obj in self.filter()}
 
     def get(self, code):
-        return lci_database_backend.get(ActivityDocument, {u'code': code})
+        return lci_database_backend.get(
+            ActivityDocument,
+            {u'database': self.name, u'code': code}
+        )
 
     def filter(**kwargs):
+        kwargs[u'database'] = self.name
         return lci_database_backend.filter(ActivityDocument, kwargs)
 
     def exchanges(self):

@@ -7,8 +7,9 @@ lci_database_backend = blitzdb.FileBackend(
     {'serializer_class': 'pickle'}
 )
 
-from .documents import ActivityDocument, ExchangeDocument
 from .database import BlitzLCIDatabase
+from .documents import ActivityDocument, ExchangeDocument
+from .result_dict import ResultDict
 
 
 def create_indices():
