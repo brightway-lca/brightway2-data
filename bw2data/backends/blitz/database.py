@@ -27,6 +27,15 @@ class BlitzLCIDatabase(LCIBackend):
 
     """
     _in_transaction = False
+    _update_cache = set()
+    _delete_cache = set()
+    _add_cache = set()
+
+    # Add methods for save and delete
+    # See:
+    # http://whoosh.readthedocs.org/en/latest/indexing.html#updating-documents
+    # http://whoosh.readthedocs.org/en/latest/indexing.html#deleting-documents
+    # http://whoosh.readthedocs.org/en/latest/indexing.html#indexing-documents
 
     def write(self, data=None):
         """The `write` method is intended only for committing changes. Please add datasets manually.
@@ -58,9 +67,10 @@ class BlitzLCIDatabase(LCIBackend):
             u"New dataset must have `database` and `code` values"
         ad = ActivityDocument(ds)
         ad.exchanges = [process_exchange(exc, ds) for exc in ds.get(u'exchanges', [])]
-        ad.save()
+        ad.save(lci_database_backend)
         if commit:
             lci_database_backend.commit()
+        return ad
 
     def random(self):
         pk = random.choice(lci_database_backend.indexes['activitydocument'][
@@ -104,7 +114,7 @@ class BlitzLCIDatabase(LCIBackend):
         kwargs[u"backend"] = u"blitz"
         super(BlitzLCIDatabase, self).register(**kwargs)
 
-    def begin_transaction(self):
+    def begin(self):
         """Begin a transaction in the blitz database backend.
 
         Not normally needed, for expert use only. Manually manually transactions means that your data isn't written to disk, even if you call ``save()`` on a dataset, until a ``commit_transaction()``.
@@ -113,11 +123,12 @@ class BlitzLCIDatabase(LCIBackend):
         lci_database_backend.begin()
         self._in_transaction = True
 
-    def commit_transaction(self):
+    def commit(self):
         """Finish a transaction in the blitz database backend.
 
         Not normally needed, called automatically each time an activity dataset is called unless transactions are manually managed.
 
         """
+
         lci_database_backend.commit()
         self._in_transaction = False
