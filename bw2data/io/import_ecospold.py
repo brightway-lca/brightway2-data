@@ -37,11 +37,11 @@ def getattr2(obj, attr):
 
 class Ecospold1DataExtractor(object):
     @classmethod
-    def extract(cls, path, log):
+    def extract(cls, path, log, extension=u"xml"):
         data = []
         if os.path.isdir(path):
             files = [os.path.join(path, y) for y in filter(
-                lambda x: x[-4:].lower() == ".xml", os.listdir(path))]
+                lambda x: x.split(u".")[-1].lower() == extension, os.listdir(path))]
         else:
             files = [path]
 
@@ -143,7 +143,7 @@ class Ecospold1DataExtractor(object):
         data = {
             "code": int(exc.get("number")),
             "matching": {
-                "categories": (exc.get("category"), exc.get("subCategory")),
+                "categories": [exc.get("category"), exc.get("subCategory")],
                 "location": exc.get("location"),
                 "unit": normalize_units(exc.get("unit")),
                 "name": exc.get("name").strip()
@@ -243,7 +243,8 @@ class Ecospold1Importer(object):
     Does not have any arguments; instead, instantiate the class, and then import using the ``importer`` method, i.e. ``Ecospold1Importer().importer(filepath)``.
 
     """
-    def importer(self, path, name, depends=None, biosphere=config.biosphere, flavor=None, remapping={}):
+    def importer(self, path, name, depends=None, biosphere=config.biosphere,
+                 flavor=None, remapping={}, extension=u"xml"):
         """Import an inventory dataset, or a directory of inventory datasets.
 
         .. image:: images/import-method.png
@@ -264,12 +265,12 @@ class Ecospold1Importer(object):
         name, path = unicode(name), unicode(path)
         self.log, self.logfile = get_io_logger("lci-import")
         self.new_activities = []
-        self.new_biosphere = []
+        self.new_biosphere = {}
         self.remapping = remapping
         self.biosphere = biosphere
         self.flavor = flavor
 
-        data = Ecospold1DataExtractor.extract(path, self.log)
+        data = Ecospold1DataExtractor.extract(path, self.log, extension)
         # XML is encoded in UTF-8, but we want unicode strings
         data = recursive_str_to_unicode(data)
         data = self.allocate_datasets(data)
@@ -317,13 +318,11 @@ class Ecospold1Importer(object):
         data = linked_data + self.new_activities
 
         if self.new_biosphere:
-            self.new_biosphere = dict([((config.biosphere, o.pop(u"hash")), o) \
-                for o in self.new_biosphere])
-            biosphere = Database(config.biosphere)
+            biosphere = Database(self.biosphere)
             biosphere_data = biosphere.load()
             biosphere_data.update(self.new_biosphere)
             biosphere.write(biosphere_data)
-            # biosphere.process()
+            biosphere.process()
 
         data = self.set_exchange_types(data)
         data = self.clean_exchanges(data)
@@ -333,6 +332,9 @@ class Ecospold1Importer(object):
 
         databases[name][u"directory"] = path
         databases.flush()
+
+        print(u"Import finished. Please check logfile for correctness:\n%s" % \
+            self.logfile)
 
     def allocate_datasets(self, data):
         activities = []
@@ -421,9 +423,9 @@ Two things change in the allocated datasets. First, the name changes to the name
                     exc[u"input"] = (name, other_ds[u"hash"])
                     return exc
             # Can't match exchange - no categories, and nothing with same name
-            # in imported database.
-            raise ValueError("Exchange can't be matched:\n%s" % \
-                pprint.pformat(exc))
+            # in imported database. Will create new dataset to be linked later.
+            # raise ValueError("Exchange can't be matched:\n%s" % \
+            #     pprint.pformat(exc))
         exc[u"hash"] = activity_hash(exc[u"matching"])
         if exc['group'] == 4:
             assert exc[u"matching"][u"categories"][0] in BIOSPHERE, \
@@ -465,8 +467,11 @@ Two things change in the allocated datasets. First, the name changes to the name
                 exc[u"input"] = (name, self.create_activity(exc[u"matching"]))
                 return exc
             else:
-                raise ValueError("Exchange can't be matched:\n%s" % \
-                    pprint.pformat(exc))
+                print("Can't match exchange:")
+                pprint.pprint(exc)
+                return exc
+                # raise ValueError("Exchange can't be matched:\n%s" % \
+                #     pprint.pformat(exc))
         exc[u"hash"] = activity_hash(exc[u"matching"])
         if exc[u"matching"].get(u"categories", [None])[0] in BIOSPHERE:
             return self.link_biosphere(exc)
@@ -492,13 +497,15 @@ Two things change in the allocated datasets. First, the name changes to the name
                 pprint.pformat(exc))
 
     def link_biosphere(self, exc):
-        exc[u"input"] = (self.biosphere, exc[u"hash"])
-        if (self.biosphere, exc[u"hash"]) in Database(self.biosphere).load():
+        key = exc.pop("hash")
+        exc[u"input"] = (self.biosphere, key)
+        if (self.biosphere, key) in Database(self.biosphere).load():
+            return exc
+        elif (self.biosphere, key) in self.new_biosphere:
             return exc
         else:
             new_flow = copy.deepcopy(exc[u"matching"])
             new_flow.update({
-                u"hash": activity_hash(exc[u"matching"]),
                 u"type": u"resource" if new_flow[u"categories"][0] == u"resource" \
                     else u"emission",
                 u"exchanges": []
@@ -507,7 +514,8 @@ Two things change in the allocated datasets. First, the name changes to the name
             del new_flow[u"location"]
             self.log.warning(u"Created new biosphere flow:\n%s" % \
                 pprint.pformat(new_flow))
-            self.new_biosphere.append(new_flow)
+
+            self.new_biosphere[(self.biosphere, key)] = new_flow
             return exc
 
     def link_activity(self, exc, ds, data, depends, name):
@@ -586,7 +594,8 @@ Two things change in the allocated datasets. First, the name changes to the name
             u"exchanges": [],
             u"type": u"process",
             u"hash": activity_hash(exc),
-            })
+            u"missing": True
+        })
         self.new_activities.append(exc)
         return exc[u"hash"]
 
@@ -594,7 +603,7 @@ Two things change in the allocated datasets. First, the name changes to the name
         """Set the ``type`` attribute for each exchange, one of either (``production``, ``technosphere``, ``biosphere``). ``production`` defines the amount produced by the activity dataset (default is 1)."""
         for ds in data:
             for exc in ds[u"exchanges"]:
-                if exc[u"input"][0] == config.biosphere:
+                if exc[u"input"][0] == self.biosphere:
                     exc[u"type"] = u"biosphere"
                 elif exc["input"][1] == ds["hash"]:
                     exc[u"type"] = u"production"
@@ -605,7 +614,7 @@ Two things change in the allocated datasets. First, the name changes to the name
     def clean_exchanges(self, data):
         for ds in data:
             for exc in ds[u"exchanges"]:
-                if u"matching" in exc:
+                if u"matching" in exc and not exc.get(u"missing"):
                     del exc[u"matching"]
                 if u"hash" in exc:
                     del exc[u"hash"]
