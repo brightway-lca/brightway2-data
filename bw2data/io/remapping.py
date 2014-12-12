@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*
 
 US_LCI = {
+    "Aluminum, primary, ingot, at plant": "Aluminum, primary ingot, at plant",
+    "Aluminum, secondary, ingot, at plant": "Aluminum, secondary ingot, at plant",
     "Bark, hardwood, average, at forest road, NE-NC": "Bark, hardwood, average, at forest road,  NE-NC",
     "Bucked log, hardwood, green, at veneer mill, E": "Bucked and debarked log, hardwood, green, at veneer mill, E",
     "Chlorine, PVC producer average, at plant": "Chlor-alkali electrolysis, average production mix, at plant",  # Best guess?
@@ -25,6 +27,7 @@ US_LCI = {
     "Heat, onsite boiler, hardwood mill, average, NE-NC": "Heat, onsite boiler, hardwood mill average, NE-NC",
     "Natural gas, processed, for olefins production, at plant, internal offgas use": "Natural gas, processed, for olefins production, at plant",
     "Natural gas, processed, for olefins production, at plant, material use": "Natural gas, processed, for olefins production, at plant",
+    "Natural gas, processed, at plant": "Natural gas, processed, at plant, m3",
     "Palm kernel oil, crude, at plant": "Crude palm kernel oil, at plant",
     "Petroleum refining, for olefins production, at plant, internal offgas use": "Petroleum refining, for olefins production, at plant",
     "Petroleum refining, for olefins production, at plant, material use": "Petroleum refining, for olefins production, at plant",
