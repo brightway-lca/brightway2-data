@@ -1,15 +1,5 @@
 # -*- coding: utf-8 -*
 from .. import Database
-from ..utils import open_activity_in_webbrowser
-import re
-import urllib2
-
-url_pattern = re.compile("/view/(?P<database>.+)/(?P<code>.+)$")
-
-
-class NonURLKey(StandardError):
-    """Key is not a recognized bw2-web URL"""
-    pass
 
 
 class Activity(object):
@@ -34,18 +24,7 @@ See also the descriptions of each method below.
 
     """
     def __init__(self, key):
-        try:
-            self.key = self.decompose_url(key)
-        except NonURLKey:
-            self.key = key
-
-    def decompose_url(self, key):
-        try:
-            fa = url_pattern.findall(urllib2.unquote(key))
-            assert len(fa) == 1
-            return fa[0]
-        except:
-            raise NonURLKey
+        self.key = key
 
     # Magic methods to make Activity have the same behavior in dictionaries
     # as the normal ("foo", "bar") key
@@ -102,12 +81,6 @@ See also the descriptions of each method below.
     @property
     def code(self):
         return self.key[1]
-
-    def open_in_webbrowser(self):
-        """Open this activity in the web UI.
-
-        Requires `bw2-web` to be running."""
-        open_activity_in_webbrowser(self)
 
     def lca(self, method=None, amount=1.):
         """Shortcut to construct an LCA object for this activity."""
