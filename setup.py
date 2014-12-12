@@ -34,6 +34,7 @@ setup(
         "unicodecsv",
         "unidecode",
         "voluptuous",
+        "whoosh",
     ],
     url="https://bitbucket.org/cmutel/brightway2-data",
     long_description=open('README.rst').read(),

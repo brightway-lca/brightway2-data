@@ -11,6 +11,7 @@ from .data_store import DataStore
 from .method import Method
 from .proxies.activity import Activity
 from .proxies.exchange import Exchange, Exchanges
+from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
 from .query import Query, Filter, Result
 # Don't confuse nose tests
