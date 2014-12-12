@@ -46,16 +46,6 @@ def natural_sort(l):
     return sorted(l, key=alphanum_key)
 
 
-def recursively_sort(obj):
-    """Recursively sort a nested data structure."""
-    if isinstance(obj, dict):
-        return sorted([(k, recursively_sort(v)) for k, v in obj.iteritems()])
-    elif hasattr(obj, "__iter__"):
-        return sorted((recursively_sort(x) for x in obj))
-    else:
-        return obj
-
-
 def random_string(length=8):
     """Generate a random string of letters and numbers.
 
@@ -258,21 +248,6 @@ def combine_databases(name, *dbs):
 def merge_databases(parent_db, *others):
     """Merge ``others`` into ``parent_db``, including updating exchanges."""
     pass
-
-
-def database_hash(data):
-    """Hash a Database.
-
-    Data is recursively sorted so that the hashes are consistent. Useful for ensuring integrity or compatibility when exchanging data.
-
-    Args:
-        * *data* (dict): The Database data.
-
-    Returns:
-        A MD5 hash string, hex-encoded.
-
-    """
-    return hashlib.md5(unicode(recursively_sort(data))).hexdigest()
 
 
 def activity_hash(data):
