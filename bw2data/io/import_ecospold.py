@@ -18,7 +18,7 @@ import pprint
 import progressbar
 import warnings
 
-BIOSPHERE = ("air", "water", "soil", "resource", "final-waste-flow")  # Waste flow from SimaPro
+BIOSPHERE = ("air", "water", "soil", "resource", "final-waste-flow", "raw")  # Waste flow from SimaPro
 
 widgets = [
     progressbar.SimpleProgress(sep="/"), " (",
@@ -425,7 +425,9 @@ Two things change in the allocated datasets. First, the name changes to the name
             raise ValueError("Exchange can't be matched:\n%s" % \
                 pprint.pformat(exc))
         exc[u"hash"] = activity_hash(exc[u"matching"])
-        if exc[u"matching"].get(u"categories", [None])[0] in BIOSPHERE:
+        if exc['group'] == 4:
+            assert exc[u"matching"][u"categories"][0] in BIOSPHERE, \
+                u"Incorrect category for biosphere flow"
             return self.link_biosphere(exc)
         else:
             return self.link_activity(exc, ds, data, depends, name)
