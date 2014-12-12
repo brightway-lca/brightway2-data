@@ -16,13 +16,13 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="1.4",
+    version="2.0dev",
     packages=packages,
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
     license=open('LICENSE.txt').read(),
     install_requires=[
-        "blitzdb",
+        "codernitydb",
         "colorama",
         "docopt",
         "lxml",

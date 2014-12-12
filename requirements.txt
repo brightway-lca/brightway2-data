@@ -3,6 +3,7 @@ brightway2
 bw2analyzer>=0.5.2
 bw2calc>=0.15.1
 bw2ui>=0.15
+codernity
 colorama
 docopt
 flask
@@ -15,3 +16,4 @@ scipy
 stats_arrays>=0.2.4
 unicodecsv
 voluptuous
+whoosh

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*
-__version__ = (1, 4)
+__version__ = (2, 0, "dev")
 
 from ._config import config
 from .utils import set_data_dir, bw2setup, safe_save
