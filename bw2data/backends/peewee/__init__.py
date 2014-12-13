@@ -7,7 +7,4 @@ sqlite3_db = SqliteDatabase(os.path.join(config.request_dir(u"peewee"), u"lci.db
 from .schema import ActivityDataset, ExchangeDataset
 from .database import SQLiteBackend
 
-try:
-    sqlite3_db.create_tables([ActivityDataset, ExchangeDataset])
-except:
-    pass
+sqlite3_db.create_tables([ActivityDataset, ExchangeDataset], safe=True)
