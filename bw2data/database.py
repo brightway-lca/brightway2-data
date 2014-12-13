@@ -1,7 +1,7 @@
 from . import databases, config
 from .backends.single_file import SingleFileDatabase
 from .backends.json import JSONDatabase
-from .backends.codernity import CodernityDBBackend
+from .backends.codernitydb import CodernityDBBackend
 
 
 def DatabaseChooser(name, backend=None):
