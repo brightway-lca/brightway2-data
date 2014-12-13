@@ -1,0 +1,2 @@
+class SQLiteBackend(object):
+    pass

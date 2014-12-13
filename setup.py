@@ -22,11 +22,11 @@ setup(
     author_email="cmutel@gmail.com",
     license=open('LICENSE.txt').read(),
     install_requires=[
-        "codernitydb",
         "colorama",
         "docopt",
         "lxml",
         "numpy",
+        "peewee",
         "progressbar-ipython",
         "requests>=1.1.0",
         "scipy",

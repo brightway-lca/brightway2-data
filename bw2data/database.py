@@ -1,7 +1,7 @@
 from . import databases, config
 from .backends.single_file import SingleFileDatabase
 from .backends.json import JSONDatabase
-from .backends.codernity import CodernityDBBackend
+from .backends.peewee import SQLiteBackend
 
 
 def DatabaseChooser(name, backend=None):
@@ -24,17 +24,17 @@ def DatabaseChooser(name, backend=None):
 
     """
     if name in databases:
-        backend = databases[name].get(u"backend", backend or u"codernity")
+        backend = databases[name].get(u"backend", backend or u"sqlite")
     else:
-        backend = backend or u"codernity"
+        backend = backend or u"sqlite"
 
     # Backwards compatibility
     if backend == u"default":
         databases[name][u'backend'] = u'singlefile'
         databases.flush()
         return SingleFileDatabase(name)
-    elif backend == u"codernity":
-        return CodernityDBBackend(name)
+    elif backend == u"sqlite":
+        return SQLiteBackend(name)
     elif backend == u"singlefile":
         return SingleFileDatabase(name)
     elif backend == u"json":
