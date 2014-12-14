@@ -49,6 +49,8 @@ class BlitzLCIDatabase(LCIBackend):
                 ds = recursive_str_to_unicode(deepcopy(ds))
                 ds[u'database'], ds[u'code'] = key
                 self.add(ds, False)
+                if index and not index % 100:
+                    print index
                 if index and not index % 1000:
                     lci_database_backend.commit()
                     lci_database_backend.begin()

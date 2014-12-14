@@ -15,15 +15,16 @@ class ActivityDocument(Brightway2LCIDocument):
     def __hash__(self):
         return hash((self.database, self.code))
 
-    def save(self, *args, **kwargs):
-        """Save an activity document.
+    # def save(self, *args, **kwargs):
+    #     """Save an activity document.
 
-        Call through Database object to get synchronization with search engine."""
-        self._check_valid()
-        print "Calling save!"
-        # Do some stuff here
-        from . import BlitzLCIDatabase
-        BlitzLCIDatabase(self.database).delete(self)
+    #     Call through Database object to get synchronization with search engine."""
+    #     # self._check_valid()
+    #     # print "Calling save!"
+    #     # Do some stuff here
+    #     # from . import BlitzLCIDatabase
+    #     # BlitzLCIDatabase(self.database).delete(self)
+    #     self.__save()
 
     def __save(self, backend):
         """Save dataset to blitzdb backend"""
