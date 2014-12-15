@@ -7,6 +7,5 @@ bw2_schema = Schema(
     categories=TEXT(stored=True),
     location=ID(stored=True, sortable=True),
     database=ID(stored=True, sortable=True),
-    code=ID(stored=True, sortable=True),
-    key=ID(unique=True),
+    key=ID(unique=True, stored=True),
 )

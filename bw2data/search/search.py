@@ -6,7 +6,7 @@ class Searcher(object):
     def __init__(self):
         self.index = IndexManager().get()
 
-    def search(self, string, limit=25, facet=None):
+    def search(self, string, limit=25, facet=None, proxy=False):
         fields = [u"name", u"comment", u"product", u"categories"]
         qp = MultifieldParser(
             fields,

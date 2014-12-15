@@ -6,7 +6,6 @@ from whoosh import index
 class IndexManager(object):
     def __init__(self, dir_name=u"whoosh"):
         self.path = config.request_dir(u"whoosh")
-        self.writer = self.get()
 
     def get(self):
         try:
@@ -20,23 +19,30 @@ class IndexManager(object):
     def reset(self):
         return self.create()
 
-    def add_database(self, name):
-        db = Database(name).load()
-
-        for key, value in db.items():
-            self.add_dataset(key, value, False)
-        self.writer.commit()
-
-    def add_dataset(self, key, value, commit=True):
-        self.writer.add_document(
-            name=value.get(u"name", u""),
-            comment=value.get(u"comment", u""),
-            product=value.get(u"reference product", u""),
-            categories=u", ".join(value.get(u"categories", [])),
-            location=value.get(u"location", u""),
-            database=key[0],
-            code=key[1],
-            key="".join(key),
+    def _format_dataset(self, ds):
+        return dict(
+            name=ds.get(u"name", u""),
+            comment=ds.get(u"comment", u""),
+            product=ds.get(u"reference product", u""),
+            categories=u", ".join(ds.get(u"categories", [])),
+            location=ds.get(u"location", u""),
+            database=ds[u"database"],
+            key=u":".join((ds[u'database'], ds[u'code']))
         )
-        if commit:
-            self.writer.commit()
+
+    def add_dataset(self, ds):
+        writer = self.get().writer()
+        writer.add_document(**self._format_dataset(ds))
+        writer.commit()
+
+    def add_datasets(self, datasets):
+        writer = self.get().writer()
+        for ds in datasets:
+            writer.add_document(**self._format_dataset(ds))
+        writer.commit()
+
+    def update_dataset(self):
+        pass
+
+    def delete_dataset(self):
+        pass

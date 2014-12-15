@@ -4,7 +4,7 @@ from . import sqlite3_db
 
 class ActivityDataset(Model):
     data = BlobField()
-    key = TextField(index=True, null=False, unique=True)
+    key = TextField(index=True, unique=True)
     database = TextField()
     location = TextField(null=True)
     name = TextField(null=True)
@@ -16,8 +16,9 @@ class ActivityDataset(Model):
 
 class ExchangeDataset(Model):
     data = BlobField()
-    input_ = TextField(null=False)
-    output = TextField(null=False)
+    input_ = TextField(index=True)
+    output = TextField(index=True)
+    database = TextField(index=True)
     type_ = TextField()
 
     class Meta(object):
