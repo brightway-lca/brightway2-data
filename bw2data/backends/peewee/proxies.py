@@ -1,46 +1,21 @@
-import cPickle as pickle
+from .utils import dict_as_activity
 import collections
+import cPickle as pickle
+from .schema import ActivityDataset, ExchangeDataset
 
 
-class Activity(collections.MutableMapping):
+class ProxyBase(collections.MutableMapping):
+    _data = {}
+
     def __init__(self, document):
         self._document = document
         self._data = pickle.loads(str(self._document.data))
-        self._dirty = False
-
-    def save(self):
-        if not self._dirty:
-            return False
-        self._document.data = pickle.dumps(
-            self._data,
-            protocol=pickle.HIGHEST_PROTOCOL
-        )
-        self._document.save(only=self._document.dirty_fields)
-        self._dirty = False
-        return True
-
-    @property
-    def key(self):
-        return (self.database, self.code)
 
     def as_dict(self):
         return self._data
 
-    def __unicode__(self):
-        return u"'%s' (%s, %s, %s)" % (self.name, self.unit, self.location,
-                                       self.categories)
-
-    def __str__(self):
-        return str((self.database, self.code))
-
     def __repr__(self):
         return unicode(self).encode('utf-8')
-
-    def __eq__(self, other):
-        return (self.database, self.code) == other
-
-    def __hash__(self):
-        return hash((self.database, self.code))
 
     def __contains__(self, key):
         return key in self._data
@@ -52,31 +27,13 @@ class Activity(collections.MutableMapping):
         return len(self._data)
 
     def __getitem__(self, key):
-        if key == 0:
-            return self.database
-        elif key == 1:
-            return self.code
         return self._data[key]
 
     def __setitem__(self, key, value):
-        self._dirty = True
-        if key == u"database":
-            self._document.database = value
-            self._document.key = u":".join((value, self.code))
-        elif key == u"code":
-            self._document.code = value
-            self._document.key = u":".join((self.database, value))
-        elif key == u"location":
-            self._document.location = value
-        elif key == u"name":
-            self._document.name = value
-        elif key == u"reference product":
-            self._document.product = value
         self._data[key] = value
 
     def __delitem__(self, key):
-        # TODO
-        pass
+        del self._data[key]
 
     def __getattr__(self, attr):
         try:
@@ -84,10 +41,84 @@ class Activity(collections.MutableMapping):
         except KeyError:
             return None
 
-    # TODO
-    # def __setattr__(self, attr, value):
-    #     if hasattr(self, attr):
-    #         setattr(self, attr, value)
-    #     else:
-    #         raise ValueError(u"Use `foo['bar'] = 'baz'` instead of foo.bar"
-    #                          u" = 'baz' for setting values.")
+    def __eq__(self, other):
+        return self._dict == other
+
+    def __hash__(self):
+        return hash(self._dict)
+
+    def __setattr__(self, attr, value):
+        if self._data and attr in self._data:
+            raise AttributeError(u"Use `foo['bar'] = 'baz'` instead of "
+                                 u"`foo.bar = 'baz'` for setting values.")
+        else:
+            super(ProxyBase, self).__setattr__(attr, value)
+
+
+class Activity(ProxyBase):
+    def save(self):
+        as_activity = dict_as_activity(self._data)
+        for field in [u"database", u"location", u"product", u"name", u"key"]:
+            setattr(self._document, field, as_activity[field])
+        self._document.save()
+
+    @property
+    def key(self):
+        return (self.database, self.code)
+
+    def __unicode__(self):
+        return u"'%s' (%s, %s, %s)" % (self.name, self.unit, self.location,
+                                       self.categories)
+
+    def __str__(self):
+        return str(self.key)
+
+    def __eq__(self, other):
+        return self.key == other
+
+    def __hash__(self):
+        return hash(self.key)
+
+    def __getitem__(self, key):
+        # Basically a hack to let this act like a tuple with two
+        # elements, database and code.
+        if key == 0:
+            return self.database
+        elif key == 1:
+            return self.code
+        return self._data[key]
+
+    def __delitem__(self, key):
+        if key in {u"database", u"code"}:
+            raise ValueError(u"Activities must have `database` and `code` values.")
+        else:
+            del self._data[key]
+
+    @property
+    def exchanges(self):
+        return (Exchange(obj) for obj in ExchangeDataset.select().where(
+                   ExchangeDataset.output == self._document.key,
+                   ExchangeDataset.type_ == u"technosphere"
+        ))
+
+    @property
+    def upstream(self):
+        return (Exchange(obj) for obj in ExchangeDataset.select().where(ExchangeDataset.output == u":".join(self.key)))
+
+
+class Exchange(ProxyBase):
+    def __init__(self, document):
+        self._document = document
+        self._data = pickle.loads(str(self._document.data))
+
+    def save(self):
+        as_activity = dict_as_activity(self._data)
+        for field in [u"database", u"location", u"product", u"name", u"key"]:
+            setattr(self._document, field, as_activity[field])
+        self._document.save()
+
+    def __unicode__(self):
+        return u"Exchange"
+
+    def __str__(self):
+        return "{:.3e} {}: {}".format(self.amount, self.input, self.output)

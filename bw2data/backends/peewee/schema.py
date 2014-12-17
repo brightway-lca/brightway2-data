@@ -1,5 +1,5 @@
-from peewee import Model, TextField, BlobField
 from . import sqlite3_db
+from peewee import Model, TextField, BlobField
 
 
 class ActivityDataset(Model):

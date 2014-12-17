@@ -2,6 +2,7 @@ from . import sqlite3_db
 from ..base import LCIBackend
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset
+from .utils import dict_as_activity
 from peewee import fn
 import cPickle as pickle
 import progressbar
@@ -81,14 +82,7 @@ class SQLiteBackend(LCIBackend):
                 ds[u"database"] = key[0]
                 ds[u"code"] = key[1]
 
-                activities.append({
-                    "key": self._make_key(key),
-                    "database": key[0],
-                    "location": ds.get(u"location"),
-                    "name": ds.get(u"name"),
-                    "product": ds.get(u"reference product"),
-                    "data": pickle.dumps(ds, protocol=pickle.HIGHEST_PROTOCOL)
-                })
+                activities.append(dict_as_activity(ds))
 
                 if len(activities) > 150:
                     ActivityDataset.insert_many(activities).execute()
