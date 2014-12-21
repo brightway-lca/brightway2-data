@@ -1,5 +1,7 @@
+# -*- coding: utf-8 -*-
 import cPickle as pickle
 
+MAGIC_JOIN_CHARACTER = u"⊡"
 
 def dict_as_activity(ds):
     return {
@@ -10,3 +12,11 @@ def dict_as_activity(ds):
         u"product": ds.get(u"reference product"),
         u"data": pickle.dumps(ds, protocol=pickle.HIGHEST_PROTOCOL)
     }
+
+
+def keyjoin(tpl):
+    return MAGIC_JOIN_CHARACTER.join(tpl)
+
+
+def keysplit(key):
+    return tuple(key.split(MAGIC_JOIN_CHARACTER))

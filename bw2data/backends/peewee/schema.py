@@ -16,10 +16,10 @@ class ActivityDataset(Model):
 
 class ExchangeDataset(Model):
     data = BlobField()
-    input_ = TextField(index=True)
+    input = TextField(index=True)
     output = TextField(index=True)
     database = TextField(index=True)
-    type_ = TextField()
+    type = TextField()
 
     class Meta(object):
         database = sqlite3_db

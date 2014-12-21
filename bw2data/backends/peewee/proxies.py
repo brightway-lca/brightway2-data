@@ -1,4 +1,4 @@
-from .utils import dict_as_activity
+from .utils import dict_as_activity, keyjoin
 import collections
 import cPickle as pickle
 from .schema import ActivityDataset, ExchangeDataset
@@ -94,16 +94,25 @@ class Activity(ProxyBase):
         else:
             del self._data[key]
 
-    @property
-    def exchanges(self):
-        return (Exchange(obj) for obj in ExchangeDataset.select().where(
-                   ExchangeDataset.output == self._document.key,
-                   ExchangeDataset.type_ == u"technosphere"
-        ))
+    def exchanges(self, raw=False):
+        qs = ExchangeDataset.select().where(
+            ExchangeDataset.output == self._document.key,
+            ExchangeDataset.type == u"technosphere"
+        )
+        return (qs if raw else (Exchange(obj) for obj in qs))
 
-    @property
-    def upstream(self):
-        return (Exchange(obj) for obj in ExchangeDataset.select().where(ExchangeDataset.output == u":".join(self.key)))
+    def biosphere(self, raw=False):
+        qs = ExchangeDataset.select().where(
+            ExchangeDataset.output == self._document.key,
+            ExchangeDataset.type == u"biosphere"
+        )
+        return (qs if raw else (Exchange(obj) for obj in qs))
+
+    def upstream(self, raw=False):
+        qs =  ExchangeDataset.select().where(
+            ExchangeDataset.output == keyjoin(self.key)
+        )
+        return (qs if raw else (Exchange(obj) for obj in qs))
 
 
 class Exchange(ProxyBase):

@@ -2,14 +2,36 @@ from . import sqlite3_db
 from ..base import LCIBackend
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset
-from .utils import dict_as_activity
+from .utils import dict_as_activity, keyjoin, keysplit
 from peewee import fn
 import cPickle as pickle
 import progressbar
 
 
+# qs = AD.select().where(AD.key == (out_a.select(in_a.key).join(ED, on=(ED.output == out_a.key)).join(in_a, on=(ED.input_ == in_a.key)).where((ED.type_ == 'technosphere') & (in_a.product == out_a.product)))
+
+
 class SQLiteBackend(LCIBackend):
     backend = u"sqlite"
+
+    def load(self, *args, **kwargs):
+        # Should not be used, in general; relatively slow
+        activities = [pickle.loads(str(obj[u'data'])) for obj in
+            ActivityDataset.select(ActivityDataset.data)
+            .where(ActivityDataset.database == self.name).dicts()
+        ]
+
+        activities = {(o[u'database'], o[u'code']): o for o in activities}
+        for o in activities.values():
+            o[u'exchanges'] = []
+
+        exchange_qs = (ExchangeDataset.select(ExchangeDataset.data)
+            .where(ExchangeDataset.database == self.name).dicts())
+
+        for exc in exchange_qs:
+            exc = pickle.loads(str(exc[u'data']))
+            activities[exc[u'output']][u'exchanges'].append(exc)
+        return activities
 
     def random(self):
         return Activity(ActivityDataset.select().where(ActivityDataset.database == self.name).order_by(fn.Random()).get())
@@ -23,20 +45,20 @@ class SQLiteBackend(LCIBackend):
     def _make_key(self, obj):
         if isinstance(obj, basestring):
             obj = (self.name, obj)
-        return u":".join(obj)
+        return keyjoin(obj)
 
     def _drop_indices(self):
         with sqlite3_db.transaction():
             sqlite3_db.execute_sql('DROP INDEX IF EXISTS "activitydataset_key"')
             sqlite3_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_database"')
-            sqlite3_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_input_"')
+            sqlite3_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_input"')
             sqlite3_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_output"')
 
     def _add_indices(self):
         with sqlite3_db.transaction():
             sqlite3_db.execute_sql('CREATE UNIQUE INDEX "activitydataset_key" ON "activitydataset" ("key")')
             sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_database" ON "exchangedataset" ("database")')
-            sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_input_" ON "exchangedataset" ("input_")')
+            sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_input" ON "exchangedataset" ("input")')
             sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output")')
 
     def _efficient_write_many_data(self, data):
@@ -62,10 +84,10 @@ class SQLiteBackend(LCIBackend):
                     exchange[u'output'] = key
                     # TODO: Raise error if 'input' missing?
                     exchanges.append({
-                        'input_': self._make_key(exchange[u"input"]),
+                        'input': self._make_key(exchange[u"input"]),
                         'database': key[0],
                         "output": self._make_key(key),
-                        "type_": exchange.get(u"type"),
+                        "type": exchange.get(u"type"),
                         "data": pickle.dumps(exchange, protocol=pickle.HIGHEST_PROTOCOL)
                     })
 
