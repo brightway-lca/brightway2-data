@@ -14,7 +14,7 @@ class ProxyBase(collections.MutableMapping):
     def as_dict(self):
         return self._data
 
-    def __repr__(self):
+    def __str__(self):
         return unicode(self).encode('utf-8')
 
     def __contains__(self, key):
@@ -70,8 +70,8 @@ class Activity(ProxyBase):
         return u"'%s' (%s, %s, %s)" % (self.name, self.unit, self.location,
                                        self.categories)
 
-    def __str__(self):
-        return str(self.key)
+    def __repr__(self):
+        return (u"<Activity proxy for key: {}>".format(self.key)).encode('utf8')
 
     def __eq__(self, other):
         return self.key == other
@@ -129,5 +129,5 @@ class Exchange(ProxyBase):
     def __unicode__(self):
         return u"Exchange"
 
-    def __str__(self):
-        return "{:.3e} {}: {}".format(self.amount, self.input, self.output)
+    def __repr__(self):
+        return (u"<Exchange proxy for {}:{}>".format(self.input, self.output)).encode('utf8')

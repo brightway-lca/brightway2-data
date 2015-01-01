@@ -14,6 +14,9 @@ import progressbar
 class SQLiteBackend(LCIBackend):
     backend = u"sqlite"
 
+    def write(self, data):
+        self._efficient_write_many_data(data)
+
     def load(self, *args, **kwargs):
         # Should not be used, in general; relatively slow
         activities = [pickle.loads(str(obj[u'data'])) for obj in
