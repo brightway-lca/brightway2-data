@@ -118,6 +118,10 @@ class Config(object):
         envvar = os.getenv("BRIGHTWAY2_DIR")
         if envvar:
             self._dir_from = u"environment variable"
+            if not self.check_dir(envvar):
+                warnings.warn(u"The environment variable BRIGHTWAY2_DIR was set, "
+                    u"but doesn't exist or is not writable."
+                )
             return envvar
         for filename in (".brightway2path", "brightway2path.txt"):
             try:
