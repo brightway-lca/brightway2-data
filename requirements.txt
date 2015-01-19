@@ -5,6 +5,7 @@ bw2calc>=0.15.1
 bw2ui>=0.15
 codernity
 colorama
+dictdiffer
 docopt
 flask
 lxml

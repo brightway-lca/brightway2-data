@@ -23,6 +23,7 @@ setup(
     license=open('LICENSE.txt').read(),
     install_requires=[
         "colorama",
+        "dictdiffer",
         "docopt",
         "lxml",
         "numpy",
