@@ -74,7 +74,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
     def assert_registered(self):
         """Raise ``UnknownObject`` if not yet registered"""
         if self.name not in self.metadata:
-            raise UnknownObject(u"%s is not yet registered" % self)
+            raise UnknownObject(u"%s hasn't been created and has no data" % self)
 
     def load(self):
         """Load the intermediate data for this object.
@@ -134,7 +134,10 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             * *data* (object): The data
 
         """
-        self.assert_registered()
+        try:
+            self.assert_registered()
+        except:
+            self.register()
         self.add_mappings(data)
         filepath = os.path.join(
             config.dir,
