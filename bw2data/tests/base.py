@@ -7,7 +7,6 @@ import unittest
 class BW2DataTest(unittest.TestCase):
     def setUp(self):
         config.dont_warn = True
-        config.cache = {}
         config.dir = tempfile.mkdtemp()
         config.create_basic_directories()
         reset_meta()
