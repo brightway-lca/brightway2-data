@@ -1,9 +1,9 @@
-from . import sqlite3_db
+from . import sqlite3_db, PickleField
 from peewee import Model, TextField, BlobField
 
 
 class ActivityDataset(Model):
-    data = BlobField()
+    data = PickleField()
     key = TextField(index=True, unique=True)
     database = TextField()
     location = TextField(null=True)
@@ -15,7 +15,7 @@ class ActivityDataset(Model):
 
 
 class ExchangeDataset(Model):
-    data = BlobField()
+    data = PickleField()
     input = TextField(index=True)
     output = TextField(index=True)
     database = TextField(index=True)

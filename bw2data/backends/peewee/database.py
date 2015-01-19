@@ -4,22 +4,29 @@ from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activity, keyjoin, keysplit
 from peewee import fn
-import cPickle as pickle
 import progressbar
 
 
+# AD = ActivityDataset
+# out_a = AD.alias()
+# in_a = AD.alias()
 # qs = AD.select().where(AD.key == (out_a.select(in_a.key).join(ED, on=(ED.output == out_a.key)).join(in_a, on=(ED.input_ == in_a.key)).where((ED.type_ == 'technosphere') & (in_a.product == out_a.product)))
 
 
 class SQLiteBackend(LCIBackend):
     backend = u"sqlite"
 
+    def __iter__(self):
+        for ds in ActivityDataset.select().where(
+                ActivityDataset.database == self.name).order_by(fn.Random()):
+            yield Activity(ds)
+
     def write(self, data):
         self._efficient_write_many_data(data)
 
     def load(self, *args, **kwargs):
         # Should not be used, in general; relatively slow
-        activities = [pickle.loads(str(obj[u'data'])) for obj in
+        activities = [obj[u'data'] for obj in
             ActivityDataset.select(ActivityDataset.data)
             .where(ActivityDataset.database == self.name).dicts()
         ]
@@ -32,8 +39,7 @@ class SQLiteBackend(LCIBackend):
             .where(ExchangeDataset.database == self.name).dicts())
 
         for exc in exchange_qs:
-            exc = pickle.loads(str(exc[u'data']))
-            activities[exc[u'output']][u'exchanges'].append(exc)
+            activities[exc[u'data'][u'output']][u'exchanges'].append(exc['data'])
         return activities
 
     def random(self):
@@ -41,6 +47,13 @@ class SQLiteBackend(LCIBackend):
 
     def get(self, code):
         return Activity(ActivityDataset.select().where(ActivityDataset.key == self._make_key(code)).get())
+
+    def new(self, code, **kwargs):
+        obj = Activity()
+        obj[u'database'] = self.name
+        obj[u'code'] = unicode(code)
+        obj.update(**kwargs)
+        return obj
 
     def __len__(self):
         return ActivityDataset.select().where(ActivityDataset.database == self.name).count()
@@ -64,8 +77,10 @@ class SQLiteBackend(LCIBackend):
             sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_input" ON "exchangedataset" ("input")')
             sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output")')
 
-    def _efficient_write_many_data(self, data):
-        self._drop_indices()
+    def _efficient_write_many_data(self, data, indices=True):
+        be_complicated = len(data) >= 100 and indices
+        if be_complicated:
+            self._drop_indices()
         sqlite3_db.autocommit = False
         try:
             sqlite3_db.begin()
@@ -91,14 +106,14 @@ class SQLiteBackend(LCIBackend):
                         'database': key[0],
                         "output": self._make_key(key),
                         "type": exchange.get(u"type"),
-                        "data": pickle.dumps(exchange, protocol=pickle.HIGHEST_PROTOCOL)
+                        "data": exchange
                     })
 
                     # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
                     # SQLite3 has a limit of 999 variables,
                     # So 5 fields * 150 is under the limit
                     # Otherwise get the following:
-                    # eewee.OperationalError: too many SQL variables
+                    # peewee.OperationalError: too many SQL variables
                     if len(exchanges) > 150:
                         ExchangeDataset.insert_many(exchanges).execute()
                         exchanges = []
@@ -127,4 +142,5 @@ class SQLiteBackend(LCIBackend):
             raise
         finally:
             sqlite3_db.autocommit = True
-            self._add_indices()
+            if be_complicated:
+                self._add_indices()

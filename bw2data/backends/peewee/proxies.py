@@ -1,16 +1,10 @@
+from ...revisions import RevisionsInterface
+from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activity, keyjoin
 import collections
-import cPickle as pickle
-from .schema import ActivityDataset, ExchangeDataset
 
 
 class ProxyBase(collections.MutableMapping):
-    _data = {}
-
-    def __init__(self, document):
-        self._document = document
-        self._data = pickle.loads(str(self._document.data))
-
     def as_dict(self):
         return self._data
 
@@ -48,7 +42,7 @@ class ProxyBase(collections.MutableMapping):
         return hash(self._dict)
 
     def __setattr__(self, attr, value):
-        if self._data and attr in self._data:
+        if hasattr(self, "_data") and attr in self._data:
             raise AttributeError(u"Use `foo['bar'] = 'baz'` instead of "
                                  u"`foo.bar = 'baz'` for setting values.")
         else:
@@ -56,15 +50,33 @@ class ProxyBase(collections.MutableMapping):
 
 
 class Activity(ProxyBase):
+    def __init__(self, document=None):
+        self._document = document or ActivityDataset()
+        self._data = self._document.data if document else {}
+
     def save(self):
+        RevisionsInterface.save(self)
         as_activity = dict_as_activity(self._data)
         for field in [u"database", u"location", u"product", u"name", u"key"]:
             setattr(self._document, field, as_activity[field])
+        self._document.data = self._data
         self._document.save()
 
     @property
     def key(self):
         return (self.database, self.code)
+
+    @property
+    def dbkey(self):
+        return keyjoin(self.key)
+
+    @property
+    def revisions(self):
+        return RevisionsInterface.revisions(self)
+
+    def revert(self, index):
+        revision = RevisionsInterface.revert(self, index)
+        self._data = revision.data
 
     def __unicode__(self):
         return u"'%s' (%s, %s, %s)" % (self.name, self.unit, self.location,
@@ -110,15 +122,15 @@ class Activity(ProxyBase):
 
     def upstream(self, raw=False):
         qs =  ExchangeDataset.select().where(
-            ExchangeDataset.output == keyjoin(self.key)
+            ExchangeDataset.output == self.dbkey
         )
         return (qs if raw else (Exchange(obj) for obj in qs))
 
 
 class Exchange(ProxyBase):
-    def __init__(self, document):
-        self._document = document
-        self._data = pickle.loads(str(self._document.data))
+    def __init__(self, document=None):
+        self._document = document or ExchangeDataset()
+        self._data = self._document.data if document else {}
 
     def save(self):
         as_activity = dict_as_activity(self._data)
