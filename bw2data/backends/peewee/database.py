@@ -1,10 +1,16 @@
-from . import sqlite3_db
+from . import sqlite3_db, sqlite3_db_path
+from ... import mapping, geomapping
+from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ..base import LCIBackend
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activity, keyjoin, keysplit
 from peewee import fn
+import cPickle as pickle
+import itertools
+import numpy as np
 import progressbar
+import sqlite3
 
 
 # AD = ActivityDataset
@@ -144,3 +150,96 @@ class SQLiteBackend(LCIBackend):
             sqlite3_db.autocommit = True
             if be_complicated:
                 self._add_indices()
+
+    def process(self):
+        """
+Process inventory documents.
+
+Creates both a parameter array for exchanges, and a geomapping parameter array linking inventory activities to locations.
+
+If the uncertainty type is no uncertainty, undefined, or not specified, then the 'amount' value is used for 'loc' as well. This is needed for the random number generator.
+
+Args:
+    * *version* (int, optional): The version of the database to process
+
+Doesn't return anything, but writes two files to disk.
+
+        """
+
+        num_exchanges = ExchangeDataset.select().where(ExchangeDataset.database == self.name).count()
+        num_processes = ActivityDataset.select().where(
+            ActivityDataset.database == self.name).count()
+
+        # Create geomapping array
+        arr = np.zeros((num_processes, ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
+
+        for index, row in enumerate(ActivityDataset.select(
+                ActivityDataset.location, ActivityDataset.key).where(
+                ActivityDataset.database == self.name).order_by(
+                ActivityDataset.key).dicts()):
+            arr[index] = (
+                mapping[keysplit(row['key'])],
+                geomapping[row['location'] or config.global_location],
+                MAX_INT_32, MAX_INT_32,
+                0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
+            )
+
+        with open(self.filepath_geomapping(), "wb") as f:
+            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        missing_production_keys = list(ActivityDataset.select(
+            ActivityDataset.key).where(
+                ActivityDataset.database == self.name,
+                ~(ActivityDataset.key << ExchangeDataset.select(
+                    ExchangeDataset.output).where(
+                    ExchangeDataset.database == self.name,
+                    ExchangeDataset.input == ExchangeDataset.output))
+            ))
+
+        arr = np.zeros((num_exchanges + len(missing_production_keys), ), dtype=self.dtype)
+
+        # Using raw sqlite3 for ~2x speed boost
+        connection = sqlite3.connect(sqlite3_db_path)
+        cursor = connection.cursor()
+        SQL = "SELECT data FROM exchangedataset WHERE database = ? ORDER BY input, output"
+
+        for index, row in enumerate(cursor.execute(SQL, (self.name,))):
+            data = pickle.loads(str(row[0]))
+
+            if u"amount" not in data or u"input" not in data:
+                raise InvalidExchange
+            if u"type" not in data:
+                raise UntypedExchange
+
+            arr[index] = (
+                mapping[data[u"input"]],
+                mapping[data[u"output"]],
+                MAX_INT_32,
+                MAX_INT_32,
+                TYPE_DICTIONARY[data[u"type"]],
+                data.get(u"uncertainty type", 0),
+                data[u"amount"],
+                data[u"amount"] \
+                    if data.get(u"uncertainty type", 0) in (0,1) \
+                    else data.get(u"loc", np.NaN),
+                data.get(u"scale", np.NaN),
+                data.get(u"shape", np.NaN),
+                data.get(u"minimum", np.NaN),
+                data.get(u"maximum", np.NaN),
+                data[u"amount"] < 0
+            )
+
+        for index, key in zip(itertools.count(index), missing_production_keys):
+            arr[index] = (
+                mapping[keysplit(key)], mapping[keysplit(key)],
+                MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY[u"production"],
+                0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
+            )
+
+        # Automatically set 'depends'
+        # TODO: Rewrite find_dependents
+        # self.metadata[self.name]['depends'] = self.find_dependents()
+        # self.metadata.flush()
+
+        with open(self.filepath_processed(), "wb") as f:
+            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)

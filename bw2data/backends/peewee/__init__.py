@@ -2,7 +2,8 @@ from ... import config
 from peewee import SqliteDatabase
 import os
 
-sqlite3_db = SqliteDatabase(os.path.join(config.request_dir(u"peewee"), u"lci.db"))
+sqlite3_db_path = os.path.join(config.request_dir(u"peewee"), u"lci.db")
+sqlite3_db = SqliteDatabase(sqlite3_db_path)
 
 from .fields import PickleField
 from .schema import ActivityDataset, ExchangeDataset
