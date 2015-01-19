@@ -9,7 +9,7 @@ class _Fore(object):
 if not hasattr(config, "p"):
     config.load_preferences()
 
-if not config._ipython and not config.p.get('no_color'):
+if not True and not config.p.get('no_color'):
     from colorama import Fore, init, deinit
 
     # ASCII color codes

@@ -358,7 +358,6 @@ def bw2setup():
     """Create basic directories, and download biosphere and LCIA methods"""
     from .io import download_biosphere, download_methods
     config.create_basic_directories()
-    # config.is_temp_dir = False
     download_biosphere()
     download_methods()
 

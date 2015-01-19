@@ -71,8 +71,8 @@ See also the descriptions of each method below.
 
     @property
     def exchanges(self):
-        from bw2simple.exchange import Exchanges
-        return Exchanges(self.raw.get(u'exchanges', []), self)
+        from .exchange import Exchange
+        return [Exchange(exc) for exc in self.raw.get(u'exchanges', [])]
 
     @property
     def database(self):
@@ -96,5 +96,5 @@ See also the descriptions of each method below.
     @property
     def raw(self):
         if not hasattr(self, "_raw"):
-            self._raw = Database(self.key[0]).load()[self]
+            self._raw = Database(self.key[0]).get(self.key[1])
         return self._raw

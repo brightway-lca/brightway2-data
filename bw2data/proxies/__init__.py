@@ -1,3 +1,3 @@
 # -*- coding: utf-8 -*
 from .activity import Activity
-from .exchange import Exchange, Exchanges
+from .exchange import Exchange
