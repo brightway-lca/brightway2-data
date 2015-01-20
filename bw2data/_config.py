@@ -37,7 +37,7 @@ class Config(object):
 
     def check_dir(self, directory=None):
         """Returns ``True`` if given path is a directory and writeable, ``False`` otherwise. Default ``directory`` is the Brightway2 data directory."""
-        return os.path.isdir(self.dir) and \
+        return os.path.isdir(directory or self.dir) and \
             os.access(directory or self.dir, os.W_OK)
 
     def reset(self, path=None):
