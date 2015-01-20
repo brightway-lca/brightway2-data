@@ -29,3 +29,8 @@ class UntypedExchange(StandardError):
 class WebUIError(StandardError):
     """Can't find running instance of bw2-web"""
     pass
+
+
+class ValidityError(StandardError):
+    """The activity or exchange dataset does not have all the required fields"""
+    pass

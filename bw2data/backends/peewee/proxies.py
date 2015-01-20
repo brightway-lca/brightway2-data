@@ -1,7 +1,10 @@
+from ... import databases
+from ...errors import ValidityError
 from ...revisions import RevisionsInterface
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activity, keyjoin
 import collections
+import datetime
 
 
 class ProxyBase(collections.MutableMapping):
@@ -10,6 +13,8 @@ class ProxyBase(collections.MutableMapping):
 
     def __str__(self):
         return unicode(self).encode('utf-8')
+
+    __repr__ = __str__
 
     def __contains__(self, key):
         return key in self._data
@@ -55,12 +60,36 @@ class Activity(ProxyBase):
         self._data = self._document.data if document else {}
 
     def save(self):
+        if not self.valid():
+            raise ValidityError(u"; ".join(self.valid(why=True)[1]))
+
+        databases[self.database]['modified'] = datetime.datetime.now().isoformat()
+        databases.flush()
+
         RevisionsInterface.save(self)
         as_activity = dict_as_activity(self._data)
         for field in [u"database", u"location", u"product", u"name", u"key"]:
             setattr(self._document, field, as_activity[field])
         self._document.data = self._data
         self._document.save()
+
+    def valid(self, why=False):
+        errors = []
+        if u"database" not in self._data:
+            errors.append(u"Missing field ``database``")
+        elif self.database not in databases:
+            errors.append(u"``database`` refers to unknown database")
+        if u"code" not in self._data:
+            errors.append(u"Missing field ``code``")
+        if u"name" not in self._data:
+            errors.append(u"Missing field ``name``")
+        if errors:
+            if why:
+                return (False, errors)
+            else:
+                return False
+        else:
+            return True
 
     @property
     def key(self):
@@ -79,11 +108,11 @@ class Activity(ProxyBase):
         self._data = revision.data
 
     def __unicode__(self):
-        return u"'%s' (%s, %s, %s)" % (self.name, self.unit, self.location,
-                                       self.categories)
-
-    def __repr__(self):
-        return (u"<Activity proxy for key: {}>".format(self.key)).encode('utf8')
+        if self.valid():
+            return u"'%s' (%s, %s, %s)" % (self.name, self.unit, self.location,
+                                           self.categories)
+        else:
+            return u"Activity with missing fields (call ``valid(why=True)`` to see more)"
 
     def __eq__(self, other):
         return self.key == other

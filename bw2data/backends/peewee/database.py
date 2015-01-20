@@ -1,5 +1,5 @@
 from . import sqlite3_db, sqlite3_db_path
-from ... import mapping, geomapping
+from ... import mapping, geomapping, config
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ..base import LCIBackend
 from .proxies import Activity
@@ -7,11 +7,11 @@ from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activity, keyjoin, keysplit
 from peewee import fn
 import cPickle as pickle
+import datetime
 import itertools
 import numpy as np
 import progressbar
 import sqlite3
-
 
 # AD = ActivityDataset
 # out_a = AD.alias()
@@ -58,6 +58,7 @@ class SQLiteBackend(LCIBackend):
         obj = Activity()
         obj[u'database'] = self.name
         obj[u'code'] = unicode(code)
+        obj[u'location'] = config.global_location
         obj.update(**kwargs)
         return obj
 
@@ -84,6 +85,9 @@ class SQLiteBackend(LCIBackend):
             sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output")')
 
     def _efficient_write_many_data(self, data, indices=True):
+        self.metadata[self.name]['modified'] = datetime.datetime.now().isoformat()
+        self.metadata.flush()
+
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
             self._drop_indices()
@@ -153,19 +157,11 @@ class SQLiteBackend(LCIBackend):
 
     def process(self):
         """
-Process inventory documents.
+Process inventory documents to NumPy structured arrays.
 
-Creates both a parameter array for exchanges, and a geomapping parameter array linking inventory activities to locations.
-
-If the uncertainty type is no uncertainty, undefined, or not specified, then the 'amount' value is used for 'loc' as well. This is needed for the random number generator.
-
-Args:
-    * *version* (int, optional): The version of the database to process
-
-Doesn't return anything, but writes two files to disk.
+Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         """
-
         num_exchanges = ExchangeDataset.select().where(ExchangeDataset.database == self.name).count()
         num_processes = ActivityDataset.select().where(
             ActivityDataset.database == self.name).count()
@@ -203,6 +199,8 @@ Doesn't return anything, but writes two files to disk.
         cursor = connection.cursor()
         SQL = "SELECT data FROM exchangedataset WHERE database = ? ORDER BY input, output"
 
+        dependents = set()
+
         for index, row in enumerate(cursor.execute(SQL, (self.name,))):
             data = pickle.loads(str(row[0]))
 
@@ -210,6 +208,8 @@ Doesn't return anything, but writes two files to disk.
                 raise InvalidExchange
             if u"type" not in data:
                 raise UntypedExchange
+
+            dependents.add(data[u"input"][0])
 
             arr[index] = (
                 mapping[data[u"input"]],
@@ -229,17 +229,16 @@ Doesn't return anything, but writes two files to disk.
                 data[u"amount"] < 0
             )
 
-        for index, key in zip(itertools.count(index), missing_production_keys):
+        for index, key in zip(itertools.count(index + 1), missing_production_keys):
             arr[index] = (
                 mapping[keysplit(key)], mapping[keysplit(key)],
                 MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY[u"production"],
                 0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
             )
 
-        # Automatically set 'depends'
-        # TODO: Rewrite find_dependents
-        # self.metadata[self.name]['depends'] = self.find_dependents()
-        # self.metadata.flush()
+        self.metadata[self.name]['depends'] = list(dependents.difference({self.name}))
+        self.metadata[self.name]['processed'] = datetime.datetime.now().isoformat()
+        self.metadata.flush()
 
         with open(self.filepath_processed(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
