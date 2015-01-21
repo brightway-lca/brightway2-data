@@ -1,6 +1,5 @@
 from ... import databases
 from ...errors import ValidityError
-from ...revisions import RevisionsInterface
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activity, keyjoin
 import collections
@@ -69,7 +68,6 @@ class Activity(ProxyBase):
         databases[self.database]['modified'] = datetime.datetime.now().isoformat()
         databases.flush()
 
-        RevisionsInterface.save(self)
         as_activity = dict_as_activity(self._data)
         for field in [u"database", u"location", u"product", u"name", u"key"]:
             setattr(self._document, field, as_activity[field])
@@ -101,14 +99,6 @@ class Activity(ProxyBase):
     @property
     def dbkey(self):
         return keyjoin(self.key)
-
-    @property
-    def revisions(self):
-        return RevisionsInterface.revisions(self)
-
-    def revert(self, index):
-        revision = RevisionsInterface.revert(self, index)
-        self._data = revision.data
 
     def __unicode__(self):
         if self.valid():

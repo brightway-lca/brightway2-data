@@ -14,7 +14,6 @@ from .proxies.exchange import Exchange
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
 from .query import Query, Filter, Result
-from .revisions import RevisionsInterface
 # Don't confuse nose tests
 from .updates import Updates
 
