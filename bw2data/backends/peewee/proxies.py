@@ -61,7 +61,10 @@ class Activity(ProxyBase):
 
     def save(self):
         if not self.valid():
-            raise ValidityError(u"; ".join(self.valid(why=True)[1]))
+            raise ValidityError(u"This activity can't be saved for the "
+                u"following reasons\n\t* " + \
+                u"\n\t* ".join(self.valid(why=True)[1])
+            )
 
         databases[self.database]['modified'] = datetime.datetime.now().isoformat()
         databases.flush()

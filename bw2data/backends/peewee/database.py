@@ -28,6 +28,8 @@ class SQLiteBackend(LCIBackend):
             yield Activity(ds)
 
     def write(self, data):
+        self.metadata[self.name]['modified'] = datetime.datetime.now().isoformat()
+        self.metadata.flush()
         self._efficient_write_many_data(data)
 
     def load(self, *args, **kwargs):
@@ -85,9 +87,6 @@ class SQLiteBackend(LCIBackend):
             sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output")')
 
     def _efficient_write_many_data(self, data, indices=True):
-        self.metadata[self.name]['modified'] = datetime.datetime.now().isoformat()
-        self.metadata.flush()
-
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
             self._drop_indices()
