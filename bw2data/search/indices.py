@@ -1,6 +1,7 @@
 from .schema import bw2_schema
 from .. import config, Database
 from whoosh import index
+from ..backends.peewee.utils import keyjoin
 
 
 class IndexManager(object):
@@ -27,7 +28,7 @@ class IndexManager(object):
             categories=u", ".join(ds.get(u"categories", [])),
             location=ds.get(u"location", u""),
             database=ds[u"database"],
-            key=u":".join((ds[u'database'], ds[u'code']))
+            key=keyjoin((ds[u'database'], ds[u'code']))
         )
 
     def add_dataset(self, ds):
@@ -41,8 +42,11 @@ class IndexManager(object):
             writer.add_document(**self._format_dataset(ds))
         writer.commit()
 
-    def update_dataset(self):
-        pass
+    def update_dataset(self, ds):
+        writer = self.get().writer()
+        writer.update_document(**self._format_dataset(ds))
+        writer.commit()
 
-    def delete_dataset(self):
-        pass
+    def delete_dataset(self, ds):
+        index = self.get()
+        index.delete_by_term(u"key", keyjoin((ds[u'database'], ds[u'code'])))
