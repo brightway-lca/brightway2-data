@@ -14,6 +14,7 @@ import progressbar
 import warnings
 
 EMISSIONS = (u"air", u"water", u"soil")
+
 PM_MAPPING = {
     u'reliability': u'reliability',
     u'completeness': u'completeness',
@@ -22,6 +23,18 @@ PM_MAPPING = {
     u'furtherTechnologyCorrelation': u'further technological correlation'
 }
 
+ACTIVITY_TYPES = {
+    0: "ordinary transforming activity",
+    1: "market activity",
+    2: "IO activity",
+    3: "Residual activity",
+    4: "production mix",
+    5: "import activity",
+    6: "supply mix",
+    7: "export activity",
+    8: "re-export activity",
+    9: "correction activity",
+}
 
 def getattr2(obj, attr):
     try:
@@ -140,7 +153,10 @@ class Ecospold2DataExtractor(object):
                 u'filename':  filename,
             },
             u"comment": comment,
-            u"classifications": classifications
+            u"classifications": classifications,
+            u"activity type": ACTIVITY_TYPES[int(
+                stem.activityDescription.activity.get('specialActivityType') or 0
+            )]
         }
         data[u'products'] = [copy.deepcopy(exc)
                              for exc in data[u'exchanges']
