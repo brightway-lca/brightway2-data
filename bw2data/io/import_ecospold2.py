@@ -126,6 +126,10 @@ class Ecospold2DataExtractor(object):
             if (x[1] if isinstance(x, tuple) else x)
         ])
 
+        classifications = [(el.classificationSystem.text, el.classificationValue.text)
+            for el in stem.activityDescription.iterchildren()
+            if el.tag == u'{http://www.EcoInvent.org/EcoSpold02}classification']
+
         data = {
             u'name':      stem.activityDescription.activity.activityName.text,
             u'location':  stem.activityDescription.geography.shortname.text,
@@ -136,6 +140,7 @@ class Ecospold2DataExtractor(object):
                 u'filename':  filename,
             },
             u"comment": comment,
+            u"classifications": classifications
         }
         data[u'products'] = [copy.deepcopy(exc)
                              for exc in data[u'exchanges']
