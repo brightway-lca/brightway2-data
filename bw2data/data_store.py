@@ -124,7 +124,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             File path of backup.
 
         """
-        from .io import BW2Package
+        from bw2io import BW2Package
         return BW2Package.export_obj(self)
 
     def write(self, data):
