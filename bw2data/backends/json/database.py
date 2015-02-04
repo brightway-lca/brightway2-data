@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from ... import config, mapping, geomapping, databases
-from ...units import normalize_units
 from ..base import LCIBackend
 from .sync_json_dict import SynchronousJSONDict
 import os
@@ -64,9 +63,10 @@ class JSONDatabase(LCIBackend):
         databases.flush()
 
         mapping.add(data.keys())
-        for ds in data.values():
-            if u'unit' in ds:
-                ds[u"unit"] = normalize_units(ds[u"unit"])
+        # Shouldn't be automatic... ??
+        # for ds in data.values():
+        #     if u'unit' in ds:
+        #         ds[u"unit"] = normalize_units(ds[u"unit"])
         geomapping.add({x[u"location"] for x in data.values() if
                        x.get(u"location", False)})
 
