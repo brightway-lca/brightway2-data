@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
 from .. import Database, Method, methods
-from fixtures import biosphere
+from .fixtures import biosphere
 from ..utils import natural_sort, random_string, combine_methods, \
     uncertainify, safe_filename
 import stats_arrays as sa

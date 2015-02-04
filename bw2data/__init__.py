@@ -19,12 +19,10 @@ from .updates import Updates
 
 Updates.check_status()
 
-# Print only warning messages
-from .colors import Fore
 import warnings
 
 
 def warning_message(message, *args, **kwargs):
-    return Fore.RED + "Warning: " + Fore.RESET + unicode(message).encode("utf8", "ignore") + "\n"
+    return "Warning: " + unicode(message).encode("utf8", "ignore") + "\n"
 
 warnings.formatwarning = warning_message
