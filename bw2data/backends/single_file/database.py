@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from ... import databases, config, mapping, geomapping
 from ...errors import MissingIntermediateData
-from ...units import normalize_units
 from ...utils import natural_sort, safe_filename, safe_save
 from ...validate import db_validator
 import datetime
@@ -151,9 +150,10 @@ class SingleFileDatabase(LCIBackend):
         databases.increment_version(self.name, len(data))
 
         mapping.add(data.keys())
-        for ds in data.values():
-            if u'unit' in ds:
-                ds[u"unit"] = normalize_units(ds[u"unit"])
+        # Don't do automatically... ??
+        # for ds in data.values():
+        #     if u'unit' in ds:
+        #         ds[u"unit"] = normalize_units(ds[u"unit"])
         geomapping.add({x[u"location"] for x in data.values() if
                        x.get(u"location", False)})
 
