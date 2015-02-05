@@ -92,7 +92,8 @@ class SingleFileDatabase(LCIBackend):
 
         """
         kwargs.update(
-            version=kwargs.get(u'version', None) or 0
+            version=kwargs.get(u'version', None) or 0,
+            backend=u"singlefile"
         )
         super(SingleFileDatabase, self).register(**kwargs)
 
