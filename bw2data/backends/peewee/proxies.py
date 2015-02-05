@@ -148,6 +148,12 @@ class Activity(ProxyBase):
         )
         return (qs if raw else (Exchange(obj) for obj in qs))
 
+    def new_exchange(self, **kwargs):
+        """Create a new exchange linked to this activity"""
+        exc = Exchange()
+        exc.output = self
+        return exc
+
 
 class Exchange(ProxyBase):
     def __init__(self, document=None):
