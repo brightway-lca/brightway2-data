@@ -11,7 +11,7 @@ class ActivityDataset(Model):
     product = TextField(null=True)
 
     class Meta(object):
-        database = sqlite3_db
+        database = sqlite3_db()
 
 
 class ExchangeDataset(Model):
@@ -22,4 +22,4 @@ class ExchangeDataset(Model):
     type = TextField()
 
     class Meta(object):
-        database = sqlite3_db
+        database = sqlite3_db()

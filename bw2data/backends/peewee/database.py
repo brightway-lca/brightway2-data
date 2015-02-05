@@ -1,4 +1,4 @@
-from . import sqlite3_db, sqlite3_db_path
+from . import sqlite3_db
 from ... import mapping, geomapping, config
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ..base import LCIBackend
@@ -73,26 +73,26 @@ class SQLiteBackend(LCIBackend):
         return keyjoin(obj)
 
     def _drop_indices(self):
-        with sqlite3_db.transaction():
-            sqlite3_db.execute_sql('DROP INDEX IF EXISTS "activitydataset_key"')
-            sqlite3_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_database"')
-            sqlite3_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_input"')
-            sqlite3_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_output"')
+        with sqlite3_db().transaction():
+            sqlite3_db().execute_sql('DROP INDEX IF EXISTS "activitydataset_key"')
+            sqlite3_db().execute_sql('DROP INDEX IF EXISTS "exchangedataset_database"')
+            sqlite3_db().execute_sql('DROP INDEX IF EXISTS "exchangedataset_input"')
+            sqlite3_db().execute_sql('DROP INDEX IF EXISTS "exchangedataset_output"')
 
     def _add_indices(self):
-        with sqlite3_db.transaction():
-            sqlite3_db.execute_sql('CREATE UNIQUE INDEX "activitydataset_key" ON "activitydataset" ("key")')
-            sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_database" ON "exchangedataset" ("database")')
-            sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_input" ON "exchangedataset" ("input")')
-            sqlite3_db.execute_sql('CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output")')
+        with sqlite3_db().transaction():
+            sqlite3_db().execute_sql('CREATE UNIQUE INDEX "activitydataset_key" ON "activitydataset" ("key")')
+            sqlite3_db().execute_sql('CREATE INDEX "exchangedataset_database" ON "exchangedataset" ("database")')
+            sqlite3_db().execute_sql('CREATE INDEX "exchangedataset_input" ON "exchangedataset" ("input")')
+            sqlite3_db().execute_sql('CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output")')
 
     def _efficient_write_many_data(self, data, indices=True):
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
             self._drop_indices()
-        sqlite3_db.autocommit = False
+        sqlite3_db().autocommit = False
         try:
-            sqlite3_db.begin()
+            sqlite3_db().begin()
             exchanges, activities = [], []
 
             widgets = [
@@ -145,12 +145,12 @@ class SQLiteBackend(LCIBackend):
                 ActivityDataset.insert_many(activities).execute()
             if exchanges:
                 ExchangeDataset.insert_many(exchanges).execute()
-            sqlite3_db.commit()
+            sqlite3_db().commit()
         except:
-            sqlite3_db.rollback()
+            sqlite3_db().rollback()
             raise
         finally:
-            sqlite3_db.autocommit = True
+            sqlite3_db().autocommit = True
             if be_complicated:
                 self._add_indices()
 
@@ -194,7 +194,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         arr = np.zeros((num_exchanges + len(missing_production_keys), ), dtype=self.dtype)
 
         # Using raw sqlite3 for ~2x speed boost
-        connection = sqlite3.connect(sqlite3_db_path)
+        connection = sqlite3.connect(sqlite3_db.path)
         cursor = connection.cursor()
         SQL = "SELECT data FROM exchangedataset WHERE database = ? ORDER BY input, output"
 

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from .. import config, reset_meta
+from ..backends.peewee import sqlite3_db
 import tempfile
 import unittest
 
@@ -10,6 +11,7 @@ class BW2DataTest(unittest.TestCase):
         config.dir = tempfile.mkdtemp()
         config.create_basic_directories()
         reset_meta()
+        sqlite3_db.reset(is_test=True)
         self.extra_setup()
 
     def extra_setup(self):
