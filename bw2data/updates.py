@@ -3,7 +3,8 @@ from __future__ import print_function
 from . import Database, databases, Method, methods, config, Weighting, \
     weightings, Normalization, normalizations
 from .ia_data_store import abbreviate
-from .utils import activity_hash, recursive_str_to_unicode
+from .utils import recursive_str_to_unicode
+from bw2io.utils import activity_hash
 import os
 import pprint
 import progressbar
