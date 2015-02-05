@@ -30,6 +30,9 @@ class SQLiteBackend(LCIBackend):
     def write(self, data):
         self.metadata[self.name]['modified'] = datetime.datetime.now().isoformat()
         self.metadata.flush()
+        mapping.add(data.keys())
+        geomapping.add({x[u"location"] for x in data.values() if
+                       x.get(u"location", False)})
         self._efficient_write_many_data(data)
 
     def load(self, *args, **kwargs):
