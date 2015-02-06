@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from ... import databases, config, mapping, geomapping
 from ...errors import MissingIntermediateData
-from ..fatomic import open as atomic_open
+from ...fatomic import open as atomic_open
 from ...utils import natural_sort, safe_filename
 from ...validate import db_validator
 import datetime

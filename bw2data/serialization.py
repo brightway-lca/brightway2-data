@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import config
-from .fatomic import open as atomic_open, replace
+from .fatomic import open as atomic_open
 from time import time
 import bz2
 import os
@@ -28,10 +28,9 @@ class JsonWrapper(object):
 
     @classmethod
     def dump_bz2(self, data, filepath):
-        temp_fp = _tempfile()
-        with bz2.BZ2File(temp_fp, "wb") as f:
-            f.write(JsonWrapper.dumps(data))
-        replace(temp_fp, filepath)
+        with atomic_open(filepath, "wb") as f:
+            with bz2.BZ2File(f.name, "wb") as b:
+                b.write(JsonWrapper.dumps(data))
 
     @classmethod
     def load(self, file):
@@ -203,7 +202,7 @@ class SerializedDict(object):
 class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
     def serialize(self):
-        with atomic_open(filepath, "wb") as f:
+        with atomic_open(self.filepath, "wb") as f:
             pickle.dump(self.pack(self.data), f,
                 protocol=pickle.HIGHEST_PROTOCOL)
 
