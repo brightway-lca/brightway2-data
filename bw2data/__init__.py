@@ -2,7 +2,7 @@
 __version__ = (2, 0, "dev")
 
 from ._config import config
-from .utils import set_data_dir, bw2setup, safe_save
+from .utils import set_data_dir, bw2setup
 from .meta import databases, methods, mapping, reset_meta, geomapping, \
     weightings, normalizations
 from .serialization import JsonWrapper

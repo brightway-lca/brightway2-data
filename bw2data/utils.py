@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from . import config
 from .errors import WebUIError
+from .fatomic import open
 from contextlib import contextmanager
 import codecs
 import collections
@@ -111,42 +112,6 @@ def safe_filename(string, add_hash=True):
         return safe + u"." + hashlib.md5(string).hexdigest()
     else:
         return safe
-
-
-@contextmanager
-def safe_save(filepath):
-    """Safe to a temporary filename, and restore to the correct filename only upon a successful write.
-
-    This avoids data loss when a file is not completely written, for whatever reason. If an error occurs, the existing good data will not be overwritten. Usage:
-
-    .. code-block:: python
-
-        with safe_save("foo.txt") as filepath:
-            with open(filepath, "w") as f:
-                f.write("bar")
-
-    Inside the context block, ``filepath`` is transformed to ``".foo.txt"`` (keeping the correct path). As the context block is exited, the written file is renamed to ``"foo.txt"``.
-
-    Only needed in cases where you expect a data file to already be present on disk, e.g. metadata, or intermediate data. Not used on ``.process()`` as this can be repeated on error without data loss.
-
-    """
-    filepath = os.path.abspath(filepath)
-    save_filepath = os.path.join(
-        os.path.dirname(filepath),
-        u"." + os.path.basename(filepath)
-    )
-    if os.path.exists(save_filepath):
-        os.unlink(save_filepath)
-    yield save_filepath
-    if os.path.exists(filepath):
-        backup_filepath = os.path.join(
-            os.path.dirname(filepath),
-            u"." + os.path.basename(filepath) + u".backup"
-        )
-        if os.path.exists(backup_filepath):
-            os.unlink(backup_filepath)
-        os.rename(filepath, backup_filepath)
-    os.rename(save_filepath, filepath)
 
 
 def clean_exchanges(data):

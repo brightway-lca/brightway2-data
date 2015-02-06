@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 from . import config
-from .utils import safe_save
+from .fatomic import open as atomic_open, replace
 from time import time
 import bz2
 import os
 import random
+import tempfile
 try:
     import anyjson
 except ImportError:
@@ -19,18 +20,18 @@ except ImportError:
 class JsonWrapper(object):
     @classmethod
     def dump(self, data, filepath):
-        with safe_save(filepath) as filepath:
-            with open(filepath, "wb") as f:
-                if anyjson:
-                    f.write(anyjson.serialize(data))
-                else:
-                    json.dump(data, f, indent=2)
+        with atomic_open(filepath, "wb") as f:
+            if anyjson:
+                f.write(anyjson.serialize(data))
+            else:
+                json.dump(data, f, indent=2)
 
     @classmethod
     def dump_bz2(self, data, filepath):
-        with safe_save(filepath) as filepath:
-            with bz2.BZ2File(filepath, "wb") as f:
-                f.write(JsonWrapper.dumps(data))
+        temp_fp = _tempfile()
+        with bz2.BZ2File(temp_fp, "wb") as f:
+            f.write(JsonWrapper.dumps(data))
+        replace(temp_fp, filepath)
 
     @classmethod
     def load(self, file):
@@ -170,11 +171,8 @@ class SerializedDict(object):
             * *filepath* (str, optional): Provide an alternate filepath (e.g. for backup).
 
         """
-        with safe_save(filepath or self.filepath) as filepath:
-            JsonWrapper.dump(
-                self.pack(self.data),
-                filepath
-            )
+        with atomic_open(filepath or self.filepath, "w") as f:
+            f.write(JsonWrapper.dumps(self.pack(self.data)))
 
     def deserialize(self):
         """Load the serialized data. Can be replaced with other serialization formats."""
@@ -205,10 +203,9 @@ class SerializedDict(object):
 class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
     def serialize(self):
-        with safe_save(self.filepath) as filepath:
-            with open(filepath, "wb") as f:
-                pickle.dump(self.pack(self.data), f,
-                    protocol=pickle.HIGHEST_PROTOCOL)
+        with atomic_open(filepath, "wb") as f:
+            pickle.dump(self.pack(self.data), f,
+                protocol=pickle.HIGHEST_PROTOCOL)
 
     def deserialize(self):
         return self.unpack(pickle.load(open(self.filepath, "rb")))
