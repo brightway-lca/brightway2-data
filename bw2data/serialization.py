@@ -5,7 +5,6 @@ from time import time
 import bz2
 import os
 import random
-import tempfile
 try:
     import anyjson
 except ImportError:
