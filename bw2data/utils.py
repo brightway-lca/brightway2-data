@@ -32,6 +32,7 @@ TYPE_DICTIONARY = {
     "production": 0,
     "technosphere": 1,
     "biosphere": 2,
+    "substitution": 3,
 }
 
 DOWNLOAD_URL = "http://brightwaylca.org/data/"
