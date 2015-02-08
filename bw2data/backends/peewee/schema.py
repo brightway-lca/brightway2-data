@@ -9,6 +9,7 @@ class ActivityDataset(Model):
     location = TextField(null=True)
     name = TextField(null=True)
     product = TextField(null=True)
+    type = TextField(null=True)
 
     class Meta(object):
         database = sqlite3_db()

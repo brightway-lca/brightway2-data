@@ -185,14 +185,15 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         with open(self.filepath_geomapping(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-        missing_production_keys = list(ActivityDataset.select(
+        missing_production_keys = [x[0] for x in ActivityDataset.select(
             ActivityDataset.key).where(
                 ActivityDataset.database == self.name,
+                ActivityDataset.type == u"process",
                 ~(ActivityDataset.key << ExchangeDataset.select(
                     ExchangeDataset.output).where(
                     ExchangeDataset.database == self.name,
                     ExchangeDataset.input == ExchangeDataset.output))
-            ))
+            ).tuples()]
 
         arr = np.zeros((num_exchanges + len(missing_production_keys), ), dtype=self.dtype)
 

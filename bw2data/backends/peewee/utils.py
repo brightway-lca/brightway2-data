@@ -11,10 +11,11 @@ def keysplit(key):
 
 def dict_as_activity(ds):
     return {
-        u"key": keyjoin((ds[u"database"], ds[u"code"])),
+        u"data": ds,
         u"database": ds[u"database"],
+        u"key": keyjoin((ds[u"database"], ds[u"code"])),
         u"location": ds.get(u"location"),
         u"name": ds.get(u"name"),
         u"product": ds.get(u"reference product"),
-        u"data": ds
+        u"type": ds.get(u"type", u"process"),
     }
