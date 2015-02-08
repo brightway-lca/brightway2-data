@@ -136,7 +136,7 @@ class SQLiteBackend(LCIBackend):
 
                 activities.append(dict_as_activity(ds))
 
-                if len(activities) > 150:
+                if len(activities) > 125:
                     ActivityDataset.insert_many(activities).execute()
                     activities = []
 
