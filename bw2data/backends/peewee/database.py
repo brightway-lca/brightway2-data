@@ -1,5 +1,7 @@
+from __future__ import print_function
 from . import sqlite3_db
-from ... import mapping, geomapping, config
+from ... import mapping, geomapping, config, databases
+from ...search import IndexManager
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ..base import LCIBackend
 from .proxies import Activity
@@ -21,6 +23,13 @@ import sqlite3
 
 class SQLiteBackend(LCIBackend):
     backend = u"sqlite"
+
+    def __init__(self, *args, **kwargs):
+        super(SQLiteBackend, self).__init__(*args, **kwargs)
+        if self.name in databases:
+            self._searchable = databases[self.name].get('searchable', False)
+        else:
+            self._searchable = False
 
     def __iter__(self):
         for ds in ActivityDataset.select().where(
@@ -66,6 +75,17 @@ class SQLiteBackend(LCIBackend):
         obj[u'location'] = config.global_location
         obj.update(**kwargs)
         return obj
+
+    def make_searchable(self):
+        if self._searchable:
+            print("This database is already searchable")
+            return
+        databases[self.name][u'searchable'] = self._searchable = True
+        databases.flush()
+        IndexManager().add_datasets(self)
+
+    def make_unsearchable(self):
+        pass
 
     def __len__(self):
         return ActivityDataset.select().where(ActivityDataset.database == self.name).count()

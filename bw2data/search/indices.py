@@ -1,7 +1,7 @@
-from .schema import bw2_schema
-from .. import config, Database
-from whoosh import index
+from .. import config
 from ..backends.peewee.utils import keyjoin
+from .schema import bw2_schema
+from whoosh import index
 
 
 class IndexManager(object):
