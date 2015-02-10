@@ -303,6 +303,7 @@ Doesn't return anything, but writes two files to disk.
         """
         if u'depends' not in kwargs:
             kwargs[u'depends'] = []
+        kwargs[u"backend"] = self.backend
         super(LCIBackend, self).register(**kwargs)
 
     def relabel_data(self, data, new_name):

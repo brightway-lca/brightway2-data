@@ -89,7 +89,6 @@ class Updates(object):
                     obj.process()
                     # Free memory
                     obj = None
-                    config.cache = {}
                     pbar.update(index)
 
                 pbar.finish()

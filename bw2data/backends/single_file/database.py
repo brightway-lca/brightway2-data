@@ -25,6 +25,7 @@ class SingleFileDatabase(LCIBackend):
     """
     validator = db_validator
     backend = u"singlefile"
+    _cache = {}
 
     @property
     def filename(self):
@@ -67,13 +68,11 @@ class SingleFileDatabase(LCIBackend):
             except:
                 raise ValueError("Version number must be an integer")
         self.assert_registered()
-        if version is None and config.p.get(u"use_cache", False) and \
-                self.name in config.cache:
-            return config.cache[self.name]
+        if version is None and self._cache:
+            return self._cache
         try:
             data = pickle.load(open(self.filepath_intermediate(version), "rb"))
-            if version is None and config.p.get(u"use_cache", False):
-                config.cache[self.name] = data
+            self._cache = data
             return data
         except (OSError, IOError):
             raise MissingIntermediateData("This version (%i) not found" % version)
@@ -92,10 +91,7 @@ class SingleFileDatabase(LCIBackend):
         Databases must be registered before data can be written.
 
         """
-        kwargs.update(
-            version=kwargs.get(u'version', None) or 0,
-            backend=u"singlefile"
-        )
+        kwargs.update(version=kwargs.get(u'version', None) or 0)
         super(SingleFileDatabase, self).register(**kwargs)
 
     def revert(self, version):
@@ -110,8 +106,7 @@ class SingleFileDatabase(LCIBackend):
         assert version in [x[0] for x in self.versions()], "Version not found"
         self.backup()
         databases[self.name][u"version"] = version
-        if config.p.get(u"use_cache", False) and self.name in config.cache:
-            config.cache[self.name] = self.load(version)
+        self._cache = self.load(version)
         self.process(version)
 
     @property
@@ -139,27 +134,22 @@ class SingleFileDatabase(LCIBackend):
             datetime.datetime.fromtimestamp(os.stat(os.path.join(
             config.dir, directory, name)).st_mtime)) for name in files])
 
-    def write(self, data):
+    def write(self, data=None):
         """Serialize data to disk.
-
-        Normalizes units when found.
 
         Args:
             * *data* (dict): Inventory data
 
         """
         self.assert_registered()
+
+        if data is None and not self._cache:
+            raise ValueError(u"No dataset found")
+        data = self._cache if data is None else data
         databases.increment_version(self.name, len(data))
 
         mapping.add(data.keys())
-        # Don't do automatically... ??
-        # for ds in data.values():
-        #     if u'unit' in ds:
-        #         ds[u"unit"] = normalize_units(ds[u"unit"])
         geomapping.add({x[u"location"] for x in data.values() if
                        x.get(u"location", False)})
-
-        if config.p.get(u"use_cache", False) and self.name in config.cache:
-            config.cache[self.name] = data
         with atomic_open(self.filepath_intermediate(), "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)

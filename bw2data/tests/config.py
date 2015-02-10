@@ -17,11 +17,8 @@ class ConfigTest(BW2DataTest):
         self.assertTrue(config.request_dir(u"привет"))
 
     def test_basic_preferences(self):
-        preferences = {
-            "use_cache": True,
-        }
         config.load_preferences()
-        self.assertEqual(preferences, config.p)
+        self.assertEqual({}, config.p)
 
     def test_save_preferences(self):
         config.load_preferences()
