@@ -9,17 +9,7 @@ class JSONDatabase(LCIBackend):
     """
     A data store for LCI databases. Stores each dataset in a separate file, serialized to JSON.
 
-    Instead of loading all the data at once, ``.load()`` creates a :class:`.SynchronousJSONDict`, which loads values on demand, and saves changes as they are made. In order to make sure that changes are saved correctly, each dataset is returned as a ``frozendict``, which doesn't allow modifications. Any modifications must be done by creating a new dictionary, e.g.:
-
-    .. code-block:: python
-
-        >>> my_db = JSONDatabase("some database")
-        >>> my_ds = my_db["some key"]
-        >>> my_ds["new key"] = "new value"
-        AttributeError: A frozendict cannot be modified
-        >> my_new_ds = dict(my_ds)  # Create new object for modifications
-        >> my_new_ds["new key"] = "new value"
-        >> my_db["some key"] = my_new_ds  # New data saved to disk
+    Instead of loading all the data at once, ``.load()`` creates a :class:`.SynchronousJSONDict`, which loads values on demand.
 
     Use this backend by setting ``"backend":"json"`` in the database metadata. This is done automatically if you call ``.register()`` from this class.
     """
@@ -62,10 +52,6 @@ class JSONDatabase(LCIBackend):
         databases.flush()
 
         mapping.add(data.keys())
-        # Shouldn't be automatic... ??
-        # for ds in data.values():
-        #     if u'unit' in ds:
-        #         ds[u"unit"] = normalize_units(ds[u"unit"])
         geomapping.add({x[u"location"] for x in data.values() if
                        x.get(u"location", False)})
 
