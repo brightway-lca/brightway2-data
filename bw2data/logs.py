@@ -24,13 +24,13 @@ class FakeLog(object):
 
 
 def get_logger(name, level=logging.INFO):
-    filename = "%s-%s.log" % (
+    filename = u"%s-%s.log" % (
         name, datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"))
     handler = RotatingFileHandler(
         os.path.join(config.dir, 'logs', filename),
         maxBytes=1e6, encoding='utf-8', backupCount=10)
     formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s %(lineno)d %(message)s")
+        u"%(asctime)s %(levelname)s %(lineno)d %(message)s")
     logger = logging.getLogger(name)
     logger.propagate = False
     logger.setLevel(level)
@@ -44,7 +44,7 @@ def get_io_logger(name):
     dirname = config.request_dir("logs")
     assert dirname, "No logs directory found"
 
-    filepath = os.path.join(dirname, "%s.%s.log" % (name, random_string(6)))
+    filepath = os.path.join(dirname, u"%s.%s.log" % (name, random_string(6)))
     handler = logging.StreamHandler(codecs.open(filepath, "w", "utf-8"))
     logger = logging.getLogger(name)
     logger.propagate = False
@@ -55,15 +55,15 @@ def get_io_logger(name):
 
 
 def get_verbose_logger(name, level=logging.WARNING):
-    filename = "%s-%s.log" % (
+    filename = u"%s-%s.log" % (
         name, datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"))
     handler = RotatingFileHandler(
-        os.path.join(config.dir, 'logs', filename),
+        os.path.join(config.dir, u'logs', filename),
         maxBytes=50000, encoding='utf-8', backupCount=5)
     logger = logging.getLogger(name)
     logger.propagate = False
     logger.setLevel(level)
-    handler.setFormatter(logging.Formatter('''
+    handler.setFormatter(logging.Formatter(u'''
 Message type:       %(levelname)s
 Location:           %(pathname)s:%(lineno)d
 Module:             %(module)s
