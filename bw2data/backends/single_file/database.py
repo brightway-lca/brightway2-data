@@ -2,15 +2,16 @@
 from ... import databases, config, mapping, geomapping
 from ...errors import MissingIntermediateData
 from ...fatomic import open as atomic_open
+from ...proxies import Activity
 from ...utils import natural_sort, safe_filename
 from ...validate import db_validator
+from ..base import LCIBackend
 import datetime
 import os
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
-from ..base import LCIBackend
 
 
 class SingleFileDatabase(LCIBackend):
@@ -25,7 +26,10 @@ class SingleFileDatabase(LCIBackend):
     """
     validator = db_validator
     backend = u"singlefile"
-    _cache = {}
+
+    def __iter__(self):
+        for k, v in self.load().items():
+            yield Activity(k, self, v)
 
     @property
     def filename(self):
@@ -50,6 +54,9 @@ class SingleFileDatabase(LCIBackend):
             self.filename_for_version(version) + u".pickle"
         )
 
+    def get(self, code):
+        return self.load()[(self.name, code)]
+
     def load(self, version=None, **kwargs):
         """Load the intermediate data for this database.
 
@@ -68,12 +75,18 @@ class SingleFileDatabase(LCIBackend):
             except:
                 raise ValueError("Version number must be an integer")
         self.assert_registered()
-        if version is None and self._cache:
-            return self._cache
+
         try:
-            data = pickle.load(open(self.filepath_intermediate(version), "rb"))
-            self._cache = data
-            return data
+            if (version is None
+                and config.p.get(u"use_cache", False)
+                and self.name in config.cache):
+                return config.cache[self.name]
+            else:
+                data = pickle.load(open(self.filepath_intermediate(version), "rb"))
+                if (version is None
+                    and config.p.get(u"use_cache", False)):
+                    config.cache[self.name] = data
+                return data
         except (OSError, IOError):
             raise MissingIntermediateData("This version (%i) not found" % version)
 
@@ -106,7 +119,9 @@ class SingleFileDatabase(LCIBackend):
         assert version in [x[0] for x in self.versions()], "Version not found"
         self.backup()
         databases[self.name][u"version"] = version
-        self._cache = self.load(version)
+        if (config.p.get(u"use_cache", False)
+            and self.name in config.cache):
+            config.cache[self.name] = self.load(version)
         self.process(version)
 
     @property
@@ -134,7 +149,7 @@ class SingleFileDatabase(LCIBackend):
             datetime.datetime.fromtimestamp(os.stat(os.path.join(
             config.dir, directory, name)).st_mtime)) for name in files])
 
-    def write(self, data=None):
+    def write(self, data):
         """Serialize data to disk.
 
         Args:
@@ -143,9 +158,10 @@ class SingleFileDatabase(LCIBackend):
         """
         self.assert_registered()
 
-        if data is None and not self._cache:
-            raise ValueError(u"No dataset found")
-        data = self._cache if data is None else data
+        if (config.p.get(u"use_cache", False)
+            and self.name in config.cache):
+            config.cache[self.name] = data
+
         databases.increment_version(self.name, len(data))
 
         mapping.add(data.keys())

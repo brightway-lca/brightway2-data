@@ -18,6 +18,7 @@ class Config(object):
     version = 2
     basic_directories = ("processed", "intermediate", "backups", "logs")
     backends = {}
+    cache = {}
     _windows = platform.system() == "Windows"
 
     def __init__(self, path=None):
