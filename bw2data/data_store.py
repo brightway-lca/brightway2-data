@@ -39,6 +39,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         ('maximum', np.float32),
         ('negative', np.bool),
     ]
+    _intermediate_dir = u'intermediate'
 
     def __init__(self, name):
         self.name = name
@@ -142,7 +143,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         self.add_mappings(data)
         filepath = os.path.join(
             config.dir,
-            u"intermediate",
+            self._intermediate_dir,
             self.filename + u".pickle"
         )
         with atomic_open(filepath, "wb") as f:
