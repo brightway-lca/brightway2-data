@@ -12,95 +12,95 @@ class FilterTest(unittest.TestCase):
 
     def test_le(self):
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("code", "<=", 1.5)(food).keys()
         )
 
     def test_lt(self):
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("code", "<", 1.5)(food).keys()
         )
 
     def test_eq(self):
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("code", "==", 1)(food).keys()
         )
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("code", "is", 1)(food).keys()
         )
 
     def test_ne(self):
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("code", "!=", 2)(food).keys()
         )
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("code", "<>", 2)(food).keys()
         )
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("code", "not", 2)(food).keys()
         )
 
     def test_inot(self):
         self.assertEqual(
-            [("food", 2)],
+            [("food", "2")],
             Filter("name", "inot", "LuNCH")(food).keys()
         )
 
     def test_gt(self):
         self.assertEqual(
-            [("food", 2)],
+            [("food", "2")],
             Filter("code", ">=", 1.5)(food).keys()
         )
 
     def test_ge(self):
         self.assertEqual(
-            [("food", 2)],
+            [("food", "2")],
             Filter("code", ">", 1.5)(food).keys()
         )
 
     def test_has(self):
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("name", "has", "lun")(food).keys()
         )
 
     def test_ihas(self):
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("name", "ihas", "LUN")(food).keys()
         )
 
     def test_nothas(self):
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("name", "nothas", "inner")(food).keys()
         )
 
     def test_in(self):
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("name", "in", {'lunch', 'breakfast'})(food).keys()
         )
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("name", "in", 'lunchbreakfast')(food).keys()
         )
 
     def test_notin(self):
         self.assertEqual(
-            [("food", 2)],
+            [("food", "2")],
             Filter("name", "notin", {'lunch', 'breakfast'})(food).keys()
         )
 
     def test_len(self):
         self.assertEqual(
-            [("food", 2)],
+            [("food", "2")],
             Filter("name", "len", 6)(food).keys()
         )
 
@@ -108,13 +108,13 @@ class FilterTest(unittest.TestCase):
         def my_func(x, y):
             return x + y == "lunchlunch!"
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             Filter("name", my_func, 'lunch!')(food).keys()
         )
 
     def test_NF(self):
         self.assertEqual(
-            [("food", 1)],
+            [("food", "1")],
             NF("lun")(food).keys()
         )
 
@@ -146,7 +146,7 @@ class QueryTest(unittest.TestCase):
         query = Query(NF("lun"), Filter("name", "nothas", "inner"))
         self.assertEqual(
             query(food).result,
-            {("food", 1): food[("food", 1)]}
+            {("food", "1"): food[("food", "1")]}
         )
 
     def test_add(self):
@@ -154,7 +154,7 @@ class QueryTest(unittest.TestCase):
         query.add(Filter("name", "nothas", "inner"))
         self.assertEqual(
             query(food).result,
-            {("food", 1): food[("food", 1)]}
+            {("food", "1"): food[("food", "1")]}
         )
 
 

@@ -25,6 +25,9 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(len(databases), 2)
 
     def test_copy(self):
+        d = DatabaseChooser("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
         d = DatabaseChooser("food")
         d.register(depends=["biosphere"])
         d.write(food)
@@ -35,8 +38,12 @@ class DatabaseTest(BW2DataTest):
 
     def test_copy_does_deepcopy(self):
         data = {
-            ("old name", 1): {
-                "exchanges": [{"input": ("old name", 1), "amount": 1.0}]
+            ("old name", '1'): {
+                "exchanges": [{
+                    "input": ("old name", '1'),
+                    "amount": 1.0,
+                    'type': 'technosphere'
+                }]
             }
         }
         d = DatabaseChooser("old name")
@@ -46,32 +53,32 @@ class DatabaseTest(BW2DataTest):
         new_data = new_db.load()
         self.assertEqual(
             new_data.values()[0]['exchanges'][0]['input'],
-            ('new name', 1)
+            ('new name', '1')
         )
         self.assertEqual(
             data.values()[0]['exchanges'][0]['input'],
-            ('old name', 1)
+            ('old name', '1')
         )
         self.assertEqual(
             d.load().values()[0]['exchanges'][0]['input'],
-            ('old name', 1)
+            ('old name', '1')
         )
 
     def test_relabel_data(self):
         old_data = {
-            ("old and boring", 1): {
-                "exchanges": [{"input": ("old and boring", 42), "amount": 1.0}]
+            ("old and boring", '1'): {
+                "exchanges": [{"input": ("old and boring", '42'), "amount": 1.0}]
             },
-            ("old and boring", 2): {
-                "exchanges": [{"input": ("old and boring", 1), "amount": 4.0}]
+            ("old and boring", '2'): {
+                "exchanges": [{"input": ("old and boring", '1'), "amount": 4.0}]
             }
         }
         shiny_new = {
-            ("shiny new", 1): {
-                "exchanges": [{"input": ("old and boring", 42), "amount": 1.0}]
+            ("shiny new", '1'): {
+                "exchanges": [{"input": ("old and boring", '42'), "amount": 1.0}]
             },
-            ("shiny new", 2): {
-                "exchanges": [{"input": ("shiny new", 1), "amount": 4.0}]
+            ("shiny new", '2'): {
+                "exchanges": [{"input": ("shiny new", '1'), "amount": 4.0}]
             }
         }
         db = DatabaseChooser("foo")
@@ -140,9 +147,8 @@ class DatabaseTest(BW2DataTest):
                 {'amount': 1, 'input': ('testy', 'A')}
             ]},
         }
-        database.write(database_data)
         with self.assertRaises(UntypedExchange):
-            database.process()
+            database.write(database_data, process=False)
 
     def test_no_input_raises_invalid_exchange(self):
         database = DatabaseChooser("testy")
@@ -152,27 +158,24 @@ class DatabaseTest(BW2DataTest):
                 {'amount': 1}
             ]},
         }
-        database.write(database_data)
         with self.assertRaises(InvalidExchange):
-            database.process()
+            database.write(database_data, process=False)
 
     def test_no_amount_raises_invalid_exchange(self):
         database = DatabaseChooser("testy")
         database.register()
         database_data = {
             ("testy", "A"): {'exchanges': [
-                {'input': ('testy', 'A')}
+                {'input': ('testy', 'A'), 'type': 'technosphere'}
             ]},
         }
-        database.write(database_data)
         with self.assertRaises(InvalidExchange):
-            database.process()
+            database.write(database_data, process=False)
 
     def test_process_geomapping_array(self):
         database = DatabaseChooser("a database")
         database.register()
         database.write({})
-        database.process()
         fp = os.path.join(
             config.dir,
             u"processed",
@@ -193,35 +196,9 @@ class DatabaseTest(BW2DataTest):
             ("a database", "bar"): {
                 'type': 'definitely not a process'
             },
-        })
+        }, process=True)
         # This shouldn't raise an error
-        database.process()
-
-    def test_only_processes_in_geomapping(self):
-        database = DatabaseChooser("a database")
-        database.register()
-        database.write({
-            ("a database", "foo"): {
-                'exchanges': [],
-                'type': 'process'
-            },
-            ("a database", "bar"): {
-                'exchanges': [],
-                'type': 'process'
-            },
-            ("a database", "baz"): {
-                'exchanges': [],
-                'type': 'not a process'
-            },
-        })
-        database.process()
-        fp = os.path.join(
-            config.dir,
-            u"processed",
-            database.filename + u".geomapping.pickle"
-        )
-        array = pickle.load(open(fp, "rb"))
-        self.assertEqual(array.shape, (2,))
+        self.assertEqual(database.process(), None)
 
     def test_geomapping_array_includes_only_processes(self):
         database = DatabaseChooser("a database")
@@ -237,7 +214,6 @@ class DatabaseTest(BW2DataTest):
                 'type': 'emission'
             },
         })
-        database.process()
         fp = os.path.join(
             config.dir,
             u"processed",
@@ -250,16 +226,15 @@ class DatabaseTest(BW2DataTest):
     def test_processed_array(self):
         database = DatabaseChooser("a database")
         database.register()
-        database.write({("a database", 2): {
+        database.write({("a database", '2'): {
             'type': 'process',
             'exchanges': [{
-                'input': ("a database", 2),
+                'input': ("a database", '2'),
                 'amount': 42,
                 'uncertainty type': 7,
                 'type': 'production'
             }]
         }})
-        database.process()
         fp = os.path.join(
             config.dir,
             u"processed",
@@ -275,15 +250,14 @@ class DatabaseTest(BW2DataTest):
     def test_loc_value_if_no_uncertainty(self):
         database = DatabaseChooser("a database")
         database.register()
-        database.write({("a database", 2): {
+        database.write({("a database", '2'): {
             'type': 'process',
             'exchanges': [{
-                'input': ("a database", 2),
+                'input': ("a database", '2'),
                 'amount': 42,
                 'type': 'technosphere'
             }]
         }})
-        database.process()
         fp = os.path.join(
             config.dir,
             u"processed",
@@ -310,20 +284,46 @@ class DatabaseTest(BW2DataTest):
         database.write({
             ("a database", "foo"): {
                 'exchanges': [
-                    {'input': ("foo", "bar")},
-                    {'input': ("biosphere", "bar")},
-                    {'input': ("awkward", "silence")}, # Ignore becuase of 'ignore'
-                    {'input': ("who", "am I?"), "type": "unknown"}, # Ignored because of 'unknown' type
-                    {'input': ("biosphere", "bar")},
+                    {
+                        'input': ("foo", "bar"),
+                        'type': 'technosphere',
+                        'amount': 0,
+                    },
+                    {
+                        'input': ("biosphere", "bar"),
+                        'type': 'technosphere',
+                        'amount': 0,
+                    },
+                    # Ignore becuase of 'ignore'
+                    {
+                        'input': ("awkward", "silence"),
+                        'type': 'technosphere',
+                        'amount': 0,
+                    },
+                    # Ignored because of 'unknown' type
+                    {
+                        'input': ("who", "am I?"),
+                        "type": "unknown",
+                        'amount': 0,
+                    },
+                    {
+                        'input': ("biosphere", "bar"),
+                        'type': 'technosphere',
+                        'amount': 0,
+                    },
                 ],
                 'location': 'bar'
             },
             ("a database", "baz"): {
-                'exchanges': [{'input': ("baz", "w00t")}],
+                'exchanges': [{
+                    'input': ("baz", "w00t"),
+                    'type': 'technosphere',
+                    'amount': 0,
+                }],
                 'type': 'emission' # Ignored because of type
             },
             ("a database", "nonce"): {},  # OK not to have 'exchanges'
-        })
+        }, process=False)
         self.assertEqual(
             database.find_dependents(ignore={"awkward"}),
             ["biosphere", "foo"]
@@ -349,11 +349,9 @@ class DatabaseTest(BW2DataTest):
                 'type': 'emission'
             },
         })
-        database.process()
-        # 'baz' ignored because not a process
         self.assertEqual(
             databases['a database']['depends'],
-            ["biosphere", "foo"]
+            ["biosphere", "foo", "baz"]
         )
 
     def test_process_without_exchanges_still_in_processed_array(self):
@@ -374,12 +372,16 @@ class DatabaseTest(BW2DataTest):
 class SingleFileDatabaseTest(BW2DataTest):
     # TODO: Better check .write?
 
-    def test_revert(self):
+    def create_biosphere(self):
         d = SingleFileDatabase("biosphere")
-        d.register(depends=[])
+        d.register()
         d.write(biosphere)
+        return d
+
+    def test_revert(self):
+        self.create_biosphere()
         d = SingleFileDatabase("food")
-        d.register(depends=["biosphere"])
+        d.register()
         d.write(food)
         d.write({})
         self.assertEqual(databases["food"]["version"], 2)
@@ -391,9 +393,7 @@ class SingleFileDatabaseTest(BW2DataTest):
             d.revert(10)
 
     def test_make_latest_version(self):
-        d = SingleFileDatabase("biosphere")
-        d.register(depends=[])
-        d.write(biosphere)
+        d = self.create_biosphere()
         biosphere2 = copy.deepcopy(biosphere)
         biosphere2[(u"biosphere", u"noodles")] = {}
         for x in range(10):
@@ -405,9 +405,7 @@ class SingleFileDatabaseTest(BW2DataTest):
         self.assertEqual(d.load(), biosphere)
 
     def test_versions(self):
-        d = SingleFileDatabase("biosphere")
-        d.register(depends=[])
-        d.write(biosphere)
+        d = self.create_biosphere()
         self.assertEqual(
             [x[0] for x in d.versions()], [1]
         )
@@ -417,16 +415,12 @@ class SingleFileDatabaseTest(BW2DataTest):
         )
 
     def test_wrong_version(self):
-        d = SingleFileDatabase("biosphere")
-        d.register()
-        d.write(biosphere)
+        d = self.create_biosphere()
         with self.assertRaises(MissingIntermediateData):
             d.load(version=-1)
 
     def test_noninteger_version(self):
-        d = SingleFileDatabase("biosphere")
-        d.register()
-        d.write(biosphere)
+        d = self.create_biosphere()
         with self.assertRaises(ValueError):
             d.load(version="foo")
 
@@ -436,29 +430,33 @@ class SingleFileDatabaseTest(BW2DataTest):
         self.assertEqual(databases['testy']['version'], 0)
 
     def test_load(self):
+        self.create_biosphere()
         d = SingleFileDatabase("food")
-        d.register(depends=["biosphere"])
+        d.register()
         d.write(food)
         data = SingleFileDatabase("food").load()
         self.assertEqual(food, data)
 
     def test_load_as_dict(self):
+        self.create_biosphere()
         d = SingleFileDatabase("food")
-        d.register(depends=["biosphere"])
+        d.register()
         d.write(food)
         data = SingleFileDatabase("food").load(as_dict=True)
         self.assertTrue(isinstance(data, dict))
 
     def test_db_is_json_serializable(self):
+        self.create_biosphere()
         d = SingleFileDatabase("food")
-        d.register(depends=["biosphere"])
+        d.register()
         d.write(food)
         data = SingleFileDatabase("food").load(as_dict=True)
         JsonWrapper.dumps(JsonSanitizer.sanitize(data))
 
     def test_write_bumps_version_number(self):
+        self.create_biosphere()
         d = SingleFileDatabase("food")
-        d.register(depends=["biosphere"])
+        d.register()
         d.write(food)
         self.assertEqual(databases["food"]["version"], 1)
         d.write(food)

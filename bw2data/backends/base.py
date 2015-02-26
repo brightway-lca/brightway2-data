@@ -383,7 +383,6 @@ Doesn't return anything, but writes two files to disk.
             databases[name] = databases[old_name]
         new_data = self.relabel_data(self.load(), name)
         new_db.write(new_data)
-        new_db.process()
         del databases[old_name]
         return new_db
 

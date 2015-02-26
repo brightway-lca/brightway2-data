@@ -40,6 +40,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         ('negative', np.bool),
     ]
     _intermediate_dir = u'intermediate'
+    _process_needed = True
 
     def __init__(self, name):
         self.name = name
@@ -116,7 +117,6 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         new_obj = self.__class__(name)
         new_obj.register(**self.metadata[self.name])
         new_obj.write(self.load())
-        new_obj.process()
         return new_obj
 
     def backup(self):
@@ -129,7 +129,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         from bw2io import BW2Package
         return BW2Package.export_obj(self)
 
-    def write(self, data):
+    def write(self, data, process=True):
         """Serialize intermediate data to disk.
 
         Args:
@@ -148,6 +148,8 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         )
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        if process and self._process_needed:
+            self.process()
 
     def process_data(self, row):
         """Translate data into correct order"""

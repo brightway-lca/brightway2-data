@@ -1,6 +1,7 @@
 from __future__ import print_function
 from . import sqlite3_db
 from ... import mapping, geomapping, config, databases
+from ...errors import UntypedExchange, InvalidExchange
 from ...search import IndexManager
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ..base import LCIBackend
@@ -36,13 +37,18 @@ class SQLiteBackend(LCIBackend):
                 ActivityDataset.database == self.name).order_by(fn.Random()):
             yield Activity(ds)
 
-    def write(self, data):
+    def write(self, data, process=True):
+        self.assert_registered()
         self.metadata[self.name]['modified'] = datetime.datetime.now().isoformat()
+        self.metadata[self.name]['number'] = len(data)
         self.metadata.flush()
         mapping.add(data.keys())
         geomapping.add({x[u"location"] for x in data.values() if
                        x.get(u"location", False)})
-        self._efficient_write_many_data(data)
+        if data:
+            self._efficient_write_many_data(data)
+        if process:
+            self.process()
 
     def load(self, *args, **kwargs):
         # Should not be used, in general; relatively slow
@@ -131,6 +137,10 @@ class SQLiteBackend(LCIBackend):
 
             for index, (key, ds) in enumerate(data.items()):
                 for exchange in ds.get(u'exchanges', []):
+                    if 'input' not in exchange or 'amount' not in exchange:
+                        raise InvalidExchange
+                    if 'type' not in exchange:
+                        raise UntypedExchange
                     exchange[u'output'] = key
                     # TODO: Raise error if 'input' missing?
                     exchanges.append({
@@ -186,15 +196,19 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         """
         num_exchanges = ExchangeDataset.select().where(ExchangeDataset.database == self.name).count()
         num_processes = ActivityDataset.select().where(
-            ActivityDataset.database == self.name).count()
+            ActivityDataset.database == self.name,
+            ActivityDataset.type == u"process"
+        ).count()
 
         # Create geomapping array
         arr = np.zeros((num_processes, ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
 
         for index, row in enumerate(ActivityDataset.select(
-                ActivityDataset.location, ActivityDataset.key).where(
-                ActivityDataset.database == self.name).order_by(
-                ActivityDataset.key).dicts()):
+                ActivityDataset.location, ActivityDataset.key
+                ).where(
+                ActivityDataset.database == self.name,
+                ActivityDataset.type == u"process"
+                ).order_by(ActivityDataset.key).dicts()):
             arr[index] = (
                 mapping[keysplit(row['key'])],
                 geomapping[row['location'] or config.global_location],
@@ -204,6 +218,9 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         with open(self.filepath_geomapping(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # Reset value for next array loop
+        index = 0
 
         missing_production_keys = [x[0] for x in ActivityDataset.select(
             ActivityDataset.key).where(
@@ -227,10 +244,10 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         for index, row in enumerate(cursor.execute(SQL, (self.name,))):
             data = pickle.loads(str(row[0]))
 
-            if u"amount" not in data or u"input" not in data:
-                raise InvalidExchange
             if u"type" not in data:
                 raise UntypedExchange
+            if u"amount" not in data or u"input" not in data:
+                raise InvalidExchange
 
             dependents.add(data[u"input"][0])
 
@@ -252,7 +269,11 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 data[u"amount"] < 0
             )
 
-        for index, key in zip(itertools.count(index + 1), missing_production_keys):
+        # If exchanges were found, start inserting rows at len(exchanges) + 1
+        if index != 0:
+            index += 1
+
+        for index, key in zip(itertools.count(index), missing_production_keys):
             arr[index] = (
                 mapping[keysplit(key)], mapping[keysplit(key)],
                 MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY[u"production"],

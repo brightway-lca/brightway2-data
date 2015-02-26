@@ -87,7 +87,6 @@ def combine_methods(name, *ms):
     method = Method(name)
     method.register(**meta)
     method.write(data)
-    method.process()
     return method
 
 

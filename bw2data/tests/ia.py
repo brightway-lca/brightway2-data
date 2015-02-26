@@ -127,7 +127,6 @@ class MethodTest(BW2DataTest):
         method = Method(("a", "method"))
         method.register()
         method.write([[("foo", "bar"), 42]])
-        method.process()
         fp = os.path.join(config.dir, u"processed", method.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
 
@@ -166,7 +165,6 @@ class WeightingTest(BW2DataTest):
         weighting = Weighting(("foo",))
         weighting.register()
         weighting.write([42])
-        weighting.process()
 
         fp = os.path.join(config.dir, u"processed", weighting.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
@@ -203,7 +201,6 @@ class NormalizationTest(BW2DataTest):
         norm = Normalization(("foo",))
         norm.register()
         norm.write([[("foo", "bar"), 42]])
-        norm.process()
 
         fp = os.path.join(config.dir, u"processed", norm.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))

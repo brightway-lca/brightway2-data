@@ -4,7 +4,7 @@ from .. import config, databases
 from ..backends.json import JSONDatabase, SynchronousJSONDict
 from ..backends.json.mapping import KeyMapping, cache as mapping_cache
 from ..serialization import JsonWrapper, JsonSanitizer
-from .fixtures import food2
+from .fixtures import food2, biosphere
 import json
 import os
 import shutil
@@ -12,6 +12,12 @@ import unittest
 
 
 class JSONDatabaseTest(BW2DataTest):
+    def create_biosphere(self):
+        d = JSONDatabase("biosphere")
+        d.register()
+        d.write(biosphere)
+        return d
+
     def test_load_write(self):
         jd = JSONDatabase("foo")
         jd.register()
@@ -57,6 +63,7 @@ class JSONDatabaseTest(BW2DataTest):
         self.assertEqual(databases["foo"]["number"], 10)
 
     def test_load_as_dict(self):
+        self.create_biosphere()
         d = JSONDatabase("food")
         d.register()
         d.write(food2)
@@ -66,6 +73,7 @@ class JSONDatabaseTest(BW2DataTest):
         self.assertFalse(isinstance(data, dict))
 
     def test_db_is_json_serializable(self):
+        self.create_biosphere()
         d = JSONDatabase("food")
         d.register()
         d.write(food2)

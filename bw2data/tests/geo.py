@@ -40,7 +40,6 @@ class GeoTest(BW2DataTest):
 
     def test_method_adds_correct_geo(self):
         method = self.add_method()
-        method.process()
         pickled = pickle.load(open(os.path.join(config.dir, "processed",
             method.get_abbreviation() + ".pickle"), "rb"))
         self.assertEqual(geomapping["foo"], int(pickled[0]["geo"]))
@@ -54,7 +53,6 @@ class GeoTest(BW2DataTest):
         database = Database("food")
         database.register(depends=["biosphere"])
         database.write(food)
-        database.process()
         pickled = pickle.load(open(os.path.join(config.dir, "processed",
             database.filename + ".pickle"), "rb"))
         self.assertTrue(geomapping["CA"] in pickled["geo"].tolist())
@@ -70,7 +68,6 @@ class GeoTest(BW2DataTest):
         for v in new_food.values():
             del v["location"]
         database.write(new_food)
-        database.process()
         pickled = pickle.load(open(os.path.join(config.dir, "processed",
             database.filename + ".pickle"), "rb"))
         self.assertTrue(np.allclose(pickled["geo"],
@@ -85,6 +82,6 @@ class GeoTest(BW2DataTest):
         self.add_biosphere()
         d = Database("food")
         d.register(depends=["biosphere"])
-        d.write(food)
+        d.write(food, process=False)
         self.assertTrue("CA" in geomapping)
         self.assertTrue("CH" in geomapping)

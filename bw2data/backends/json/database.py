@@ -37,7 +37,7 @@ class JSONDatabase(LCIBackend):
         if not os.path.exists(self.filepath_intermediate()):
             os.mkdir(self.filepath_intermediate())
 
-    def write(self, data):
+    def write(self, data, process=True):
         """Serialize data to disk. Most of the time, this data has already been saved to disk, so this is a no-op. The only exception is if ``data`` is a new database dictionary.
 
         Normalizes units when found.
@@ -63,3 +63,5 @@ class JSONDatabase(LCIBackend):
             new_dict = self.load()
             for key, value in data.iteritems():
                 new_dict[key] = value
+        if process:
+            self.process()

@@ -55,7 +55,7 @@ class Method(ImpactAssessmentDataStore):
             MAX_INT_32,
             ), row[1]
 
-    def write(self, data):
+    def write(self, data, process=True):
         """Serialize intermediate data to disk.
 
         Sets the metadata key ``num_cfs`` automatically."""

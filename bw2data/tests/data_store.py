@@ -95,7 +95,6 @@ class DataStoreTestCase(BW2DataTest):
         d = MockDS("happy")
         d.register()
         d.write([{'amount': 42, 'uncertainty type': 7}])
-        d.process()
         fp = os.path.join(config.dir, u"processed", d.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
 
@@ -109,7 +108,6 @@ class DataStoreTestCase(BW2DataTest):
         d = MockDS("happy meal")
         d.register()
         d.write(range(10))
-        d.process()
         fp = os.path.join(config.dir, u"processed", d.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
         self.assertTrue(np.allclose(np.arange(10), array['loc']))
