@@ -65,7 +65,7 @@ class Config(object):
         Default name is ``biosphere``; change this by changing ``config.p["biosphere_database"]``. Don't forget ``config.save_preferences()`` to save changes."""
         if not hasattr(self, "p"):
             self.load_preferences()
-        return self.p.get(u"biosphere_database", u"biosphere")
+        return self.p.get(u"biosphere_database", u"biosphere3")
 
     @property
     def global_location(self):
