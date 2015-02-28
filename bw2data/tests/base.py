@@ -11,7 +11,7 @@ class BW2DataTest(unittest.TestCase):
         config.dir = tempfile.mkdtemp()
         config.create_basic_directories()
         reset_meta()
-        sqlite3_db.reset(is_test=True)
+        sqlite3_db.reset()
         self.extra_setup()
 
     def extra_setup(self):

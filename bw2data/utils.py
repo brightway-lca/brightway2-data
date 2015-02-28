@@ -290,8 +290,12 @@ def set_data_dir(dirpath, permanent=True):
     else:
         config.dir = dirpath
     config.create_basic_directories()
+
     from .meta import reset_meta
     reset_meta()
+
+    from .backends.peewee import sqlite3_db
+    sqlite3_db.reset()
 
 
 def bw2setup():
