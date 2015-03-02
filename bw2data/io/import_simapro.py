@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*
 from __future__ import print_function
-from .units import normalize_units
+from ..units import normalize_units
 from bw2data import Database, databases, config
 from bw2data.logs import get_io_logger
 from bw2data.utils import activity_hash
