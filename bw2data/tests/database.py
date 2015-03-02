@@ -370,6 +370,32 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array['amount'][0], 1)
         self.assertEqual(array.shape, (1,))
 
+    def test_can_split_processes_products(self):
+        database = DatabaseChooser("a database")
+        database.register()
+        database.write({
+            ("a database", "product"): {'type': 'product'},
+            ("a database", "foo"): {
+                'exchanges': [{
+                        'input': ("a database", "product"),
+                        'type': 'production',
+                        'amount': 1
+                }],
+                'type': 'process',
+            },
+        })
+        database.process()
+        self.assertTrue(("a database", "product") in mapping)
+        fp = os.path.join(
+            config.dir,
+            u"processed",
+            database.filename + u".pickle"
+        )
+        array = pickle.load(open(fp, "rb"))
+        self.assertEqual(array.shape, (1,))
+        self.assertEqual(array['output'][0], mapping[("a database", "foo")])
+        self.assertEqual(array['input'][0], mapping[("a database", "product")])
+
 
 class SingleFileDatabaseTest(BW2DataTest):
     # TODO: Better check .write?

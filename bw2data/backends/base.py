@@ -234,7 +234,7 @@ Doesn't return anything, but writes two files to disk.
                 if u"type" not in exc:
                     raise UntypedExchange
 
-                if key == exc[u"input"]:
+                if exc['type'] == 'production':
                     production_found = True
                 arr[count] = (
                     mapping[exc[u"input"]],
