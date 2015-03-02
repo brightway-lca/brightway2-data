@@ -254,7 +254,7 @@ class DatabaseTest(BW2DataTest):
             'type': 'process',
             'exchanges': [{
                 'input': ("a database", '2'),
-                'amount': 42,
+                'amount': 42.,
                 'type': 'technosphere'
             }]
         }})
@@ -264,6 +264,7 @@ class DatabaseTest(BW2DataTest):
             database.filename + u".pickle"
         )
         array = pickle.load(open(fp, "rb"))
+        self.assertEqual(array.shape, (2,))
         self.assertEqual(array['loc'][0], 42.)
 
     def test_base_class(self):

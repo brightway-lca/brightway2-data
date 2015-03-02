@@ -219,9 +219,6 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         with open(self.filepath_geomapping(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # Reset value for next array loop
-        index = 0
-
         missing_production_keys = [x[0] for x in ActivityDataset.select(
             ActivityDataset.key).where(
                 ActivityDataset.database == self.name,
@@ -229,7 +226,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 ~(ActivityDataset.key << ExchangeDataset.select(
                     ExchangeDataset.output).where(
                     ExchangeDataset.database == self.name,
-                    ExchangeDataset.input == ExchangeDataset.output))
+                    ExchangeDataset.type == u'production'))
             ).tuples()]
 
         arr = np.zeros((num_exchanges + len(missing_production_keys), ), dtype=self.dtype)
@@ -240,6 +237,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         SQL = "SELECT data FROM exchangedataset WHERE database = ? ORDER BY input, output"
 
         dependents = set()
+        found_exchanges = False
 
         for index, row in enumerate(cursor.execute(SQL, (self.name,))):
             data = pickle.loads(str(row[0]))
@@ -248,6 +246,8 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 raise UntypedExchange
             if u"amount" not in data or u"input" not in data:
                 raise InvalidExchange
+
+            found_exchanges = True
 
             dependents.add(data[u"input"][0])
 
@@ -270,8 +270,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
             )
 
         # If exchanges were found, start inserting rows at len(exchanges) + 1
-        if index != 0:
-            index += 1
+        index = index + 1 if found_exchanges else 0
 
         for index, key in zip(itertools.count(index), missing_production_keys):
             arr[index] = (
