@@ -26,7 +26,7 @@ class Config(object):
 
     def check_dir(self, directory=None):
         """Returns ``True`` if given path is a directory and writeable, ``False`` otherwise. Default ``directory`` is the Brightway2 data directory."""
-        return os.path.isdir(self.dir) and \
+        return os.path.isdir(directory or self.dir) and \
             os.access(directory or self.dir, os.W_OK)
 
     def reset(self, path=None):
@@ -108,6 +108,10 @@ class Config(object):
         envvar = os.getenv(u"BRIGHTWAY2_DIR")
         if envvar:
             self._dir_from = u"environment variable"
+            if not self.check_dir(envvar):
+                warnings.warn(u"The environment variable BRIGHTWAY2_DIR was set, "
+                    u"but doesn't exist or is not writable."
+                )
             return envvar
         for filename in (u".brightway2path", u"brightway2path.txt"):
             try:

@@ -31,7 +31,7 @@ class ConfigTest(BW2DataTest):
         self.assertEqual(data['saved'], "yep")
 
     def test_default_biosphere(self):
-        self.assertEqual(config.biosphere, "biosphere")
+        self.assertEqual(config.biosphere, "biosphere3")
 
     def test_default_geo(self):
         self.assertEqual(config.global_location, "GLO")
