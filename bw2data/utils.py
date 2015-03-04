@@ -298,14 +298,6 @@ def set_data_dir(dirpath, permanent=True):
     sqlite3_db.reset()
 
 
-def bw2setup():
-    """Create basic directories, and download biosphere and LCIA methods"""
-    from bw2io import download_biosphere, download_methods
-    config.create_basic_directories()
-    download_biosphere()
-    download_methods()
-
-
 def create_in_memory_zipfile_from_directory(path):
     # Based on http://stackoverflow.com/questions/2463770/python-in-memory-zip-library
     memory_obj = StringIO.StringIO()

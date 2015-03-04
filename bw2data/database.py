@@ -47,3 +47,8 @@ def DatabaseChooser(name, backend=None):
 
 # Backwards compatibility
 Database = DatabaseChooser
+
+
+def get_activity(key):
+    assert isinstance(key, (tuple, list))
+    return Database(key[0]).get(key[1])

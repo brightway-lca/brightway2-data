@@ -2,11 +2,11 @@
 __version__ = (2, 0, "dev")
 
 from ._config import config
-from .utils import set_data_dir, bw2setup
+from .utils import set_data_dir
 from .meta import databases, methods, mapping, reset_meta, geomapping, \
     weightings, normalizations
 from .serialization import JsonWrapper
-from .database import DatabaseChooser as Database
+from .database import DatabaseChooser as Database, get_activity
 from .data_store import DataStore
 from .method import Method
 from .proxies.activity import Activity

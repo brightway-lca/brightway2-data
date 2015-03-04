@@ -395,7 +395,6 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array['output'][0], mapping[("a database", "foo")])
         self.assertEqual(array['input'][0], mapping[("a database", "product")])
 
-
 class SingleFileDatabaseTest(BW2DataTest):
     # TODO: Better check .write?
 
