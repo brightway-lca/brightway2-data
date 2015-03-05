@@ -193,8 +193,8 @@ class SQLiteBackend(LCIBackend):
 
     def delete(self):
         """Delete all data from SQLite database"""
-        ActivityDataset.delete().where(ActivityDataset.database==self.name)
-        ExchangeDataset.delete().where(ExchangeDataset.database==self.name)
+        ActivityDataset.delete().where(ActivityDataset.database==self.name).execute()
+        ExchangeDataset.delete().where(ExchangeDataset.database==self.name).execute()
 
     def process(self):
         """
