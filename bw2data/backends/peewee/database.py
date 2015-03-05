@@ -38,6 +38,9 @@ class SQLiteBackend(LCIBackend):
             yield Activity(ds)
 
     def write(self, data, process=True):
+        """Write ``data`` to database.
+
+        This deletes all exiting data for this database."""
         self.assert_registered()
         self.metadata[self.name]['modified'] = datetime.datetime.now().isoformat()
         self.metadata[self.name]['number'] = len(data)
@@ -122,6 +125,7 @@ class SQLiteBackend(LCIBackend):
         sqlite3_db().autocommit = False
         try:
             sqlite3_db().begin()
+            self.delete()
             exchanges, activities = [], []
 
             widgets = [
@@ -186,6 +190,11 @@ class SQLiteBackend(LCIBackend):
             sqlite3_db().autocommit = True
             if be_complicated:
                 self._add_indices()
+
+    def delete(self):
+        """Delete all data from SQLite database"""
+        ActivityDataset.delete().where(ActivityDataset.database==self.name)
+        ExchangeDataset.delete().where(ExchangeDataset.database==self.name)
 
     def process(self):
         """
