@@ -16,7 +16,7 @@ class Config(object):
 
     """
     version = 2
-    basic_directories = ("processed", "intermediate", "backups", "logs")
+    basic_directories = ("processed", "intermediate", "backups", "logs", "export")
     backends = {}
     cache = {}
     _windows = platform.system() == "Windows"
