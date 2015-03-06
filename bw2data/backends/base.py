@@ -3,7 +3,7 @@ from .. import databases, config, mapping, geomapping
 from ..query import Query
 from ..data_store import DataStore
 from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename
-from ..errors import UntypedExchange, InvalidExchange
+from ..errors import UntypedExchange, InvalidExchange, UnknownObject
 import copy
 import numpy as np
 import os
@@ -236,23 +236,31 @@ Doesn't return anything, but writes two files to disk.
 
                 if exc['type'] == 'production':
                     production_found = True
-                arr[count] = (
-                    mapping[exc[u"input"]],
-                    mapping[key],
-                    MAX_INT_32,
-                    MAX_INT_32,
-                    TYPE_DICTIONARY[exc[u"type"]],
-                    exc.get(u"uncertainty type", 0),
-                    exc[u"amount"],
-                    exc[u"amount"] \
-                        if exc.get(u"uncertainty type", 0) in (0,1) \
-                        else exc.get(u"loc", np.NaN),
-                    exc.get(u"scale", np.NaN),
-                    exc.get(u"shape", np.NaN),
-                    exc.get(u"minimum", np.NaN),
-                    exc.get(u"maximum", np.NaN),
-                    exc[u"amount"] < 0
-                )
+                try:
+                    arr[count] = (
+                        mapping[exc[u"input"]],
+                        mapping[key],
+                        MAX_INT_32,
+                        MAX_INT_32,
+                        TYPE_DICTIONARY[exc[u"type"]],
+                        exc.get(u"uncertainty type", 0),
+                        exc[u"amount"],
+                        exc[u"amount"] \
+                            if exc.get(u"uncertainty type", 0) in (0,1) \
+                            else exc.get(u"loc", np.NaN),
+                        exc.get(u"scale", np.NaN),
+                        exc.get(u"shape", np.NaN),
+                        exc.get(u"minimum", np.NaN),
+                        exc.get(u"maximum", np.NaN),
+                        exc[u"amount"] < 0
+                    )
+
+                except KeyError:
+                    raise UnknownObject((u"Exchange between {} and {} is invalid "
+                        "- {} is unknown (i.e. doesn't exist as a process dataset)"
+                        ).format(exc[u"input"], key, exc[u"input"])
+                    )
+
                 count += 1
             if not production_found:
                 # Add amount produced for each process (default 1)

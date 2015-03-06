@@ -1,7 +1,7 @@
 from __future__ import print_function
 from . import sqlite3_db
 from ... import mapping, geomapping, config, databases
-from ...errors import UntypedExchange, InvalidExchange
+from ...errors import UntypedExchange, InvalidExchange, UnknownObject
 from ...search import IndexManager
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ..base import LCIBackend
@@ -260,23 +260,30 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
             dependents.add(data[u"input"][0])
 
-            arr[index] = (
-                mapping[data[u"input"]],
-                mapping[data[u"output"]],
-                MAX_INT_32,
-                MAX_INT_32,
-                TYPE_DICTIONARY[data[u"type"]],
-                data.get(u"uncertainty type", 0),
-                data[u"amount"],
-                data[u"amount"] \
-                    if data.get(u"uncertainty type", 0) in (0,1) \
-                    else data.get(u"loc", np.NaN),
-                data.get(u"scale", np.NaN),
-                data.get(u"shape", np.NaN),
-                data.get(u"minimum", np.NaN),
-                data.get(u"maximum", np.NaN),
-                data[u"amount"] < 0
-            )
+            try:
+                arr[index] = (
+                    mapping[data[u"input"]],
+                    mapping[data[u"output"]],
+                    MAX_INT_32,
+                    MAX_INT_32,
+                    TYPE_DICTIONARY[data[u"type"]],
+                    data.get(u"uncertainty type", 0),
+                    data[u"amount"],
+                    data[u"amount"] \
+                        if data.get(u"uncertainty type", 0) in (0,1) \
+                        else data.get(u"loc", np.NaN),
+                    data.get(u"scale", np.NaN),
+                    data.get(u"shape", np.NaN),
+                    data.get(u"minimum", np.NaN),
+                    data.get(u"maximum", np.NaN),
+                    data[u"amount"] < 0
+                )
+            except KeyError:
+                raise UnknownObject((u"Exchange between {} and {} is invalid "
+                    "- one of these objects is unknown (i.e. doesn't exist "
+                    "as a process dataset)"
+                    ).format(data[u"input"], data[u"output"])
+                )
 
         # If exchanges were found, start inserting rows at len(exchanges) + 1
         index = index + 1 if found_exchanges else 0

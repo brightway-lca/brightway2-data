@@ -139,6 +139,40 @@ class DatabaseTest(BW2DataTest):
             "CH" in geomapping and "DE" in geomapping
         )
 
+    def test_process_unknown_object(self):
+        database = DatabaseChooser("testy")
+        database.register()
+        data = {
+            ("testy", "A"): {},
+            ("testy", "B"): {'exchanges': [
+                {'input': ("testy", "A"),
+                 'amount': 1,
+                 'type': 'technosphere'},
+                {'input': ("testy", "C"),
+                 'amount': 1,
+                 'type': 'technosphere'},
+            ]},
+        }
+        with self.assertRaises(UnknownObject):
+            database.write(data)
+
+    def test_process_unknown_object_singlefile(self):
+        database = DatabaseChooser("testy", backend="singlefile")
+        database.register()
+        data = {
+            ("testy", "A"): {},
+            ("testy", "B"): {'exchanges': [
+                {'input': ("testy", "A"),
+                 'amount': 1,
+                 'type': 'technosphere'},
+                {'input': ("testy", "C"),
+                 'amount': 1,
+                 'type': 'technosphere'},
+            ]},
+        }
+        with self.assertRaises(UnknownObject):
+            database.write(data)
+
     def test_untyped_exchange_error(self):
         database = DatabaseChooser("testy")
         database.register()
