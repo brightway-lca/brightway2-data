@@ -59,7 +59,7 @@ class JSONDatabaseTest(BW2DataTest):
     def test_load_as_dict(self):
         d = JSONDatabase("food")
         d.register()
-        d.write(food2)
+        d.write(food2, process=False)
         data = d.load(as_dict=True)
         self.assertTrue(isinstance(data, dict))
         data = d.load()
@@ -68,7 +68,7 @@ class JSONDatabaseTest(BW2DataTest):
     def test_db_is_json_serializable(self):
         d = JSONDatabase("food")
         d.register()
-        d.write(food2)
+        d.write(food2, process=False)
         data = d.load(as_dict=True)
         JsonWrapper.dumps(JsonSanitizer.sanitize(data))
 

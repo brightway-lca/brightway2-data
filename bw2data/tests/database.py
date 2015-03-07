@@ -25,6 +25,9 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(len(databases), 2)
 
     def test_copy(self):
+        d = DatabaseChooser("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
         d = DatabaseChooser("food")
         d.register(depends=["biosphere"])
         d.write(food)
@@ -36,7 +39,11 @@ class DatabaseTest(BW2DataTest):
     def test_copy_does_deepcopy(self):
         data = {
             ("old name", 1): {
-                "exchanges": [{"input": ("old name", 1), "amount": 1.0}]
+                "exchanges": [{
+                    "input": ("old name", 1),
+                    "amount": 1.0,
+                    "type": 'technosphere'
+                }]
             }
         }
         d = DatabaseChooser("old name")
@@ -140,7 +147,7 @@ class DatabaseTest(BW2DataTest):
                 {'amount': 1, 'input': ('testy', 'A')}
             ]},
         }
-        database.write(database_data)
+        database.write(database_data, process=False)
         with self.assertRaises(UntypedExchange):
             database.process()
 
@@ -152,7 +159,7 @@ class DatabaseTest(BW2DataTest):
                 {'amount': 1}
             ]},
         }
-        database.write(database_data)
+        database.write(database_data, process=False)
         with self.assertRaises(InvalidExchange):
             database.process()
 
@@ -164,7 +171,7 @@ class DatabaseTest(BW2DataTest):
                 {'input': ('testy', 'A')}
             ]},
         }
-        database.write(database_data)
+        database.write(database_data, process=False)
         with self.assertRaises(InvalidExchange):
             database.process()
 
@@ -323,7 +330,7 @@ class DatabaseTest(BW2DataTest):
                 'type': 'emission' # Ignored because of type
             },
             ("a database", "nonce"): {},  # OK not to have 'exchanges'
-        })
+        }, process=False)
         self.assertEqual(
             database.find_dependents(ignore={"awkward"}),
             ["biosphere", "foo"]
@@ -464,30 +471,30 @@ class SingleFileDatabaseTest(BW2DataTest):
     def test_load(self):
         d = SingleFileDatabase("food")
         d.register(depends=["biosphere"])
-        d.write(food)
+        d.write(food, process=False)
         data = SingleFileDatabase("food").load()
         self.assertEqual(food, data)
 
     def test_load_as_dict(self):
         d = SingleFileDatabase("food")
         d.register(depends=["biosphere"])
-        d.write(food)
+        d.write(food, process=False)
         data = SingleFileDatabase("food").load(as_dict=True)
         self.assertTrue(isinstance(data, dict))
 
     def test_db_is_json_serializable(self):
         d = SingleFileDatabase("food")
         d.register(depends=["biosphere"])
-        d.write(food)
+        d.write(food, process=False)
         data = SingleFileDatabase("food").load(as_dict=True)
         JsonWrapper.dumps(JsonSanitizer.sanitize(data))
 
     def test_write_bumps_version_number(self):
         d = SingleFileDatabase("food")
         d.register(depends=["biosphere"])
-        d.write(food)
+        d.write(food, process=False)
         self.assertEqual(databases["food"]["version"], 1)
-        d.write(food)
+        d.write(food, process=False)
         self.assertEqual(databases["food"]["version"], 2)
 
     def test_validator(self):
