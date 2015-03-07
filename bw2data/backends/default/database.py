@@ -147,7 +147,7 @@ class SingleFileDatabase(LCIBackend):
             datetime.datetime.fromtimestamp(os.stat(os.path.join(
             config.dir, directory, name)).st_mtime)) for name in files])
 
-    def write(self, data):
+    def write(self, data, process=True):
         """Serialize data to disk.
 
         Normalizes units when found.
@@ -171,3 +171,5 @@ class SingleFileDatabase(LCIBackend):
         with safe_save(self.filepath_intermediate()) as filepath:
             with open(filepath, "wb") as f:
                 pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        if process:
+            self.process()
