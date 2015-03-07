@@ -1,10 +1,10 @@
 Changelog
 *********
 
-1.4 (2014-XX-XX)
+1.5 (2015-03-07)
 ================
 
-- BUGFIX: JSONDatabases are now JSON-serializable. Database variants must now support the keyword argument ``as_dict``, and return an actual ``dict`` if ``as_dict=True``.
+Compatibility with bw2calc 1.0 (split products and activities)
 
 1.3.3 (2015-02-04)
 ==================
