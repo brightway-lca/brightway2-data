@@ -50,6 +50,11 @@ class SQLiteBackend(LCIBackend):
                        x.get(u"location", False)})
         if data:
             self._efficient_write_many_data(data)
+
+        if self._searchable:
+            IndexManager().delete_database(self.name)
+            IndexManager().add_datasets(self)
+
         if process:
             self.process()
 
@@ -87,7 +92,7 @@ class SQLiteBackend(LCIBackend):
 
     def make_searchable(self):
         if self._searchable:
-            print("This database is already searchable")
+            print(u"This database is already searchable")
             return
         databases[self.name][u'searchable'] = self._searchable = True
         databases.flush()

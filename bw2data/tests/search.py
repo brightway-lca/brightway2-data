@@ -4,7 +4,7 @@ from ..search import *
 from ..backends.peewee import *
 
 
-class SearchTest(BW2DataTest):
+class IndexTest(BW2DataTest):
     def test_add_dataset(self):
         im = IndexManager()
         im.add_dataset({
@@ -73,10 +73,137 @@ class SearchTest(BW2DataTest):
         self.assertTrue(s.search(u'lollipop', proxy=False))
 
     def test_add_database(self):
-        pass
+        im = IndexManager()
+        db = SQLiteBackend(u'foo')
+        ds = {(u'foo', u'bar'): {
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'lollipop'
+        }}
+        db.write(ds)
+        s = Searcher()
+        self.assertFalse(s.search(u'lollipop', proxy=False))
+        db.make_searchable()
+        self.assertTrue(s.search(u'lollipop', proxy=False))
+
+    def test_add_searchable_database(self):
+        im = IndexManager()
+        db = SQLiteBackend(u'foo')
+        db._searchable = True
+        ds = {(u'foo', u'bar'): {
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'lollipop'
+        }}
+        db.write(ds)
+        s = Searcher()
+        self.assertTrue(s.search(u'lollipop', proxy=False))
+
+    def test_modify_database(self):
+        im = IndexManager()
+        db = SQLiteBackend(u'foo')
+        ds = {(u'foo', u'bar'): {
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'lollipop'
+        }}
+        db.write(ds)
+        db.make_searchable()
+        s = Searcher()
+        self.assertFalse(s.search(u'cream', proxy=False))
+        ds2 = {(u'foo', u'bar'): {
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'ice cream'
+        }}
+        db.write(ds2)
+        self.assertTrue(s.search(u'cream', proxy=False))
 
     def test_delete_database(self):
+        im = IndexManager()
+        db = SQLiteBackend(u'foo')
+        ds = {(u'foo', u'bar'): {
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'lollipop'
+        }}
+        db.write(ds)
+        s = Searcher()
+        self.assertFalse(s.search(u'lollipop', proxy=False))
+        db.make_searchable()
+        self.assertTrue(s.search(u'lollipop', proxy=False))
+        db.delete()
+        self.assertFalse(s.search(u'lollipop', proxy=False))
+
+    def test_return_proxy(self):
         pass
+
+    def test_reset_index(self):
+        im = IndexManager()
+        ds = {
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'lollipop'
+        }
+        im.add_dataset(ds)
+        im.reset()
+        s = Searcher()
+        self.assertFalse(s.search(u'lollipop', proxy=False))
+
+
+class SearchTest(BW2DataTest):
+    def test_basic_search(self):
+        im = IndexManager()
+        im.add_dataset({
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'lollipop'
+        })
+        s = Searcher()
+        self.assertTrue(s.search(u'lollipop', proxy=False))
+
+    def test_product_term(self):
+        im = IndexManager()
+        im.add_dataset({
+            'database': u'foo',
+            'code': u'bar',
+            'reference product': u'lollipop'
+        })
+        s = Searcher()
+        self.assertTrue(s.search(u'lollipop', proxy=False))
+
+    def test_comment_term(self):
+        im = IndexManager()
+        im.add_dataset({
+            'database': u'foo',
+            'code': u'bar',
+            'comment': u'lollipop'
+        })
+        s = Searcher()
+        self.assertTrue(s.search(u'lollipop', proxy=False))
+
+    def test_categories_term(self):
+        im = IndexManager()
+        im.add_dataset({
+            'database': u'foo',
+            'code': u'bar',
+            'categories': (u'lollipop',),
+        })
+        s = Searcher()
+        self.assertTrue(s.search(u'lollipop', proxy=False))
+
+    def test_limit(self):
+        im = IndexManager()
+        im.add_datasets([{
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'lollipop {}'.format(x),
+        } for x in range(50)])
+        s = Searcher()
+        self.assertEqual(
+            len(s.search(u'lollipop', limit=25, proxy=False)),
+            25
+        )
 
     def test_search_faceting(self):
         im = IndexManager()
@@ -106,18 +233,3 @@ class SearchTest(BW2DataTest):
                          'key': u'foo\u22a1bar', 'categories': u''}]
             }
         )
-
-    def test_return_proxy(self):
-        pass
-
-    def test_reset_index(self):
-        im = IndexManager()
-        ds = {
-            'database': u'foo',
-            'code': u'bar',
-            'name': u'lollipop'
-        }
-        im.add_dataset(ds)
-        im.reset()
-        s = Searcher()
-        self.assertFalse(s.search(u'lollipop', proxy=False))
