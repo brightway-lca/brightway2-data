@@ -17,11 +17,13 @@ class Searcher(object):
             if k in FILTER_TERMS
         }
         if len(filter_kwargs) > 1:
-            And([Term(k, v) for k, v in filter_kwargs.items()])
+            filter_kwargs = And([Term(k, v) for k, v in filter_kwargs.items()])
         elif filter_kwargs:
             filter_kwargs = [Term(k, v) for k, v in filter_kwargs.items()][0]
         else:
             filter_kwargs = None
+
+        print "Filter kwargs:", filter_kwargs
 
         qp = MultifieldParser(
             fields,
