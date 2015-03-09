@@ -94,7 +94,9 @@ class SQLiteBackend(LCIBackend):
         IndexManager().add_datasets(self)
 
     def make_unsearchable(self):
-        pass
+        databases[self.name][u'searchable'] = self._searchable = False
+        databases.flush()
+        IndexManager().delete_database(self.name)
 
     def __len__(self):
         return ActivityDataset.select().where(ActivityDataset.database == self.name).count()
@@ -192,9 +194,10 @@ class SQLiteBackend(LCIBackend):
                 self._add_indices()
 
     def delete(self):
-        """Delete all data from SQLite database"""
+        """Delete all data from SQLite database and Whoosh index"""
         ActivityDataset.delete().where(ActivityDataset.database==self.name).execute()
         ExchangeDataset.delete().where(ExchangeDataset.database==self.name).execute()
+        IndexManager().delete_database(self.name)
 
     def process(self):
         """

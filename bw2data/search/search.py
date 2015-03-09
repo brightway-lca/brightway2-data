@@ -7,7 +7,7 @@ class Searcher(object):
     def __init__(self):
         self.index = IndexManager().get()
 
-    def search(self, string, limit=25, facet=None, proxy=False):
+    def search(self, string, limit=25, facet=None, proxy=True):
         fields = [u"name", u"comment", u"product", u"categories"]
         qp = MultifieldParser(
             fields,
@@ -25,7 +25,10 @@ class Searcher(object):
                     k: [searcher.stored_fields(i) for i in v] for k, v in
                     searcher.search(qp.parse(string), groupedby=facet
                                     ).groups().iteritems()}
-        if proxy:
-            pass
+        if proxy and facet is not None:
+            # TODO: Use get_activity
+            return results
+        elif proxy:
+            return results
         else:
             return results

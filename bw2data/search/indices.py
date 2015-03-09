@@ -1,7 +1,7 @@
 from .. import config
 from ..backends.peewee.utils import keyjoin
 from .schema import bw2_schema
-from whoosh import index
+from whoosh import index, query
 
 
 class IndexManager(object):
@@ -50,3 +50,7 @@ class IndexManager(object):
     def delete_dataset(self, ds):
         index = self.get()
         index.delete_by_term(u"key", keyjoin((ds[u'database'], ds[u'code'])))
+
+    def delete_database(self, db_name):
+        index = self.get()
+        index.delete_by_query(query.Term("database", db_name))

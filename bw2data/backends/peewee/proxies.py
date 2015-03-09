@@ -1,6 +1,7 @@
 from ... import databases
 from ...errors import ValidityError
 from ...proxies import ActivityProxyBase, ProxyBase
+from ...search import IndexManager
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activity, keyjoin
 import datetime
@@ -30,6 +31,9 @@ class Activity(ActivityProxyBase):
             setattr(self._document, field, as_activity[field])
         self._document.data = self._data
         self._document.save()
+
+        if databases[self.database].get('searchable'):
+            IndexManager().update_dataset(self._data)
 
     @property
     def dbkey(self):
