@@ -58,8 +58,8 @@ class DataStoreTestCase(BW2DataTest):
 
     def test_assert_registered(self):
         d = MockDS("evening")
-        with self.assertRaises(UnknownObject):
-            d.assert_registered()
+        d.assert_registered()
+        self.assertTrue("evening" in metadata)
 
     def test_write_load(self):
         d = MockDS("full moon")

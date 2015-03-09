@@ -75,9 +75,9 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         del self.metadata[self.name]
 
     def assert_registered(self):
-        """Raise ``UnknownObject`` if not yet registered"""
+        """Register object if not already registered"""
         if self.name not in self.metadata:
-            raise UnknownObject(u"%s hasn't been created and has no data" % self)
+            self.register()
 
     def load(self):
         """Load the intermediate data for this object.
