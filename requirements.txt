@@ -3,7 +3,6 @@ brightway2
 bw2analyzer>=0.5.2
 bw2calc>=0.15.1
 bw2ui>=0.15
-codernity
 colorama
 dictdiffer
 docopt
@@ -11,6 +10,7 @@ flask
 lxml
 nose
 numpy
+peewee
 progressbar-ipython
 requests
 scipy
