@@ -21,6 +21,8 @@ import sqlite3
 # in_a = AD.alias()
 # qs = AD.select().where(AD.key == (out_a.select(in_a.key).join(ED, on=(ED.output == out_a.key)).join(in_a, on=(ED.input_ == in_a.key)).where((ED.type_ == 'technosphere') & (in_a.product == out_a.product)))
 
+_VALID_KEYS = {'location', 'name', 'product', 'type'}
+
 
 class SQLiteBackend(LCIBackend):
     backend = u"sqlite"
@@ -31,11 +33,57 @@ class SQLiteBackend(LCIBackend):
             self._searchable = databases[self.name].get('searchable', False)
         else:
             self._searchable = False
+        self._filters = {}
+        self._order_by = None
+
+    ### Iteration, filtering, and ordering
 
     def __iter__(self):
-        for ds in ActivityDataset.select().where(
-                ActivityDataset.database == self.name).order_by(fn.Random()):
+        for ds in self._get_queryset():
             yield Activity(ds)
+        # for ds in ActivityDataset.select().where(
+        #         ActivityDataset.database == self.name).order_by(fn.Random()):
+        #     yield Activity(ds)
+
+    def _get_queryset(self):
+        qs = ActivityDataset.select().where(
+            ActivityDataset.database == self.name)
+        for key, value in self.filters.items():
+            qs = qs.where(getattr(ActivityDataset, key) == value)
+        if self.order_by:
+            qs = qs.order_by(getattr(ActivityDataset, self.order_by))
+        else:
+            qs = qs.order_by(fn.Random())
+        return qs
+
+    def _get_filters(self):
+        return self._filters
+
+    def _set_filters(self, filters):
+        if not filters:
+            self._filters = {}
+        else:
+            assert isinstance(filters, dict), u"Filter must be a dictionary"
+            for key in filters:
+                assert key in _VALID_KEYS, \
+                    u"Filter key {} is invalid".format(key)
+                self._filters = filters
+
+    def _get_order_by(self):
+        return self._order_by
+
+    def _set_order_by(self, field):
+        if not field:
+            self._order_by = None
+        else:
+            assert field in _VALID_KEYS, \
+                u"order_by field {} is invalid".format(field)
+            self._order_by = field
+
+    filters = property(_get_filters, _set_filters)
+    order_by = property(_get_order_by, _set_order_by)
+
+    ### Data management
 
     def write(self, data, process=True):
         """Write ``data`` to database.
@@ -104,7 +152,7 @@ class SQLiteBackend(LCIBackend):
         IndexManager().delete_database(self.name)
 
     def __len__(self):
-        return ActivityDataset.select().where(ActivityDataset.database == self.name).count()
+        return self._get_queryset().count()
 
     def _make_key(self, obj):
         if isinstance(obj, basestring):
