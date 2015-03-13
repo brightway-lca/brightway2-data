@@ -6,10 +6,12 @@ Changelog
 
 **bw2-uptodate.py is required for this update**. 
 
-2.0 brings massive changes to how datasets are stored and searched. The first big change is a new default backend, the `blitzdb <http://blitzdb.readthedocs.org/en/latest/>`__. This backend has a nicer API, faster random access, and reduced memory consumption. Here are some examples of new usage patterns:
+2.0 brings massive changes to how datasets are stored and searched. The first big change is a new default backend, using peewee and SQLite3. This backend has a nicer API, faster random access, and reduced memory consumption. Here are some examples of new usage patterns:
 
-- FEATURE: New backend, blitzdb, which is the default. Should massively reduce memory consumption in most cases, as entire databases don't need to be loaded.
+- FEATURE: New backend, sqlite, which is the default. Should massively reduce memory consumption in most cases, as entire databases don't need to be loaded.
 - FEATURE: Backend now return activity and exchange proxies instead of raw data, making for easier manipulation and construction.
+- CHANGE: Don't warn when creating unregistered objects
+- CHANGE: Add ``.registered`` boolean property to DataStore objects
 
 .. note:: Both paackages ``bw2search`` and ``bw2simple`` are obsolete - their functionality is now included in ``bw2data`` by default.
 

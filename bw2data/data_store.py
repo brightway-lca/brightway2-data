@@ -44,9 +44,6 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
 
     def __init__(self, name):
         self.name = name
-        if self.name not in self.metadata and not \
-                getattr(config, "dont_warn", False):
-            warnings.warn(u"%s is not registered" % self)
 
     def __unicode__(self):
         return u"Brightway2 %s: %s" % (self.__class__.__name__, self.name)
@@ -59,6 +56,10 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         """Remove filesystem-unsafe characters and perform unicode normalization on ``self.name`` using :func:`.utils.safe_filename`."""
         return safe_filename(self.name)
 
+    @property
+    def registered(self):
+        return self.name in self.metadata
+
     def register(self, **kwargs):
         """Register an object with the metadata store.
 
@@ -67,7 +68,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         Takes any number of keyword arguments.
 
         """
-        assert self.name not in self.metadata, u"%s is already registered" % self
+        assert not self.registered, u"%s is already registered" % self
         self.metadata[self.name] = kwargs
 
     def deregister(self):
@@ -76,7 +77,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
 
     def assert_registered(self):
         """Register object if not already registered"""
-        if self.name not in self.metadata:
+        if not self.registered:
             self.register()
 
     def load(self):
