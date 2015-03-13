@@ -233,3 +233,50 @@ class SearchTest(BW2DataTest):
                          'key': u'foo\u22a1bar', 'categories': u''}]
             }
         )
+
+    def test_single_filter(self):
+        im = IndexManager()
+        ds = [{
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'lollipop',
+        }, {
+            'database': u'baz',
+            'code': u'bar',
+            'name': u'lollipop',
+        }]
+        im.add_datasets(ds)
+        s = Searcher()
+        self.assertEqual(
+            s.search(u'lollipop', proxy=False, database=u'foo'),
+            [{'comment': u'', 'product': u'', 'name': u'lollipop',
+              'database': u'foo', 'location': u'', 'key': u'foo\u22a1bar',
+              'categories': u''}]
+        )
+
+    def test_multifilter(self):
+        im = IndexManager()
+        ds = [{
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'lollipop ice',
+            'location': u'BR',
+        }, {
+            'database': u'foo',
+            'code': u'bar',
+            'name': u'lollipop',
+            'location': u'CH',
+        }, {
+            'database': u'baz',
+            'code': u'bar',
+            'name': u'lollipop',
+            'location': u'CH',
+        }]
+        im.add_datasets(ds)
+        s = Searcher()
+        self.assertEqual(
+            s.search(u'lollipop', proxy=False, database=u'foo', location=u'CH'),
+            [{'comment': u'', 'product': u'', 'name': u'lollipop',
+              'database': u'foo', 'location': u'CH', 'key': u'foo\u22a1bar',
+              'categories': u''}]
+        )
