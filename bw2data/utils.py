@@ -286,16 +286,7 @@ def set_data_dir(dirpath, permanent=True):
                 encoding="utf-8") as f:
             f.write(dirpath)
 
-        config.reset()
-    else:
-        config.dir = dirpath
-    config.create_basic_directories()
-
-    from .meta import reset_meta
-    reset_meta()
-
-    from .backends.peewee import sqlite3_db
-    sqlite3_db.reset()
+    config.reset(dirpath)
 
 
 def create_in_memory_zipfile_from_directory(path):

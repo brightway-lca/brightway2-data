@@ -107,13 +107,3 @@ databases = Databases()
 methods = Methods()
 normalizations = NormalizationMeta()
 weightings = WeightingMeta()
-
-
-def reset_meta():
-    mapping.__init__()
-    geomapping.__init__()
-    databases.__init__()
-    methods.__init__()
-    normalizations.__init__()
-    weightings.__init__()
-    config.load_preferences()

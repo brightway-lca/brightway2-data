@@ -3,8 +3,14 @@ __version__ = (2, 0, "dev")
 
 from ._config import config
 from .utils import set_data_dir
-from .meta import databases, methods, mapping, reset_meta, geomapping, \
-    weightings, normalizations
+from .meta import (
+    databases,
+    geomapping,
+    mapping,
+    methods,
+    normalizations,
+    weightings,
+)
 from .serialization import JsonWrapper
 from .database import DatabaseChooser as Database, get_activity
 from .data_store import DataStore

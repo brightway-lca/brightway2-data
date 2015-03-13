@@ -22,14 +22,14 @@ class Config(object):
     _windows = platform.system() == "Windows"
 
     def __init__(self, path=None):
-        self.reset(path)
+        self.reset(path, True)
 
     def check_dir(self, directory=None):
         """Returns ``True`` if given path is a directory and writeable, ``False`` otherwise. Default ``directory`` is the Brightway2 data directory."""
         return os.path.isdir(directory or self.dir) and \
             os.access(directory or self.dir, os.W_OK)
 
-    def reset(self, path=None):
+    def reset(self, path=None, initial=False):
         """Reset to original configuration. Useful for testing."""
         self.dir = self.decode_directory(self.get_home_directory(path))
         if not self.check_dir():
@@ -37,7 +37,39 @@ class Config(object):
                           u"doesn't exist or is not writable")
             sys.exit(1)
         self.create_basic_directories()
+        if not initial:
+            self.reset_meta()
         self.load_preferences()
+
+    def reset_meta(self):
+        """Reset all data specific to a filesystem location"""
+        from .meta import (
+            databases,
+            geomapping,
+            mapping,
+            methods,
+            normalizations,
+            weightings,
+        )
+
+        mapping.__init__()
+        geomapping.__init__()
+        databases.__init__()
+        methods.__init__()
+        normalizations.__init__()
+        weightings.__init__()
+
+        try:
+            from bw2io import migrations, unlinked_data
+            migrations.__init__()
+            unlinked_data.__init__()
+        except ImportError:
+            pass
+
+        self.load_preferences()
+
+        from .backends.peewee import sqlite3_db
+        sqlite3_db.reset()
 
     def load_preferences(self):
         """Load a set of preferences from a file in the data directory.

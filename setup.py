@@ -22,6 +22,7 @@ setup(
     author_email="cmutel@gmail.com",
     license=open('LICENSE.txt').read(),
     install_requires=[
+        "bw2io",
         "colorama",
         "dictdiffer",
         "docopt",
