@@ -2,7 +2,7 @@ from __future__ import print_function
 from . import sqlite3_db
 from ... import mapping, geomapping, config, databases
 from ...errors import UntypedExchange, InvalidExchange, UnknownObject
-from ...search import IndexManager
+from ...search import IndexManager, Searcher
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ..base import LCIBackend
 from .proxies import Activity
@@ -309,3 +309,17 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         with open(self.filepath_processed(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def search(self, string, *args, **kwargs):
+        kwargs['database'] = self.name
+        return Searcher().search(string, **kwargs)
+
+
+    def graph_technosphere(self, filename=None, **kwargs):
+        from bw2analyzer.matrix_grapher import SparseMatrixGrapher
+        from bw2calc import LCA
+        lca = LCA({self.random(): 1})
+        lca.lci()
+
+        smg = SparseMatrixGrapher(lca.technosphere_matrix)
+        return smg.ordered_graph(filename, **kwargs)
