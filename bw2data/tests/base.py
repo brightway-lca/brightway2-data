@@ -5,6 +5,8 @@ import unittest
 
 
 class BW2DataTest(unittest.TestCase):
+    _multiprocess_can_split_ = True
+
     def setUp(self):
         config.dont_warn = True
         config.reset(tempfile.mkdtemp())
