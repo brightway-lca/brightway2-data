@@ -1,4 +1,5 @@
 from __future__ import print_function
+from .. import config
 from ..meta import databases
 import copy
 import warnings
@@ -23,6 +24,8 @@ def convert_backend(database_name, backend):
         return False
     # Needed to convert from async json dict
     data = db.load(as_dict=True)
+    if database_name in config.cache:
+        del config.cache[database_name]
     metadata = copy.deepcopy(databases[database_name])
     metadata[u"backend"] = unicode(backend)
     del databases[database_name]
