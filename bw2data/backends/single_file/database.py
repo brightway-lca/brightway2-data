@@ -2,7 +2,7 @@
 from ... import databases, config, mapping, geomapping
 from ...errors import MissingIntermediateData
 from ...fatomic import open as atomic_open
-from ...proxies import Activity
+from ...proxies import Activity, Exchange
 from ...utils import natural_sort, safe_filename
 from ...validate import db_validator
 from ..base import LCIBackend

@@ -1,5 +1,7 @@
-import collections
 from .. import databases
+from stats_arrays import uncertainty_choices
+import collections
+from bw2calc import LCA
 
 
 class ProxyBase(collections.MutableMapping):
@@ -95,3 +97,62 @@ class ActivityProxyBase(ProxyBase):
                 return False
         else:
             return True
+
+    def lca(self, method=None, amount=1.):
+        """Shortcut to construct an LCA object for this activity."""
+        lca = LCA({self: amount}, method=method)
+        lca.lci()
+        if method is not None:
+            lca.lcia()
+        lca.fix_dictionaries()
+        return lca
+
+
+class ExchangeProxyBase(ProxyBase):
+    def __unicode__(self):
+        if self.valid():
+            return u"Exchange: {} {} {} to {}>".format(self.amount, self.unit,
+                self.input, self.output)
+        else:
+            return u"Exchange with missing fields (call ``valid(why=True)`` to see more)"
+
+    def valid(self, why=False):
+        pass
+
+    @property
+    def unit(self):
+        return self.input.unit
+
+    @property
+    def uncertainty(self):
+        KEYS = {
+            u'uncertainty type',
+            u'loc',
+            u'scale',
+            u'shape',
+            u'minimum',
+            u'maximum'
+        }
+        return {k: v for k, v in self._data.items() if k in KEYS}
+
+    @property
+    def uncertainty_type(self):
+        return uncertainty_choices[self._data.get(u"uncertainty type", 0)]
+
+    def random_sample(self, n=100):
+        """Draw a random sample from this exchange."""
+        ut = self.uncertainty_type
+        array = ut.from_dicts(self.uncertainty)
+        return ut.bounded_random_variables(array, n).ravel()
+
+    def as_functional_unit(self):
+        return {self.input: self.amount}
+
+    def lca(self, method=None, amount=1.):
+        """Shortcut to construct an LCA object for this activity."""
+        lca = LCA(self.as_functional_unit(), method=method)
+        lca.lci()
+        if method is not None:
+            lca.lcia()
+        lca.fix_dictionaries()
+        return lca

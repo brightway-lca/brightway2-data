@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*
 from . import ActivityProxyBase
+from .exchange import Exchange
+from bw2calc import LCA
 
 
 class Activity(ActivityProxyBase):
@@ -9,10 +11,12 @@ class Activity(ActivityProxyBase):
         self._database = database or Database(self.key[0])
         self._data = data or self._database.get(self.key[1])
 
+    def __setitem__(self, key, value):
+        raise AttributeError("Activity proxies are read-only.")
+
     @property
     def exchanges(self):
-        from .exchange import Exchange
-        return [Exchange(exc) for exc in self.raw.get(u'exchanges', [])]
+        return [Exchange(exc, self) for exc in self._data.get(u'exchanges', [])]
 
     @property
     def database(self):
@@ -24,13 +28,3 @@ class Activity(ActivityProxyBase):
 
     def save(self):
         raise NotImplemented
-
-    def lca(self, method=None, amount=1.):
-        """Shortcut to construct an LCA object for this activity."""
-        from bw2calc import LCA
-        lca = LCA({self: amount}, method=method)
-        lca.lci()
-        if method is not None:
-            lca.lcia()
-        lca.fix_dictionaries()
-        return lca
