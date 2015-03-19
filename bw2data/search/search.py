@@ -1,3 +1,4 @@
+from ..backends.peewee.utils import keysplit
 from .indices import IndexManager
 from whoosh.collectors import TimeLimitCollector, TimeLimit
 from whoosh.qparser import MultifieldParser
@@ -46,10 +47,12 @@ class Searcher(object):
                         filter=filter_kwargs
                     ).groups().iteritems()}
 
+        from ..database import get_activity
+
         if proxy and facet is not None:
-            # TODO: Use get_activity
-            return results
+            return {key: [get_activity(keysplit(obj['key'])) for obj in value]
+                    for key, value in results.items()}
         elif proxy:
-            return results
+            return [get_activity(keysplit(obj['key'])) for obj in results]
         else:
             return results
