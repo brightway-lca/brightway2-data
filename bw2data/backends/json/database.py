@@ -43,7 +43,7 @@ class JSONDatabase(LCIBackend):
             return dct
 
     def __iter__(self):
-        json_dict = self.load():
+        json_dict = self.load()
         for key in json_dict:
             yield Activity(key, self, json_dict[key])
 

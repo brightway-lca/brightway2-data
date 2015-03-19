@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*
 from . import ActivityProxyBase
 from .exchange import Exchange
-from bw2calc import LCA
 
 
 class Activity(ActivityProxyBase):

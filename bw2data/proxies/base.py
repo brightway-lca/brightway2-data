@@ -1,7 +1,6 @@
 from .. import databases
 from stats_arrays import uncertainty_choices
 import collections
-from bw2calc import LCA
 
 
 class ProxyBase(collections.MutableMapping):
@@ -100,6 +99,8 @@ class ActivityProxyBase(ProxyBase):
 
     def lca(self, method=None, amount=1.):
         """Shortcut to construct an LCA object for this activity."""
+        from bw2calc import LCA
+
         lca = LCA({self: amount}, method=method)
         lca.lci()
         if method is not None:
@@ -150,6 +151,8 @@ class ExchangeProxyBase(ProxyBase):
 
     def lca(self, method=None, amount=1.):
         """Shortcut to construct an LCA object for this activity."""
+        from bw2calc import LCA
+
         lca = LCA(self.as_functional_unit(), method=method)
         lca.lci()
         if method is not None:
