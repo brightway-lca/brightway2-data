@@ -68,6 +68,7 @@ class SQLiteBackend(LCIBackend):
                 assert key in _VALID_KEYS, \
                     u"Filter key {} is invalid".format(key)
                 self._filters = filters
+        return self
 
     def _get_order_by(self):
         return self._order_by
@@ -79,6 +80,7 @@ class SQLiteBackend(LCIBackend):
             assert field in _VALID_KEYS, \
                 u"order_by field {} is invalid".format(field)
             self._order_by = field
+        return self
 
     filters = property(_get_filters, _set_filters)
     order_by = property(_get_order_by, _set_order_by)
