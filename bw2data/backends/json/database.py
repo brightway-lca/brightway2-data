@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from ... import config, mapping, geomapping, databases
+from ...proxies import Activity
 from ..base import LCIBackend
 from .sync_json_dict import SynchronousJSONDict
 import os
@@ -25,11 +26,32 @@ class JSONDatabase(LCIBackend):
     def load(self, as_dict=False, *args, **kwargs):
         """Instantiate :class:`.SynchronousJSONDict` for this database."""
         self.assert_registered()
-        dct = SynchronousJSONDict(self.filepath_intermediate(), self.name)
+
+        if config.p.get("use_cache"):
+            try:
+                dct = config.cache[self.name]
+            except KeyError:
+                dct = SynchronousJSONDict(self.filepath_intermediate(),
+                                          self.name)
+                config.cache[self.name] = dct
+        else:
+            dct = SynchronousJSONDict(self.filepath_intermediate(), self.name)
+
         if as_dict:
             return {key: dict(value) for key, value in dct.iteritems()}
         else:
             return dct
+
+    def __iter__(self):
+        json_dict = self.load():
+        for key in json_dict:
+            yield Activity(key, self, json_dict[key])
+
+    def get(self, code):
+        """Get Activity proxy for this dataset"""
+        key = (self.name, code)
+        data = self.load()[key]
+        return Activity(key, self, data)
 
     def register(self, **kwargs):
         """Register a database with the metadata store, using the correct value for ``backend``, and creates database directory."""

@@ -2,7 +2,7 @@
 from ... import databases, config, mapping, geomapping
 from ...errors import MissingIntermediateData
 from ...fatomic import open as atomic_open
-from ...proxies import Activity, Exchange
+from ...proxies import Activity
 from ...utils import natural_sort, safe_filename
 from ...validate import db_validator
 from ..base import LCIBackend
@@ -31,6 +31,12 @@ class SingleFileDatabase(LCIBackend):
         for k, v in self.load().items():
             yield Activity(k, self, v)
 
+    def get(self, code):
+        """Get Activity proxy for this dataset"""
+        key = (self.name, code)
+        data = self.load()[key]
+        return Activity(key, self, data)
+
     @property
     def filename(self):
         return self.filename_for_version()
@@ -53,9 +59,6 @@ class SingleFileDatabase(LCIBackend):
             u"intermediate",
             self.filename_for_version(version) + u".pickle"
         )
-
-    def get(self, code):
-        return self.load()[(self.name, code)]
 
     def load(self, version=None, **kwargs):
         """Load the intermediate data for this database.
