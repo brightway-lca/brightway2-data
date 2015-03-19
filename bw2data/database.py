@@ -2,6 +2,7 @@ from . import databases, config
 from .backends.single_file import SingleFileDatabase
 from .backends.json import JSONDatabase
 from .backends.peewee import SQLiteBackend
+from .utils import get_activity
 
 
 def DatabaseChooser(name, backend=None):
@@ -44,11 +45,6 @@ def DatabaseChooser(name, backend=None):
     else:
         raise ValueError(u"Backend {} not found".format(backend))
 
-
 # Backwards compatibility
 Database = DatabaseChooser
-
-
-def get_activity(key):
-    assert isinstance(key, (tuple, list))
-    return Database(key[0]).get(key[1])
+Database.get = get_activity

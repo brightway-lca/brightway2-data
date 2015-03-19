@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*
 from .base import ExchangeProxyBase
+from ..utils import get_activity
 
 
 class Exchange(ExchangeProxyBase):
@@ -26,9 +27,6 @@ Properties:
     """
 
     def __init__(self, exc, activity):
-        # Avoid circular reference
-        from ..database import get_activity
-
         self._data = exc
         self.input = get_activity(exc['input'])
         # Output not specified, unless from SQLite

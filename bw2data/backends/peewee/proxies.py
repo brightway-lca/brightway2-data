@@ -2,6 +2,7 @@ from ... import databases
 from ...errors import ValidityError
 from ...proxies import ActivityProxyBase, ExchangeProxyBase
 from ...search import IndexManager
+from ...utils import get_activity
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activity, keyjoin
 import datetime
@@ -69,8 +70,6 @@ class Activity(ActivityProxyBase):
 
 class Exchange(ExchangeProxyBase):
     def __init__(self, document=None):
-        from ..database import get_activity
-
         if document is None:
             self._document = ExchangeDataset()
             self._data = {}

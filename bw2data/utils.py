@@ -306,3 +306,10 @@ def create_in_memory_zipfile_from_directory(path):
     zf.close()
     memory_obj.seek(0)
     return memory_obj
+
+
+def get_activity(key):
+    from .database import Database
+    assert isinstance(key, (tuple, list)), \
+        u"Must pass (database, code) key to this function"
+    return Database(key[0]).get(key[1])
