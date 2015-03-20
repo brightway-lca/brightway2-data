@@ -3,6 +3,7 @@ from . import BW2DataTest
 from .. import config, databases
 from ..backends.json import JSONDatabase, SynchronousJSONDict
 from ..backends.json.mapping import KeyMapping, cache as mapping_cache
+from ..proxies import Activity
 from ..serialization import JsonWrapper, JsonSanitizer
 from .fixtures import food2, biosphere
 import json
@@ -17,6 +18,22 @@ class JSONDatabaseTest(BW2DataTest):
         d.register()
         d.write(biosphere)
         return d
+
+    def test_get(self):
+        d = JSONDatabase("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        activity = d.get('1')
+        self.assertTrue(isinstance(activity, Activity))
+        self.assertEqual(activity.name, 'an emission')
+
+    def test_get_random(self):
+        d = JSONDatabase("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        activity = d.random()
+        self.assertTrue(isinstance(activity, Activity))
+        self.assertTrue(activity.name in ('an emission', 'another emission'))
 
     def test_load_write(self):
         jd = JSONDatabase("foo")

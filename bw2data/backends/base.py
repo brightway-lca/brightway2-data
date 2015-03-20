@@ -156,6 +156,11 @@ class LCIBackend(DataStore):
         }
         return sorted(dependents)
 
+    def delete(self):
+        """Delete data from this instance. For the base class, only clears cached data."""
+        if self.name in config.cache:
+            del config.cache[self.name]
+
     def load(self, *args, **kwargs):
         """Load the intermediate data for this database.
 
@@ -289,12 +294,12 @@ Doesn't return anything, but writes two files to disk.
         """Return a random activity key.
 
         Returns a random activity key, or ``None`` (and issues a warning) if the current database is empty."""
-        keys = self.load().keys()
+        keys = [x for x in mapping if x and x[0] == self.name]
         if not keys:
             warnings.warn(u"This database is empty")
             return None
         else:
-            return random.choice(keys)
+            return self.get(random.choice(keys)[1])
 
     def register(self, **kwargs):
         """Register a database with the metadata store.

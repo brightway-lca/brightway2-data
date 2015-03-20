@@ -32,7 +32,7 @@ sqlite3_db = DB()
 
 from .fields import PickleField
 from .schema import ActivityDataset, ExchangeDataset
-from .proxies import Activity
+from .proxies import Activity, Exchange
 from .database import SQLiteBackend
 
 sqlite3_db.create()

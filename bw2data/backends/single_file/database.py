@@ -34,8 +34,7 @@ class SingleFileDatabase(LCIBackend):
     def get(self, code):
         """Get Activity proxy for this dataset"""
         key = (self.name, code)
-        data = self.load()[key]
-        return Activity(key, self, data)
+        return Activity(key, self, self.load()[key])
 
     @property
     def filename(self):

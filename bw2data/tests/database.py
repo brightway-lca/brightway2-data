@@ -2,9 +2,11 @@
 from . import BW2DataTest
 from .. import config
 from ..database import DatabaseChooser
+from ..backends.peewee import Activity as PWActivity, Exchange as PWExchange
 from ..backends.single_file.database import SingleFileDatabase
 from ..errors import UnknownObject, MissingIntermediateData, UntypedExchange, \
     InvalidExchange
+from ..proxies import Activity as SFActivity, Exchange as SFExchange
 from ..meta import mapping, geomapping, databases
 from ..serialization import JsonWrapper, JsonSanitizer
 from ..validate import db_validator
@@ -23,6 +25,22 @@ class DatabaseTest(BW2DataTest):
         d.register(depends=["biosphere"])
         d.write(food)
         self.assertEqual(len(databases), 2)
+
+    def test_get(self):
+        d = DatabaseChooser("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        activity = d.get('1')
+        self.assertTrue(isinstance(activity, PWActivity))
+        self.assertEqual(activity.name, 'an emission')
+
+    def test_get_random(self):
+        d = DatabaseChooser("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        activity = d.random()
+        self.assertTrue(isinstance(activity, PWActivity))
+        self.assertTrue(activity.name in ('an emission', 'another emission'))
 
     def test_copy(self):
         d = DatabaseChooser("biosphere")
@@ -437,6 +455,22 @@ class SingleFileDatabaseTest(BW2DataTest):
         d.register()
         d.write(biosphere)
         return d
+
+    def test_get(self):
+        d = DatabaseChooser("biosphere", backend='singlefile')
+        d.register(depends=[])
+        d.write(biosphere)
+        activity = d.get('1')
+        self.assertTrue(isinstance(activity, SFActivity))
+        self.assertEqual(activity.name, 'an emission')
+
+    def test_get_random(self):
+        d = DatabaseChooser("biosphere", backend='singlefile')
+        d.register(depends=[])
+        d.write(biosphere)
+        activity = d.random()
+        self.assertTrue(isinstance(activity, SFActivity))
+        self.assertTrue(activity.name in ('an emission', 'another emission'))
 
     def test_revert(self):
         self.create_biosphere()

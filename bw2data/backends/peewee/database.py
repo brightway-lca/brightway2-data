@@ -41,9 +41,6 @@ class SQLiteBackend(LCIBackend):
     def __iter__(self):
         for ds in self._get_queryset():
             yield Activity(ds)
-        # for ds in ActivityDataset.select().where(
-        #         ActivityDataset.database == self.name).order_by(fn.Random()):
-        #     yield Activity(ds)
 
     def _get_queryset(self):
         qs = ActivityDataset.select().where(
