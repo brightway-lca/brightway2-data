@@ -14,10 +14,6 @@ class Activity(ActivityProxyBase):
         raise AttributeError("Activity proxies are read-only.")
 
     @property
-    def exchanges(self):
-        return [Exchange(exc, self) for exc in self._data.get(u'exchanges', [])]
-
-    @property
     def database(self):
         return self.key[0]
 
@@ -26,4 +22,22 @@ class Activity(ActivityProxyBase):
         return self.key[1]
 
     def save(self):
+        raise NotImplemented
+
+    def exchanges(self, raw=False):
+        return [exc if raw else Exchange(exc, self)
+                for exc in self._data.get(u'exchanges', [])
+                if exc.get('type') == 'technosphere']
+
+    def technosphere(self, raw=False):
+        return [exc if raw else Exchange(exc, self)
+                for exc in self._data.get(u'exchanges', [])
+                if exc.get('type') == 'technosphere']
+
+    def biosphere(self, raw=False):
+        return [exc if raw else Exchange(exc, self)
+                for exc in self._data.get(u'exchanges', [])
+                if exc.get('type') == 'biosphere']
+
+    def upstream(self, *args, **kwargs):
         raise NotImplemented

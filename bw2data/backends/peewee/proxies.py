@@ -43,6 +43,12 @@ class Activity(ActivityProxyBase):
 
     def exchanges(self, raw=False):
         qs = ExchangeDataset.select().where(
+            ExchangeDataset.output == self._document.key
+        )
+        return (qs if raw else (Exchange(obj) for obj in qs))
+
+    def technosphere(self, raw=False):
+        qs = ExchangeDataset.select().where(
             ExchangeDataset.output == self._document.key,
             ExchangeDataset.type == u"technosphere"
         )
