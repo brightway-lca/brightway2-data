@@ -81,6 +81,15 @@ class Databases(SerializedDict):
         return u"Brightway2 databases metadata with %i objects" % len(
             self.data)
 
+    def __del__(self, name):
+        super(Databases, self).__del__(name)
+
+        from . import Database
+        try:
+            Database(name).delete()
+        except:
+            pass
+
 
 class Methods(CompoundJSONDict):
     """A dictionary for method metadata. File data is saved in ``methods.json``."""
