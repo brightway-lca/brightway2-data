@@ -38,6 +38,14 @@ class DatabaseTest(BW2DataTest):
         d = DatabaseChooser("biosphere")
         d.register(depends=[])
         d.write(biosphere)
+        activity = iter(d).next()
+        self.assertTrue(isinstance(activity, PWActivity))
+        self.assertTrue(activity.name in ('an emission', 'another emission'))
+
+    def test_get_random(self):
+        d = DatabaseChooser("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
         activity = d.random()
         self.assertTrue(isinstance(activity, PWActivity))
         self.assertTrue(activity.name in ('an emission', 'another emission'))
@@ -463,6 +471,14 @@ class SingleFileDatabaseTest(BW2DataTest):
         activity = d.get('1')
         self.assertTrue(isinstance(activity, SFActivity))
         self.assertEqual(activity.name, 'an emission')
+
+    def test_get_random(self):
+        d = DatabaseChooser("biosphere", backend='singlefile')
+        d.register(depends=[])
+        d.write(biosphere)
+        activity = iter(d).next()
+        self.assertTrue(isinstance(activity, SFActivity))
+        self.assertTrue(activity.name in ('an emission', 'another emission'))
 
     def test_get_random(self):
         d = DatabaseChooser("biosphere", backend='singlefile')

@@ -27,6 +27,14 @@ class JSONDatabaseTest(BW2DataTest):
         self.assertTrue(isinstance(activity, Activity))
         self.assertEqual(activity.name, 'an emission')
 
+    def test_iter(self):
+        d = JSONDatabase("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        activity = iter(d).next()
+        self.assertTrue(isinstance(activity, Activity))
+        self.assertTrue(activity.name in ('an emission', 'another emission'))
+
     def test_get_random(self):
         d = JSONDatabase("biosphere")
         d.register(depends=[])
