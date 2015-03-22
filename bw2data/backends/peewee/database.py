@@ -29,10 +29,7 @@ class SQLiteBackend(LCIBackend):
 
     def __init__(self, *args, **kwargs):
         super(SQLiteBackend, self).__init__(*args, **kwargs)
-        if self.name in databases:
-            self._searchable = databases[self.name].get('searchable', False)
-        else:
-            self._searchable = False
+        self._searchable = databases.get(self.name, {}).get('searchable', True)
         self._filters = {}
         self._order_by = None
 
@@ -96,7 +93,12 @@ class SQLiteBackend(LCIBackend):
         geomapping.add({x[u"location"] for x in data.values() if
                        x.get(u"location", False)})
         if data:
-            self._efficient_write_many_data(data)
+            try:
+                self._efficient_write_many_data(data)
+            except:
+                # Purge all data from database, then reraise
+                self.delete()
+                raise
 
         if self._searchable:
             IndexManager().delete_database(self.name)
