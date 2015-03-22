@@ -130,6 +130,12 @@ class SerializedDict(object):
             key = tuple(key)
         return self.data[key]
 
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
     def __setitem__(self, key, value):
         self.data[key] = value
         self.flush()
