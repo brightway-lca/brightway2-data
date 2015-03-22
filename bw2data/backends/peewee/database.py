@@ -129,7 +129,7 @@ class SQLiteBackend(LCIBackend):
     def get(self, code):
         return Activity(ActivityDataset.select().where(ActivityDataset.key == self._make_key(code)).get())
 
-    def new(self, code, **kwargs):
+    def new_activity(self, code, **kwargs):
         obj = Activity()
         obj[u'database'] = self.name
         obj[u'code'] = unicode(code)
