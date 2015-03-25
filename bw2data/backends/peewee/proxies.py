@@ -82,11 +82,10 @@ class Exchange(ExchangeProxyBase):
             self.input = u"Unknown"
             self.output = u"Unknown"
         else:
-            self._document = document or ExchangeDataset()
-            self._data = self._document.data if document else {}
-            self.input = get_activity(self._data['input'])
-            self.output = get_activity(self._data['output'])
-
+            self._document = document
+            self.input = get_activity(document.data['input'])
+            self.output = get_activity(document.data['output'])
+            self._data = self._document.data
 
     def save(self):
         as_activity = dict_as_activity(self._data)
