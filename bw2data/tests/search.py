@@ -82,9 +82,9 @@ class IndexTest(BW2DataTest):
         }}
         db.write(ds)
         s = Searcher()
-        self.assertFalse(s.search(u'lollipop', proxy=False))
-        db.make_searchable()
         self.assertTrue(s.search(u'lollipop', proxy=False))
+        db.make_unsearchable()
+        self.assertFalse(s.search(u'lollipop', proxy=False))
 
     def test_add_searchable_database(self):
         im = IndexManager()
@@ -129,6 +129,8 @@ class IndexTest(BW2DataTest):
         }}
         db.write(ds)
         s = Searcher()
+        self.assertTrue(s.search(u'lollipop', proxy=False))
+        db.make_unsearchable()
         self.assertFalse(s.search(u'lollipop', proxy=False))
         db.make_searchable()
         self.assertTrue(s.search(u'lollipop', proxy=False))

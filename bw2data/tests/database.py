@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 from . import BW2DataTest
 from .. import config
 from ..database import DatabaseChooser

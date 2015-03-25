@@ -15,7 +15,7 @@ class GeoTest(BW2DataTest):
         geomapping.__init__()
 
     def add_biosphere(self):
-        d = Database("biosphere")
+        d = Database(u"biosphere")
         d.register(depends=[])
         d.write(biosphere)
 
