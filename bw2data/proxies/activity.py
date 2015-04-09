@@ -26,8 +26,7 @@ class Activity(ActivityProxyBase):
 
     def exchanges(self, raw=False):
         return [exc if raw else Exchange(exc, self)
-                for exc in self._data.get(u'exchanges', [])
-                if exc.get('type') == 'technosphere']
+                for exc in self._data.get(u'exchanges', [])]
 
     def technosphere(self, raw=False):
         return [exc if raw else Exchange(exc, self)
