@@ -118,7 +118,20 @@ class ExchangeProxyBase(ProxyBase):
             return u"Exchange with missing fields (call ``valid(why=True)`` to see more)"
 
     def valid(self, why=False):
-        pass
+        errors = []
+        if not self.input:
+            errors.append(u"Missing field ``input``")
+        if not self.output:
+            errors.append(u"Missing field ``output``")
+        if not self.amount:
+            errors.append(u"Missing field ``amount``")
+        if errors:
+            if why:
+                return (False, errors)
+            else:
+                return False
+        else:
+            return True
 
     @property
     def unit(self):
