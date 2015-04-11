@@ -600,3 +600,12 @@ class SingleFileDatabaseTest(BW2DataTest):
         database = SingleFileDatabase("a database")
         self.assertEqual(database.validator, db_validator)
         self.assertTrue(database.validate({}))
+
+    def test_delete(self):
+        d = SingleFileDatabase("biosphere")
+        d.write(biosphere)
+        fp = d.filepath_intermediate()
+        self.assertTrue("biosphere" in databases)
+        del databases['biosphere']
+        self.assertFalse("biosphere" in databases)
+        self.assertTrue(os.path.exists(fp))
