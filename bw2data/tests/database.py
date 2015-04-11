@@ -3,7 +3,11 @@ from __future__ import unicode_literals
 from . import BW2DataTest
 from .. import config
 from ..database import DatabaseChooser
-from ..backends.peewee import Activity as PWActivity, Exchange as PWExchange
+from ..backends.peewee import (
+    Activity as PWActivity,
+    Exchange as PWExchange,
+    sqlite3_db
+)
 from ..backends.single_file.database import SingleFileDatabase
 from ..errors import UnknownObject, MissingIntermediateData, UntypedExchange, \
     InvalidExchange
@@ -53,10 +57,10 @@ class DatabaseTest(BW2DataTest):
 
     def test_copy(self):
         d = DatabaseChooser("biosphere")
-        d.register(depends=[])
+        d.register()
         d.write(biosphere)
         d = DatabaseChooser("food")
-        d.register(depends=["biosphere"])
+        d.register()
         d.write(food)
         with self.assertRaises(AssertionError):
             d.copy("food")
@@ -89,6 +93,25 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(
             d.load().values()[0]['exchanges'][0]['input'],
             ('old name', '1')
+        )
+
+    def test_deletes_from_database(self):
+        d = DatabaseChooser("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        self.assertTrue("biosphere" in databases)
+        del databases['biosphere']
+        self.assertEqual(
+            sqlite3_db().execute_sql(
+                "select count(*) from activitydataset where database = 'biosphere'"
+            ).next(),
+            (0,)
+        )
+        self.assertEqual(
+            sqlite3_db().execute_sql(
+                "select count(*) from exchangedataset where database = 'biosphere'"
+            ).next(),
+            (0,)
         )
 
     def test_relabel_data(self):
@@ -239,8 +262,8 @@ class DatabaseTest(BW2DataTest):
         database.write({})
         fp = os.path.join(
             config.dir,
-            u"processed",
-            database.filename + u".geomapping.pickle"
+            "processed",
+            database.filename + ".geomapping.pickle"
         )
         array = pickle.load(open(fp, "rb"))
         fieldnames = {'activity', 'geo', 'row', 'col'}
@@ -277,8 +300,8 @@ class DatabaseTest(BW2DataTest):
         })
         fp = os.path.join(
             config.dir,
-            u"processed",
-            database.filename + u".geomapping.pickle"
+            "processed",
+            database.filename + ".geomapping.pickle"
         )
         array = pickle.load(open(fp, "rb"))
         self.assertEqual(array.shape, (1,))
@@ -298,8 +321,8 @@ class DatabaseTest(BW2DataTest):
         }})
         fp = os.path.join(
             config.dir,
-            u"processed",
-            database.filename + u".pickle"
+            "processed",
+            database.filename + ".pickle"
         )
         array = pickle.load(open(fp, "rb"))
         fieldnames = {'input', 'output', 'row', 'col', 'type'}
@@ -321,8 +344,8 @@ class DatabaseTest(BW2DataTest):
         }})
         fp = os.path.join(
             config.dir,
-            u"processed",
-            database.filename + u".pickle"
+            "processed",
+            database.filename + ".pickle"
         )
         array = pickle.load(open(fp, "rb"))
         self.assertEqual(array.shape, (2,))
@@ -423,8 +446,8 @@ class DatabaseTest(BW2DataTest):
         database.process()
         fp = os.path.join(
             config.dir,
-            u"processed",
-            database.filename + u".pickle"
+            "processed",
+            database.filename + ".pickle"
         )
         array = pickle.load(open(fp, "rb"))
         self.assertEqual(array['amount'][0], 1)
@@ -448,8 +471,8 @@ class DatabaseTest(BW2DataTest):
         self.assertTrue(("a database", "product") in mapping)
         fp = os.path.join(
             config.dir,
-            u"processed",
-            database.filename + u".pickle"
+            "processed",
+            database.filename + ".pickle"
         )
         array = pickle.load(open(fp, "rb"))
         self.assertEqual(array.shape, (1,))
@@ -506,7 +529,7 @@ class SingleFileDatabaseTest(BW2DataTest):
     def test_make_latest_version(self):
         d = self.create_biosphere()
         biosphere2 = copy.deepcopy(biosphere)
-        biosphere2[(u"biosphere", u"noodles")] = {}
+        biosphere2[("biosphere", "noodles")] = {}
         for x in range(10):
             d.write(biosphere2)
         self.assertEqual(len(d.versions()), 11)

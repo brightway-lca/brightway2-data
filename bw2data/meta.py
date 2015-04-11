@@ -81,8 +81,8 @@ class Databases(SerializedDict):
         return u"Brightway2 databases metadata with %i objects" % len(
             self.data)
 
-    def __del__(self, name):
-        super(Databases, self).__del__(name)
+    def __delitem__(self, name):
+        super(Databases, self).__delitem__(name)
 
         from . import Database
         try:
