@@ -103,7 +103,10 @@ def open(filename, mode, *args, **kwargs):
     finally:
         f.close()
         if not _discard[0]:
-            replace(f.name, filename)
+            try:
+                replace(f.name, filename)
+            except OSError:
+                shutil.move(f.name, filename)
 
 def write(filename, lines, binary=False):
     mode = _mode(binary)
