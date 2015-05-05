@@ -35,7 +35,7 @@ class Searcher(object):
         with self.index.searcher() as searcher:
             if facet is None:
                 results = [
-                    dict(obj.iteritems())
+                    dict(obj.items())
                     for obj in searcher.search(qp.parse(string), limit=limit, filter=filter_kwargs)
                 ]
             else:
@@ -45,7 +45,7 @@ class Searcher(object):
                         qp.parse(string),
                         groupedby=facet,
                         filter=filter_kwargs
-                    ).groups().iteritems()}
+                    ).groups().items()}
 
         from ..database import get_activity
 

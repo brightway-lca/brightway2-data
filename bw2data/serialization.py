@@ -159,8 +159,8 @@ class SerializedDict(object):
     def __iter__(self):
         return iter(self.data)
 
-    def iteritems(self):
-        return self.data.iteritems()
+    def items(self):
+        return self.data.items()
 
     def keys(self):
         return self.data.keys()
@@ -219,7 +219,7 @@ class CompoundJSONDict(SerializedDict):
     """Subclass of ``SerializedDict`` that allows tuples as dictionary keys (not allowed in JSON)."""
     def pack(self, data):
         """Transform the dictionary to a list because JSON can't handle lists as keys"""
-        return [(k, v) for k, v in data.iteritems()]
+        return [(k, v) for k, v in data.items()]
 
     def unpack(self, data):
         """Transform data back to a dictionary"""

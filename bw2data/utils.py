@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
+from eight import *
 from . import config
 from .errors import WebUIError
 from .fatomic import open
+from .project import safe_filename
 from contextlib import contextmanager
 import codecs
 import collections
 import datetime
-import hashlib
 import itertools
 import os
 import random
@@ -14,7 +15,6 @@ import re
 import requests
 import stats_arrays as sa
 import string
-import unicodedata
 import urllib
 import webbrowser
 import zipfile
@@ -37,8 +37,6 @@ TYPE_DICTIONARY = {
 
 DOWNLOAD_URL = "http://brightwaylca.org/data/"
 
-re_slugify = re.compile('[^\w\s-]', re.UNICODE)
-
 
 def natural_sort(l):
     """Sort the given list in the way that humans expect, e.g. 9 before 10."""
@@ -59,7 +57,7 @@ def random_string(length=8):
 
     """
     return ''.join(random.choice(string.letters + string.digits
-                                 ) for i in xrange(length))
+                                 ) for i in range(length))
 
 
 def combine_methods(name, *ms):
@@ -83,35 +81,11 @@ def combine_methods(name, *ms):
         ", ".join([str(x) for x in ms]),
         "unit": list(units)[0] if len(units) == 1 else "Unknown"
     }
-    data = [(key, cf, geo) for (key, geo), cf in data.iteritems()]
+    data = [(key, cf, geo) for (key, geo), cf in data.items()]
     method = Method(name)
     method.register(**meta)
     method.write(data)
     return method
-
-
-def safe_filename(string, add_hash=True):
-    """Convert arbitrary strings to make them safe for filenames. Substitutes strange characters, and uses unicode normalization.
-
-    if `add_hash`, appends hash of `string` to avoid name collisions.
-
-    From http://stackoverflow.com/questions/295135/turn-a-string-into-a-valid-filename-in-python"""
-    safe = re.sub(
-        '[-\s]+',
-        '-',
-        unicode(
-            re_slugify.sub(
-                '',
-                unicodedata.normalize('NFKD', unicode(string))
-            ).strip()
-        )
-    )
-    if add_hash:
-        if isinstance(string, unicode):
-            string = string.encode("utf8")
-        return safe + u"." + hashlib.md5(string).hexdigest()
-    else:
-        return safe
 
 
 def clean_exchanges(data):
@@ -120,7 +94,7 @@ def clean_exchanges(data):
         for exc in value.get('exchanges', []):
             exc['input'] = tuple(exc['input'])
         return value
-    return {key: tupleize(value) for key, value in data.iteritems()}
+    return {key: tupleize(value) for key, value in data.items()}
 
 
 def uncertainify(data, distribution=None, bounds_factor=0.1, sd_factor=0.1):
@@ -149,7 +123,7 @@ Returns the modified data.
         "bounds_factor must be a positive number"
     assert sd_factor * 1. > 0, "sd_factor must be a positive number"
 
-    for key, value in data.iteritems():
+    for key, value in data.items():
         for exchange in value.get(u'exchanges', []):
             if (exchange.get(u'type') == u'production') or \
                     (exchange.get(u'uncertainty type',
@@ -192,7 +166,7 @@ def recursive_str_to_unicode(data, encoding="utf8"):
     elif isinstance(data, collections.Mapping):
         return dict(itertools.imap(
             recursive_str_to_unicode,
-            data.iteritems(),
+            data.items(),
             itertools.repeat(encoding)
         ))
     elif isinstance(data, collections.Iterable):

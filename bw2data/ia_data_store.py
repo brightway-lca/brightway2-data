@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from .data_store import DataStore
+from .data_store import ProcessedDataStore
 from .utils import safe_filename
 import hashlib
 import string
@@ -28,7 +28,7 @@ def abbreviate(names, length=8):
     return name + u"." + hashlib.md5(unicode(u"-".join(names))).hexdigest()
 
 
-class ImpactAssessmentDataStore(DataStore):
+class ImpactAssessmentDataStore(ProcessedDataStore):
     """
 A subclass of ``DataStore`` for impact assessment methods.
 
@@ -48,7 +48,7 @@ Args:
 
     def get_abbreviation(self):
         """Retrieve the abbreviation of the method identifier from the metadata store. See class documentation."""
-        self.assert_registered()
+        self.register()
         return self.metadata[self.name]["abbreviation"]
 
     def copy(self, name=None):

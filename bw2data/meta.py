@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+from eight import *
 from . import config
 from .serialization import SerializedDict, PickledDict, CompoundJSONDict
 
@@ -55,7 +58,7 @@ class GeoMapping(Mapping):
     def __init__(self, *args, **kwargs):
         super(GeoMapping, self).__init__(*args, **kwargs)
         # At a minimum, "GLO" should always be present
-        self.add([config.global_location])
+        self.add(["GLO"])
 
     def __unicode__(self):
         return u"Mapping from locations to parameter indices."
@@ -110,9 +113,15 @@ class NormalizationMeta(Methods):
     filename = "normalizations.json"
 
 
-mapping = Mapping()
-geomapping = GeoMapping()
+class Preferences(PickledDict):
+    """A dictionary of project-specific preferences."""
+    filename = "preferences.pickle"
+
+
 databases = Databases()
+geomapping = GeoMapping()
+mapping = Mapping()
 methods = Methods()
 normalizations = NormalizationMeta()
+preferences = Preferences()
 weightings = WeightingMeta()

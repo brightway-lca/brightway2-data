@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from .. import databases, config, mapping, geomapping
 from ..query import Query
-from ..data_store import DataStore
+from ..data_store import ProcessedDataStore
 from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename
 from ..errors import UntypedExchange, InvalidExchange, UnknownObject
 import copy
@@ -15,7 +15,7 @@ except ImportError:
     import pickle
 
 
-class LCIBackend(DataStore):
+class LCIBackend(ProcessedDataStore):
     """
     A base class for LCI backends.
 
@@ -175,7 +175,7 @@ class LCIBackend(DataStore):
         * ``keys()``
         * ``values()``
         * ``items()``
-        * ``iteritems()``
+        * ``items()``
 
         However, this method **must** support the keyword argument ``as_dict``, and ``.load(as_dict=True)`` must return a normal dictionary with all Database data. This is necessary for JSON serialization.
 
@@ -377,7 +377,7 @@ Doesn't return anything, but writes two files to disk.
             return obj
 
         return dict([((new_name, k[1]), relabel_exchanges(v, new_name)) \
-            for k, v in data.iteritems()])
+            for k, v in data.items()])
 
     def rename(self, name):
         """Rename a database. Modifies exchanges to link to new name. Deregisters old database.

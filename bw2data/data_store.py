@@ -3,6 +3,7 @@ from . import config
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
 from .utils import safe_filename
+from future.utils import python_2_unicode_compatible
 import numpy as np
 import os
 import warnings
@@ -17,39 +18,19 @@ class DataStore(object):
 Base class for all Brightway2 data stores. Subclasses should define:
 
     * **metadata**: A :ref:`serialized-dict` instance, e.g. ``databases`` or ``methods``. The custom is that each type of data store has a new metadata store, so the data store ``Foo`` would have a metadata store ``foos``.
-    * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``. Fields names **must** be bytestrings, not unicode (i.e. ``"foo"`` instead of ``u"foo"``). Uncertainty fields (``base_uncertainty_fields``) are added automatically.
     * **validator**: A data validator. Optional. See bw2data.validate.
-
-In order to use ``dtype_fields``, subclasses should override the method ``process_data``. This function takes rows of data, and returns the correct values for the custom dtype fields (as a tuple), **and** the ``amount`` field with its associated uncertainty. This second part is a little flexible - if there is no uncertainty, a number can be returned; otherwise, an uncertainty dictionary should be returned.
-
-Subclasses should also override ``add_mappings``. This method takes the entire dataset, and loads objects to :ref:`mapping` or :ref:`geomapping` as needed.
 
     """
     validator = None
     metadata = None
-    dtype_fields = None
-    # Numpy columns names can't be unicode
-    base_uncertainty_fields = [
-        ('uncertainty_type', np.uint8),
-        ('amount', np.float32),
-        ('loc', np.float32),
-        ('scale', np.float32),
-        ('shape', np.float32),
-        ('minimum', np.float32),
-        ('maximum', np.float32),
-        ('negative', np.bool),
-    ]
     _intermediate_dir = u'intermediate'
-    _process_needed = True
 
     def __init__(self, name):
         self.name = name
 
-    def __unicode__(self):
-        return u"Brightway2 %s: %s" % (self.__class__.__name__, self.name)
-
+    @python_2_unicode_compatible
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return "Brightway2 %s: %s" % (self.__class__.__name__, self.name)
 
     @property
     def filename(self):
@@ -61,24 +42,13 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         return self.name in self.metadata
 
     def register(self, **kwargs):
-        """Register an object with the metadata store.
-
-        Objects must be registered before data can be written. If this object is not yet registered in the metadata store, a warning is written to **stdout**.
-
-        Takes any number of keyword arguments.
-
-        """
-        assert not self.registered, u"%s is already registered" % self
-        self.metadata[self.name] = kwargs
+        """Register an object with the metadata store. Takes any number of keyword arguments."""
+        if self.name not in self.metadata:
+            self.metadata[self.name] = kwargs
 
     def deregister(self):
         """Remove an object from the metadata store. Does not delete any files."""
         del self.metadata[self.name]
-
-    def assert_registered(self):
-        """Register object if not already registered"""
-        if not self.registered:
-            self.register()
 
     def load(self):
         """Load the intermediate data for this object.
@@ -96,11 +66,6 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             ), "rb"))
         except OSError:
             raise MissingIntermediateData(u"Can't load intermediate data")
-
-    @property
-    def dtype(self):
-        """Returns both the generic ``base_uncertainty_fields`` plus class-specific ``dtype_fields``. ``dtype`` determines the columns of the :ref:`processed array <processing-data>`."""
-        return self.dtype_fields + self.base_uncertainty_fields
 
     def copy(self, name):
         """Make a copy of this object with a new ``name``.
@@ -130,6 +95,57 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         from bw2io import BW2Package
         return BW2Package.export_obj(self)
 
+    def write(self, data):
+        """Serialize intermediate data to disk.
+
+        Args:
+            * *data* (object): The data
+
+        """
+        self.register()
+        filepath = os.path.join(
+            config.dir,
+            self._intermediate_dir,
+            self.filename + u".pickle"
+        )
+        with atomic_open(filepath, "wb") as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def validate(self, data):
+        """Validate data. Must be called manually."""
+        self.validator(data)
+        return True
+
+
+class ProcessedDataStore(DataStore):
+    """
+Brightway2 data stores that can be processed to NumPy arrays. In addition to ``metadata`` and (optionally) ``validator``, subclasses should define:
+
+    * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``. Fields names **must** be bytestrings, not unicode (i.e. ``"foo"`` instead of ``u"foo"``). Uncertainty fields (``base_uncertainty_fields``) are added automatically.
+
+In order to use ``dtype_fields``, subclasses should override the method ``process_data``. This function takes rows of data, and returns the correct values for the custom dtype fields (as a tuple), **and** the ``amount`` field with its associated uncertainty. This second part is a little flexible - if there is no uncertainty, a number can be returned; otherwise, an uncertainty dictionary should be returned.
+
+Subclasses should also override ``add_mappings``. This method takes the entire dataset, and loads objects to :ref:`mapping` or :ref:`geomapping` as needed.
+
+    """
+    dtype_fields = None
+    # Numpy columns names can't be unicode
+    base_uncertainty_fields = [
+        ('uncertainty_type', np.uint8),
+        ('amount', np.float32),
+        ('loc', np.float32),
+        ('scale', np.float32),
+        ('shape', np.float32),
+        ('minimum', np.float32),
+        ('maximum', np.float32),
+        ('negative', np.bool),
+    ]
+
+    @property
+    def dtype(self):
+        """Returns both the generic ``base_uncertainty_fields`` plus class-specific ``dtype_fields``. ``dtype`` determines the columns of the :ref:`processed array <processing-data>`."""
+        return self.dtype_fields + self.base_uncertainty_fields
+
     def write(self, data, process=True):
         """Serialize intermediate data to disk.
 
@@ -149,7 +165,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         )
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
-        if process and self._process_needed:
+        if process:
             self.process()
 
     def process_data(self, row):

@@ -13,25 +13,18 @@ Usually these proxies are created by the :ref:`activity`, but you can instantiat
 
 .. code-block:: python
 
-    exchange = Exchange({"my exchange data": "goes here"}, my_activity_proxy)
+    exchange = Exchange({"my exchange data": "goes here"})
 
 Properties:
 
 * ``input``: Returns :ref:`activity`
-* ``to``: Returns :ref:`activity`
+* ``output``: Returns :ref:`activity`
 * ``amount``
 * ``uncertainty``: Returns dictionary of uncertainty data
 * ``uncertainty_type``: Returns ``stats_arrays`` uncertainty type
 * ``unit``
 
     """
-
-    def __init__(self, exc, activity):
-        self._data = exc
-        self.input = get_activity(exc['input'])
-        # Output not specified, unless from SQLite
-        self.output = activity
-
     def __setitem__(self, key, value):
         raise AttributeError("Exchange proxies are read-only.")
 

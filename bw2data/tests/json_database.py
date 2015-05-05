@@ -163,7 +163,7 @@ class SynchronousJSONDictTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             del self.js[key]
 
-    def test_iter_keys_values_iteritems(self):
+    def test_iter_keys_values_items(self):
         keys = {(u'x', str(x)) for x in [1,2,3,4]}
         for key in keys:
             self.js[key] = {}
@@ -196,11 +196,11 @@ class SynchronousJSONDictTest(unittest.TestCase):
             self.js[key] = {}
         self.assertEqual(len(self.js), 4)
 
-    def test_iteritems(self):
+    def test_items(self):
         keys = {(u'x', str(x)) for x in [1,2,3,4]}
         for key in keys:
             self.js[key] = {}
-        for k, v in self.js.iteritems():
+        for k, v in self.js.items():
             self.assertIn(k, keys)
             self.assertEqual(v.keys(), [u'key'])
 

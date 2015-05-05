@@ -254,8 +254,8 @@ class ResultTest(unittest.TestCase):
             {x: {'name': 'foo%s' % x} for x in range(40)}.items()
         )
         self.assertEqual(
-            list(self.r().iteritems()),
-            list({x: {'name': 'foo%s' % x} for x in range(40)}.iteritems())
+            list(self.r().items()),
+            list({x: {'name': 'foo%s' % x} for x in range(40)}.items())
         )
 
     def test_contains(self):

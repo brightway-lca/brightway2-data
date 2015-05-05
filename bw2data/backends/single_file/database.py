@@ -76,7 +76,7 @@ class SingleFileDatabase(LCIBackend):
                 version = int(version)
             except:
                 raise ValueError("Version number must be an integer")
-        self.assert_registered()
+        self.register()
 
         try:
             if (version is None
@@ -158,7 +158,7 @@ class SingleFileDatabase(LCIBackend):
             * *data* (dict): Inventory data
 
         """
-        self.assert_registered()
+        self.register()
 
         if (config.p.get(u"use_cache", False)
             and self.name in config.cache):

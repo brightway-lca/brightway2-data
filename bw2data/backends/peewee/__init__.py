@@ -1,38 +1,24 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+from eight import *
 from ... import config
+from ...sqlite import create_database, PickleField
+from ...project import projects
 from peewee import SqliteDatabase
 import os
 
-
-class DB(object):
-    def __init__(self):
-        self.reset(initial=True)
-
-    def reset(self, initial=False):
-        self.path = os.path.join(
-            config.request_dir(u"peewee"),
-            u"lci.db"
-        )
-        self.db = SqliteDatabase(self.path)
-        if not initial:
-            ActivityDataset._meta.database = self.db
-            ExchangeDataset._meta.database = self.db
-            self.create()
-
-    def create(self):
-        self.db.create_tables(
-            [ActivityDataset, ExchangeDataset],
-            safe=True
-        )
-
-    def __call__(self):
-        return self.db
-
-
-sqlite3_db = DB()
-
-from .fields import PickleField
 from .schema import ActivityDataset, ExchangeDataset
+
+sqlite3_lci_db = create_database(
+    os.path.join(projects.dir, "lci", "databases.db"),
+    (ActivityDataset, ExchangeDataset)
+)
+
 from .proxies import Activity, Exchange
 from .database import SQLiteBackend
 
-sqlite3_db.create()
+config.sqlite3_databases.append((
+    os.path.join("lci", "databases.db"),
+    sqlite3_lci_db,
+    True
+))

@@ -6,7 +6,7 @@ from ..database import DatabaseChooser
 from ..backends.peewee import (
     Activity as PWActivity,
     Exchange as PWExchange,
-    sqlite3_db
+    sqlite3_lci_db
 )
 from ..backends.single_file.database import SingleFileDatabase
 from ..errors import UnknownObject, MissingIntermediateData, UntypedExchange, \
@@ -102,13 +102,13 @@ class DatabaseTest(BW2DataTest):
         self.assertTrue("biosphere" in databases)
         del databases['biosphere']
         self.assertEqual(
-            sqlite3_db().execute_sql(
+            sqlite3_lci_db.execute_sql(
                 "select count(*) from activitydataset where database = 'biosphere'"
             ).next(),
             (0,)
         )
         self.assertEqual(
-            sqlite3_db().execute_sql(
+            sqlite3_lci_db.execute_sql(
                 "select count(*) from exchangedataset where database = 'biosphere'"
             ).next(),
             (0,)

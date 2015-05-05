@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from . import BW2DataTest
 from .. import config
-from ..data_store import DataStore
+from ..data_store import DataStore, ProcessedDataStore
 from ..errors import UnknownObject
 from ..serialization import SerializedDict
 from voluptuous import Schema
@@ -17,6 +17,12 @@ metadata = Metadata()
 
 
 class MockDS(DataStore):
+    """Mock DataStore for testing"""
+    metadata = metadata
+    validator = Schema(int)
+
+
+class MockPDS(ProcessedDataStore):
     """Mock DataStore for testing"""
     metadata = metadata
     validator = Schema(int)
@@ -43,12 +49,6 @@ class DataStoreTestCase(BW2DataTest):
             u"Brightway2 MockDS: food"
         )
 
-    def test_register_twice(self):
-        d = MockDS("morning")
-        d.register()
-        with self.assertRaises(AssertionError):
-            d.register()
-
     def test_deregister(self):
         d = MockDS("evening")
         d.register()
@@ -56,14 +56,8 @@ class DataStoreTestCase(BW2DataTest):
         d.deregister()
         self.assertFalse("evening" in metadata)
 
-    def test_assert_registered(self):
-        d = MockDS("evening")
-        d.assert_registered()
-        self.assertTrue("evening" in metadata)
-
     def test_write_load(self):
         d = MockDS("full moon")
-        d.register()
         d.write(range(10))
         data = pickle.load(open(os.path.join(
             config.dir,
@@ -80,20 +74,25 @@ class DataStoreTestCase(BW2DataTest):
         self.assertEqual(gibbous.load(), range(10))
         self.assertEqual(metadata['waning gibbous'], {'foo': 'bar'})
 
+    def test_validation(self):
+        d = MockDS("cat")
+        self.assertTrue(d.validate(4))
+
+
+class ProcessedDataStoreTestCase(BW2DataTest):
+    def setUp(self):
+        super(ProcessedDataStoreTestCase, self).setUp()
+        metadata.__init__()
+
     def test_as_uncertainty_dict(self):
-        d = MockDS("sad")
+        d = MockPDS("sad")
         self.assertEqual(d.as_uncertainty_dict({}), {})
         self.assertEqual(d.as_uncertainty_dict(1), {'amount': 1.})
         with self.assertRaises(TypeError):
             d.as_uncertainty_dict("foo")
 
-    def test_validation(self):
-        d = MockDS("cat")
-        self.assertTrue(d.validate(4))
-
     def test_processed_array(self):
-        d = MockDS("happy")
-        d.register()
+        d = MockPDS("happy")
         d.write([{'amount': 42, 'uncertainty type': 7}])
         fp = os.path.join(config.dir, u"processed", d.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
@@ -105,8 +104,7 @@ class DataStoreTestCase(BW2DataTest):
         self.assertEqual(array[0]['amount'], 42)
 
     def test_loc_value_if_no_uncertainty(self):
-        d = MockDS("happy meal")
-        d.register()
+        d = MockPDS("happy meal")
         d.write(range(10))
         fp = os.path.join(config.dir, u"processed", d.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))

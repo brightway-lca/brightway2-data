@@ -25,7 +25,7 @@ class JSONDatabase(LCIBackend):
 
     def load(self, as_dict=False, *args, **kwargs):
         """Instantiate :class:`.SynchronousJSONDict` for this database."""
-        self.assert_registered()
+        self.register()
 
         if config.p.get("use_cache"):
             try:
@@ -38,7 +38,7 @@ class JSONDatabase(LCIBackend):
             dct = SynchronousJSONDict(self.filepath_intermediate(), self.name)
 
         if as_dict:
-            return {key: dict(value) for key, value in dct.iteritems()}
+            return {key: dict(value) for key, value in dct.items()}
         else:
             return dct
 
@@ -68,8 +68,7 @@ class JSONDatabase(LCIBackend):
             * *data* (dict): Inventory data
 
         """
-        self.assert_registered()
-
+        self.register()
         databases[self.name]["number"] = len(data)
         databases.flush()
 
@@ -83,7 +82,7 @@ class JSONDatabase(LCIBackend):
             pass
         else:
             new_dict = self.load()
-            for key, value in data.iteritems():
+            for key, value in data.items():
                 new_dict[key] = value
         if process:
             self.process()
