@@ -53,20 +53,22 @@ class Config(object):
         """Load a set of preferences from a file in the data directory.
 
         Preferences as stored as ``config.p``."""
-        try:
-            self.p = json.load(open(os.path.join(
-                self.dir, "preferences.json")))
-        except:
-            # Create new file
-            self.p = {}
-            self.save_preferences()
+        return
+        # try:
+        #     self.p = json.load(open(os.path.join(
+        #         self.dir, "preferences.json")))
+        # except:
+        #     # Create new file
+        #     self.p = {}
+        #     self.save_preferences()
 
     def save_preferences(self):
         """Serialize preferences to disk."""
-        with open(os.path.join(
-                self.dir,
-                "preferences.json"), "w") as f:
-            json.dump(self.p, f, indent=2)
+        return
+        # with open(os.path.join(
+        #         self.dir,
+        #         "preferences.json"), "w") as f:
+        #     json.dump(self.p, f, indent=2)
 
     @property
     def biosphere(self):
@@ -140,9 +142,8 @@ class Config(object):
         """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
 
         Returns ``False`` if directory can't be created."""
-        raise DeprecationWarning("Use `projects.request_dir` instead of `config.request_dir`.")
+        warnings.warn(DeprecationWarning("Use `projects.request_dir` instead of `config.request_dir`."))
         return projects.request_directory(dirname)
 
 
 config = Config()
-config.load_preferences()
