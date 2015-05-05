@@ -143,10 +143,10 @@ class Exchange(ExchangeProxyBase):
 
     def save(self):
         for field in [u"database", u"type"]:
-            setattr(self._document, field, self.data[field])
+            setattr(self._document, field, self._data[field])
         self._document.data = self._data
-        self._document.input = keyjoin(self.data['input'])
-        self._document.output = keyjoin(self.data['output'])
+        self._document.input = keyjoin(self._data['input'])
+        self._document.output = keyjoin(self._data['output'])
         self._document.save()
 
     def __setitem__(self, key, value):
