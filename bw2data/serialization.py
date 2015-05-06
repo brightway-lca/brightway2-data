@@ -33,7 +33,9 @@ class JsonWrapper(object):
     def dump_bz2(self, data, filepath):
         with atomic_open(filepath, "wb") as f:
             with bz2.BZ2File(f.name, "wb") as b:
-                b.write(JsonWrapper.dumps(data))
+                b.write(
+                    (JsonWrapper.dumps(data)).encode('utf-8')
+                )
 
     @classmethod
     def load(self, file):

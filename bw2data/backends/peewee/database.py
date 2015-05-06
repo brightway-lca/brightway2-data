@@ -186,11 +186,8 @@ class SQLiteBackend(LCIBackend):
                     ActivityDataset.insert_many(activities).execute()
                     activities = []
 
-                if progressbar:
-                    pbar.update(index)
-
-            if progressbar:
-                pbar.finish()
+                pbar.update(index) if progressbar else None
+            pbar.finish() if progressbar else None
 
             if activities:
                 ActivityDataset.insert_many(activities).execute()

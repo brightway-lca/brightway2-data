@@ -16,7 +16,7 @@ class UpdatesTest(BW2DataTest):
         )
 
     def test_explain(self):
-        key = random.choice(Updates.UPDATES.keys())
+        key = random.choice(list(Updates.UPDATES.keys()))
         self.assertEqual(
             Updates.UPDATES[key]['explanation'],
             Updates.explain(key)

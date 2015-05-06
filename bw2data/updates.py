@@ -97,8 +97,5 @@ class Updates(object):
                     # Free memory
                     obj = None
 
-                    if progressbar:
-                        pbar.update(index)
-
-                if progressbar:
-                    pbar.finish()
+                    pbar.update(index) if progressbar else None
+                pbar.finish() if progressbar else None
