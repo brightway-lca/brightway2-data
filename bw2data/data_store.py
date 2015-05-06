@@ -65,11 +65,11 @@ Base class for all Brightway2 data stores. Subclasses should define:
         try:
             return pickle.load(open(os.path.join(
                 config.dir,
-                u"intermediate",
-                self.filename + u".pickle"
+                "intermediate",
+                self.filename + ".pickle"
             ), "rb"))
         except OSError:
-            raise MissingIntermediateData(u"Can't load intermediate data")
+            raise MissingIntermediateData("Can't load intermediate data")
 
     def copy(self, name):
         """Make a copy of this object with a new ``name``.
@@ -83,7 +83,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
             The new object.
 
         """
-        assert name not in self.metadata, u"%s already exists" % name
+        assert name not in self.metadata, "%s already exists" % name
         new_obj = self.__class__(name)
         new_obj.register(**self.metadata[self.name])
         new_obj.write(self.load())
@@ -110,7 +110,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
         filepath = os.path.join(
             config.dir,
             self._intermediate_dir,
-            self.filename + u".pickle"
+            self.filename + ".pickle"
         )
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -162,7 +162,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         filepath = os.path.join(
             config.dir,
             self._intermediate_dir,
-            self.filename + u".pickle"
+            self.filename + ".pickle"
         )
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -195,21 +195,21 @@ Doesn't return anything, but writes a file to disk.
             assert len(values) == len(self.dtype_fields)
             assert u'amount' in uncertainties, "Must provide at least `amount` field in `uncertainties`"
             arr[index] = values + (
-                uncertainties.get(u"uncertainty type", 0),
-                uncertainties[u"amount"],
-                uncertainties[u"amount"] \
-                    if uncertainties.get(u"uncertainty type", 0) in (0, 1) \
-                    else uncertainties.get(u"loc", np.NaN),
-                uncertainties.get(u"scale", np.NaN),
-                uncertainties.get(u"shape", np.NaN),
-                uncertainties.get(u"minimum", np.NaN),
-                uncertainties.get(u"maximum", np.NaN),
-                uncertainties.get(u"amount" < 0),
+                uncertainties.get("uncertainty type", 0),
+                uncertainties["amount"],
+                uncertainties["amount"] \
+                    if uncertainties.get("uncertainty type", 0) in (0, 1) \
+                    else uncertainties.get("loc", np.NaN),
+                uncertainties.get("scale", np.NaN),
+                uncertainties.get("shape", np.NaN),
+                uncertainties.get("minimum", np.NaN),
+                uncertainties.get("maximum", np.NaN),
+                uncertainties.get("amount") < 0,
             )
         filepath = os.path.join(
             config.dir,
-            u"processed",
-            self.filename + u".pickle"
+            "processed",
+            self.filename + ".pickle"
         )
         with open(filepath, "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)

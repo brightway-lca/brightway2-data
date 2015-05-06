@@ -51,7 +51,7 @@ class IADSTest(BW2DataTest):
     def test_abbreviate(self):
         self.assertEqual(
             abbreviate(("foo", "bar")),
-            u"foob.%s" % hashlib.md5("foo-bar").hexdigest()
+            u"foob.%s" % hashlib.md5(b"foo-bar").hexdigest()
         )
         self.assertNotEqual(
             abbreviate(("foo", "bar")),
@@ -93,7 +93,10 @@ class IADSTest(BW2DataTest):
         self.assertFalse(name in metadata)
         iads = MockIADS(name)
         iads.register()
-        self.assertEqual(metadata[name].keys(), ['abbreviation'])
+        self.assertEqual(
+            list(metadata[name].keys()),
+            ['abbreviation']
+        )
 
 
 class MethodTest(BW2DataTest):
@@ -195,7 +198,9 @@ class NormalizationTest(BW2DataTest):
         norm = Normalization(("foo",))
         self.assertEqual(norm.validator, normalization_validator)
         self.assertEqual(norm.metadata, normalizations)
-        self.assertEqual([x[0] for x in norm.dtype_fields], [b'flow', b'index'])
+        self.assertEqual(
+            [x[0] for x in norm.dtype_fields],
+            [numpy_string(x) for x in ('flow', 'index')])
 
     def test_add_mappings(self):
         norm = Normalization(("foo",))

@@ -28,7 +28,7 @@ def abbreviate(names, length=8):
     abbrev = lambda x: x if x[0] in string.digits else x[0].lower()
     name = " ".join(safe_names).split(" ")[0].lower() + \
         "".join([abbrev(x) for x in " ".join(safe_names).split(" ")[1:]])
-    return name + "." + hashlib.md5("-".join(names)).hexdigest()
+    return name + "." + str(hashlib.md5(bytes("-".join(names), 'utf8')).hexdigest())
 
 
 class ImpactAssessmentDataStore(ProcessedDataStore):

@@ -240,7 +240,7 @@ class ResultTest(unittest.TestCase):
         result.sort('name', True)
         self.assertTrue(isinstance(result.result, collections.OrderedDict))
         # Sort by name - 'foo9' sorts highest
-        self.assertEqual(result.result.keys()[0], 9)
+        self.assertEqual(list(result.result.keys())[0], 9)
 
     def test_len(self):
         self.assertEqual(40, len(self.r()))

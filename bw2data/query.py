@@ -72,7 +72,7 @@ class Result(object):
     def __repr__(self):
         if not self.result:
             return u"Query result:\n\tNo query results found."
-        data = self.result.items()[:20]
+        data = list(self.result.items())[:20]
         return (u"Query result: (total %i)\n" % len(self.result) + \
             u"\n".join([u"%s: %s" % (k, v.get("name", "Unknown"))
                         for k, v in data])
