@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from ..query import *
 from .fixtures import food
 import collections
@@ -243,7 +246,7 @@ class ResultTest(unittest.TestCase):
         self.assertEqual(40, len(self.r()))
 
     def test_iter(self):
-        self.assertEqual(0, iter(self.r()).next())
+        self.assertEqual(0, next(iter(self.r())))
 
     def test_keys(self):
         self.assertEqual(list(range(40)), list(self.r().keys()))

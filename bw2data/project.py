@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 from eight import *
+
 from .filesystem import safe_filename, create_dir
 from .sqlite import PickleField, create_database
 from peewee import Model, TextField, BlobField

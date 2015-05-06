@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import BW2DataTest
 from .. import config
 from ..database import DatabaseChooser
@@ -14,6 +16,7 @@ from ..errors import UnknownObject, MissingIntermediateData, UntypedExchange, \
 from ..backends.single_file import Activity as SFActivity, Exchange as SFExchange
 from ..meta import mapping, geomapping, databases
 from ..serialization import JsonWrapper, JsonSanitizer
+from ..utils import numpy_string
 from ..validate import db_validator
 from .fixtures import food, biosphere
 import copy
@@ -41,7 +44,7 @@ class DatabaseTest(BW2DataTest):
         d = DatabaseChooser("biosphere")
         d.register(depends=[])
         d.write(biosphere)
-        activity = iter(d).next()
+        activity = next(iter(d))
         self.assertTrue(isinstance(activity, PWActivity))
         self.assertTrue(activity['name'] in ('an emission', 'another emission'))
 
@@ -81,15 +84,15 @@ class DatabaseTest(BW2DataTest):
         new_db = d.copy("new name")
         new_data = new_db.load()
         self.assertEqual(
-            new_data.values()[0]['exchanges'][0]['input'],
+            list(new_data.values())[0]['exchanges'][0]['input'],
             ('new name', '1')
         )
         self.assertEqual(
-            data.values()[0]['exchanges'][0]['input'],
+            list(data.values())[0]['exchanges'][0]['input'],
             ('old name', '1')
         )
         self.assertEqual(
-            d.load().values()[0]['exchanges'][0]['input'],
+            list(d.load().values())[0]['exchanges'][0]['input'],
             ('old name', '1')
         )
 
@@ -100,15 +103,15 @@ class DatabaseTest(BW2DataTest):
         self.assertTrue("biosphere" in databases)
         del databases['biosphere']
         self.assertEqual(
-            sqlite3_lci_db.execute_sql(
+            next(sqlite3_lci_db.execute_sql(
                 "select count(*) from activitydataset where database = 'biosphere'"
-            ).next(),
+            )),
             (0,)
         )
         self.assertEqual(
-            sqlite3_lci_db.execute_sql(
+            next(sqlite3_lci_db.execute_sql(
                 "select count(*) from exchangedataset where database = 'biosphere'"
-            ).next(),
+            )),
             (0,)
         )
 
@@ -349,11 +352,7 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(database.metadata, databases)
         self.assertEqual(
             [x[0] for x in database.dtype_fields],
-            ['input', 'output', 'row', 'col', 'type']
-        )
-        self.assertEqual(
-            [x[0] for x in database.dtype_fields],
-            ['input', 'output', 'row', 'col', 'type']
+            [numpy_string(x) for x in ('input', 'output', 'row', 'col', 'type')]
         )
 
     def test_find_dependents(self):
@@ -429,7 +428,7 @@ class DatabaseTest(BW2DataTest):
         })
         self.assertEqual(
             databases['a database']['depends'],
-            ["biosphere", "foo", "baz"]
+            ["baz", "biosphere", "foo"]
         )
 
     def test_process_without_exchanges_still_in_processed_array(self):
@@ -490,7 +489,7 @@ class SingleFileDatabaseTest(BW2DataTest):
         d = DatabaseChooser("biosphere", backend='singlefile')
         d.register(depends=[])
         d.write(biosphere)
-        activity = iter(d).next()
+        activity = next(iter(d))
         self.assertTrue(isinstance(activity, SFActivity))
         self.assertTrue(activity['name'] in ('an emission', 'another emission'))
 

@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import BW2DataTest
 from .. import config
 from ..database import DatabaseChooser as Database
@@ -6,6 +9,7 @@ from ..ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS
 from ..meta import mapping, geomapping, weightings, normalizations, methods
 from ..method import Method
 from ..serialization import CompoundJSONDict
+from ..utils import numpy_string
 from ..validate import weighting_validator, normalization_validator, ia_validator
 from ..weighting_normalization import Normalization, Weighting
 import hashlib
@@ -138,7 +142,9 @@ class MethodTest(BW2DataTest):
         method = Method(("a", "method"))
         self.assertEqual(method.validator, ia_validator)
         self.assertEqual(method.metadata, methods)
-        self.assertEqual([x[0] for x in method.dtype_fields], ['flow', 'geo', 'row', 'col'])
+        self.assertEqual(
+            [x[0] for x in method.dtype_fields],
+            [numpy_string(x) for x in ('flow', 'geo', 'row', 'col')])
 
     def test_validator(self):
         method = Method(("a", "method"))
@@ -189,7 +195,7 @@ class NormalizationTest(BW2DataTest):
         norm = Normalization(("foo",))
         self.assertEqual(norm.validator, normalization_validator)
         self.assertEqual(norm.metadata, normalizations)
-        self.assertEqual([x[0] for x in norm.dtype_fields], ['flow', 'index'])
+        self.assertEqual([x[0] for x in norm.dtype_fields], [b'flow', b'index'])
 
     def test_add_mappings(self):
         norm = Normalization(("foo",))

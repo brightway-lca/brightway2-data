@@ -1,6 +1,7 @@
-# encoding: utf-8
-from __future__ import unicode_literals
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
 from eight import *
+
 from voluptuous import Schema, Required, Invalid, Any, All, Length, Optional
 from numbers import Number
 
@@ -9,7 +10,7 @@ def valid_tuple(obj):
     try:
         assert isinstance(obj, tuple)
         assert isinstance(obj[0], str)
-        assert isinstance(obj[1], (str, int, tuple, list))
+        assert isinstance(obj[1], str)
     except:
         raise Invalid("{} is not a valid key tuple".format(obj))
     return obj

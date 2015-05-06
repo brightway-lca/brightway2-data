@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# encoding: utf-8
+# -*- coding: utf-8 -*-
 """Brightway2 updating made simple.
 
 Usage:
@@ -14,7 +14,9 @@ Options:
   --version     Show version.
 
 """
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from docopt import docopt
 import sys
 import warnings

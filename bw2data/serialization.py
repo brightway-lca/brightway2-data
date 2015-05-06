@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import config
 from .fatomic import open as atomic_open
 from time import time

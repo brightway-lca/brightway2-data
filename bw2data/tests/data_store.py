@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals
 from eight import *
+
 from . import BW2DataTest
 from .. import config
 from ..data_store import DataStore, ProcessedDataStore

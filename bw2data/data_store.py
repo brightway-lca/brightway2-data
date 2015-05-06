@@ -1,8 +1,11 @@
-# -*- coding: utf-8 -*
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import config
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
-from .utils import safe_filename
+from .utils import safe_filename, numpy_string
 from future.utils import python_2_unicode_compatible
 import numpy as np
 import os
@@ -122,7 +125,7 @@ class ProcessedDataStore(DataStore):
     """
 Brightway2 data stores that can be processed to NumPy arrays. In addition to ``metadata`` and (optionally) ``validator``, subclasses should define:
 
-    * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``. Fields names **must** be bytestrings, not unicode (i.e. ``"foo"`` instead of ``u"foo"``). Uncertainty fields (``base_uncertainty_fields``) are added automatically.
+    * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``. Fields names **must** be bytestrings, not unicode (i.e. ``b"foo"`` instead of ``"foo"``). Uncertainty fields (``base_uncertainty_fields``) are added automatically.
 
 In order to use ``dtype_fields``, subclasses should override the method ``process_data``. This function takes rows of data, and returns the correct values for the custom dtype fields (as a tuple), **and** the ``amount`` field with its associated uncertainty. This second part is a little flexible - if there is no uncertainty, a number can be returned; otherwise, an uncertainty dictionary should be returned.
 
@@ -132,14 +135,14 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
     dtype_fields = None
     # Numpy columns names can't be unicode
     base_uncertainty_fields = [
-        ('uncertainty_type', np.uint8),
-        ('amount', np.float32),
-        ('loc', np.float32),
-        ('scale', np.float32),
-        ('shape', np.float32),
-        ('minimum', np.float32),
-        ('maximum', np.float32),
-        ('negative', np.bool),
+        (numpy_string('uncertainty_type'), np.uint8),
+        (numpy_string('amount'), np.float32),
+        (numpy_string('loc'), np.float32),
+        (numpy_string('scale'), np.float32),
+        (numpy_string('shape'), np.float32),
+        (numpy_string('minimum'), np.float32),
+        (numpy_string('maximum'), np.float32),
+        (numpy_string('negative'), np.bool),
     ]
 
     @property

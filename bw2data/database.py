@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import databases, config
 from .backends.single_file import SingleFileDatabase
 from .backends.json import JSONDatabase
@@ -25,25 +29,25 @@ def DatabaseChooser(name, backend=None):
 
     """
     if name in databases:
-        backend = databases[name].get(u"backend", backend or u"sqlite")
+        backend = databases[name].get("backend", backend or "sqlite")
     else:
-        backend = backend or u"sqlite"
+        backend = backend or "sqlite"
 
     # Backwards compatibility
-    if backend == u"default":
-        databases[name][u'backend'] = u'singlefile'
+    if backend == "default":
+        databases[name]['backend'] = 'singlefile'
         databases.flush()
         return SingleFileDatabase(name)
-    elif backend == u"sqlite":
+    elif backend == "sqlite":
         return SQLiteBackend(name)
-    elif backend == u"singlefile":
+    elif backend == "singlefile":
         return SingleFileDatabase(name)
-    elif backend == u"json":
+    elif backend == "json":
         return JSONDatabase(name)
     elif backend in config.backends:
         return config.backends[backend](name)
     else:
-        raise ValueError(u"Backend {} not found".format(backend))
+        raise ValueError("Backend {} not found".format(backend))
 
 # Backwards compatibility
 Database = DatabaseChooser

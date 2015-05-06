@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # The MIT License (MIT)
 
 # Copyright (c) 2014 abarnert
@@ -22,6 +23,8 @@
 
 # fatomic from abarnert
 # https://github.com/abarnert/fatomic
+from __future__ import print_function, unicode_literals
+from eight import *
 
 import contextlib
 import errno

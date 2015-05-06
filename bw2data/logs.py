@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import config
 from .utils import random_string, create_in_memory_zipfile_from_directory
 from logging.handlers import RotatingFileHandler

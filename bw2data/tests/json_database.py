@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import BW2DataTest
 from .. import config, databases
 from ..backends.json import JSONDatabase, SynchronousJSONDict
@@ -29,9 +32,8 @@ class JSONDatabaseTest(BW2DataTest):
 
     def test_iter(self):
         d = JSONDatabase("biosphere")
-        d.register(depends=[])
         d.write(biosphere)
-        activity = iter(d).next()
+        activity = next(iter(d))
         self.assertTrue(isinstance(activity, Activity))
         self.assertTrue(activity.name in ('an emission', 'another emission'))
 

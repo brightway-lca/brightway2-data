@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from .base import BW2DataTest
 from .config import ConfigTest
 from .data_store import DataStoreTestCase

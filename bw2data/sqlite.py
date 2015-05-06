@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function
+from __future__ import print_function, unicode_literals
 from eight import *
+
 from peewee import SqliteDatabase, BlobField, Model, TextField
 import os
 try:
@@ -19,7 +20,9 @@ def keysplit(key):
 
 
 class Key(object):
-    """Can't use lists in peewee expressions"""
+    """Can't use lists in peewee expressions.
+
+    See https://github.com/coleifer/peewee/issues/150"""
     def __init__(self, *args):
         self.data = args
 
@@ -29,7 +32,6 @@ class Key(object):
 
 class TupleField(TextField):
     def db_value(self, value):
-        print("Calling `db_value` with: {}".format(value))
         return keyjoin(value)
 
     def python_value(self, value):

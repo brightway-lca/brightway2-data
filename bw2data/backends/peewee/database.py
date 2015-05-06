@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
+
 from . import sqlite3_lci_db
 from ... import mapping, geomapping, config, databases
 from ...errors import UntypedExchange, InvalidExchange, UnknownObject
@@ -379,7 +380,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
             )
 
-        databases[self.name]['depends'] = list(dependents.difference({self.name}))
+        databases[self.name]['depends'] = sorted(dependents.difference({self.name}))
         databases[self.name]['processed'] = datetime.datetime.now().isoformat()
         databases.flush()
 

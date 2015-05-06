@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
 from eight import *
+
 from . import config
 from .errors import WebUIError
 from .fatomic import open
@@ -18,6 +20,7 @@ import string
 import urllib
 import webbrowser
 import zipfile
+import sys
 try:
     import StringIO as StringIO
 except ImportError:
@@ -38,6 +41,8 @@ TYPE_DICTIONARY = {
 
 DOWNLOAD_URL = "http://brightwaylca.org/data/"
 
+numpy_string = lambda x: bytes(x) if sys.version_info < (3, 0) else x
+
 
 def natural_sort(l):
     """Sort the given list in the way that humans expect, e.g. 9 before 10."""
@@ -57,7 +62,7 @@ def random_string(length=8):
         A string (not unicode)
 
     """
-    return ''.join(random.choice(string.letters + string.digits
+    return ''.join(random.choice(string.ascii_letters + string.digits
                                  ) for i in range(length))
 
 
@@ -160,10 +165,10 @@ def recursive_str_to_unicode(data, encoding="utf8"):
     """Convert the strings inside a (possibly nested) python data structure to unicode strings using `encoding`."""
     # Adapted from
     # http://stackoverflow.com/questions/1254454/fastest-way-to-convert-a-dicts-keys-values-from-unicode-to-str
-    if isinstance(data, unicode):
+    if isinstance(data, str):
         return data
-    elif isinstance(data, str):
-        return unicode(data, encoding)  # Faster than str.encode
+    elif isinstance(data, bytes):
+        return str(data, encoding)  # Faster than str.encode
     elif isinstance(data, collections.Mapping):
         return dict(itertools.imap(
             recursive_str_to_unicode,

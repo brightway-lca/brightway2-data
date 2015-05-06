@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from .data_store import ProcessedDataStore
 from .utils import safe_filename
 import hashlib
@@ -23,9 +26,9 @@ def abbreviate(names, length=8):
     """
     safe_names = [safe_filename(x, False) for x in names]
     abbrev = lambda x: x if x[0] in string.digits else x[0].lower()
-    name = u" ".join(safe_names).split(" ")[0].lower() + \
-        u"".join([abbrev(x) for x in u" ".join(safe_names).split(" ")[1:]])
-    return name + u"." + hashlib.md5(unicode(u"-".join(names))).hexdigest()
+    name = " ".join(safe_names).split(" ")[0].lower() + \
+        "".join([abbrev(x) for x in " ".join(safe_names).split(" ")[1:]])
+    return name + "." + hashlib.md5("-".join(names)).hexdigest()
 
 
 class ImpactAssessmentDataStore(ProcessedDataStore):
@@ -41,9 +44,9 @@ Args:
 
     """
     def __unicode__(self):
-        return u"Brightway2 %s: %s" % (
+        return "Brightway2 %s: %s" % (
             self.__class__.__name__,
-            u": ".join(self.name)
+            ": ".join(self.name)
         )
 
     def get_abbreviation(self):

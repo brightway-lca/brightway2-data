@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import print_function, unicode_literals
 from eight import *
 
 from voluptuous import Invalid
@@ -18,8 +18,10 @@ class ValidationTestCase(unittest.TestCase):
         with self.assertRaises(Invalid):
             valid_tuple(("b", 1))
         self.assertTrue(valid_tuple(("a", "b")))
-        self.assertTrue(valid_tuple(("a", ())))
-        self.assertTrue(valid_tuple(("a", [])))
+        with self.assertRaises(Invalid):
+            self.assertTrue(valid_tuple(("a", ())))
+        with self.assertRaises(Invalid):
+            self.assertTrue(valid_tuple(("a", [])))
         self.assertTrue(valid_tuple(("a", "1")))
 
     def test_uncertainty_dict(self):

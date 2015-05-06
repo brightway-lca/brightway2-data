@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import Database, databases, Method, methods, config, Weighting, \
     weightings, Normalization, normalizations
 from .ia_data_store import abbreviate

@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from ...serialization import JsonWrapper
 from ...utils import safe_filename
 from .mapping import get_mapping

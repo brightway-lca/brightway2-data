@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from whoosh.fields import TEXT, ID, Schema
 
 bw2_schema = Schema(
