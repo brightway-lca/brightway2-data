@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import unicode_literals, print_function
 from eight import *
 from .filesystem import safe_filename, create_dir
 from .sqlite import PickleField, create_database
@@ -37,6 +37,7 @@ class ProjectManager(collections.Iterable):
         self._create_base_directories()
         self._project_name = "default"
         self.db = self._create_projects_database()
+        print("Testing output 1")
         self.create_project()
 
     def __iter__(self):
@@ -107,13 +108,20 @@ class ProjectManager(collections.Iterable):
             safe_filename(self.project)
         )
 
-    def create_project(self, name="default", **kwargs):
+    def create_project(self, name=None, **kwargs):
+        name = name or self.project
+        if not ProjectDataset().select().where(
+                ProjectDataset.name == name).count():
+            ProjectDataset().create(
+                data=kwargs,
+                name=name
+            )
         if not os.path.isdir(self.dir):
-            ProjectDataset().create(data=kwargs, name="default")
             create_dir(self.dir)
-            create_dir(self.logs_dir)
             for dir_name in self._basic_directories:
                 create_dir(os.path.join(self.dir, dir_name))
+        if not os.path.isdir(self.logs_dir):
+            create_dir(self.logs_dir)
 
     def copy_project(self, new_name, switch=True):
         """Copy current project to a new project named ``new_name``. If ``switch``, switch to new project."""

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import unicode_literals, print_function
+from eight import *
 from peewee import SqliteDatabase, BlobField, Model, TextField
 import os
 try:
@@ -17,8 +18,18 @@ def keysplit(key):
     return tuple(key.split(MAGIC_JOIN_CHARACTER))
 
 
+class Key(object):
+    """Can't use lists in peewee expressions"""
+    def __init__(self, *args):
+        self.data = args
+
+    def __iter__(self):
+        return iter(self.data)
+
+
 class TupleField(TextField):
     def db_value(self, value):
+        print("Calling `db_value` with: {}".format(value))
         return keyjoin(value)
 
     def python_value(self, value):
@@ -32,7 +43,7 @@ class PickleField(BlobField):
         )
 
     def python_value(self, value):
-        return pickle.loads(str(value))
+        return pickle.loads(bytes(value))
 
 
 def create_database(filepath, tables):

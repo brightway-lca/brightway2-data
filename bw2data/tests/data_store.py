@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+from eight import *
 from . import BW2DataTest
 from .. import config
 from ..data_store import DataStore, ProcessedDataStore
 from ..errors import UnknownObject
 from ..serialization import SerializedDict
+from numbers import Number
 from voluptuous import Schema
-import os
 import numpy as np
+import os
 import pickle
 
 
@@ -19,13 +22,13 @@ metadata = Metadata()
 class MockDS(DataStore):
     """Mock DataStore for testing"""
     metadata = metadata
-    validator = Schema(int)
+    validator = Schema(Number)
 
 
 class MockPDS(ProcessedDataStore):
     """Mock DataStore for testing"""
     metadata = metadata
-    validator = Schema(int)
+    validator = Schema(Number)
     dtype_fields = []
 
     def process_data(self, row):
@@ -40,13 +43,12 @@ class DataStoreTestCase(BW2DataTest):
     def test_repr(self):
         d = MockDS("food")
         self.assertTrue(isinstance(str(d), str))
-        self.assertTrue(isinstance(unicode(d), unicode))
 
     def test_unicode(self):
         d = MockDS("food")
         self.assertEqual(
-            unicode(d),
-            u"Brightway2 MockDS: food"
+            str(d),
+            "Brightway2 MockDS: food"
         )
 
     def test_deregister(self):
@@ -61,17 +63,17 @@ class DataStoreTestCase(BW2DataTest):
         d.write(range(10))
         data = pickle.load(open(os.path.join(
             config.dir,
-            u"intermediate",
+            "intermediate",
             d.filename + ".pickle"
-        )))
-        self.assertEqual(data, range(10))
+        ), 'rb'))
+        self.assertEqual(list(data), list(range(10)))
 
     def test_copy(self):
         d = MockDS("full moon")
         d.register(foo='bar')
         d.write(range(10))
         gibbous = d.copy("waning gibbous")
-        self.assertEqual(gibbous.load(), range(10))
+        self.assertEqual(list(gibbous.load()), list(range(10)))
         self.assertEqual(metadata['waning gibbous'], {'foo': 'bar'})
 
     def test_validation(self):

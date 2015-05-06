@@ -50,7 +50,7 @@ class LCIBackend(ProcessedDataStore):
                 Required("input"): valid_tuple,
                 Required("type"): basestring,
                 }
-        exchange.update(**uncertainty_dict)
+        exchange.update(uncertainty_dict)
         lci_dataset = {
             Optional("categories"): Any(list, tuple),
             Optional("location"): object,

@@ -5,7 +5,7 @@ from . import sqlite3_lci_db
 from ... import mapping, geomapping, config, databases
 from ...errors import UntypedExchange, InvalidExchange, UnknownObject
 from ...search import IndexManager, Searcher
-from ...sqlite import keyjoin
+from ...sqlite import Key
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ..base import LCIBackend
 from .proxies import Activity
@@ -106,7 +106,7 @@ class SQLiteBackend(LCIBackend):
     def get(self, code):
         return Activity(
             self._get_queryset().where(
-                ActivityDataset.key == keyjoin((self.name, code))
+                ActivityDataset.key == Key(self.name, code)
             ).get()
         )
 
@@ -185,7 +185,7 @@ class SQLiteBackend(LCIBackend):
                     ActivityDataset.insert_many(activities).execute()
                     activities = []
 
-                if progresbar:
+                if progressbar:
                     pbar.update(index)
 
             if progressbar:
@@ -258,7 +258,7 @@ class SQLiteBackend(LCIBackend):
         obj['database'] = self.name
         obj['code'] = str(code)
         obj['location'] = config.global_location
-        obj.update(**kwargs)
+        obj.update(kwargs)
         return obj
 
     def make_searchable(self):

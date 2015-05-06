@@ -2,6 +2,7 @@
 from __future__ import unicode_literals
 from eight import *
 from voluptuous import Schema, Required, Invalid, Any, All, Length, Optional
+from numbers import Number
 
 
 def valid_tuple(obj):
@@ -15,13 +16,13 @@ def valid_tuple(obj):
 
 
 uncertainty_dict = {
-    Required("amount"): Any(float, int),
+    Required("amount"): Number,
     Optional("uncertainty type"): int,
-    Optional("loc"): Any(float, int),
-    Optional("scale"): Any(float, int),
-    Optional("shape"): Any(float, int),
-    Optional("minimum"): Any(float, int),
-    Optional("maximum"): Any(float, int)
+    Optional("loc"): Number,
+    Optional("scale"): Number,
+    Optional("shape"): Number,
+    Optional("minimum"): Number,
+    Optional("maximum"): Number
 }
 
 exchange = {
@@ -45,7 +46,7 @@ db_validator = Schema({valid_tuple: lci_dataset}, extra=True)
 # See https://github.com/alecthomas/voluptuous/issues/59
 # Each list needs to be a separate function...
 
-maybe_uncertainty = Any(float, int, uncertainty_dict)
+maybe_uncertainty = Any(Number, uncertainty_dict)
 
 ia_validator = Schema([Any(
     [valid_tuple, maybe_uncertainty],         # site-generic

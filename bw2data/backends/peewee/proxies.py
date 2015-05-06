@@ -123,7 +123,7 @@ class Activity(ActivityProxyBase):
             new_data = {
                 u'data': data,
                 u'type': exc.type,
-                u'output': keyjoin(activity.key),
+                u'output': activity.key,
                 u'input': exc._document.input,
                 u'database': self.database
             }

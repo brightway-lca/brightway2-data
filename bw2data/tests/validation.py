@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+from eight import *
+
 from voluptuous import Invalid
 import unittest
 from ..validate import *
@@ -11,10 +15,12 @@ class ValidationTestCase(unittest.TestCase):
             valid_tuple(["a", "b"])
         with self.assertRaises(Invalid):
             valid_tuple((1, "b"))
+        with self.assertRaises(Invalid):
+            valid_tuple(("b", 1))
         self.assertTrue(valid_tuple(("a", "b")))
         self.assertTrue(valid_tuple(("a", ())))
         self.assertTrue(valid_tuple(("a", [])))
-        self.assertTrue(valid_tuple(("a", 1)))
+        self.assertTrue(valid_tuple(("a", "1")))
 
     def test_uncertainty_dict(self):
         schema = Schema(uncertainty_dict)
@@ -40,37 +46,37 @@ class ValidationTestCase(unittest.TestCase):
             schema({'amount': 1})
         with self.assertRaises(Invalid):
             schema({'input': ('a', 1), 'type': 'foo'})
-        self.assertTrue(schema({'amount': 1, 'input': ('a', 1), 'type': 'foo'}))
+        self.assertTrue(schema({'amount': 1, 'input': ('a', '1'), 'type': 'foo'}))
 
     def test_db_validator(self):
-        self.assertTrue(db_validator({("a", 1): {}}))
+        self.assertTrue(db_validator({("a", "1"): {}}))
         self.assertTrue(db_validator({
-            ("a", 1): {
+            ("a", "1"): {
                 'type': 'foo',
                 'exchanges': [],
                 }
         }))
         self.assertTrue(db_validator({
-            ("a", 1): {
+            ("a", "1"): {
                 'name': 'foo',
                 'exchanges': [],
                 }
         }))
         self.assertTrue(db_validator({
-            ("a", 1): {
+            ("a", "1"): {
                 'name': 'foo',
                 'type': 'bar',
                 }
         }))
         self.assertTrue(db_validator({
-            ("a", 1): {
+            ("a", "1"): {
                 'name': 'foo',
                 'type': 'bar',
                 'exchanges': [],
                 }
         }))
         self.assertTrue(db_validator({
-            ("a", 1): {
+            ("a", "1"): {
                 'name': 'foo',
                 'type': 'bar',
                 'exchanges': [],
@@ -79,11 +85,11 @@ class ValidationTestCase(unittest.TestCase):
         }))
 
     def test_ia_validator(self):
-        self.assertTrue(ia_validator([[("a", 1), 2.]]))
-        self.assertTrue(ia_validator([[("a", 1), 2., "CH"]]))
+        self.assertTrue(ia_validator([[("a", "1"), 2.]]))
+        self.assertTrue(ia_validator([[("a", "1"), 2., "CH"]]))
         self.assertTrue(ia_validator([
-            [("a", 1), 2., "CH"],
-            [("a", 1), 2.],
+            [("a", "1"), 2., "CH"],
+            [("a", "1"), 2.],
         ]))
 
     def test_weighting_too_long(self):
