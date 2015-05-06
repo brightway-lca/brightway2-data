@@ -6,7 +6,10 @@ from .ia_data_store import abbreviate
 from .utils import recursive_str_to_unicode
 import os
 import pprint
-import progressbar
+try:
+    import progressbar
+except ImportError:
+    progressbar = None
 import re
 import warnings
 
@@ -20,12 +23,13 @@ is_hash = lambda x: bool(hash_re.match(x))
 
 UPTODATE_WARNING = "\n\nYour data needs to be updated. Please run the following program on the command line:\n\n\tbw2-uptodate\n"
 
-widgets = [
-    progressbar.SimpleProgress(sep="/"), " (",
-    progressbar.Percentage(), ') ',
-    progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
-    progressbar.ETA()
-]
+if progressbar:
+    widgets = [
+        progressbar.SimpleProgress(sep="/"), " (",
+        progressbar.Percentage(), ') ',
+        progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
+        progressbar.ETA()
+    ]
 
 
 class Updates(object):
@@ -79,16 +83,20 @@ class Updates(object):
             if meta.list:
                 print("Updating all %s" % name)
 
-                pbar = progressbar.ProgressBar(
-                    widgets=widgets,
-                    maxval=len(meta)
-                ).start()
+                if progressbar:
+                    pbar = progressbar.ProgressBar(
+                        widgets=widgets,
+                        maxval=len(meta)
+                    ).start()
 
                 for index, key in enumerate(meta):
                     obj = klass(key)
                     obj.process()
                     # Free memory
                     obj = None
-                    pbar.update(index)
 
-                pbar.finish()
+                    if progressbar:
+                        pbar.update(index)
+
+                if progressbar:
+                    pbar.finish()

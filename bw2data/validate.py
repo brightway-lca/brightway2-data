@@ -1,14 +1,16 @@
 # encoding: utf-8
+from __future__ import unicode_literals
+from eight import *
 from voluptuous import Schema, Required, Invalid, Any, All, Length, Optional
 
 
 def valid_tuple(obj):
     try:
         assert isinstance(obj, tuple)
-        assert isinstance(obj[0], basestring)
-        assert isinstance(obj[1], (basestring, int, tuple, list))
+        assert isinstance(obj[0], str)
+        assert isinstance(obj[1], (str, int, tuple, list))
     except:
-        raise Invalid(u"%s is not a valid key tuple" % unicode(obj))
+        raise Invalid("{} is not a valid key tuple".format(obj))
     return obj
 
 
@@ -23,17 +25,17 @@ uncertainty_dict = {
 }
 
 exchange = {
-        Required("input"): valid_tuple,
-        Required("type"): basestring,
-        }
-exchange.update(**uncertainty_dict)
+    Required("input"): valid_tuple,
+    Required("type"): str,
+}
+exchange.update(uncertainty_dict)
 
 lci_dataset = {
     Optional("categories"): Any(list, tuple),
     Optional("location"): object,
-    Optional("unit"): basestring,
-    Optional("name"): basestring,
-    Optional("type"): basestring,
+    Optional("unit"): str,
+    Optional("name"): str,
+    Optional("type"): str,
     Optional("exchanges"): [exchange]
 }
 

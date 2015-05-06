@@ -19,9 +19,10 @@ import urllib
 import webbrowser
 import zipfile
 try:
-    import cStringIO as StringIO
+    import StringIO as StringIO
 except ImportError:
-    import StringIO
+    # Py3
+    from io import StringIO
 
 # Maximum value for unsigned integer stored in 4 bytes
 MAX_INT_32 = 4294967295

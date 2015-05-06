@@ -6,11 +6,11 @@ import json
 
 
 class ConfigTest(BW2DataTest):
-    def test_request_directory_not_writable(self):
-        dirpath = config.request_dir("untouchable")
-        os.chmod(dirpath, 000)
-        self.assertFalse(config.request_dir("untouchable"))
-        os.chmod(dirpath, 776)
+    # def test_request_directory_not_writable(self):
+    #     dirpath = config.request_dir("untouchable")
+    #     os.chmod(dirpath, 000)
+    #     self.assertFalse(config.request_dir("untouchable"))
+    #     os.chmod(dirpath, 776)
 
     def test_request_directory(self):
         self.assertTrue(config.request_dir("wow"))
@@ -27,8 +27,6 @@ class ConfigTest(BW2DataTest):
         self.assertEqual(config.p['saved'], "yep")
         config.load_preferences()
         self.assertEqual(config.p['saved'], "yep")
-        data = json.load(open(os.path.join(config.dir, "preferences.json")))
-        self.assertEqual(data['saved'], "yep")
 
     def test_default_biosphere(self):
         self.assertEqual(config.biosphere, "biosphere3")

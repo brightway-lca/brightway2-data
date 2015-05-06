@@ -57,7 +57,8 @@ Base class for all Brightway2 data stores. Subclasses should define:
             The intermediate data.
 
         """
-        self.assert_registered()
+        if not self.registered:
+            raise UnknownObject("This object is not registered and has no data")
         try:
             return pickle.load(open(os.path.join(
                 config.dir,
@@ -153,10 +154,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             * *data* (object): The data
 
         """
-        try:
-            self.assert_registered()
-        except:
-            self.register()
+        self.register()
         self.add_mappings(data)
         filepath = os.path.join(
             config.dir,

@@ -5,6 +5,7 @@ from time import time
 import bz2
 import os
 import random
+import collections
 try:
     import anyjson
 except ImportError:
@@ -94,7 +95,7 @@ class JsonSanitizer(object):
             return data
 
 
-class SerializedDict(object):
+class SerializedDict(collections.MutableMapping):
     """Base class for dictionary that can be `serialized <http://en.wikipedia.org/wiki/Serialization>`_ to or unserialized from disk. Uses JSON as its storage format. Has most of the methods of a dictionary.
 
     Upon instantiation, the serialized dictionary is read from disk."""
@@ -130,12 +131,6 @@ class SerializedDict(object):
             key = tuple(key)
         return self.data[key]
 
-    def get(self, key, default=None):
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
     def __setitem__(self, key, value):
         self.data[key] = value
         self.flush()
@@ -145,6 +140,8 @@ class SerializedDict(object):
 
     def __str__(self):
         return unicode(self).encode('utf-8')
+
+    __repr__ = __str__
 
     def __unicode__(self):
         return u"Brightway2 serialized dictionary with {} entries".format(len(self))
@@ -159,8 +156,8 @@ class SerializedDict(object):
     def __iter__(self):
         return iter(self.data)
 
-    def items(self):
-        return self.data.items()
+    def __hash__(self):
+        return hash(self.data)
 
     def keys(self):
         return self.data.keys()

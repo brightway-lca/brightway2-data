@@ -1,18 +1,24 @@
-from __future__ import print_function
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
 from . import sqlite3_lci_db
 from ... import mapping, geomapping, config, databases
 from ...errors import UntypedExchange, InvalidExchange, UnknownObject
 from ...search import IndexManager, Searcher
+from ...sqlite import keyjoin
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ..base import LCIBackend
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset
-from .utils import dict_as_activity, keyjoin, keysplit
+from .utils import dict_as_activitydataset
 from peewee import fn
-import datetime
 import itertools
+import datetime
 import numpy as np
-import progressbar
+try:
+    import progressbar
+except ImportError:
+    progressbar = None
 import sqlite3
 try:
     import cPickle as pickle
@@ -28,26 +34,36 @@ _VALID_KEYS = {'location', 'name', 'product', 'type'}
 
 
 class SQLiteBackend(LCIBackend):
-    backend = u"sqlite"
+    backend = "sqlite"
 
     def __init__(self, *args, **kwargs):
         super(SQLiteBackend, self).__init__(*args, **kwargs)
-        self._searchable = databases.get(self.name, {}).get('searchable', True)
+
         self._filters = {}
         self._order_by = None
 
     ### Iteration, filtering, and ordering
+    ######################################
+
+    # Private methods
 
     def __iter__(self):
         for ds in self._get_queryset():
             yield Activity(ds)
 
-    def _get_queryset(self):
+    def __len__(self):
+        return self._get_queryset().count()
+
+    @property
+    def _searchable(self):
+        return databases.get(self.name, {}).get('searchable', True)
+
+    def _get_queryset(self, random=False):
         qs = ActivityDataset.select().where(
             ActivityDataset.database == self.name)
         for key, value in self.filters.items():
             qs = qs.where(getattr(ActivityDataset, key) == value)
-        if self.order_by:
+        if self.order_by and not random:
             qs = qs.order_by(getattr(ActivityDataset, self.order_by))
         else:
             qs = qs.order_by(fn.Random())
@@ -60,10 +76,10 @@ class SQLiteBackend(LCIBackend):
         if not filters:
             self._filters = {}
         else:
-            assert isinstance(filters, dict), u"Filter must be a dictionary"
+            assert isinstance(filters, dict), "Filter must be a dictionary"
             for key in filters:
                 assert key in _VALID_KEYS, \
-                    u"Filter key {} is invalid".format(key)
+                    "Filter key {} is invalid".format(key)
                 self._filters = filters
         return self
 
@@ -75,93 +91,29 @@ class SQLiteBackend(LCIBackend):
             self._order_by = None
         else:
             assert field in _VALID_KEYS, \
-                u"order_by field {} is invalid".format(field)
+                "order_by field {} is invalid".format(field)
             self._order_by = field
         return self
+
+    # Public API
 
     filters = property(_get_filters, _set_filters)
     order_by = property(_get_order_by, _set_order_by)
 
-    ### Data management
-
-    def write(self, data, process=True):
-        """Write ``data`` to database.
-
-        This deletes all exiting data for this database."""
-        self.register()
-        self.metadata[self.name]['modified'] = datetime.datetime.now().isoformat()
-        self.metadata[self.name]['number'] = len(data)
-        self.metadata.flush()
-        mapping.add(data.keys())
-        geomapping.add({x[u"location"] for x in data.values() if
-                       x.get(u"location", False)})
-        if data:
-            try:
-                self._efficient_write_many_data(data)
-            except:
-                # Purge all data from database, then reraise
-                self.delete()
-                raise
-
-        if self._searchable:
-            IndexManager().delete_database(self.name)
-            IndexManager().add_datasets(self)
-
-        if process:
-            self.process()
-
-    def load(self, *args, **kwargs):
-        # Should not be used, in general; relatively slow
-        activities = [obj[u'data'] for obj in
-            ActivityDataset.select(ActivityDataset.data)
-            .where(ActivityDataset.database == self.name).dicts()
-        ]
-
-        activities = {(o[u'database'], o[u'code']): o for o in activities}
-        for o in activities.values():
-            o[u'exchanges'] = []
-
-        exchange_qs = (ExchangeDataset.select(ExchangeDataset.data)
-            .where(ExchangeDataset.database == self.name).dicts())
-
-        for exc in exchange_qs:
-            activities[exc[u'data'][u'output']][u'exchanges'].append(exc['data'])
-        return activities
-
     def random(self):
-        return Activity(ActivityDataset.select().where(ActivityDataset.database == self.name).order_by(fn.Random()).get())
+        return Activity(self._get_queryset(random=True).get())
 
     def get(self, code):
-        return Activity(ActivityDataset.select().where(ActivityDataset.key == self._make_key(code)).get())
+        return Activity(
+            self._get_queryset().where(
+                ActivityDataset.key == keyjoin((self.name, code))
+            ).get()
+        )
 
-    def new_activity(self, code, **kwargs):
-        obj = Activity()
-        obj[u'database'] = self.name
-        obj[u'code'] = unicode(code)
-        obj[u'location'] = config.global_location
-        obj.update(**kwargs)
-        return obj
+    ### Data management
+    ###################
 
-    def make_searchable(self):
-        if self._searchable:
-            print(u"This database is already searchable")
-            return
-        databases[self.name][u'searchable'] = self._searchable = True
-        databases.flush()
-        IndexManager().add_datasets(self)
-
-    def make_unsearchable(self):
-        databases[self.name][u'searchable'] = self._searchable = False
-        databases.flush()
-        IndexManager().delete_database(self.name)
-
-    def __len__(self):
-        return self._get_queryset().count()
-
-    def _make_key(self, obj):
-        if isinstance(obj, basestring):
-            obj = (self.name, obj)
-        return keyjoin(obj)
+    # Private methods
 
     def _drop_indices(self):
         with sqlite3_lci_db.transaction():
@@ -187,30 +139,30 @@ class SQLiteBackend(LCIBackend):
             self.delete()
             exchanges, activities = [], []
 
-            widgets = [
-                progressbar.SimpleProgress(sep="/"), " (",
-                progressbar.Percentage(), ') ',
-                progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
-                progressbar.ETA()
-            ]
-            pbar = progressbar.ProgressBar(
-                widgets=widgets,
-                maxval=len(data)
-            ).start()
+            if progressbar:
+                widgets = [
+                    progressbar.SimpleProgress(sep="/"), " (",
+                    progressbar.Percentage(), ') ',
+                    progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
+                    progressbar.ETA()
+                ]
+                pbar = progressbar.ProgressBar(
+                    widgets=widgets,
+                    maxval=len(data)
+                ).start()
 
             for index, (key, ds) in enumerate(data.items()):
-                for exchange in ds.get(u'exchanges', []):
+                for exchange in ds.get('exchanges', []):
                     if 'input' not in exchange or 'amount' not in exchange:
                         raise InvalidExchange
                     if 'type' not in exchange:
                         raise UntypedExchange
-                    exchange[u'output'] = key
-                    # TODO: Raise error if 'input' missing?
+                    exchange['output'] = key
                     exchanges.append({
-                        'input': self._make_key(exchange[u"input"]),
+                        'input': exchange["input"],
                         'database': key[0],
-                        "output": self._make_key(key),
-                        "type": exchange.get(u"type"),
+                        "output": key,
+                        "type": exchange["type"],
                         "data": exchange
                     })
 
@@ -223,19 +175,21 @@ class SQLiteBackend(LCIBackend):
                         ExchangeDataset.insert_many(exchanges).execute()
                         exchanges = []
 
-                ds = {k: v for k, v in ds.items() if k != u"exchanges"}
-                ds[u"database"] = key[0]
-                ds[u"code"] = key[1]
+                ds = {k: v for k, v in ds.items() if k != "exchanges"}
+                ds["database"] = key[0]
+                ds["code"] = key[1]
 
-                activities.append(dict_as_activity(ds))
+                activities.append(dict_as_activitydataset(ds))
 
                 if len(activities) > 125:
                     ActivityDataset.insert_many(activities).execute()
                     activities = []
 
-                pbar.update(index)
+                if progresbar:
+                    pbar.update(index)
 
-            pbar.finish()
+            if progressbar:
+                pbar.finish()
 
             if activities:
                 ActivityDataset.insert_many(activities).execute()
@@ -250,10 +204,80 @@ class SQLiteBackend(LCIBackend):
             if be_complicated:
                 self._add_indices()
 
+    # Public API
+
+    def write(self, data, process=True):
+        """Write ``data`` to database.
+
+        This deletes all existing data for this database."""
+        self.register()
+        databases[self.name]['number'] = len(data)
+        databases.set_modified(self.name)
+        mapping.add(data.keys())
+        geomapping.add({x["location"] for x in data.values() if
+                       x.get("location", False)})
+        if data:
+            try:
+                self._efficient_write_many_data(data)
+            except:
+                # Purge all data from database, then reraise
+                self.delete()
+                raise
+
+        if self._searchable:
+            IndexManager().delete_database(self.name)
+            IndexManager().add_datasets(self)
+
+        if process:
+            self.process()
+
+    def load(self, *args, **kwargs):
+        # Should not be used, in general; relatively slow
+        activities = [obj['data'] for obj in
+            self._get_queryset().dicts()
+        ]
+
+        activities = {(o['database'], o['code']): o for o in activities}
+        for o in activities.values():
+            o['exchanges'] = []
+
+        exchange_qs = (ExchangeDataset.select(ExchangeDataset.data)
+            .where(ExchangeDataset.database == self.name).dicts())
+
+        for exc in exchange_qs:
+            try:
+                activities[exc['data']['output']]['exchanges'].append(exc['data'])
+            except KeyError:
+                # This exchange not in the reduced set of activities returned
+                # by _get_queryset
+                pass
+        return activities
+
+    def new_activity(self, code, **kwargs):
+        obj = Activity()
+        obj['database'] = self.name
+        obj['code'] = str(code)
+        obj['location'] = config.global_location
+        obj.update(**kwargs)
+        return obj
+
+    def make_searchable(self):
+        if self._searchable:
+            print("This database is already searchable")
+            return
+        databases[self.name]['searchable'] = True
+        databases.flush()
+        IndexManager().add_datasets(self)
+
+    def make_unsearchable(self):
+        databases[self.name]['searchable'] = False
+        databases.flush()
+        IndexManager().delete_database(self.name)
+
     def delete(self):
         """Delete all data from SQLite database and Whoosh index"""
-        ActivityDataset.delete().where(ActivityDataset.database==self.name).execute()
-        ExchangeDataset.delete().where(ExchangeDataset.database==self.name).execute()
+        ActivityDataset.delete().where(ActivityDataset.database== self.name).execute()
+        ExchangeDataset.delete().where(ExchangeDataset.database== self.name).execute()
         IndexManager().delete_database(self.name)
 
     def process(self):
@@ -266,7 +290,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         num_exchanges = ExchangeDataset.select().where(ExchangeDataset.database == self.name).count()
         num_processes = ActivityDataset.select().where(
             ActivityDataset.database == self.name,
-            ActivityDataset.type == u"process"
+            ActivityDataset.type == "process"
         ).count()
 
         # Create geomapping array
@@ -276,10 +300,10 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 ActivityDataset.location, ActivityDataset.key
                 ).where(
                 ActivityDataset.database == self.name,
-                ActivityDataset.type == u"process"
+                ActivityDataset.type == "process"
                 ).order_by(ActivityDataset.key).dicts()):
             arr[index] = (
-                mapping[keysplit(row['key'])],
+                mapping[row['key']],
                 geomapping[row['location'] or config.global_location],
                 MAX_INT_32, MAX_INT_32,
                 0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
@@ -291,11 +315,11 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         missing_production_keys = [x[0] for x in ActivityDataset.select(
             ActivityDataset.key).where(
                 ActivityDataset.database == self.name,
-                ActivityDataset.type == u"process",
+                ActivityDataset.type == "process",
                 ~(ActivityDataset.key << ExchangeDataset.select(
                     ExchangeDataset.output).where(
                     ExchangeDataset.database == self.name,
-                    ExchangeDataset.type == u'production'))
+                    ExchangeDataset.type == 'production'))
             ).tuples()]
 
         arr = np.zeros((num_exchanges + len(missing_production_keys), ), dtype=self.dtype)
@@ -309,40 +333,40 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         found_exchanges = False
 
         for index, row in enumerate(cursor.execute(SQL, (self.name,))):
-            data = pickle.loads(str(row[0]))
+            data = pickle.loads(bytes(row[0]))
 
-            if u"type" not in data:
+            if "type" not in data:
                 raise UntypedExchange
-            if u"amount" not in data or u"input" not in data:
+            if "amount" not in data or "input" not in data:
                 raise InvalidExchange
 
             found_exchanges = True
 
-            dependents.add(data[u"input"][0])
+            dependents.add(data["input"][0])
 
             try:
                 arr[index] = (
-                    mapping[data[u"input"]],
-                    mapping[data[u"output"]],
+                    mapping[data["input"]],
+                    mapping[data["output"]],
                     MAX_INT_32,
                     MAX_INT_32,
-                    TYPE_DICTIONARY[data[u"type"]],
-                    data.get(u"uncertainty type", 0),
-                    data[u"amount"],
-                    data[u"amount"] \
-                        if data.get(u"uncertainty type", 0) in (0,1) \
-                        else data.get(u"loc", np.NaN),
-                    data.get(u"scale", np.NaN),
-                    data.get(u"shape", np.NaN),
-                    data.get(u"minimum", np.NaN),
-                    data.get(u"maximum", np.NaN),
-                    data[u"amount"] < 0
+                    TYPE_DICTIONARY[data["type"]],
+                    data.get("uncertainty type", 0),
+                    data["amount"],
+                    data["amount"] \
+                        if data.get("uncertainty type", 0) in (0,1) \
+                        else data.get("loc", np.NaN),
+                    data.get("scale", np.NaN),
+                    data.get("shape", np.NaN),
+                    data.get("minimum", np.NaN),
+                    data.get("maximum", np.NaN),
+                    data["amount"] < 0
                 )
             except KeyError:
-                raise UnknownObject((u"Exchange between {} and {} is invalid "
+                raise UnknownObject(("Exchange between {} and {} is invalid "
                     "- one of these objects is unknown (i.e. doesn't exist "
                     "as a process dataset)"
-                    ).format(data[u"input"], data[u"output"])
+                    ).format(data["input"], data["output"])
                 )
 
         # If exchanges were found, start inserting rows at len(exchanges) + 1
@@ -350,14 +374,14 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         for index, key in zip(itertools.count(index), missing_production_keys):
             arr[index] = (
-                mapping[keysplit(key)], mapping[keysplit(key)],
-                MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY[u"production"],
+                mapping[key], mapping[key],
+                MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY["production"],
                 0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
             )
 
-        self.metadata[self.name]['depends'] = list(dependents.difference({self.name}))
-        self.metadata[self.name]['processed'] = datetime.datetime.now().isoformat()
-        self.metadata.flush()
+        databases[self.name]['depends'] = list(dependents.difference({self.name}))
+        databases[self.name]['processed'] = datetime.datetime.now().isoformat()
+        databases.flush()
 
         with open(self.filepath_processed(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -365,7 +389,6 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
     def search(self, string, *args, **kwargs):
         kwargs['database'] = self.name
         return Searcher().search(string, **kwargs)
-
 
     def graph_technosphere(self, filename=None, **kwargs):
         from bw2analyzer.matrix_grapher import SparseMatrixGrapher

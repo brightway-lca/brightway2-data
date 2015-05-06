@@ -1,6 +1,9 @@
-from .. import databases
-from ..errors import InvalidExchange
-from ..utils import get_activity
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+from . import databases
+from .errors import InvalidExchange
+from .utils import get_activity
+from numbers import Number
 from stats_arrays import uncertainty_choices
 import collections
 
@@ -45,14 +48,14 @@ class ProxyBase(collections.MutableMapping):
 class ActivityProxyBase(ProxyBase):
     def __unicode__(self):
         if self.valid():
-            return u"'%s' (%s, %s, %s)".format(
+            return "'%s' (%s, %s, %s)".format(
                 self.get('name'),
                 self.get('unit'),
                 self.get('location'),
                 self.get('categories')
             )
         else:
-            return u"Activity with missing fields (call ``valid(why=True)`` to see more)"
+            return "Activity with missing fields (call ``valid(why=True)`` to see more)"
 
     @property
     def key(self):
@@ -66,7 +69,7 @@ class ActivityProxyBase(ProxyBase):
 
     def __getitem__(self, key):
         # Basically a hack to let this act like a tuple with two
-        # elements, database and code.
+        # elements, database and code. Useful for using as functional unit in LCA.
         if key == 0:
             return self.database
         elif key == 1:
@@ -79,13 +82,13 @@ class ActivityProxyBase(ProxyBase):
     def valid(self, why=False):
         errors = []
         if not self.get('database'):
-            errors.append(u"Missing field ``database``")
+            errors.append("Missing field ``database``")
         elif self.get('database') not in databases:
-            errors.append(u"``database`` refers to unknown database")
+            errors.append("``database`` refers to unknown database")
         if not self.get('code'):
-            errors.append(u"Missing field ``code``")
+            errors.append("Missing field ``code``")
         if not self.get('name'):
-            errors.append(u"Missing field ``name``")
+            errors.append("Missing field ``name``")
         if errors:
             if why:
                 return (False, errors)
@@ -124,10 +127,10 @@ class ActivityProxyBase(ProxyBase):
 class ExchangeProxyBase(ProxyBase):
     def __unicode__(self):
         if self.valid():
-            return u"Exchange: {} {} {} to {}>".format(self.amount, self.unit,
+            return "Exchange: {} {} {} to {}>".format(self.amount, self.unit,
                 self.input, self.output)
         else:
-            return u"Exchange with missing fields (call ``valid(why=True)`` to see more)"
+            return "Exchange with missing fields (call ``valid(why=True)`` to see more)"
 
     def _get_input(self):
         """Get or set the exchange input.
@@ -139,6 +142,7 @@ class ExchangeProxyBase(ProxyBase):
             raise InvalidExchange("Missing valid data for `input` field")
         elif not hasattr(self, "_input"):
             self._input = get_activity(self['input'])
+        return self._input
 
     def _set_input(self, value):
         if isinstance(value, ActivityProxyBase):
@@ -159,6 +163,7 @@ class ExchangeProxyBase(ProxyBase):
             raise InvalidExchange("Missing valid data for `output` field")
         elif not hasattr(self, "_output"):
             self._output = get_activity(self['output'])
+        return self._output
 
     def _set_output(self, value):
         if isinstance(value, ActivityProxyBase):
@@ -175,11 +180,27 @@ class ExchangeProxyBase(ProxyBase):
     def valid(self, why=False):
         errors = []
         if not self.get('input'):
-            errors.append(u"Missing field ``input``")
+            errors.append("Missing field ``input``")
+        elif not isinstance(self['input'], tuple):
+            errors.append("Field ``input`` must be a tuple")
+        elif self['input'][0] not in databases:
+            errors.append("Input database ``{}`` doesn't exist".format(
+                self['input'][0])
+            )
+
         if not self.get('output'):
-            errors.append(u"Missing field ``output``")
-        if not self.get('amount'):
-            errors.append(u"Missing field ``amount``")
+            errors.append("Missing field ``output``")
+        elif not isinstance(self['output'], tuple):
+            errors.append("Field ``output`` must be a tuple")
+        elif self['output'][0] not in databases:
+            errors.append("Output database ``{}`` doesn't exist".format(
+                self['output'][0])
+            )
+
+        if not self.get('amount') or not isinstance(self['amount'], Number):
+            errors.append("Invalid or missing field ``amount``")
+        if not self.get('type'):
+            errors.append("Missing field ``type``")
         if errors:
             if why:
                 return (False, errors)
@@ -203,19 +224,19 @@ class ExchangeProxyBase(ProxyBase):
     def uncertainty(self):
         """Get uncertainty dictionary that can be used in uncertainty analysis."""
         KEYS = {
-            u'uncertainty type',
-            u'loc',
-            u'scale',
-            u'shape',
-            u'minimum',
-            u'maximum'
+            'uncertainty type',
+            'loc',
+            'scale',
+            'shape',
+            'minimum',
+            'maximum'
         }
         return {k: v for k, v in self.items() if k in KEYS}
 
     @property
     def uncertainty_type(self):
         """Get uncertainty type as a ``stats_arrays`` class."""
-        return uncertainty_choices[self.get(u"uncertainty type", 0)]
+        return uncertainty_choices[self.get("uncertainty type", 0)]
 
     def random_sample(self, n=100):
         """Draw a random sample from this exchange."""

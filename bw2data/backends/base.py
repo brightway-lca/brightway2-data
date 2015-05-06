@@ -344,7 +344,7 @@ Doesn't return anything, but writes two files to disk.
                         ]
                     }
                 }
-            print relabel_database(data, "shiny new")
+            print(relabel_database(data, "shiny new"))
             >> {
                 ("shiny new", 1):
                     {"exchanges": [

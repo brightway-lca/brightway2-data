@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*
-from . import ActivityProxyBase
-from .exchange import Exchange
+from ...proxies import ActivityProxyBase
+from ..single_file import Exchange
 
 
 class Activity(ActivityProxyBase):

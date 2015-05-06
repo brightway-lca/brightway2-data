@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from eight import *
 from . import config
 from .serialization import SerializedDict, PickledDict, CompoundJSONDict
+import datetime
 
 
 class Mapping(PickledDict):
@@ -78,7 +79,11 @@ class Databases(SerializedDict):
 
     def version(self, database):
         """Return the ``database`` version"""
-        return self.data[database]["version"]
+        return self.data[database].get("version")
+
+    def set_modified(self, database):
+        self[database]['modified'] = datetime.datetime.now().isoformat()
+        self.flush()
 
     def __unicode__(self):
         return u"Brightway2 databases metadata with %i objects" % len(

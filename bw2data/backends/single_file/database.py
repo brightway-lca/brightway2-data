@@ -2,7 +2,7 @@
 from ... import databases, config, mapping, geomapping
 from ...errors import MissingIntermediateData
 from ...fatomic import open as atomic_open
-from ...proxies import Activity
+from .proxies import Activity
 from ...utils import natural_sort, safe_filename
 from ...validate import db_validator
 from ..base import LCIBackend
@@ -29,12 +29,12 @@ class SingleFileDatabase(LCIBackend):
 
     def __iter__(self):
         for k, v in self.load().items():
-            yield Activity(k, self, v)
+            yield Activity(k, v)
 
     def get(self, code):
         """Get Activity proxy for this dataset"""
         key = (self.name, code)
-        return Activity(key, self, self.load()[key])
+        return Activity(key, self.load()[key])
 
     @property
     def filename(self):

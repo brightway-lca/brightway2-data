@@ -1,4 +1,4 @@
-from ..backends.peewee.utils import keysplit
+from ..sqlite import keysplit
 from .indices import IndexManager
 from whoosh.collectors import TimeLimitCollector, TimeLimit
 from whoosh.qparser import MultifieldParser
@@ -24,7 +24,7 @@ class Searcher(object):
         else:
             filter_kwargs = None
 
-        print "Filter kwargs:", filter_kwargs
+        print("Filter kwargs: {}".format(filter_kwargs))
 
         qp = MultifieldParser(
             fields,

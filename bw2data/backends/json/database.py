@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from ... import config, mapping, geomapping, databases
-from ...proxies import Activity
+from .proxies import Activity
 from ..base import LCIBackend
 from .sync_json_dict import SynchronousJSONDict
 import os
@@ -45,13 +45,13 @@ class JSONDatabase(LCIBackend):
     def __iter__(self):
         json_dict = self.load()
         for key in json_dict:
-            yield Activity(key, self, json_dict[key])
+            yield Activity(key, json_dict[key])
 
     def get(self, code):
         """Get Activity proxy for this dataset"""
         key = (self.name, code)
         data = self.load()[key]
-        return Activity(key, self, data)
+        return Activity(key, data)
 
     def register(self, **kwargs):
         """Register a database with the metadata store, using the correct value for ``backend``, and creates database directory."""

@@ -21,7 +21,7 @@ class TupleField(TextField):
     def db_value(self, value):
         return keyjoin(value)
 
-    def python_value(self, vlaue):
+    def python_value(self, value):
         return keysplit(value)
 
 
@@ -43,8 +43,5 @@ def create_database(filepath, tables):
         list(tables),
         safe=True
     )
+    db._tables = tables
     return db
-
-
-# def change_database_path(db, filepath, tables):
-#     db.database = filepath

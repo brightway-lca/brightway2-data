@@ -5,7 +5,7 @@ from .data_store import DataStoreTestCase
 from .database import DatabaseTest, SingleFileDatabaseTest
 from .geo import GeoTest
 from .ia import IADSTest, MethodTest, WeightingTest, NormalizationTest
-from .json_database import JSONDatabaseTest, SynchronousJSONDictTest
+# from .json_database import JSONDatabaseTest, SynchronousJSONDictTest
 from .query import QueryTest, FilterTest, ResultTest
 from .search import SearchTest, IndexTest
 from .serialization import JsonSantizierTestCase

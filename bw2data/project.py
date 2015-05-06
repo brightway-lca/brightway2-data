@@ -83,6 +83,11 @@ class ProjectManager(collections.Iterable):
             obj.close()
             obj.database = fp
             obj.connect()
+            obj.create_tables(
+                obj._tables,
+                safe=True
+            )
+
 
     ### Public API
 

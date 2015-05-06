@@ -11,7 +11,7 @@ from ..backends.peewee import (
 from ..backends.single_file.database import SingleFileDatabase
 from ..errors import UnknownObject, MissingIntermediateData, UntypedExchange, \
     InvalidExchange
-from ..proxies import Activity as SFActivity, Exchange as SFExchange
+from ..backends.single_file import Activity as SFActivity, Exchange as SFExchange
 from ..meta import mapping, geomapping, databases
 from ..serialization import JsonWrapper, JsonSanitizer
 from ..validate import db_validator
@@ -24,10 +24,8 @@ import pickle
 class DatabaseTest(BW2DataTest):
     def test_setup(self):
         d = DatabaseChooser("biosphere")
-        d.register(depends=[])
         d.write(biosphere)
         d = DatabaseChooser("food")
-        d.register(depends=["biosphere"])
         d.write(food)
         self.assertEqual(len(databases), 2)
 
@@ -37,7 +35,7 @@ class DatabaseTest(BW2DataTest):
         d.write(biosphere)
         activity = d.get('1')
         self.assertTrue(isinstance(activity, PWActivity))
-        self.assertEqual(activity.name, 'an emission')
+        self.assertEqual(activity['name'], 'an emission')
 
     def test_get_random(self):
         d = DatabaseChooser("biosphere")
@@ -45,7 +43,7 @@ class DatabaseTest(BW2DataTest):
         d.write(biosphere)
         activity = iter(d).next()
         self.assertTrue(isinstance(activity, PWActivity))
-        self.assertTrue(activity.name in ('an emission', 'another emission'))
+        self.assertTrue(activity['name'] in ('an emission', 'another emission'))
 
     def test_get_random(self):
         d = DatabaseChooser("biosphere")
@@ -53,7 +51,7 @@ class DatabaseTest(BW2DataTest):
         d.write(biosphere)
         activity = d.random()
         self.assertTrue(isinstance(activity, PWActivity))
-        self.assertTrue(activity.name in ('an emission', 'another emission'))
+        self.assertTrue(activity['name'] in ('an emission', 'another emission'))
 
     def test_copy(self):
         d = DatabaseChooser("biosphere")
@@ -146,11 +144,6 @@ class DatabaseTest(BW2DataTest):
         self.assertTrue("food" in databases)
         d.deregister()
         self.assertTrue("food" not in databases)
-
-    def test_write_unregistered_database_raises_error(self):
-        d = DatabaseChooser("food")
-        with self.assertRaises(UnknownObject):
-            d.write(food)
 
     def test_rename(self):
         d = DatabaseChooser("biosphere")
@@ -441,9 +434,7 @@ class DatabaseTest(BW2DataTest):
 
     def test_process_without_exchanges_still_in_processed_array(self):
         database = DatabaseChooser("a database")
-        database.register()
         database.write({("a database", "foo"): {}})
-        database.process()
         fp = os.path.join(
             config.dir,
             "processed",
@@ -455,19 +446,18 @@ class DatabaseTest(BW2DataTest):
 
     def test_can_split_processes_products(self):
         database = DatabaseChooser("a database")
-        database.register()
         database.write({
             ("a database", "product"): {'type': 'product'},
             ("a database", "foo"): {
                 'exchanges': [{
                         'input': ("a database", "product"),
+                        'output': ("a database", "product"),
                         'type': 'production',
                         'amount': 1
                 }],
                 'type': 'process',
             },
         })
-        database.process()
         self.assertTrue(("a database", "product") in mapping)
         fp = os.path.join(
             config.dir,
@@ -494,7 +484,7 @@ class SingleFileDatabaseTest(BW2DataTest):
         d.write(biosphere)
         activity = d.get('1')
         self.assertTrue(isinstance(activity, SFActivity))
-        self.assertEqual(activity.name, 'an emission')
+        self.assertEqual(activity['name'], 'an emission')
 
     def test_get_random(self):
         d = DatabaseChooser("biosphere", backend='singlefile')
@@ -502,7 +492,7 @@ class SingleFileDatabaseTest(BW2DataTest):
         d.write(biosphere)
         activity = iter(d).next()
         self.assertTrue(isinstance(activity, SFActivity))
-        self.assertTrue(activity.name in ('an emission', 'another emission'))
+        self.assertTrue(activity['name'] in ('an emission', 'another emission'))
 
     def test_get_random(self):
         d = DatabaseChooser("biosphere", backend='singlefile')
@@ -510,7 +500,7 @@ class SingleFileDatabaseTest(BW2DataTest):
         d.write(biosphere)
         activity = d.random()
         self.assertTrue(isinstance(activity, SFActivity))
-        self.assertTrue(activity.name in ('an emission', 'another emission'))
+        self.assertTrue(activity['name'] in ('an emission', 'another emission'))
 
     def test_revert(self):
         self.create_biosphere()

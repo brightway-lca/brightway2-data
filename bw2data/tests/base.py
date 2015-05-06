@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from .. import config
-import tempfile
+from ..project import projects
 import unittest
 
 
@@ -9,7 +9,7 @@ class BW2DataTest(unittest.TestCase):
 
     def setUp(self):
         config.dont_warn = True
-        config.reset(tempfile.mkdtemp())
+        projects.use_temp_directory()
         self.extra_setup()
 
     def extra_setup(self):

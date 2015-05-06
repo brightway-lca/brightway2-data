@@ -43,8 +43,6 @@ from .serialization import JsonWrapper
 from .database import DatabaseChooser as Database, get_activity
 from .data_store import DataStore, ProcessedDataStore
 from .method import Method
-from .proxies.activity import Activity
-from .proxies.exchange import Exchange
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
 from .query import Query, Filter, Result

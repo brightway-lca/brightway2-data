@@ -89,7 +89,6 @@ class IndexTest(BW2DataTest):
     def test_add_searchable_database(self):
         im = IndexManager()
         db = SQLiteBackend(u'foo')
-        db._searchable = True
         ds = {(u'foo', u'bar'): {
             'database': u'foo',
             'code': u'bar',
@@ -108,7 +107,6 @@ class IndexTest(BW2DataTest):
             'name': u'lollipop'
         }}
         db.write(ds)
-        db.make_searchable()
         s = Searcher()
         self.assertFalse(s.search(u'cream', proxy=False))
         ds2 = {(u'foo', u'bar'): {

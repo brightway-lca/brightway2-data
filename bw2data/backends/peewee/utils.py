@@ -1,21 +1,24 @@
 # -*- coding: utf-8 -*-
-MAGIC_JOIN_CHARACTER = u"⊡"
-
-def keyjoin(tpl):
-    return MAGIC_JOIN_CHARACTER.join(tpl)
+from __future__ import unicode_literals
 
 
-def keysplit(key):
-    return tuple(key.split(MAGIC_JOIN_CHARACTER))
-
-
-def dict_as_activity(ds):
+def dict_as_activitydataset(ds):
     return {
-        u"data": ds,
-        u"database": ds[u"database"],
-        u"key": keyjoin((ds[u"database"], ds[u"code"])),
-        u"location": ds.get(u"location"),
-        u"name": ds.get(u"name"),
-        u"product": ds.get(u"reference product"),
-        u"type": ds.get(u"type", u"process"),
+        "data": ds,
+        "database": ds["database"],
+        "key": (ds["database"], ds["code"]),
+        "location": ds.get("location"),
+        "name": ds.get("name"),
+        "product": ds.get("reference product"),
+        "type": ds.get("type", "process"),
+    }
+
+
+def dict_as_exchangedataset(ds):
+    return {
+        "data": ds,
+        "input": ds['input'],
+        "output": ds['output'],
+        "database": ds['output'][0],
+        "type": ds['type']
     }

@@ -1,5 +1,5 @@
 from .. import config
-from ..backends.peewee.utils import keyjoin
+from ..sqlite import keyjoin
 from .schema import bw2_schema
 from whoosh import index, query
 

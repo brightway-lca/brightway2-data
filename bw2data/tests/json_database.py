@@ -69,7 +69,7 @@ class JSONDatabaseTest(BW2DataTest):
             config.dir, u"intermediate", u"foo"
         )))
         JSONDatabase("foo").register()
-        print os.listdir(os.path.join(config.dir, u"intermediate"))
+        print(os.listdir(os.path.join(config.dir, u"intermediate")))
         self.assertTrue(os.path.exists(os.path.join(
             config.dir,
             u"intermediate",
@@ -128,7 +128,7 @@ class SynchronousJSONDictTest(unittest.TestCase):
                 u"brazil.6e5fa4d9c48ca921c0a2ce1e64c9ae6f.json"
                 )) as f:
             data = json.load(f)
-            print data
+            print(data)
         self.assertEqual(
             data,
             {u'foot': u'ball', u'key': [u'futball', u'brazil']}
