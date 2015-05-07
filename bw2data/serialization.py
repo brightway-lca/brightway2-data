@@ -23,7 +23,7 @@ except ImportError:
 class JsonWrapper(object):
     @classmethod
     def dump(self, data, filepath):
-        with atomic_open(filepath, "wb") as f:
+        with atomic_open(filepath, "w") as f:
             if anyjson:
                 f.write(anyjson.serialize(data))
             else:
@@ -46,7 +46,9 @@ class JsonWrapper(object):
 
     @classmethod
     def load_bz2(self, filepath):
-        return JsonWrapper.loads(bz2.BZ2File(filepath).read())
+        return JsonWrapper.loads(
+            (bz2.BZ2File(filepath).read()).decode('utf-8')
+            )
 
     @classmethod
     def dumps(self, data):
