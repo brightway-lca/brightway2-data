@@ -26,6 +26,7 @@ setup(
         "bw2io",
         "docopt",
         "eight",
+        "future",
         "lxml",
         "numpy",
         "peewee",

@@ -38,7 +38,6 @@ class ProjectManager(collections.Iterable):
         self._create_base_directories()
         self._project_name = "default"
         self.db = self._create_projects_database()
-        print("Testing output 1")
         self.create_project()
 
     def __iter__(self):

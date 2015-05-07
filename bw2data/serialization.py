@@ -40,9 +40,9 @@ class JsonWrapper(object):
     @classmethod
     def load(self, file):
         if anyjson:
-            return anyjson.deserialize(open(file).read())
+            return anyjson.deserialize(open(file, encoding='utf-8').read())
         else:
-            return json.load(open(file))
+            return json.load(open(file, encoding='utf-8'))
 
     @classmethod
     def load_bz2(self, filepath):

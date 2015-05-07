@@ -16,6 +16,7 @@ Options:
 """
 from __future__ import print_function, unicode_literals
 from eight import *
+from builtins import input
 
 from docopt import docopt
 import sys
@@ -50,7 +51,7 @@ class UpdaterInterface(object):
             for update in updates_needed:
                 print(Updates.explain(update))
             if confirm:
-                confirmation = raw_input("\nType '" + Fore.MAGENTA  + "y" + \
+                confirmation = input("\nType '" + Fore.MAGENTA  + "y" + \
                     Fore.RESET + "'to confirm, " + Fore.RED + "anything else" + \
                     Fore.RESET + " to cancel: "
                 )

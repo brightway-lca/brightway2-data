@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
+from builtins import map
 
 from . import config
 from .errors import WebUIError
@@ -170,13 +171,13 @@ def recursive_str_to_unicode(data, encoding="utf8"):
     elif isinstance(data, bytes):
         return str(data, encoding)  # Faster than str.encode
     elif isinstance(data, collections.Mapping):
-        return dict(itertools.imap(
+        return dict(map(
             recursive_str_to_unicode,
             data.items(),
             itertools.repeat(encoding)
         ))
     elif isinstance(data, collections.Iterable):
-        return type(data)(itertools.imap(
+        return type(data)(map(
             recursive_str_to_unicode,
             data,
             itertools.repeat(encoding)

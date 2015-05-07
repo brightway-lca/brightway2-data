@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
+from builtins import filter
 
 from ... import databases, config, mapping, geomapping
 from ...errors import MissingIntermediateData
