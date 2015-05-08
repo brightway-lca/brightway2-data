@@ -15,7 +15,7 @@ try:
 except ImportError:
     import pickle
 
-
+@python_2_unicode_compatible
 class DataStore(object):
     """
 Base class for all Brightway2 data stores. Subclasses should define:
@@ -31,9 +31,10 @@ Base class for all Brightway2 data stores. Subclasses should define:
     def __init__(self, name):
         self.name = name
 
-    @python_2_unicode_compatible
     def __str__(self):
         return "Brightway2 %s: %s" % (self.__class__.__name__, self.name)
+
+    __repr__ = __str__
 
     @property
     def filename(self):

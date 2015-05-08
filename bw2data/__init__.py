@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
-__version__ = (2, 0, "dev")
+__version__ = (2, 0, u"dev")
 
 from .project import projects
 from .configuration import config
 
 # Add projects database to global list of sqlite3 databases
 config.sqlite3_databases.append((
-    "projects.db",
+    u"projects.db",
     projects.db,
     False
 ))
@@ -52,10 +49,15 @@ from .updates import Updates
 
 Updates.check_status()
 
+import sys
 import warnings
 
 
 def warning_message(message, *args, **kwargs):
-    return "Warning: " + str(message).encode("utf8", "ignore") + "\n"
+    # Py2 warning doesn't like unicode
+    if sys.version_info < (3, 0):
+        return "Warning: " + message.__unicode__().encode("utf-8", "ignore") + "\n"
+    else:
+        return "Warning: " + str(message) + "\n"
 
 warnings.formatwarning = warning_message

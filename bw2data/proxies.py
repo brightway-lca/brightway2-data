@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
+from future.utils import python_2_unicode_compatible
 
 from . import databases
 from .errors import InvalidExchange
@@ -10,6 +11,7 @@ from stats_arrays import uncertainty_choices
 import collections
 
 
+@python_2_unicode_compatible
 class ProxyBase(collections.MutableMapping):
     def __init__(self, data, *args, **kwargs):
         self._data = data

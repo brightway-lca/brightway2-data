@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
+from future.utils import python_2_unicode_compatible
 
 from . import config
 from .fatomic import open as atomic_open
@@ -102,6 +103,7 @@ class JsonSanitizer(object):
             return data
 
 
+@python_2_unicode_compatible
 class SerializedDict(collections.MutableMapping):
     """Base class for dictionary that can be `serialized <http://en.wikipedia.org/wiki/Serialization>`_ to or unserialized from disk. Uses JSON as its storage format. Has most of the methods of a dictionary.
 
@@ -146,12 +148,9 @@ class SerializedDict(collections.MutableMapping):
         return key in self.data
 
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return "Brightway2 serialized dictionary with {} entries".format(len(self))
 
     __repr__ = __str__
-
-    def __unicode__(self):
-        return u"Brightway2 serialized dictionary with {} entries".format(len(self))
 
     def __delitem__(self, name):
         del self.data[name]

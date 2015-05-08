@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
+from future.utils import python_2_unicode_compatible
 
 import collections
 import operator
@@ -52,6 +53,7 @@ class Dictionaries(object):
         return itertools.chain(*[x.items() for x in self.dicts])
 
 
+@python_2_unicode_compatible
 class Result(object):
     """A container that wraps a filtered dataset. Returned by a calling a ``Query`` object. A result object functions like a read-only dictionary; you can call ``Result[some_key]``, or ``some_key in Result``, or ``len(Result)``.
 
