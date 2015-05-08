@@ -43,6 +43,7 @@ def DatabaseChooser(name, backend=None):
     elif backend == "singlefile":
         return SingleFileDatabase(name)
     elif backend == "json":
+        raise ValueError("JSON backend not supported in dev release")
         return JSONDatabase(name)
     elif backend in config.backends:
         return config.backends[backend](name)
