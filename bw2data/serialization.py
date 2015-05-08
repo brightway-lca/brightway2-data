@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 from future.utils import python_2_unicode_compatible
 
-from . import config
+from . import config, projects
 from .fatomic import open as atomic_open
 from time import time
 import bz2
@@ -112,7 +112,7 @@ class SerializedDict(collections.MutableMapping):
         if not getattr(self, "filename"):
             raise NotImplemented("SerializedDict must be subclassed, and the filename must be set.")
         self.filepath = os.path.join(
-            dirpath or config.dir,
+            dirpath or projects.dir,
             self.filename
         )
         self.load()
@@ -202,7 +202,7 @@ class SerializedDict(collections.MutableMapping):
 
     def backup(self):
         """Write a backup version of the data to the ``backups`` directory."""
-        filepath = os.path.join(config.dir, "backups",
+        filepath = os.path.join(projects.dir, "backups",
             self.filename + ".%s.backup" % int(time()))
         self.serialize(filepath)
 

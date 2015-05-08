@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from . import config
+from . import config, projects
 from .utils import random_string, create_in_memory_zipfile_from_directory
 from logging.handlers import RotatingFileHandler
 import codecs
@@ -30,7 +30,7 @@ def get_logger(name, level=logging.INFO):
     filename = u"%s-%s.log" % (
         name, datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"))
     handler = RotatingFileHandler(
-        os.path.join(config.dir, 'logs', filename),
+        os.path.join(projects.dir, 'logs', filename),
         maxBytes=1e6, encoding='utf-8', backupCount=10)
     formatter = logging.Formatter(
         u"%(asctime)s %(levelname)s %(lineno)d %(message)s")
@@ -44,7 +44,7 @@ def get_logger(name, level=logging.INFO):
 
 def get_io_logger(name):
     """Build a logger that records only relevent data for display later as HTML."""
-    dirname = config.request_dir("logs")
+    dirname = projects.request_directory("logs")
     assert dirname, "No logs directory found"
 
     filepath = os.path.join(dirname, u"%s.%s.log" % (name, random_string(6)))
@@ -61,7 +61,7 @@ def get_verbose_logger(name, level=logging.WARNING):
     filename = u"%s-%s.log" % (
         name, datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"))
     handler = RotatingFileHandler(
-        os.path.join(config.dir, u'logs', filename),
+        os.path.join(projects.dir, u'logs', filename),
         maxBytes=50000, encoding='utf-8', backupCount=5)
     logger = logging.getLogger(name)
     logger.propagate = False
@@ -83,7 +83,7 @@ Message:
 def upload_logs_to_server(metadata={}):
     # Hardcoded for now
     url = "http://reports.brightwaylca.org/logs"
-    dirpath = config.request_dir("logs")
+    dirpath = projects.request_directory("logs")
     zip_fo = create_in_memory_zipfile_from_directory(dirpath)
     files = {'file': (uuid.uuid4().hex + ".zip", zip_fo.read())}
     metadata['json'] = 'native' if anyjson is None else \

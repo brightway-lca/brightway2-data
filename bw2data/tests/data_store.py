@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from .. import config
+from .. import config, projects
 from ..data_store import DataStore, ProcessedDataStore
 from ..errors import UnknownObject
 from ..serialization import SerializedDict
@@ -63,7 +63,7 @@ class DataStoreTestCase(BW2DataTest):
         d = MockDS("full moon")
         d.write(range(10))
         data = pickle.load(open(os.path.join(
-            config.dir,
+            projects.dir,
             "intermediate",
             d.filename + ".pickle"
         ), 'rb'))
@@ -97,7 +97,7 @@ class ProcessedDataStoreTestCase(BW2DataTest):
     def test_processed_array(self):
         d = MockPDS("happy")
         d.write([{'amount': 42, 'uncertainty type': 7}])
-        fp = os.path.join(config.dir, u"processed", d.filename + u".pickle")
+        fp = os.path.join(projects.dir, u"processed", d.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
 
         fieldnames = {x[0] for x in d.base_uncertainty_fields}
@@ -109,6 +109,6 @@ class ProcessedDataStoreTestCase(BW2DataTest):
     def test_loc_value_if_no_uncertainty(self):
         d = MockPDS("happy meal")
         d.write(range(10))
-        fp = os.path.join(config.dir, u"processed", d.filename + u".pickle")
+        fp = os.path.join(projects.dir, u"processed", d.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
         self.assertTrue(np.allclose(np.arange(10), array['loc']))

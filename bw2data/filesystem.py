@@ -35,8 +35,11 @@ def safe_filename(string, add_hash=True):
 
 
 def create_dir(dirpath):
-    try:
+    "Create directory tree to `dirpath`; ignore if already exists"
+    if not os.path.isdir(dirpath):
         os.makedirs(dirpath)
-    except OSError:
-        if not os.path.isdir(dirpath):
-            raise
+
+
+def check_dir(directory):
+    """Returns ``True`` if given path is a directory and writeable, ``False`` otherwise."""
+    return os.path.isdir(directory) and os.access(directory, os.W_OK)

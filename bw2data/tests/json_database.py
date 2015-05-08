@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from .. import config, databases
+from .. import config, databases, projects
 from ..backends.json import JSONDatabase, SynchronousJSONDict
 from ..backends.json.mapping import KeyMapping, cache as mapping_cache
 from ..proxies import Activity
@@ -68,17 +68,17 @@ class JSONDatabaseTest(BW2DataTest):
 
     def test_register_creates_directory(self):
         self.assertFalse(os.path.exists(os.path.join(
-            config.dir, u"intermediate", u"foo"
+            projects.dir, u"intermediate", u"foo"
         )))
         JSONDatabase("foo").register()
-        print(os.listdir(os.path.join(config.dir, u"intermediate")))
+        print(os.listdir(os.path.join(projects.dir, u"intermediate")))
         self.assertTrue(os.path.exists(os.path.join(
-            config.dir,
+            projects.dir,
             u"intermediate",
             u"foo.acbd18db4cc2f85cedef654fccc4a4d8"
         )))
         self.assertTrue(os.path.isdir(os.path.join(
-            config.dir,
+            projects.dir,
             u"intermediate",
             u"foo.acbd18db4cc2f85cedef654fccc4a4d8"
         )))
@@ -112,7 +112,7 @@ class SynchronousJSONDictTest(unittest.TestCase):
     def setUp(self):
         global mapping_cache
         mapping_cache = {}
-        self.fp = config.request_dir("futball")
+        self.fp = projects.request_directory("futball")
         self.js = SynchronousJSONDict(self.fp, "futball")
         self.js.mapping = KeyMapping(self.fp)
 

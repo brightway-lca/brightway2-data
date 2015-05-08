@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from .. import config
+from .. import config, projects
 from ..database import DatabaseChooser
 from ..backends.peewee import (
     Activity as PWActivity,
@@ -257,7 +257,7 @@ class DatabaseTest(BW2DataTest):
         database.register()
         database.write({})
         fp = os.path.join(
-            config.dir,
+            projects.dir,
             "processed",
             database.filename + ".geomapping.pickle"
         )
@@ -295,7 +295,7 @@ class DatabaseTest(BW2DataTest):
             },
         })
         fp = os.path.join(
-            config.dir,
+            projects.dir,
             "processed",
             database.filename + ".geomapping.pickle"
         )
@@ -316,7 +316,7 @@ class DatabaseTest(BW2DataTest):
             }]
         }})
         fp = os.path.join(
-            config.dir,
+            projects.dir,
             "processed",
             database.filename + ".pickle"
         )
@@ -339,7 +339,7 @@ class DatabaseTest(BW2DataTest):
             }]
         }})
         fp = os.path.join(
-            config.dir,
+            projects.dir,
             "processed",
             database.filename + ".pickle"
         )
@@ -435,7 +435,7 @@ class DatabaseTest(BW2DataTest):
         database = DatabaseChooser("a database")
         database.write({("a database", "foo"): {}})
         fp = os.path.join(
-            config.dir,
+            projects.dir,
             "processed",
             database.filename + ".pickle"
         )
@@ -459,7 +459,7 @@ class DatabaseTest(BW2DataTest):
         })
         self.assertTrue(("a database", "product") in mapping)
         fp = os.path.join(
-            config.dir,
+            projects.dir,
             "processed",
             database.filename + ".pickle"
         )

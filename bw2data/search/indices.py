@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from .. import config
+from .. import config, projects
 from ..sqlite import keyjoin
 from .schema import bw2_schema
 from whoosh import index, query
@@ -10,7 +10,7 @@ from whoosh import index, query
 
 class IndexManager(object):
     def __init__(self, dir_name=u"whoosh"):
-        self.path = config.request_dir(u"whoosh")
+        self.path = projects.request_directory(u"whoosh")
 
     def get(self):
         try:

@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from .. import databases, config, mapping, geomapping
+from .. import databases, config, mapping, geomapping, projects
 from ..query import Query
 from ..data_store import ProcessedDataStore
 from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename, numpy_string
@@ -120,14 +120,14 @@ class LCIBackend(ProcessedDataStore):
 
     def filepath_processed(self):
         return os.path.join(
-            config.dir,
+            projects.dir,
             "processed",
             self.filename + ".pickle"
         )
 
     def filepath_geomapping(self):
         return os.path.join(
-            config.dir,
+            projects.dir,
             "processed",
             self.filename + ".geomapping.pickle"
         )

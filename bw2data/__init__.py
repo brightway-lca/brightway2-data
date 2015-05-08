@@ -61,3 +61,4 @@ def warning_message(message, *args, **kwargs):
         return "Warning: " + str(message) + "\n"
 
 warnings.formatwarning = warning_message
+warnings.simplefilter('always', DeprecationWarning)

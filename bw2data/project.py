@@ -81,7 +81,6 @@ class ProjectManager(collections.Iterable):
         from . import config
         for obj in config.metadata:
             obj.__init__()
-        config.load_preferences()
 
     def _reset_databases(self):
         from . import config

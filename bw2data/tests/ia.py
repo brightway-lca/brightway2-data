@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from .. import config
+from .. import config, projects
 from ..database import DatabaseChooser as Database
 from ..ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS
 from ..meta import mapping, geomapping, weightings, normalizations, methods
@@ -134,7 +134,7 @@ class MethodTest(BW2DataTest):
         method = Method(("a", "method"))
         method.register()
         method.write([[("foo", "bar"), 42]])
-        fp = os.path.join(config.dir, u"processed", method.filename + u".pickle")
+        fp = os.path.join(projects.dir, u"processed", method.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
 
         fieldnames = {x[0] for x in method.base_uncertainty_fields}.union({'flow', 'geo', 'row', 'col'})
@@ -175,7 +175,7 @@ class WeightingTest(BW2DataTest):
         weighting.register()
         weighting.write([42])
 
-        fp = os.path.join(config.dir, u"processed", weighting.filename + u".pickle")
+        fp = os.path.join(projects.dir, u"processed", weighting.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
 
         fieldnames = {x[0] for x in weighting.base_uncertainty_fields}
@@ -213,7 +213,7 @@ class NormalizationTest(BW2DataTest):
         norm.register()
         norm.write([[("foo", "bar"), 42]])
 
-        fp = os.path.join(config.dir, u"processed", norm.filename + u".pickle")
+        fp = os.path.join(projects.dir, u"processed", norm.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
 
         fieldnames = {x[0] for x in norm.base_uncertainty_fields}.union({'flow', 'index'})

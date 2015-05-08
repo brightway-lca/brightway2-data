@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from . import config
+from . import config, projects
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
 from .utils import safe_filename, numpy_string
@@ -65,7 +65,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
             raise UnknownObject("This object is not registered and has no data")
         try:
             return pickle.load(open(os.path.join(
-                config.dir,
+                projects.dir,
                 "intermediate",
                 self.filename + ".pickle"
             ), "rb"))
@@ -109,7 +109,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
         """
         self.register()
         filepath = os.path.join(
-            config.dir,
+            projects.dir,
             self._intermediate_dir,
             self.filename + ".pickle"
         )
@@ -161,7 +161,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         self.register()
         self.add_mappings(data)
         filepath = os.path.join(
-            config.dir,
+            projects.dir,
             self._intermediate_dir,
             self.filename + ".pickle"
         )
@@ -208,7 +208,7 @@ Doesn't return anything, but writes a file to disk.
                 uncertainties.get("amount") < 0,
             )
         filepath = os.path.join(
-            config.dir,
+            projects.dir,
             "processed",
             self.filename + ".pickle"
         )

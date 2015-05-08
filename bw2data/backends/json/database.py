@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from ... import config, mapping, geomapping, databases
+from ... import config, mapping, geomapping, databases, projects
 from .proxies import Activity
 from ..base import LCIBackend
 from .sync_json_dict import SynchronousJSONDict
@@ -21,7 +21,7 @@ class JSONDatabase(LCIBackend):
 
     def filepath_intermediate(self):
         return os.path.join(
-            config.dir,
+            projects.dir,
             u"intermediate",
             self.filename
         )

@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 from builtins import filter
 
-from ... import databases, config, mapping, geomapping
+from ... import databases, config, mapping, geomapping, projects
 from ...errors import MissingIntermediateData
 from ...fatomic import open as atomic_open
 from .proxies import Activity
@@ -58,7 +58,7 @@ class SingleFileDatabase(LCIBackend):
 
     def filepath_intermediate(self, version=None):
         return os.path.join(
-            config.dir,
+            projects.dir,
             u"intermediate",
             self.filename_for_version(version) + u".pickle"
         )
@@ -147,13 +147,13 @@ class SingleFileDatabase(LCIBackend):
             List of (version, datetime created) tuples.
 
         """
-        directory = os.path.join(config.dir, u"intermediate")
+        directory = os.path.join(projects.dir, u"intermediate")
         files = natural_sort(filter(
             lambda x: ".".join(x.split(".")[:-2]) == safe_filename(self.name),
             os.listdir(directory)))
         return sorted([(int(name.split(".")[-2]),
             datetime.datetime.fromtimestamp(os.stat(os.path.join(
-            config.dir, directory, name)).st_mtime)) for name in files])
+            projects.dir, directory, name)).st_mtime)) for name in files])
 
     def write(self, data, process=True):
         """Serialize data to disk.

@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 from builtins import map
 
-from . import config
+from . import config, projects
 from .errors import WebUIError
 from .fatomic import open
 from .project import safe_filename
@@ -209,7 +209,7 @@ def download_file(filename):
 
     """
 
-    dirpath = config.request_dir("downloads")
+    dirpath = projects.request_directory("downloads")
     filepath = os.path.join(dirpath, filename)
     download = requests.get(DOWNLOAD_URL + filename, stream=True).raw
     chunk = 128 * 1024
