@@ -16,10 +16,7 @@ from peewee import fn
 import itertools
 import datetime
 import numpy as np
-try:
-    import progressbar
-except ImportError:
-    progressbar = None
+import pyprind
 import sqlite3
 try:
     import cPickle as pickle
@@ -140,17 +137,11 @@ class SQLiteBackend(LCIBackend):
             self.delete()
             exchanges, activities = [], []
 
-            if progressbar:
-                widgets = [
-                    progressbar.SimpleProgress(sep="/"), " (",
-                    progressbar.Percentage(), ') ',
-                    progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
-                    progressbar.ETA()
-                ]
-                pbar = progressbar.ProgressBar(
-                    widgets=widgets,
-                    maxval=len(data)
-                ).start()
+            pbar = pyprind.ProgBar(
+                len(data),
+                title="Writing activities to SQLite3 database:",
+                monitor=True
+            )
 
             for index, (key, ds) in enumerate(data.items()):
                 for exchange in ds.get('exchanges', []):
@@ -186,8 +177,8 @@ class SQLiteBackend(LCIBackend):
                     ActivityDataset.insert_many(activities).execute()
                     activities = []
 
-                pbar.update(index) if progressbar else None
-            pbar.finish() if progressbar else None
+                pbar.update()
+            print(pbar)
 
             if activities:
                 ActivityDataset.insert_many(activities).execute()

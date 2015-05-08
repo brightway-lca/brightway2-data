@@ -8,10 +8,7 @@ from .ia_data_store import abbreviate
 from .utils import recursive_str_to_unicode
 import os
 import pprint
-try:
-    import progressbar
-except ImportError:
-    progressbar = None
+import pyprind
 import re
 import warnings
 
@@ -24,14 +21,6 @@ hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
 
 UPTODATE_WARNING = "\n\nYour data needs to be updated. Please run the following program on the command line:\n\n\tbw2-uptodate\n"
-
-if progressbar:
-    widgets = [
-        progressbar.SimpleProgress(sep="/"), " (",
-        progressbar.Percentage(), ') ',
-        progressbar.Bar(marker=progressbar.RotatingMarker()), ' ',
-        progressbar.ETA()
-    ]
 
 
 class Updates(object):
@@ -85,11 +74,7 @@ class Updates(object):
             if meta.list:
                 print("Updating all %s" % name)
 
-                if progressbar:
-                    pbar = progressbar.ProgressBar(
-                        widgets=widgets,
-                        maxval=len(meta)
-                    ).start()
+                pbar = pyprind.ProgBar(len(meta), title="Brightway2 {} objects:".format(name), monitor=True)
 
                 for index, key in enumerate(meta):
                     obj = klass(key)
@@ -97,5 +82,5 @@ class Updates(object):
                     # Free memory
                     obj = None
 
-                    pbar.update(index) if progressbar else None
-                pbar.finish() if progressbar else None
+                    pbar.update()
+                print(pbar)

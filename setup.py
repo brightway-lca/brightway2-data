@@ -30,7 +30,7 @@ setup(
         "lxml",
         "numpy",
         "peewee",
-        "progressbar-ipython",
+        "pyprind",
         "requests>=1.1.0",
         "scipy",
         "stats_arrays",
