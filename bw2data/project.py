@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
+from future.utils import python_2_unicode_compatible
 from eight import *
 
 from .filesystem import safe_filename, create_dir
@@ -10,12 +11,20 @@ import collections
 import os
 import re
 import shutil
+import sys
 import tempfile
 
+LABEL = "Brightway2" if sys.version_info < (3, 0) else "Brightway3"
 
+@python_2_unicode_compatible
 class ProjectDataset(Model):
     data = PickleField()
     name = TextField(index=True, unique=True)
+
+    def __str__(self):
+        return "Project: {}".format(self.name)
+
+    __repr__ = __str__
 
 
 class ProjectManager(collections.Iterable):
@@ -28,11 +37,11 @@ class ProjectManager(collections.Iterable):
 
     def __init__(self):
         self._base_data_dir = appdirs.user_data_dir(
-            "Brightway2",
+            LABEL,
             "pylca",
         )
         self._base_logs_dir = appdirs.user_log_dir(
-            "Brightway2",
+            LABEL,
             "pylca",
         )
         self._create_base_directories()
@@ -45,7 +54,7 @@ class ProjectManager(collections.Iterable):
             yield project_ds
 
     def __contains__(self, name):
-        return ProjectDataset.select(ProjectDataset.name == name).count() > 0
+        return ProjectDataset.select().where(ProjectDataset.name == name).count() > 0
 
     ### Internal functions for managing projects
 
