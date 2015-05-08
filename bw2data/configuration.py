@@ -2,7 +2,6 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-import codecs
 import eight
 import json
 import os
@@ -112,7 +111,7 @@ class Config(object):
             return envvar
         for filename in (".brightway2path", "brightway2path.txt"):
             try:
-                candidate = codecs.open(
+                candidate = open(
                     os.path.join(user_dir, filename),
                     encoding='utf-8'
                 ).readline().strip()

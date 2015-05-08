@@ -8,7 +8,6 @@ from .errors import WebUIError
 from .fatomic import open
 from .project import safe_filename
 from contextlib import contextmanager
-import codecs
 import collections
 import datetime
 import itertools
@@ -255,19 +254,9 @@ def set_data_dir(dirpath, permanent=True):
     Creates ``dirpath`` if needed. Also creates basic directories, and resets metadata.
 
     """
-    if not os.path.exists(dirpath):
-        os.mkdir(dirpath)
-
-    if permanent:
-        user_dir = os.path.expanduser("~")
-        filename = "brightway2path.txt" if config._windows else ".brightway2path"
-        with codecs.open(
-                os.path.join(user_dir, filename),
-                "w",
-                encoding="utf-8") as f:
-            f.write(dirpath)
-
-    config.reset(dirpath)
+    warnings.warn("`set_data_dir` is deprecated; use `projects.project = 'my "
+                  "project name'` for a new project space.",
+                  DeprecationWarning)
 
 
 def create_in_memory_zipfile_from_directory(path):
@@ -292,5 +281,5 @@ def create_in_memory_zipfile_from_directory(path):
 def get_activity(key):
     from .database import Database
     assert isinstance(key, (tuple, list)), \
-        u"Must pass (database, code) key to this function"
+        "Must pass (database, code) key to this function"
     return Database(key[0]).get(key[1])
