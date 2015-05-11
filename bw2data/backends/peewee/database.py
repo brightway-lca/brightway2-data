@@ -204,7 +204,7 @@ class SQLiteBackend(LCIBackend):
         databases.set_modified(self.name)
         mapping.add(data.keys())
         geomapping.add({x["location"] for x in data.values() if
-                       x.get("location", False)})
+                       x.get("location")})
         if data:
             try:
                 self._efficient_write_many_data(data)

@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
+from future.utils import python_2_unicode_compatible
 
 from . import config
 from .serialization import SerializedDict, PickledDict, CompoundJSONDict
 import datetime
 
 
+@python_2_unicode_compatible
 class Mapping(PickledDict):
     """A dictionary that maps object ids, like ``("Ecoinvent 2.2", 42)``, to integers. Needed because parameter arrays have integer ``row`` and ``column`` fields.
 
@@ -42,7 +44,7 @@ class Mapping(PickledDict):
     def __setitem__(self, key, value):
         raise NotImplemented
 
-    def __unicode__(self):
+    def __str__(self):
         return u"Mapping from databases and methods to parameter indices."
 
     def __len__(self):
@@ -66,6 +68,7 @@ class GeoMapping(Mapping):
         return u"Mapping from locations to parameter indices."
 
 
+@python_2_unicode_compatible
 class Databases(SerializedDict):
     """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
     filename = "databases.json"
@@ -86,7 +89,7 @@ class Databases(SerializedDict):
         self[database]['modified'] = datetime.datetime.now().isoformat()
         self.flush()
 
-    def __unicode__(self):
+    def __str__(self):
         return u"Brightway2 databases metadata with %i objects" % len(
             self.data)
 
@@ -100,11 +103,12 @@ class Databases(SerializedDict):
             pass
 
 
+@python_2_unicode_compatible
 class Methods(CompoundJSONDict):
     """A dictionary for method metadata. File data is saved in ``methods.json``."""
     filename = "methods.json"
 
-    def __unicode__(self):
+    def __str__(self):
         return u"Brightway2 methods metadata with %i objects" % len(
             self.data)
 

@@ -20,7 +20,7 @@ class ProxyBase(collections.MutableMapping):
         return self._data
 
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return str(self).encode('utf-8')
 
     __repr__ = __str__
 
@@ -49,8 +49,9 @@ class ProxyBase(collections.MutableMapping):
         return hash(self._dict)
 
 
+@python_2_unicode_compatible
 class ActivityProxyBase(ProxyBase):
-    def __unicode__(self):
+    def __str__(self):
         if self.valid():
             return "'%s' (%s, %s, %s)".format(
                 self.get('name'),
@@ -128,8 +129,9 @@ class ActivityProxyBase(ProxyBase):
         return lca
 
 
+@python_2_unicode_compatible
 class ExchangeProxyBase(ProxyBase):
-    def __unicode__(self):
+    def __str__(self):
         if self.valid():
             return "Exchange: {} {} {} to {}>".format(self.amount, self.unit,
                 self.input, self.output)

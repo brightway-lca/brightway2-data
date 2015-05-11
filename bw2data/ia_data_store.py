@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
+from future.utils import python_2_unicode_compatible
 
 from .data_store import ProcessedDataStore
 from .utils import safe_filename
@@ -35,6 +36,7 @@ def abbreviate(names, length=8):
     )
 
 
+@python_2_unicode_compatible
 class ImpactAssessmentDataStore(ProcessedDataStore):
     """
 A subclass of ``DataStore`` for impact assessment methods.
@@ -47,7 +49,7 @@ Args:
     * *name* (tuple): Name of the IA object to manage. Must be a tuple of unicode strings.
 
     """
-    def __unicode__(self):
+    def __str__(self):
         return "Brightway2 %s: %s" % (
             self.__class__.__name__,
             ": ".join(self.name)

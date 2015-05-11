@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from ... import databases
+from ... import databases, mapping, geomapping, config
 from ...errors import ValidityError
 from ...proxies import ActivityProxyBase, ExchangeProxyBase
 from ...search import IndexManager
@@ -73,14 +73,18 @@ class Activity(ActivityProxyBase):
                 "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        databases.set_modified(self.database)
+        databases.set_modified(self['database'])
 
         for key, value in dict_as_activitydataset(self._data).items():
             setattr(self._document, key, value)
         self._document.save()
 
-        if databases[self.database].get('searchable'):
+        if databases[self['database']].get('searchable', True):
             IndexManager().update_dataset(self._data)
+
+        mapping.add([self.key])
+        if self.get('location'):
+            geomapping.add([self['location']])
 
     def exchanges(self):
         return Exchanges(self._document.key)
@@ -115,8 +119,8 @@ class Activity(ActivityProxyBase):
         for key, value in self.items():
             activity[key] = value
         activity[u'database'] = self.database
-        activity[u'code'] = unicode(code or uuid.uuid4().hex)
-        activity[u'name'] = unicode(name)
+        activity[u'code'] = str(code or uuid.uuid4().hex)
+        activity[u'name'] = str(name)
         activity.save()
 
         for exc in self.exchanges():

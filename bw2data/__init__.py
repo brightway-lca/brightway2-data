@@ -56,7 +56,7 @@ import warnings
 def warning_message(message, *args, **kwargs):
     # Py2 warning doesn't like unicode
     if sys.version_info < (3, 0):
-        return "Warning: " + message.__unicode__().encode("utf-8", "ignore") + "\n"
+        return b"Warning: " + str(message).encode("utf-8", "ignore") + b"\n"
     else:
         return "Warning: " + str(message) + "\n"
 

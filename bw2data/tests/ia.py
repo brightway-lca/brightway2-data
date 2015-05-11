@@ -44,7 +44,7 @@ class IADSTest(BW2DataTest):
     def test_unicode(self):
         iads = MockIADS(("foo", "bar"))
         self.assertEqual(
-            iads.__unicode__(),
+            str(iads),
             u"Brightway2 MockIADS: foo: bar"
         )
 
