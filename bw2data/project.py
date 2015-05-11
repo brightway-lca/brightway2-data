@@ -24,7 +24,7 @@ class ProjectDataset(Model):
     def __str__(self):
         return "Project: {}".format(self.name)
 
-    __repr__ = __str__
+    __repr__ = lambda x: str(x)
 
 
 class ProjectManager(collections.Iterable):

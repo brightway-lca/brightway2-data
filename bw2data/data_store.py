@@ -34,7 +34,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
     def __str__(self):
         return "Brightway2 %s: %s" % (self.__class__.__name__, self.name)
 
-    __repr__ = __str__
+    __repr__ = lambda x: str(x)
 
     @property
     def filename(self):

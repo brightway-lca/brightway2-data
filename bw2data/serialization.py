@@ -150,7 +150,7 @@ class SerializedDict(collections.MutableMapping):
     def __str__(self):
         return "Brightway2 serialized dictionary with {} entries".format(len(self))
 
-    __repr__ = __str__
+    __repr__ = lambda x: str(x)
 
     def __delitem__(self, name):
         del self.data[name]

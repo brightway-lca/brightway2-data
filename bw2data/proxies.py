@@ -20,9 +20,9 @@ class ProxyBase(collections.MutableMapping):
         return self._data
 
     def __str__(self):
-        return str(self).encode('utf-8')
+        return "Instance of base proxy class"
 
-    __repr__ = __str__
+    __repr__ = lambda x: str(x)
 
     def __contains__(self, key):
         return key in self._data
@@ -53,7 +53,7 @@ class ProxyBase(collections.MutableMapping):
 class ActivityProxyBase(ProxyBase):
     def __str__(self):
         if self.valid():
-            return "'%s' (%s, %s, %s)".format(
+            return "'{}' ({}, {}, {})".format(
                 self.get('name'),
                 self.get('unit'),
                 self.get('location'),
