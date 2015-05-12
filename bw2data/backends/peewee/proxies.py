@@ -6,7 +6,7 @@ from ... import databases, mapping, geomapping, config
 from ...errors import ValidityError
 from ...proxies import ActivityProxyBase, ExchangeProxyBase
 from ...search import IndexManager
-from ...sqlite import keyjoin
+from ...sqlite import keyjoin, Key
 from ...utils import get_activity
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset
@@ -22,9 +22,9 @@ class Exchanges(collections.Iterable):
         self._key = key
         self._kind = kind
         if reverse:
-            self._args = [ExchangeDataset.input == self._key]
+            self._args = [ExchangeDataset.input == Key(*self._key)]
         else:
-            self._args = [ExchangeDataset.output == self._key]
+            self._args = [ExchangeDataset.output == Key(*self._key)]
         if self._kind:
             self._args.append(ExchangeDataset.type == self._kind)
 
