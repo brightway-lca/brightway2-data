@@ -12,6 +12,7 @@ class BW2DataTest(unittest.TestCase):
 
     def setUp(self):
         config.dont_warn = True
+        config.is_test = True
         projects.use_temp_directory()
         self.extra_setup()
 

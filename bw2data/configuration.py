@@ -29,14 +29,14 @@ class Config(object):
     def biosphere(self):
         """Get name for ``biosphere`` database from user preferences.
 
-        Default name is ``biosphere3``; change this by changing ``config.p["biosphere_database"]``. Don't forget ``config.save_preferences()`` to save changes."""
+        Default name is ``biosphere3``; change this by changing ``config.p["biosphere_database"]``."""
         return self.p.get("biosphere_database", "biosphere3")
 
     @property
     def global_location(self):
         """Get name for global location from user preferences.
 
-        Default name is ``GLO``; change this by changing ``config.p["global_location"]``. Don't forget ``config.save_preferences()`` to save changes."""
+        Default name is ``GLO``; change this by changing ``config.p["global_location"]``."""
         return self.p.get("global_location", "GLO")
 
     ### Compatibility layer for < 2.0

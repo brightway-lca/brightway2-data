@@ -58,7 +58,7 @@ Args:
     def get_abbreviation(self):
         """Retrieve the abbreviation of the method identifier from the metadata store. See class documentation."""
         self.register()
-        return self.metadata[self.name]["abbreviation"]
+        return self.metadata["abbreviation"]
 
     def copy(self, name=None):
         """Make a copy of the method, including its CFs and metadata.

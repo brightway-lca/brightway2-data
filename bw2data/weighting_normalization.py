@@ -23,7 +23,7 @@ class Weighting(ImpactAssessmentDataStore):
             ))
 
     """
-    metadata = weightings
+    _metadata = weightings
     validator = weighting_validator
     dtype_fields = []
 
@@ -58,7 +58,7 @@ class Normalization(ImpactAssessmentDataStore):
         * ``maybe_uncertainty`` is either a number or an uncertainty dictionary
 
     """
-    metadata = normalizations
+    _metadata = normalizations
     validator = normalization_validator
     dtype_fields = [
         (numpy_string('flow'), np.uint32),

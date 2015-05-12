@@ -349,7 +349,7 @@ class DatabaseTest(BW2DataTest):
 
     def test_base_class(self):
         database = DatabaseChooser("a database")
-        self.assertEqual(database.metadata, databases)
+        self.assertEqual(database._metadata, databases)
         self.assertEqual(
             [x[0] for x in database.dtype_fields],
             [numpy_string(x) for x in ('input', 'output', 'row', 'col', 'type')]

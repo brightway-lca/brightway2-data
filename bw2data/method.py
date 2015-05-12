@@ -36,7 +36,7 @@ class Method(ImpactAssessmentDataStore):
         * *name* (tuple): Name of impact assessment method to manage.
 
     """
-    metadata = methods
+    _metadata = methods
     validator = ia_validator
     dtype_fields = [
             (numpy_string('flow'), np.uint32),
@@ -62,6 +62,6 @@ class Method(ImpactAssessmentDataStore):
         """Serialize intermediate data to disk.
 
         Sets the metadata key ``num_cfs`` automatically."""
-        self.metadata[self.name][u"num_cfs"] = len(data)
-        self.metadata.flush()
+        self.metadata[u"num_cfs"] = len(data)
+        self._metadata.flush()
         super(Method, self).write(data)

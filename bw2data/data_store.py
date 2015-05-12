@@ -25,7 +25,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
 
     """
     validator = None
-    metadata = None
+    _metadata = None
     _intermediate_dir = u'intermediate'
 
     def __init__(self, name):
@@ -37,22 +37,31 @@ Base class for all Brightway2 data stores. Subclasses should define:
     __repr__ = lambda x: str(x)
 
     @property
+    def metadata(self):
+        try:
+            return self._metadata[self.name]
+        except KeyError:
+            raise UnknownObject(
+                "This object is not yet registered, and has no metadata"
+            )
+
+    @property
     def filename(self):
         """Remove filesystem-unsafe characters and perform unicode normalization on ``self.name`` using :func:`.utils.safe_filename`."""
         return safe_filename(self.name)
 
     @property
     def registered(self):
-        return self.name in self.metadata
+        return self.name in self._metadata
 
     def register(self, **kwargs):
         """Register an object with the metadata store. Takes any number of keyword arguments."""
-        if self.name not in self.metadata:
-            self.metadata[self.name] = kwargs
+        if self.name not in self._metadata:
+            self._metadata[self.name] = kwargs
 
     def deregister(self):
         """Remove an object from the metadata store. Does not delete any files."""
-        del self.metadata[self.name]
+        del self._metadata[self.name]
 
     def load(self):
         """Load the intermediate data for this object.
@@ -84,9 +93,9 @@ Base class for all Brightway2 data stores. Subclasses should define:
             The new object.
 
         """
-        assert name not in self.metadata, "%s already exists" % name
+        assert name not in self._metadata, "%s already exists" % name
         new_obj = self.__class__(name)
-        new_obj.register(**self.metadata[self.name])
+        new_obj.register(**self.metadata)
         new_obj.write(self.load())
         return new_obj
 

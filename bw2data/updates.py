@@ -39,7 +39,6 @@ class Updates(object):
         method = getattr(Updates, Updates.UPDATES[key]['method'])
         method()
         config.p['updates'][key] = True
-        config.save_preferences()
 
     @staticmethod
     def check_status(verbose=True):
@@ -53,7 +52,6 @@ class Updates(object):
 
         if "updates" not in config.p:
             config.p['updates'] = {key: True for key in Updates.UPDATES}
-            config.save_preferences()
         else:
             updates = sorted([key for key in Updates.UPDATES if not config.p['updates'].get(key)])
         if updates and verbose:

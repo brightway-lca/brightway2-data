@@ -47,7 +47,7 @@ class GeoTest(BW2DataTest):
             method.get_abbreviation() + ".pickle"), "rb"))
         self.assertEqual(geomapping["foo"], int(pickled[0]["geo"]))
         self.assertEqual(geomapping["bar"], int(pickled[1]["geo"]))
-        self.assertEquals(pickled.shape, (2,))
+        self.assertEqual(pickled.shape, (2,))
 
     # TODO: Adapt or remove
     def test_database_adds_correct_geo(self):

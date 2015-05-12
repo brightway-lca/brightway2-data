@@ -137,11 +137,12 @@ class SQLiteBackend(LCIBackend):
             self.delete()
             exchanges, activities = [], []
 
-            pbar = pyprind.ProgBar(
-                len(data),
-                title="Writing activities to SQLite3 database:",
-                monitor=True
-            )
+            if not getattr(config, "is_test"):
+                pbar = pyprind.ProgBar(
+                    len(data),
+                    title="Writing activities to SQLite3 database:",
+                    monitor=True
+                )
 
             for index, (key, ds) in enumerate(data.items()):
                 for exchange in ds.get('exchanges', []):
@@ -177,8 +178,10 @@ class SQLiteBackend(LCIBackend):
                     ActivityDataset.insert_many(activities).execute()
                     activities = []
 
-                pbar.update()
-            print(pbar)
+                if not getattr(config, "is_test"):
+                    pbar.update()
+            if not getattr(config, "is_test"):
+                print(pbar)
 
             if activities:
                 ActivityDataset.insert_many(activities).execute()

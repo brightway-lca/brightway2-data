@@ -29,8 +29,8 @@ def convert_backend(database_name, backend):
     data = db.load(as_dict=True)
     if database_name in config.cache:
         del config.cache[database_name]
-    metadata = copy.deepcopy(databases[database_name])
-    metadata[u"backend"] = unicode(backend)
+    metadata = copy.deepcopy(db.metadata)
+    metadata[u"backend"] = str(backend)
     del databases[database_name]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

@@ -74,7 +74,7 @@ class LCIBackend(ProcessedDataStore):
         *name* (unicode string): Name of the database to manage.
 
     """
-    metadata = databases
+    _metadata = databases
     validator = None
     dtype_fields = [
         (numpy_string('input'), np.uint32),
@@ -279,8 +279,8 @@ Doesn't return anything, but writes two files to disk.
                 count += 1
 
         # Automatically set 'depends'
-        self.metadata[self.name]['depends'] = self.find_dependents()
-        self.metadata.flush()
+        self.metadata['depends'] = self.find_dependents()
+        self._metadata.flush()
 
         # The array is too big, because it can include a default production
         # amount for each activity. Trim to actual size.

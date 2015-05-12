@@ -22,13 +22,13 @@ metadata = Metadata()
 
 class MockDS(DataStore):
     """Mock DataStore for testing"""
-    metadata = metadata
+    _metadata = metadata
     validator = Schema(Number)
 
 
 class MockPDS(ProcessedDataStore):
     """Mock DataStore for testing"""
-    metadata = metadata
+    _metadata = metadata
     validator = Schema(Number)
     dtype_fields = []
 
@@ -58,6 +58,11 @@ class DataStoreTestCase(BW2DataTest):
         self.assertTrue("evening" in metadata)
         d.deregister()
         self.assertFalse("evening" in metadata)
+
+    def test_metadata_keyerror(self):
+        d = MockDS("evening")
+        with self.assertRaises(UnknownObject):
+            d.metadata
 
     def test_write_load(self):
         d = MockDS("full moon")

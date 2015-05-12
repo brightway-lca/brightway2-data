@@ -28,7 +28,7 @@ metadata = Metadata()
 
 class MockIADS(IADS):
     """Mock IADS for testing"""
-    metadata = metadata
+    _metadata = metadata
     validator = lambda x: True
     dtype_fields = []
 
@@ -144,7 +144,9 @@ class MethodTest(BW2DataTest):
     def test_base_class(self):
         method = Method(("a", "method"))
         self.assertEqual(method.validator, ia_validator)
-        self.assertEqual(method.metadata, methods)
+        self.assertEqual(method._metadata, methods)
+        method.register()
+        self.assertTrue(isinstance(method.metadata, dict))
         self.assertEqual(
             [x[0] for x in method.dtype_fields],
             [numpy_string(x) for x in ('flow', 'geo', 'row', 'col')])
@@ -185,7 +187,9 @@ class WeightingTest(BW2DataTest):
     def test_base_class(self):
         weighting = Weighting(("foo",))
         self.assertEqual(weighting.validator, weighting_validator)
-        self.assertEqual(weighting.metadata, weightings)
+        self.assertEqual(weighting._metadata, weightings)
+        weighting.register()
+        self.assertTrue(isinstance(weighting.metadata, dict))
         self.assertEqual(weighting.dtype_fields, [])
 
     def test_validator(self):
@@ -197,7 +201,7 @@ class NormalizationTest(BW2DataTest):
     def test_base_class(self):
         norm = Normalization(("foo",))
         self.assertEqual(norm.validator, normalization_validator)
-        self.assertEqual(norm.metadata, normalizations)
+        self.assertEqual(norm._metadata, normalizations)
         self.assertEqual(
             [x[0] for x in norm.dtype_fields],
             [numpy_string(x) for x in ('flow', 'index')])
