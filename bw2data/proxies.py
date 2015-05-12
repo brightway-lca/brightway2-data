@@ -76,9 +76,9 @@ class ActivityProxyBase(ProxyBase):
         # Basically a hack to let this act like a tuple with two
         # elements, database and code. Useful for using as functional unit in LCA.
         if key == 0:
-            return self.database
+            return self['database']
         elif key == 1:
-            return self.code
+            return self['code']
         return self._data[key]
 
     def __delitem__(self, key):
@@ -113,15 +113,11 @@ class ActivityProxyBase(ProxyBase):
         lca.fix_dictionaries()
         return lca
 
-    def as_functional_unit(self, amount=1.):
-        """Return functional unit as expected by LCA classes"""
-        return {self: amount}
-
     def lca(self, method=None, amount=1.):
         """Shortcut to construct an LCA object for this activity."""
         from bw2calc import LCA
 
-        lca = LCA(self.as_functional_unit(amount), method=method)
+        lca = LCA({self: amount}, method=method)
         lca.lci()
         if method is not None:
             lca.lcia()
@@ -250,15 +246,11 @@ class ExchangeProxyBase(ProxyBase):
         array = ut.from_dicts(self.uncertainty)
         return ut.bounded_random_variables(array, n).ravel()
 
-    def as_functional_unit(self):
-        """Return functional unit as expected by LCA classes"""
-        return {self.input: self.amount}
-
-    def lca(self, method=None):
+    def lca(self, method=None, amount=1.):
         """Shortcut to construct an LCA object for this activity."""
         from bw2calc import LCA
 
-        lca = LCA(self.as_functional_unit(), method=method)
+        lca = LCA({self.input: amount}, method=method)
         lca.lci()
         if method is not None:
             lca.lcia()
