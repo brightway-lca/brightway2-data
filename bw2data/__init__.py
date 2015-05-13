@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-__version__ = (2, 0, u"dev")
+__version__ = (2, 0, "dev0")
 
 from .project import projects
 from .configuration import config
