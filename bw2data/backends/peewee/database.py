@@ -137,7 +137,7 @@ class SQLiteBackend(LCIBackend):
             self.delete()
             exchanges, activities = [], []
 
-            if not getattr(config, "is_test"):
+            if not getattr(config, "is_test", None):
                 pbar = pyprind.ProgBar(
                     len(data),
                     title="Writing activities to SQLite3 database:",
@@ -178,9 +178,9 @@ class SQLiteBackend(LCIBackend):
                     ActivityDataset.insert_many(activities).execute()
                     activities = []
 
-                if not getattr(config, "is_test"):
+                if not getattr(config, "is_test", None):
                     pbar.update()
-            if not getattr(config, "is_test"):
+            if not getattr(config, "is_test", None):
                 print(pbar)
 
             if activities:
