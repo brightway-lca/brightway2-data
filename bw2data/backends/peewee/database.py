@@ -12,12 +12,13 @@ from ..base import LCIBackend
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset
-from peewee import fn
+from peewee import fn, DoesNotExist
 import itertools
 import datetime
 import numpy as np
 import pyprind
 import sqlite3
+import warnings
 try:
     import cPickle as pickle
 except ImportError:
@@ -99,7 +100,11 @@ class SQLiteBackend(LCIBackend):
     order_by = property(_get_order_by, _set_order_by)
 
     def random(self):
-        return Activity(self._get_queryset(random=True).get())
+        try:
+            return Activity(self._get_queryset(random=True).get())
+        except DoesNotExist:
+            warnings.warn("This database is empty")
+            return None
 
     def get(self, code):
         return Activity(

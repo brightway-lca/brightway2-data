@@ -58,7 +58,7 @@ def warning_message(message, *args, **kwargs):
     if sys.version_info < (3, 0):
         return b"Warning: " + str(message).encode("utf-8", "ignore") + b"\n"
     else:
-        return "Warning: " + str(message) + "\n"
+        return u"Warning: " + str(message) + u"\n"
 
 warnings.formatwarning = warning_message
 warnings.simplefilter('always', DeprecationWarning)

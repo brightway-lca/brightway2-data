@@ -84,13 +84,13 @@ class SingleFileDatabase(LCIBackend):
 
         try:
             if (version is None
-                and config.p.get(u"use_cache", False)
+                and config.p.get("use_cache", False)
                 and self.name in config.cache):
                 return config.cache[self.name]
             else:
                 data = pickle.load(open(self.filepath_intermediate(version), "rb"))
                 if (version is None
-                    and config.p.get(u"use_cache", False)):
+                    and config.p.get("use_cache", False)):
                     config.cache[self.name] = data
                 return data
         except (OSError, IOError):
@@ -175,5 +175,6 @@ class SingleFileDatabase(LCIBackend):
                        x.get(u"location", False)})
         with atomic_open(self.filepath_intermediate(), "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
         if process:
             self.process()

@@ -94,13 +94,13 @@ class Databases(SerializedDict):
             self.data)
 
     def __delitem__(self, name):
-        super(Databases, self).__delitem__(name)
-
         from . import Database
         try:
             Database(name).delete()
         except:
             pass
+
+        super(Databases, self).__delitem__(name)
 
 
 @python_2_unicode_compatible
@@ -126,6 +126,12 @@ class NormalizationMeta(Methods):
 class Preferences(PickledDict):
     """A dictionary of project-specific preferences."""
     filename = "preferences.pickle"
+
+    def __init__(self, *args, **kwargs):
+        super(Preferences, self).__init__(*args, **kwargs)
+
+        # Default preferences
+        self['use_cache'] = self.get('use_cache', True)
 
 
 databases = Databases()

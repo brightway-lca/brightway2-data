@@ -22,6 +22,7 @@ from .fixtures import food, biosphere
 import copy
 import os
 import pickle
+import warnings
 
 
 class DatabaseTest(BW2DataTest):
@@ -443,6 +444,13 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array['amount'][0], 1)
         self.assertEqual(array.shape, (1,))
 
+    def test_random_empty(self):
+        database = DatabaseChooser("a database")
+        database.write({})
+        with warnings.catch_warnings() as w:
+            warnings.simplefilter("ignore")
+            self.assertEqual(database.random(), None)
+
     def test_can_split_processes_products(self):
         database = DatabaseChooser("a database")
         database.write({
@@ -471,32 +479,41 @@ class DatabaseTest(BW2DataTest):
 class SingleFileDatabaseTest(BW2DataTest):
     # TODO: Better check .write?
 
-    def create_biosphere(self):
+    def create_biosphere(self, process=True):
         d = SingleFileDatabase("biosphere")
-        d.register()
-        d.write(biosphere)
+        d.write(biosphere, process=process)
         return d
 
+    def test_random_empty(self):
+        database = SingleFileDatabase("a database")
+        database.write({})
+        with warnings.catch_warnings() as w:
+            warnings.simplefilter("ignore")
+            self.assertEqual(database.random(), None)
+
+    def test_delete_cache(self):
+        self.assertFalse("biosphere" in config.cache)
+        d = self.create_biosphere(False)
+        self.assertFalse(d.name in config.cache)
+        d.load()
+        self.assertTrue(d.name in config.cache)
+        del databases[d.name]
+        self.assertFalse(d.name in config.cache)
+
     def test_get(self):
-        d = DatabaseChooser("biosphere", backend='singlefile')
-        d.register(depends=[])
-        d.write(biosphere)
+        d = self.create_biosphere()
         activity = d.get('1')
         self.assertTrue(isinstance(activity, SFActivity))
         self.assertEqual(activity['name'], 'an emission')
 
     def test_get_random(self):
-        d = DatabaseChooser("biosphere", backend='singlefile')
-        d.register(depends=[])
-        d.write(biosphere)
+        d = self.create_biosphere()
         activity = next(iter(d))
         self.assertTrue(isinstance(activity, SFActivity))
         self.assertTrue(activity['name'] in ('an emission', 'another emission'))
 
     def test_get_random(self):
-        d = DatabaseChooser("biosphere", backend='singlefile')
-        d.register(depends=[])
-        d.write(biosphere)
+        d = self.create_biosphere()
         activity = d.random()
         self.assertTrue(isinstance(activity, SFActivity))
         self.assertTrue(activity['name'] in ('an emission', 'another emission'))
