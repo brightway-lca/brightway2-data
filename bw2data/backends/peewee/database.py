@@ -57,11 +57,12 @@ class SQLiteBackend(LCIBackend):
     def _searchable(self):
         return databases.get(self.name, {}).get('searchable', True)
 
-    def _get_queryset(self, random=False):
+    def _get_queryset(self, random=False, filters=True):
         qs = ActivityDataset.select().where(
             ActivityDataset.database == self.name)
-        for key, value in self.filters.items():
-            qs = qs.where(getattr(ActivityDataset, key) == value)
+        if filters:
+            for key, value in self.filters.items():
+                qs = qs.where(getattr(ActivityDataset, key) == value)
         if self.order_by and not random:
             qs = qs.order_by(getattr(ActivityDataset, self.order_by))
         else:
@@ -99,16 +100,17 @@ class SQLiteBackend(LCIBackend):
     filters = property(_get_filters, _set_filters)
     order_by = property(_get_order_by, _set_order_by)
 
-    def random(self):
+    def random(self, filters=True):
         try:
-            return Activity(self._get_queryset(random=True).get())
+            return Activity(self._get_queryset(random=True, filters=filters
+                            ).get())
         except DoesNotExist:
             warnings.warn("This database is empty")
             return None
 
     def get(self, code):
         return Activity(
-            self._get_queryset().where(
+            self._get_queryset(filters=False).where(
                 ActivityDataset.key == Key(self.name, code)
             ).get()
         )

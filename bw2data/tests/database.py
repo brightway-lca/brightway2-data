@@ -451,6 +451,18 @@ class DatabaseTest(BW2DataTest):
             warnings.simplefilter("ignore")
             self.assertEqual(database.random(), None)
 
+    def test_new_activity(self):
+        database = DatabaseChooser("a database")
+        database.register()
+        act = database.new_activity('foo', this="that", name='something')
+        act.save()
+
+        act = database.get('foo')
+        self.assertEqual(act['database'], 'a database')
+        self.assertEqual(act['code'], 'foo')
+        self.assertEqual(act['location'], 'GLO')
+        self.assertEqual(act['this'], 'that')
+
     def test_can_split_processes_products(self):
         database = DatabaseChooser("a database")
         database.write({
@@ -475,6 +487,83 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array.shape, (1,))
         self.assertEqual(array['output'][0], mapping[("a database", "foo")])
         self.assertEqual(array['input'][0], mapping[("a database", "product")])
+
+
+class DatabaseQuerysetTest(BW2DataTest):
+    def extra_setup(self):
+        self.db = DatabaseChooser("Order!")
+        self.db.write({
+            ("Order!", "first"): {
+                'name': 'a',
+                'location': 'delaware',
+                'reference product': 'widget',
+            },
+            ("Order!", "second"): {
+                'name': 'b',
+                'location': 'carolina',
+                'reference product': 'wiggle',
+            },
+            ("Order!", "third"): {
+                'name': 'c',
+                'location': 'baseball',
+                'reference product': 'lollipop',
+            },
+            ("Order!", "fourth"): {
+                'name': 'd',
+                'location': 'alabama',
+                'reference product': 'widget',
+            },
+            })
+
+    def test_random_respects_filters(self):
+        self.db.filters = {'product': 'lollipop'}
+        self.assertEqual(self.db.random()['name'], 'c')
+
+    def test_get_ignores_filters(self):
+        self.db.filters = {'product': 'giggles'}
+        self.assertEqual(self.db.get('fourth')['name'], 'd')
+
+    def test_filter(self):
+        self.db.filters = {'product': 'widget'}
+        self.assertEqual(len([x for x in self.db]), 2)
+
+    def test_order_by(self):
+        self.db.order_by = 'name'
+        self.assertEqual(
+            [x['name'] for x in self.db],
+            ['a', 'b', 'c', 'd']
+        )
+
+    def test_order_by_bad_field(self):
+        with self.assertRaises(AssertionError):
+            self.db.order_by = 'poopy'
+
+    def test_filter_bad_field(self):
+        with self.assertRaises(AssertionError):
+            self.db.filters = {'poopy': 'yuck'}
+
+    def test_filter_not_dict(self):
+        with self.assertRaises(AssertionError):
+            self.db.filters = 'poopy'
+
+    def test_reset_order_by(self):
+        self.db.order_by = 'name'
+        self.db.order_by = None
+        self.assertFalse(
+            [x['name'] for x in self.db] == \
+            ['a', 'b', 'c', 'd']
+        )
+
+    def test_reset_filters(self):
+        self.db.filters = {'product': 'widget'}
+        self.assertEqual(len([x for x in self.db]), 2)
+        self.db.filters = None
+        self.assertEqual(len([x for x in self.db]), 4)
+
+    def test_len_respects_filters(self):
+        self.db.filters = {'product': 'widget'}
+        self.assertEqual(len(self.db), 2)
+
 
 class SingleFileDatabaseTest(BW2DataTest):
     # TODO: Better check .write?

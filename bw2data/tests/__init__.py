@@ -5,7 +5,7 @@ from eight import *
 from .base import BW2DataTest
 from .config import ConfigTest
 from .data_store import DataStoreTestCase
-from .database import DatabaseTest, SingleFileDatabaseTest
+from .database import DatabaseTest, SingleFileDatabaseTest, DatabaseQuerysetTest
 from .geo import GeoTest
 from .ia import IADSTest, MethodTest, WeightingTest, NormalizationTest
 # from .json_database import JSONDatabaseTest, SynchronousJSONDictTest
