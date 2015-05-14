@@ -35,7 +35,6 @@ class DatabaseTest(BW2DataTest):
 
     def test_get(self):
         d = DatabaseChooser("biosphere")
-        d.register(depends=[])
         d.write(biosphere)
         activity = d.get('1')
         self.assertTrue(isinstance(activity, PWActivity))
@@ -43,7 +42,6 @@ class DatabaseTest(BW2DataTest):
 
     def test_get_random(self):
         d = DatabaseChooser("biosphere")
-        d.register(depends=[])
         d.write(biosphere)
         activity = next(iter(d))
         self.assertTrue(isinstance(activity, PWActivity))
@@ -51,7 +49,6 @@ class DatabaseTest(BW2DataTest):
 
     def test_get_random(self):
         d = DatabaseChooser("biosphere")
-        d.register(depends=[])
         d.write(biosphere)
         activity = d.random()
         self.assertTrue(isinstance(activity, PWActivity))
@@ -59,10 +56,8 @@ class DatabaseTest(BW2DataTest):
 
     def test_copy(self):
         d = DatabaseChooser("biosphere")
-        d.register()
         d.write(biosphere)
         d = DatabaseChooser("food")
-        d.register()
         d.write(food)
         with self.assertRaises(AssertionError):
             d.copy("food")
@@ -80,7 +75,6 @@ class DatabaseTest(BW2DataTest):
             }
         }
         d = DatabaseChooser("old name")
-        d.register()
         d.write(data)
         new_db = d.copy("new name")
         new_data = new_db.load()
@@ -99,7 +93,6 @@ class DatabaseTest(BW2DataTest):
 
     def test_deletes_from_database(self):
         d = DatabaseChooser("biosphere")
-        d.register(depends=[])
         d.write(biosphere)
         self.assertTrue("biosphere" in databases)
         del databases['biosphere']
@@ -144,17 +137,15 @@ class DatabaseTest(BW2DataTest):
 
     def test_deregister(self):
         d = DatabaseChooser("food")
-        d.register(depends=["biosphere"])
+        d.register()
         self.assertTrue("food" in databases)
         d.deregister()
         self.assertTrue("food" not in databases)
 
     def test_rename(self):
         d = DatabaseChooser("biosphere")
-        d.register(depends=[])
         d.write(biosphere)
         d = DatabaseChooser("food")
-        d.register(depends=["biosphere"])
         d.write(copy.deepcopy(food))
         ndb = d.rename("buildings")
         ndb_data = ndb.load()
@@ -167,13 +158,11 @@ class DatabaseTest(BW2DataTest):
 
     def test_write_sets_databases_number_attribute(self):
         d = DatabaseChooser("biosphere")
-        d.register()
         d.write(biosphere)
         self.assertEqual(databases["biosphere"]["number"], len(biosphere))
 
     def test_process_adds_to_mappings(self):
         database = DatabaseChooser("testy")
-        database.register()
         database_data = {
             ("testy", "A"): {'location': 'CH'},
             ("testy", "B"): {'location': 'DE'},
@@ -497,23 +486,23 @@ class DatabaseQuerysetTest(BW2DataTest):
                 'name': 'a',
                 'location': 'delaware',
                 'reference product': 'widget',
-            },
+                },
             ("Order!", "second"): {
                 'name': 'b',
                 'location': 'carolina',
                 'reference product': 'wiggle',
-            },
+                },
             ("Order!", "third"): {
                 'name': 'c',
                 'location': 'baseball',
                 'reference product': 'lollipop',
-            },
+                },
             ("Order!", "fourth"): {
                 'name': 'd',
                 'location': 'alabama',
                 'reference product': 'widget',
-            },
-            })
+                },
+        })
 
     def test_random_respects_filters(self):
         self.db.filters = {'product': 'lollipop'}
