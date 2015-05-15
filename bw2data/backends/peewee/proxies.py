@@ -118,7 +118,7 @@ class Activity(ActivityProxyBase):
         activity = Activity()
         for key, value in self.items():
             activity[key] = value
-        activity[u'database'] = self.database
+        activity[u'database'] = self['database']
         activity[u'code'] = str(code or uuid.uuid4().hex)
         activity[u'name'] = str(name)
         activity.save()
@@ -127,12 +127,14 @@ class Activity(ActivityProxyBase):
             data = copy.deepcopy(exc._data)
             data['output'] = activity.key
             new_data = {
-                u'data': data,
-                u'type': exc.type,
-                u'output': activity.key,
-                u'input': exc._document.input,
-                u'database': self.database
+                'data': data,
+                'type': exc['type'],
+                'output': activity.key,
+                'input': exc._document.input,
+                'database': self['database']
             }
+            if exc['input'] == exc['output']:
+                new_data['input'] = new_data['output']
             ExchangeDataset.create(**new_data)
         return activity
 
