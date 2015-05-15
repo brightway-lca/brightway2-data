@@ -22,7 +22,11 @@ class Exchanges(collections.Iterable):
         self._key = key
         self._kind = kind
         if reverse:
-            self._args = [ExchangeDataset.input == Key(*self._key)]
+            self._args = [
+            ExchangeDataset.input == Key(*self._key),
+            # No production exchanges
+            ExchangeDataset.output != Key(*self._key)
+        ]
         else:
             self._args = [ExchangeDataset.output == Key(*self._key)]
         if self._kind:
@@ -99,6 +103,12 @@ class Activity(ActivityProxyBase):
         return Exchanges(
             self._document.key,
             kind="biosphere",
+        )
+
+    def production(self):
+        return Exchanges(
+            self._document.key,
+            kind="production",
         )
 
     def upstream(self):
