@@ -35,9 +35,6 @@ class Exchanges(collections.Iterable):
     def filter(self, expr):
         self._args.append(expr)
 
-    def count(self):
-        return len(self)
-
     def delete(self):
         ExchangeDataset.delete().where(*self._args).execute()
 
