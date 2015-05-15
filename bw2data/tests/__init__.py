@@ -5,9 +5,20 @@ from eight import *
 from .base import BW2DataTest
 from .config import ConfigTest
 from .data_store import DataStoreTestCase
-from .database import DatabaseTest, SingleFileDatabaseTest, DatabaseQuerysetTest, PeeweeProxyTest
+from .database import (
+    DatabaseQuerysetTest,
+    DatabaseTest,
+    ExchangeTest,
+    PeeweeProxyTest,
+    SingleFileDatabaseTest,
+)
 from .geo import GeoTest
-from .ia import IADSTest, MethodTest, WeightingTest, NormalizationTest
+from .ia import (
+    IADSTest,
+    MethodTest,
+    NormalizationTest,
+    WeightingTest,
+)
 # from .json_database import JSONDatabaseTest, SynchronousJSONDictTest
 from .query import QueryTest, FilterTest, ResultTest
 from .search import SearchTest, IndexTest

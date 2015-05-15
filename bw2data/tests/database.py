@@ -100,6 +100,88 @@ class PeeweeProxyTest(BW2DataTest):
         ).count(), 1)
 
 
+class ExchangeTest(BW2DataTest):
+    def extra_setup(self):
+        self.database = DatabaseChooser("db")
+        self.database.write({
+            ("db", "a"): {
+                'exchanges': [{
+                    'input': ("db", "a"),
+                    'amount': 2,
+                    'type': 'production',
+                }, {
+                    'input': ("db", "b"),
+                    'amount': 3,
+                    'type': 'technosphere',
+                }, {
+                    'input': ("db", "c"),
+                    'amount': 4,
+                    'type': 'biosphere',
+                }],
+                'name': 'a'
+            },
+            ("db", "b"): {'name': 'b'},
+            ("db", "c"): {'name': 'c', 'type': 'biosphere'},
+            ("db", "d"): {
+                'name': 'd',
+                'exchanges': [{
+                    'input': ("db", "a"),
+                    'amount': 5,
+                    'type': 'technosphere'
+                }]
+            },
+        })
+        self.act = self.database.get("a")
+
+    def test_production(self):
+        self.assertEqual(
+            len(list(self.act.production())),
+            1
+        )
+        self.assertEqual(
+            len(self.act.production()),
+            1
+        )
+        exc = list(self.act.production())[0]
+        self.assertEqual(exc['amount'], 2)
+
+    def test_biosphere(self):
+        self.assertEqual(
+            len(list(self.act.biosphere())),
+            1
+        )
+        self.assertEqual(
+            len(self.act.biosphere()),
+            1
+        )
+        exc = list(self.act.biosphere())[0]
+        self.assertEqual(exc['amount'], 4)
+
+    def test_technosphere(self):
+        self.assertEqual(
+            len(list(self.act.technosphere())),
+            1
+        )
+        self.assertEqual(
+            len(self.act.technosphere()),
+            1
+        )
+        exc = list(self.act.technosphere())[0]
+        self.assertEqual(exc['amount'], 3)
+
+    def test_upstream(self):
+        self.assertEqual(
+            len(list(self.act.upstream())),
+            1
+        )
+        self.assertEqual(
+            len(self.act.upstream()),
+            1
+        )
+        exc = list(self.act.upstream())[0]
+        self.assertEqual(exc['amount'], 5)
+
+
 class DatabaseTest(BW2DataTest):
     def test_setup(self):
         d = DatabaseChooser("biosphere")
