@@ -24,7 +24,10 @@ class Key(object):
 
     See https://github.com/coleifer/peewee/issues/150"""
     def __init__(self, *args):
-        self.data = args
+        if len(args) == 1 and isinstance(args[0], tuple):
+            self.data = args[0]
+        else:
+            self.data = args
 
     def __iter__(self):
         return iter(self.data)
