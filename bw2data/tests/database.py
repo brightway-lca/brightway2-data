@@ -7,22 +7,97 @@ from .. import config, projects
 from ..database import DatabaseChooser
 from ..backends.peewee import (
     Activity as PWActivity,
+    ActivityDataset,
     Exchange as PWExchange,
-    sqlite3_lci_db
+    ExchangeDataset,
+    sqlite3_lci_db,
 )
+from ..backends.utils import convert_backend
 from ..backends.single_file.database import SingleFileDatabase
-from ..errors import UnknownObject, MissingIntermediateData, UntypedExchange, \
-    InvalidExchange
-from ..backends.single_file import Activity as SFActivity, Exchange as SFExchange
+from ..errors import (
+    InvalidExchange,
+    MissingIntermediateData,
+    UnknownObject,
+    UntypedExchange,
+    ValidityError,
+)
+from ..backends.single_file import (
+    Activity as SFActivity,
+    Exchange as SFExchange,
+)
 from ..meta import mapping, geomapping, databases
 from ..serialization import JsonWrapper, JsonSanitizer
-from ..utils import numpy_string
+from ..sqlite import Key
+from ..utils import numpy_string, get_activity
 from ..validate import db_validator
 from .fixtures import food, biosphere
 import copy
 import os
 import pickle
 import warnings
+
+
+class PeeweeProxyTest(BW2DataTest):
+    def get_activity(self):
+        database = DatabaseChooser("a database")
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [{
+                    'input': ("a database", "foo"),
+                    'amount': 1,
+                    'type': 'production',
+                }],
+                'location': 'bar',
+                'name': 'baz'
+            },
+        })
+        return database.get('foo')
+
+    def test_key(self):
+        act = self.get_activity()
+        self.assertEqual(act.key, ("a database", "foo"))
+
+    def test_dbkey(self):
+        act = self.get_activity()
+        self.assertEqual(act.dbkey, "a database⊡foo")
+
+    def test_delete(self):
+        act = self.get_activity()
+        self.assertEqual(ExchangeDataset.select().count(), 1)
+        self.assertEqual(ActivityDataset.select().count(), 1)
+        act.delete()
+        self.assertEqual(ExchangeDataset.select().count(), 0)
+        self.assertEqual(ActivityDataset.select().count(), 0)
+
+    def test_save_invalid(self):
+        db = DatabaseChooser("a database")
+        db.register()
+        act = db.new_activity("foo")
+        with self.assertRaises(ValidityError):
+            act.save()
+
+    def test_copy(self):
+        act = self.get_activity()
+        self.assertEqual(ExchangeDataset.select().count(), 1)
+        self.assertEqual(ActivityDataset.select().count(), 1)
+        cp = act.copy("baz")
+        self.assertFalse(cp['code'] == act['code'])
+        self.assertEqual(cp['name'], 'baz')
+        self.assertEqual(cp['location'], 'bar')
+        self.assertEqual(ExchangeDataset.select().count(), 2)
+        self.assertEqual(ActivityDataset.select().count(), 2)
+        self.assertEqual(ActivityDataset.select().where(
+            ActivityDataset.key == Key(cp.key)
+        ).count(), 1)
+        self.assertEqual(ActivityDataset.select().where(
+            ActivityDataset.key == Key(act.key)
+        ).count(), 1)
+        self.assertEqual(ExchangeDataset.select().where(
+            ExchangeDataset.input == Key(cp.key)
+        ).count(), 1)
+        self.assertEqual(ExchangeDataset.select().where(
+            ExchangeDataset.input == Key(act.key)
+        ).count(), 1)
 
 
 class DatabaseTest(BW2DataTest):
@@ -40,7 +115,7 @@ class DatabaseTest(BW2DataTest):
         self.assertTrue(isinstance(activity, PWActivity))
         self.assertEqual(activity['name'], 'an emission')
 
-    def test_get_random(self):
+    def test_iter(self):
         d = DatabaseChooser("biosphere")
         d.write(biosphere)
         activity = next(iter(d))
@@ -552,6 +627,54 @@ class DatabaseQuerysetTest(BW2DataTest):
     def test_len_respects_filters(self):
         self.db.filters = {'product': 'widget'}
         self.assertEqual(len(self.db), 2)
+
+    def test_convert_same_backend(self):
+        database = DatabaseChooser("a database")
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [{
+                    'input': ("a database", "foo"),
+                    'amount': 1,
+                    'type': 'production',
+                }],
+                'location': 'bar',
+                'name': 'baz'
+            },
+        })
+        self.assertFalse(convert_backend('a database', "sqlite"))
+
+    def test_convert_backend(self):
+        self.maxDiff = None
+        database = DatabaseChooser("a database")
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [{
+                    'input': ("a database", "foo"),
+                    'amount': 1,
+                    'type': 'production',
+                }],
+                'location': 'bar',
+                'name': 'baz'
+            },
+        })
+        database = convert_backend('a database', "singlefile")
+        self.assertEqual(databases['a database']['backend'], 'singlefile')
+        self.assertEqual(databases['a database']['version'], 1)
+        expected = {
+            ("a database", "foo"): {
+                'code': 'foo',
+                'database': 'a database',
+                'exchanges': [{
+                    'input': ("a database", "foo"),
+                    'output': ("a database", "foo"),
+                    'amount': 1,
+                    'type': 'production',
+                }],
+                'location': 'bar',
+                'name': 'baz'
+            },
+        }
+        self.assertEqual(database.load(), expected)
 
 
 class SingleFileDatabaseTest(BW2DataTest):

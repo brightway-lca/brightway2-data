@@ -4,9 +4,18 @@ from eight import *
 
 from . import BW2DataTest
 from .. import Database, Method, methods
+from ..backends.peewee import Activity as PWActivity
+from ..backends.single_file import Activity as SFActivity
+from ..database import Database
 from .fixtures import biosphere
-from ..utils import natural_sort, random_string, combine_methods, \
-    uncertainify, safe_filename
+from ..utils import (
+    combine_methods,
+    get_activity,
+    natural_sort,
+    random_string,
+    safe_filename,
+    uncertainify,
+)
 import stats_arrays as sa
 
 
@@ -152,3 +161,47 @@ class UncertainifyTestCase(BW2DataTest):
             'amount': 0.,
         }
         self.assertEqual(data[1]['exchanges'][0], new_dict)
+
+    def test_get_activity_peewee(self):
+        database = Database("a database", "sqlite")
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [{
+                    'input': ("a database", "foo"),
+                    'amount': 1,
+                    'type': 'production',
+                }],
+                'location': 'bar',
+                'name': 'baz'
+            },
+        })
+        self.assertTrue(isinstance(
+            get_activity(("a database", "foo")),
+            PWActivity
+        ))
+        self.assertTrue(isinstance(
+            Database.get(("a database", "foo")),
+            PWActivity
+        ))
+
+    def test_get_activity_singlefile(self):
+        database = Database("a database", "singlefile")
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [{
+                    'input': ("a database", "foo"),
+                    'amount': 1,
+                    'type': 'production',
+                }],
+                'location': 'bar',
+                'name': 'baz'
+            },
+        })
+        self.assertTrue(isinstance(
+            get_activity(("a database", "foo")),
+            SFActivity
+        ))
+        self.assertTrue(isinstance(
+            Database.get(("a database", "foo")),
+            SFActivity
+        ))
