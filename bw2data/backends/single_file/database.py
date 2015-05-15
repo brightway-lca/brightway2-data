@@ -164,6 +164,15 @@ class SingleFileDatabase(LCIBackend):
         """
         self.register()
 
+        # Need to use iterator to reduce memory usage
+        try:  # Py2
+            itr = data.iteritems()
+        except AttributeError:  # Py3
+            itr = data.items()
+        for key, obj in itr:
+            obj['database'] = key[0]
+            obj['code'] = key[1]
+
         if (config.p.get(u"use_cache", False)
             and self.name in config.cache):
             config.cache[self.name] = data
