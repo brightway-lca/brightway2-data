@@ -25,7 +25,7 @@ from ..backends.single_file import (
     Activity as SFActivity,
     Exchange as SFExchange,
 )
-from ..meta import mapping, geomapping, databases
+from ..meta import mapping, geomapping, databases, methods
 from ..serialization import JsonWrapper, JsonSanitizer
 from ..sqlite import Key
 from ..utils import numpy_string, get_activity
@@ -132,6 +132,15 @@ class ExchangeTest(BW2DataTest):
             },
         })
         self.act = self.database.get("a")
+
+    def test_setup_clean(self):
+        self.assertEqual(len(databases), 1)
+        self.assertEqual(list(methods), [])
+        self.assertEqual(len(mapping), 4)
+        self.assertEqual(len(geomapping), 1)  # GLO
+        self.assertTrue("GLO" in geomapping)
+        self.assertEqual(len(projects), 1)  # Default project
+        self.assertTrue("default" in projects)
 
     def test_production(self):
         self.assertEqual(
@@ -348,6 +357,9 @@ class DatabaseTest(BW2DataTest):
         }
         with self.assertRaises(UnknownObject):
             database.write(data)
+
+    def test_dirty_activities(self):
+        pass
 
     def test_process_unknown_object_singlefile(self):
         database = DatabaseChooser("testy", backend="singlefile")
@@ -660,6 +672,18 @@ class DatabaseQuerysetTest(BW2DataTest):
                 'reference product': 'widget',
                 },
         })
+
+    def test_setup_clean(self):
+        self.assertEqual(len(databases), 1)
+        self.assertTrue("Order!" in databases)
+        self.assertEqual(list(methods), [])
+        self.assertEqual(len(mapping), 4)
+        self.assertTrue(("Order!", "fourth") in mapping)
+        self.assertEqual(len(geomapping), 5)  # GLO
+        self.assertTrue("GLO" in geomapping)
+        self.assertTrue("carolina" in geomapping)
+        self.assertEqual(len(projects), 1)  # Default project
+        self.assertTrue("default" in projects)
 
     def test_random_respects_filters(self):
         self.db.filters = {'product': 'lollipop'}

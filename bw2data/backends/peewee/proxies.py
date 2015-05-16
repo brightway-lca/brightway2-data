@@ -9,7 +9,7 @@ from ...search import IndexManager
 from ...sqlite import keyjoin, Key
 from ...utils import get_activity
 from .schema import ActivityDataset, ExchangeDataset
-from .utils import dict_as_activitydataset
+from .utils import dict_as_activitydataset, dict_as_exchangedataset
 import copy
 import collections
 import warnings
@@ -119,6 +119,8 @@ class Activity(ActivityProxyBase):
         """Create a new exchange linked to this activity"""
         exc = Exchange()
         exc.output = self
+        for key in kwargs:
+            exc[key] = kwargs[key]
         return exc
 
     def copy(self, name, code=None):

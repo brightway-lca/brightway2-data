@@ -56,6 +56,9 @@ class ProjectManager(collections.Iterable):
     def __contains__(self, name):
         return ProjectDataset.select().where(ProjectDataset.name == name).count() > 0
 
+    def __len__(self):
+        return ProjectDataset.select().count()
+
     ### Internal functions for managing projects
 
     def _create_base_directories(self):

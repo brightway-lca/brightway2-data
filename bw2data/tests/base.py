@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from .. import config
+from .. import config, databases, methods, mapping, geomapping
 from ..project import projects
 import unittest
 
@@ -19,3 +19,12 @@ class BW2DataTest(unittest.TestCase):
 
     def extra_setup(self):
         pass
+
+    def test_setup_clean(self):
+        self.assertEqual(list(databases), [])
+        self.assertEqual(list(methods), [])
+        self.assertEqual(len(mapping), 0)
+        self.assertEqual(len(geomapping), 1)  # GLO
+        self.assertTrue("GLO" in geomapping)
+        self.assertEqual(len(projects), 1)  # Default project
+        self.assertTrue("default" in projects)

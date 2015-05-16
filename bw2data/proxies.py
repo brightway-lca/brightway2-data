@@ -113,17 +113,6 @@ class ActivityProxyBase(ProxyBase):
         lca.fix_dictionaries()
         return lca
 
-    def lca(self, method=None, amount=1.):
-        """Shortcut to construct an LCA object for this activity."""
-        from bw2calc import LCA
-
-        lca = LCA({self: amount}, method=method)
-        lca.lci()
-        if method is not None:
-            lca.lcia()
-        lca.fix_dictionaries()
-        return lca
-
 
 @python_2_unicode_compatible
 class ExchangeProxyBase(ProxyBase):
@@ -178,6 +167,14 @@ class ExchangeProxyBase(ProxyBase):
 
     input = property(_get_input, _set_input)
     output = property(_get_output, _set_output)
+
+    def __setitem__(self, key, value):
+        if key == 'input':
+            self.input = value
+        elif key == 'output':
+            self.output = value
+        else:
+            self._data[key] = value
 
     def valid(self, why=False):
         errors = []
