@@ -165,6 +165,7 @@ class Exchange(ExchangeProxyBase):
             )
 
         databases.set_modified(self['output'][0])
+        databases.set_dirty(self['output'][0])
 
         for key, value in dict_as_exchangedataset(self._data).items():
             setattr(self._document, key, value)

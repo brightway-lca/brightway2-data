@@ -89,6 +89,21 @@ class Databases(SerializedDict):
         self[database]['modified'] = datetime.datetime.now().isoformat()
         self.flush()
 
+    def set_dirty(self, database):
+        if self[database].get('dirty'):
+            pass
+        else:
+            self[database]['dirty'] = True
+            self.flush()
+
+    def clean(self):
+        from . import Database
+        for x in self:
+            if self[x].get('dirty'):
+                Database(x).process()
+                del self[x]['dirty']
+        self.flush()
+
     def __str__(self):
         return u"Brightway2 databases metadata with %i objects" % len(
             self.data)

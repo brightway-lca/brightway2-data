@@ -383,7 +383,7 @@ class DatabaseTest(BW2DataTest):
         lca.fix_dictionaries()
         self.assertEqual(
             lca.supply_array[lca.activity_dict[("testy", "A")]],
-            2
+            0.5
         )
 
     def test_process_unknown_object_singlefile(self):
