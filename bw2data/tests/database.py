@@ -32,6 +32,7 @@ from ..utils import numpy_string, get_activity
 from ..validate import db_validator
 from .fixtures import food, biosphere
 import copy
+import datetime
 import os
 import pickle
 import warnings
@@ -356,6 +357,36 @@ class DatabaseTest(BW2DataTest):
         }
         with self.assertRaises(UnknownObject):
             database.write(data)
+
+    def test_exchange_save(self):
+        database = DatabaseChooser("testy")
+        data = {
+            ("testy", "A"): {},
+            ("testy", "C"): {'type': 'biosphere'},
+            ("testy", "B"): {'exchanges': [
+                {'input': ("testy", "A"),
+                 'amount': 1,
+                 'type': 'technosphere'},
+                {'input': ("testy", "B"),
+                 'amount': 1,
+                 'type': 'production'},
+                {'input': ("testy", "C"),
+                 'amount': 1,
+                 'type': 'biosphere'},
+            ]},
+        }
+        then = datetime.datetime.now().isoformat()
+        database.write(data)
+        act = database.get("B")
+        exc = [x for x in act.production()][0]
+        exc['amount'] = 2
+        exc.save()
+        self.assertTrue(databases[database.name].get("dirty"))
+        self.assertTrue(database.metadata.get("dirty"))
+        self.assertTrue(database.metadata['modified'] > then)
+
+        exc = [x for x in act.production()][0]
+        self.assertEqual(exc['amount'], 2)
 
     def test_dirty_activities(self):
         database = DatabaseChooser("testy")

@@ -198,7 +198,7 @@ class SerializedDict(collections.MutableMapping):
         if not self.data:
             return None
         else:
-            return random.choice(self.data.keys())
+            return random.choice(list(self.data.keys()))
 
     def backup(self):
         """Write a backup version of the data to the ``backups`` directory."""
