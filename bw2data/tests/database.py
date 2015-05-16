@@ -343,7 +343,6 @@ class DatabaseTest(BW2DataTest):
 
     def test_process_unknown_object(self):
         database = DatabaseChooser("testy")
-        database.register()
         data = {
             ("testy", "A"): {},
             ("testy", "B"): {'exchanges': [
@@ -359,7 +358,33 @@ class DatabaseTest(BW2DataTest):
             database.write(data)
 
     def test_dirty_activities(self):
-        pass
+        database = DatabaseChooser("testy")
+        data = {
+            ("testy", "A"): {},
+            ("testy", "C"): {'type': 'biosphere'},
+            ("testy", "B"): {'exchanges': [
+                {'input': ("testy", "A"),
+                 'amount': 1,
+                 'type': 'technosphere'},
+                {'input': ("testy", "B"),
+                 'amount': 1,
+                 'type': 'production'},
+                {'input': ("testy", "C"),
+                 'amount': 1,
+                 'type': 'biosphere'},
+            ]},
+        }
+        database.write(data)
+        act = database.get("B")
+        exc = [x for x in act.production()][0]
+        exc['amount'] = 2
+        exc.save()
+        lca = act.lca()
+        lca.fix_dictionaries()
+        self.assertEqual(
+            lca.supply_array[lca.activity_dict[("testy", "A")]],
+            2
+        )
 
     def test_process_unknown_object_singlefile(self):
         database = DatabaseChooser("testy", backend="singlefile")
