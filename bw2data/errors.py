@@ -3,29 +3,38 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 
-class InvalidExchange(Exception):
+class BW2Exception(Exception):
+    """Base class for exceptions in Brightway2"""
+    pass
+
+
+class InvalidExchange(BW2Exception):
     """Exchange is missing 'amount' or 'input'"""
     pass
 
 
-class MissingIntermediateData(Exception):
+class MissingIntermediateData(BW2Exception):
     pass
 
 
-class UnknownObject(Exception):
+class UnknownObject(BW2Exception):
     pass
 
 
-class UntypedExchange(Exception):
+class UntypedExchange(BW2Exception):
     """Exchange doesn't have 'type' attribute"""
     pass
 
 
-class WebUIError(Exception):
+class WebUIError(BW2Exception):
     """Can't find running instance of bw2-web"""
     pass
 
 
-class ValidityError(Exception):
+class ValidityError(BW2Exception):
     """The activity or exchange dataset does not have all the required fields"""
+    pass
+
+class NotAllowed(BW2Exception):
+    """This operation is not allowed"""
     pass

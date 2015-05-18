@@ -25,6 +25,7 @@ from ..backends.single_file import (
     Activity as SFActivity,
     Exchange as SFExchange,
 )
+from ..errors import NotAllowed
 from ..meta import mapping, geomapping, databases, methods
 from ..serialization import JsonWrapper, JsonSanitizer
 from ..sqlite import Key
@@ -53,6 +54,23 @@ class PeeweeProxyTest(BW2DataTest):
             },
         })
         return database.get('foo')
+
+    def test_set_code(self):
+        act = self.get_activity()
+        with self.assertRaises(NotAllowed):
+            act['code'] = 'foo'
+
+    def test_set_database(self):
+        act = self.get_activity()
+        with self.assertRaises(NotAllowed):
+            act['database'] = 'foo'
+
+    def test_set_item(self):
+        act = self.get_activity()
+        act['foo'] = 'bar'
+        act.save()
+        act = DatabaseChooser("a database").get("foo")
+        self.assertEqual(act['foo'], 'bar')
 
     def test_key(self):
         act = self.get_activity()

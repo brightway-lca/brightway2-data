@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from ... import databases, mapping, geomapping, config
-from ...errors import ValidityError
+from ...errors import ValidityError, NotAllowed
 from ...proxies import ActivityProxyBase, ExchangeProxyBase
 from ...search import IndexManager
 from ...sqlite import keyjoin, Key
@@ -53,6 +53,14 @@ class Activity(ActivityProxyBase):
     def __init__(self, document=None):
         self._document = document or ActivityDataset()
         self._data = self._document.data if document else {}
+
+    def __setitem__(self, key, value):
+        if key in ('code', 'database') and key in self:
+            raise NotAllowed(
+                "Changing the `code` or `database` would break exchange links."
+            )
+        else:
+            super(Activity, self).__setitem__(key, value)
 
     @property
     def key(self):
@@ -127,8 +135,8 @@ class Activity(ActivityProxyBase):
         activity = Activity()
         for key, value in self.items():
             activity[key] = value
-        activity[u'database'] = self['database']
-        activity[u'code'] = str(code or uuid.uuid4().hex)
+        activity._data[u'database'] = self['database']
+        activity._data[u'code'] = str(code or uuid.uuid4().hex)
         activity[u'name'] = str(name)
         activity.save()
 
