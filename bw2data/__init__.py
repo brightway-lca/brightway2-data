@@ -21,10 +21,12 @@ from .meta import (
     preferences,
     weightings,
 )
+from .database_parameters import database_parameters, DatabaseParameterSet
 
 # Add metadata class instances to global list of serialized metadata
 config.metadata.extend([
     databases,
+    database_parameters,
     geomapping,
     mapping,
     methods,

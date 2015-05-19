@@ -2,11 +2,19 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from .. import databases, config, mapping, geomapping, projects
-from ..query import Query
+from .. import (
+    config,
+    database_parameters,
+    databases,
+    geomapping,
+    mapping,
+    projects,
+)
 from ..data_store import ProcessedDataStore
-from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename, numpy_string
+from ..database_parameters import database_parameters, DatabaseParameterSet
 from ..errors import UntypedExchange, InvalidExchange, UnknownObject
+from ..query import Query
+from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename, numpy_string
 import copy
 import numpy as np
 import os
@@ -110,6 +118,15 @@ class LCIBackend(ProcessedDataStore):
 
         new_database.write(data)
         return new_database
+
+    @property
+    def parameters(self):
+        if not hasattr(self, "_database_parameters"):
+            self._database_parameters = DatabaseParameterSet(
+                self.name,
+                database_parameters.get(self.name, {})
+            )
+        return self._database_parameters
 
     @property
     def filename(self):

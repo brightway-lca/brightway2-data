@@ -24,6 +24,7 @@ setup(
     install_requires=[
         "appdirs",
         "bw2io>=0.2.dev0",
+        "bw2parameters",
         "docopt",
         "eight",
         "future",

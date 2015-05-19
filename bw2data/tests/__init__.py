@@ -12,6 +12,7 @@ from .database import (
     PeeweeProxyTest,
     SingleFileDatabaseTest,
 )
+from .database_parameters import DatabaseParameterTest
 from .geo import GeoTest
 from .ia import (
     IADSTest,
