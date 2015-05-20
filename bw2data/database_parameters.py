@@ -21,7 +21,7 @@ database_parameters = DatabaseParameters()
 class DatabaseParameterSet(collections.MutableMapping):
     def __init__(self, key, data):
         self._key = key
-        self._data = self._from_list(data)
+        self._data = data
 
     def __contains__(self, key):
         return key in self._data
@@ -43,7 +43,7 @@ class DatabaseParameterSet(collections.MutableMapping):
     def __setitem__(self, key, value):
         self._data[key] = value
         # Flushes data to disk
-        database_parameters[self._key] = self._to_list(self._data)
+        database_parameters[self._key] = self._data
 
     def __getitem__(self, key):
         return self._data[key]
@@ -51,19 +51,8 @@ class DatabaseParameterSet(collections.MutableMapping):
     def __delitem__(self, key):
         del self._data[key]
 
-    def _to_list(self, data):
-        listy = []
-        for key, value in data.items():
-            obj = copy.deepcopy(value)
-            obj['name'] = key
-            listy.append(obj)
-        return listy
-
-    def _from_list(self, data):
-        return {obj.pop('name'): obj for obj in data}
-
     def as_parameter_set(self):
-        return ParameterSet(self._to_list(copy.deepcopy(self._data)))
+        return ParameterSet(copy.deepcopy(self._data))
 
     def evaluate(self):
         return self.as_parameter_set().evaluate()
