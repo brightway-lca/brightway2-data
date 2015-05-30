@@ -47,7 +47,7 @@ numpy_string = lambda x: bytes(x) if sys.version_info < (3, 0) else x
 def natural_sort(l):
     """Sort the given list in the way that humans expect, e.g. 9 before 10."""
     # http://nedbatchelder.com/blog/200712/human_sorting.html#comments
-    convert = lambda text: int(text) if text.isdigit() else text
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
     return sorted(l, key=alphanum_key)
 
