@@ -173,5 +173,17 @@ class ProjectManager(collections.Iterable):
         self._reset_databases()
         return temp_dir
 
+    def delete_project(self, name=None):
+        if name is None:
+            name = self.project
+        if name not in self:
+            raise ValueError("{} is not a project".format(name))
+        ProjectDataset.delete().where(ProjectDataset.name == name).execute()
+        if "default" in self:
+            self.project = "default"
+        else:
+            self.project = next(iter(self)).name
+        return self.project
+
 
 projects = ProjectManager()
