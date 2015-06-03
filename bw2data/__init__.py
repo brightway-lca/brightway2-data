@@ -13,6 +13,7 @@ config.sqlite3_databases.append((
 
 from .utils import set_data_dir
 from .meta import (
+    calculation_setups,
     databases,
     geomapping,
     mapping,
@@ -25,6 +26,7 @@ from .database_parameters import database_parameters, DatabaseParameterSet
 
 # Add metadata class instances to global list of serialized metadata
 config.metadata.extend([
+    calculation_setups,
     databases,
     database_parameters,
     geomapping,

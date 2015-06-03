@@ -119,6 +119,16 @@ class Databases(SerializedDict):
 
 
 @python_2_unicode_compatible
+class CalculationSetups(PickledDict):
+    """A dictionary for calculation setups: a set of functional units and LCIA methods."""
+    filename = "setups.pickle"
+
+    def __str__(self):
+        return u"Brightway2 calculations setup metadata with %i objects" % len(
+            self.data)
+
+
+@python_2_unicode_compatible
 class Methods(CompoundJSONDict):
     """A dictionary for method metadata. File data is saved in ``methods.json``."""
     filename = "methods.json"
@@ -156,3 +166,4 @@ methods = Methods()
 normalizations = NormalizationMeta()
 preferences = Preferences()
 weightings = WeightingMeta()
+calculation_setups = CalculationSetups()

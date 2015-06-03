@@ -103,24 +103,24 @@ class ProjectManager(collections.Iterable):
 
     ### Public API
 
-    project = property(_get_project, _set_project)
+    current = property(_get_project, _set_project)
 
     @property
     def dir(self):
         return os.path.join(
             self._base_data_dir,
-            safe_filename(self.project)
+            safe_filename(self.current)
         )
 
     @property
     def logs_dir(self):
         return os.path.join(
             self._base_logs_dir,
-            safe_filename(self.project)
+            safe_filename(self.current)
         )
 
     def create_project(self, name=None, **kwargs):
-        name = name or self.project
+        name = name or self.current
         if not ProjectDataset().select().where(
                 ProjectDataset.name == name).count():
             ProjectDataset().create(
@@ -141,7 +141,7 @@ class ProjectManager(collections.Iterable):
         fp = os.path.join(self._base_data_dir, safe_filename(new_name))
         if os.path.exists(fp):
             raise ValueError("Project directory already exists")
-        project_data = ProjectDataset.select(ProjectDataset.name == self.project).get().data
+        project_data = ProjectDataset.select(ProjectDataset.name == self.current).get().data
         ProjectDataset().create(data=project_data, name=new_name)
         shutil.copytree(self.dir, fp)
         create_dir(os.path.join(
@@ -149,7 +149,7 @@ class ProjectManager(collections.Iterable):
             safe_filename(new_name)
         ))
         if switch:
-            self.project = new_name
+            self.current = new_name
 
     def request_directory(self, name):
         """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
@@ -175,15 +175,15 @@ class ProjectManager(collections.Iterable):
 
     def delete_project(self, name=None):
         if name is None:
-            name = self.project
+            name = self.current
         if name not in self:
             raise ValueError("{} is not a project".format(name))
         ProjectDataset.delete().where(ProjectDataset.name == name).execute()
         if "default" in self:
-            self.project = "default"
+            self.current = "default"
         else:
-            self.project = next(iter(self)).name
-        return self.project
+            self.current = next(iter(self)).name
+        return self.current
 
 
 projects = ProjectManager()
