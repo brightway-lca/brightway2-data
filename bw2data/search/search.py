@@ -28,8 +28,6 @@ class Searcher(object):
         else:
             filter_kwargs = None
 
-        print("Filter kwargs: {}".format(filter_kwargs))
-
         qp = MultifieldParser(
             fields,
             self.index.schema,

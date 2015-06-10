@@ -71,6 +71,7 @@ class Activity(ActivityProxyBase):
         return keyjoin(self.key)
 
     def delete(self):
+        IndexManager().delete_dataset(self._data)
         self.exchanges().delete()
         self._document.delete_instance()
         self = None
