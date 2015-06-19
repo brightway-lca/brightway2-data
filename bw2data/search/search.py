@@ -7,11 +7,24 @@ from .indices import IndexManager
 from whoosh.collectors import TimeLimitCollector, TimeLimit
 from whoosh.qparser import MultifieldParser
 from whoosh.query import Term, And
+import psutil
+
+
+def open_files():
+    proc = psutil.Process()
+    return len(proc.open_files())
 
 
 class Searcher(object):
-    def __init__(self):
+    # def __init__(self):
+    #     self.index = IndexManager().get()
+
+    def __enter__(self):
         self.index = IndexManager().get()
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.index.close()
 
     def search(self, string, limit=25, facet=None, proxy=True, **kwargs):
         FILTER_TERMS = {u'name', u'product', u'location', u'database'}
@@ -28,13 +41,13 @@ class Searcher(object):
         else:
             filter_kwargs = None
 
-        print("Filter kwargs: {}".format(filter_kwargs))
-
         qp = MultifieldParser(
             fields,
             self.index.schema,
             fieldboosts={u"name": 5., u"categories": 2., u"product": 3.}
         )
+
+        print("Before search:", open_files())
 
         with self.index.searcher() as searcher:
             if facet is None:
@@ -50,6 +63,10 @@ class Searcher(object):
                         groupedby=facet,
                         filter=filter_kwargs
                     ).groups().items()}
+
+        print("After search:", open_files())
+
+        raise ValueError
 
         from ..database import get_activity
 

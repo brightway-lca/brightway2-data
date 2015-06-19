@@ -387,7 +387,10 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
     def search(self, string, *args, **kwargs):
         kwargs['database'] = self.name
-        return Searcher().search(string, **kwargs)
+        with Searcher() as s:
+            results = s.search(string, **kwargs)
+        return results
+        # return Searcher().search(string, **kwargs)
 
     def graph_technosphere(self, filename=None, **kwargs):
         from bw2analyzer.matrix_grapher import SparseMatrixGrapher
