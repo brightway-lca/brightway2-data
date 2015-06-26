@@ -83,7 +83,7 @@ class Activity(ActivityProxyBase):
                 "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        databases.set_modified(self['database'])
+        databases.set_dirty(self['database'])
 
         for key, value in dict_as_activitydataset(self._data).items():
             setattr(self._document, key, value)
@@ -154,6 +154,7 @@ class Activity(ActivityProxyBase):
             if exc['input'] == exc['output']:
                 new_data['input'] = new_data['output']
             ExchangeDataset.create(**new_data)
+
         return activity
 
 
@@ -173,9 +174,13 @@ class Exchange(ExchangeProxyBase):
                 "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        databases.set_modified(self['output'][0])
         databases.set_dirty(self['output'][0])
 
         for key, value in dict_as_exchangedataset(self._data).items():
             setattr(self._document, key, value)
         self._document.save()
+
+    def delete(self):
+        self._document.delete_instance()
+        databases.set_dirty(self['output'][0])
+        self = None
