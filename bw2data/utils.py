@@ -195,7 +195,7 @@ def merge_databases(parent_db, *others):
     pass
 
 
-def download_file(filename):
+def download_file(filename, directory="downloads"):
     """Download a file from the Brightway2 website and write it to disk in ``downloads`` directory.
 
     Streams download to reduce memory usage.
@@ -208,7 +208,8 @@ def download_file(filename):
 
     """
 
-    dirpath = projects.request_directory("downloads")
+    assert isinstance(directory, str), "`directory` must be a string"
+    dirpath = projects.request_directory(directory)
     filepath = os.path.join(dirpath, filename)
     download = requests.get(DOWNLOAD_URL + filename, stream=True).raw
     chunk = 128 * 1024
