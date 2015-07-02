@@ -485,6 +485,16 @@ class DatabaseTest(BW2DataTest):
         with self.assertRaises(InvalidExchange):
             database.write(database_data, process=False)
 
+    def test_zero_amount_is_valid_exchange(self):
+        database = DatabaseChooser("testy")
+        database.register()
+        database_data = {
+            ("testy", "A"): {'exchanges': [
+                {'input': ('testy', 'A'), 'type': 'technosphere', 'amount': 0.}
+            ]},
+        }
+        database.write(database_data, process=False)
+
     def test_process_geomapping_array(self):
         database = DatabaseChooser("a database")
         database.register()

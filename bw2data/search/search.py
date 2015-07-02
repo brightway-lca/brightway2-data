@@ -66,8 +66,6 @@ class Searcher(object):
 
         print("After search:", open_files())
 
-        raise ValueError
-
         from ..database import get_activity
 
         if proxy and facet is not None:

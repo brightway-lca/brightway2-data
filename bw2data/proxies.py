@@ -196,7 +196,7 @@ class ExchangeProxyBase(ProxyBase):
                 self['output'][0])
             )
 
-        if not self.get('amount') or not isinstance(self['amount'], Number):
+        if not isinstance(self.get('amount', None), Number):
             errors.append("Invalid or missing field ``amount``")
         if not self.get('type'):
             errors.append("Missing field ``type``")

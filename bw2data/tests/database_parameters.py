@@ -52,9 +52,6 @@ class DatabaseParameterTest(BW2DataTest):
 
     def test_original_data_right_form(self):
         self.assertEqual(
-            sorted(database_parameters['ttttttt'], key=lambda x: x['name']),
-            sorted([
-                {'name': 'bar', 'formula': 'foo * 2'},
-                {'name': 'foo', 'amount': 1}
-            ], key=lambda x: x['name'])
+            database_parameters['ttttttt'],
+            {'foo': {'amount': 1}, 'bar': {'formula': 'foo * 2'}}
         )

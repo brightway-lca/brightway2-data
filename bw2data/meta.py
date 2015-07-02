@@ -90,6 +90,7 @@ class Databases(SerializedDict):
         self.flush()
 
     def set_dirty(self, database):
+        self.set_modified(database)
         if self[database].get('dirty'):
             pass
         else:
