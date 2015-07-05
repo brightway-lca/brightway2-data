@@ -92,8 +92,9 @@ class Activity(ActivityProxyBase):
         if databases[self['database']].get('searchable', True):
             IndexManager().update_dataset(self._data)
 
-        mapping.add([self.key])
-        if self.get('location'):
+        if self.key not in mapping:
+            mapping.add([self.key])
+        if self.get('location') and self['location'] not in geomapping:
             geomapping.add([self['location']])
 
     def exchanges(self):

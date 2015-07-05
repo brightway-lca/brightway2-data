@@ -24,6 +24,7 @@ try:
 except ImportError:
     import pickle
 
+
 # AD = ActivityDataset
 # out_a = AD.alias()
 # in_a = AD.alias()
@@ -286,6 +287,11 @@ Process inventory documents to NumPy structured arrays.
 Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         """
+        try:
+            from bw2regional import faces
+        except ImportError:
+            faces = None
+
         num_exchanges = ExchangeDataset.select().where(ExchangeDataset.database == self.name).count()
         num_processes = ActivityDataset.select().where(
             ActivityDataset.database == self.name,
@@ -295,12 +301,19 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         # Create geomapping array
         arr = np.zeros((num_processes, ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
 
+        topo_mapping = []
+
         for index, row in enumerate(ActivityDataset.select(
                 ActivityDataset.location, ActivityDataset.key
                 ).where(
                 ActivityDataset.database == self.name,
                 ActivityDataset.type == "process"
                 ).order_by(ActivityDataset.key).dicts()):
+
+            if faces is not None:
+                for face_id in faces.get(row['location'], []):
+                    topo_mapping.append((row['key'], face_id))
+
             arr[index] = (
                 mapping[row['key']],
                 geomapping[row['location'] or config.global_location],
@@ -310,6 +323,21 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         with open(self.filepath_geomapping(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        if faces is not None:
+            arr = np.zeros((len(topo_mapping), ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
+
+            for index, obj in enumerate(topo_mapping):
+                key, face = obj
+                arr[index] = (
+                    mapping[key],
+                    geomapping[face],
+                    MAX_INT_32, MAX_INT_32,
+                    0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
+                )
+
+            with open(self.filepath_geomapping().replace("geomapping", "topomapping"), "wb") as f:
+                pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
         missing_production_keys = [x[0] for x in ActivityDataset.select(
             ActivityDataset.key).where(
