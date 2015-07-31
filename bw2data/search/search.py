@@ -47,7 +47,7 @@ class Searcher(object):
             fieldboosts={u"name": 5., u"categories": 2., u"product": 3.}
         )
 
-        print("Before search:", open_files())
+        # print("Before search:", open_files())
 
         with self.index.searcher() as searcher:
             if facet is None:
@@ -64,7 +64,7 @@ class Searcher(object):
                         filter=filter_kwargs
                     ).groups().items()}
 
-        print("After search:", open_files())
+        # print("After search:", open_files())
 
         from ..database import get_activity
 
