@@ -36,14 +36,19 @@ Base class for all Brightway2 data stores. Subclasses should define:
 
     __repr__ = lambda x: str(x)
 
-    @property
-    def metadata(self):
-        try:
-            return self._metadata[self.name]
-        except KeyError:
+    def _get_metadata(self):
+        if self.name not in self._metadata:
             raise UnknownObject(
-                "This object is not yet registered, and has no metadata"
+                "This object is not yet registered; can't get or set metadata"
             )
+        return self._metadata[self.name]
+
+    def _set_metadata(self, value):
+        self._get_metadata()
+        self._metadata[self.name] = value
+        self._metadata.flush()
+
+    metadata = property(_get_metadata, _set_metadata)
 
     @property
     def filename(self):

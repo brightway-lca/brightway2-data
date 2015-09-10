@@ -64,6 +64,12 @@ class DataStoreTestCase(BW2DataTest):
         with self.assertRaises(UnknownObject):
             d.metadata
 
+    def test_metadata_readable_writable(self):
+        d = MockDS("twilight")
+        d.register()
+        d.metadata = {'foo': 'bar'}
+        self.assertEqual(d.metadata, {'foo': 'bar'})
+
     def test_write_load(self):
         d = MockDS("full moon")
         d.write(range(10))
