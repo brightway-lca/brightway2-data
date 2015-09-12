@@ -24,7 +24,6 @@ import warnings
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from bw2data import config, Updates
-from bw2data.colors import Fore, init, deinit
 
 
 class UpdaterInterface(object):
@@ -35,51 +34,42 @@ class UpdaterInterface(object):
         updates_needed = self.needed()
 
         if not updates_needed:
-            print(Fore.GREEN + "\n*** Brightway2 is up to date! ***\n")
+            print("\n*** Brightway2 is up to date! ***\n")
         else:
-            print(Fore.RED + "\n*** Updates found ***")
+            print("\n*** Updates found ***")
             for update in updates_needed:
                 print(Updates.explain(update))
-            print(Fore.RED + "\n*** Action needed ***" + Fore.RESET + \
-                "\nPlease run " + Fore.BLUE + "bw2-uptodate\n")
+            print("\n*** Action needed ***\nPlease run bw2-uptodate\n")
 
     def update(self, confirm=True):
         updates_needed = self.needed()
 
         if updates_needed:
-            print(Fore.GREEN + "\nThe following updates will be applied:\n")
+            print("\nThe following updates will be applied:\n")
             for update in updates_needed:
                 print(Updates.explain(update))
             if confirm:
-                confirmation = input("\nType '" + Fore.MAGENTA  + "y" + \
-                    Fore.RESET + "'to confirm, " + Fore.RED + "anything else" + \
-                    Fore.RESET + " to cancel: "
+                confirmation = input(
+                    "\nType 'y'to confirm, anything else to cancel: "
                 )
                 if confirmation.strip() != 'y':
-                    print(Fore.MAGENTA + "\n*** Upgrade canceled ***\n")
+                    print("\n*** Upgrade canceled ***\n")
                     sys.exit(0)
 
             for update in updates_needed:
                 Updates.do_update(update)
         else:
-            print(Fore.GREEN + "\n*** Brightway2 is up to date! ***\n")
+            print("\n*** Brightway2 is up to date! ***\n")
 
 
 def main():
-    try:
-        init(autoreset=True)
-        config.create_basic_directories()
-        args = docopt(__doc__, version='Brightway2 up to date 0.1')
-        updater_interface = UpdaterInterface()
-        if args['--list'] or args['-l']:
-            updater_interface.list()
-        else:
-            updater_interface.update()
-    except:
-        deinit()
-        raise
-    finally:
-        deinit()
+    config.create_basic_directories()
+    args = docopt(__doc__, version='Brightway2 up to date 0.1')
+    updater_interface = UpdaterInterface()
+    if args['--list'] or args['-l']:
+        updater_interface.list()
+    else:
+        updater_interface.update()
 
 
 if __name__ == "__main__":
