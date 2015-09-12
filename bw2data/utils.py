@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
-from builtins import map
 
 from . import config, projects
 from .errors import WebUIError
