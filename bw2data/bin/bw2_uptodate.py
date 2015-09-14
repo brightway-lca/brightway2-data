@@ -63,7 +63,6 @@ class UpdaterInterface(object):
 
 
 def main():
-    config.create_basic_directories()
     args = docopt(__doc__, version='Brightway2 up to date 0.1')
     updater_interface = UpdaterInterface()
     if args['--list'] or args['-l']:
