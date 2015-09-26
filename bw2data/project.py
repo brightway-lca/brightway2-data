@@ -185,5 +185,20 @@ class ProjectManager(collections.Iterable):
             self.current = next(iter(self)).name
         return self.current
 
+    def report(self):
+        """Give a report on current projects, including installed databases and file sizes.
+
+        Returns tuples of ``(project name, number of databases, size of all databases (GB))``."""
+        from . import databases
+        _current = self.current
+        data = []
+        import os
+        names = sorted([x.name for x in self])
+        for obj in names:
+            self.current = obj
+            fp = os.path.join(projects.dir, "lci", "databases.db")
+            data.append((obj, len(databases), os.stat(fp).st_size / 1e9))
+        self.current = _current
+        return data
 
 projects = ProjectManager()
