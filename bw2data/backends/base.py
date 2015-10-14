@@ -150,7 +150,7 @@ class LCIBackend(ProcessedDataStore):
         )
 
     def find_dependents(self, data=None, ignore=None):
-        """Get sorted list of dependent databases (databases linked from exchanges).
+        """Get sorted list of direct dependent databases (databases linked from exchanges).
 
         Args:
             * *data* (dict, optional): Inventory data
@@ -174,6 +174,23 @@ class LCIBackend(ProcessedDataStore):
             and exc.get('input', [None])[0] not in ignore
         }
         return sorted(dependents)
+
+    def find_graph_dependents(self):
+        """Recursively get list of all dependent databases.
+
+        Returns:
+            A set of database names
+
+        """
+        def extend(seeds):
+            return set.union(seeds,
+                             set.union(*[set(databases[obj]['depends'])
+                                         for obj in seeds]))
+
+        seed, extended = {self.name}, extend({self.name})
+        while extended != seed:
+            seed, extended = extended, extend(seed)
+        return extended
 
     def delete(self):
         """Delete data from this instance. For the base class, only clears cached data."""
