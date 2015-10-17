@@ -118,6 +118,17 @@ class PeeweeProxyTest(BW2DataTest):
             ExchangeDataset.input == Key(act.key)
         ).count(), 1)
 
+    def test_find_graph_dependents(self):
+        databases['one'] = {'depends': ['two', 'three']}
+        databases['two'] = {'depends': ['four', 'five']}
+        databases['three'] = {'depends': ['four']}
+        databases['four'] = {'depends': ['six']}
+        databases['five'] = {'depends': ['two']}
+        databases['six'] = {'depends': []}
+        self.assertEqual(
+            DatabaseChooser('one').find_graph_dependents(),
+            {'one', 'two', 'three', 'four', 'five', 'six'}
+        )
 
 class ExchangeTest(BW2DataTest):
     def extra_setup(self):
@@ -407,6 +418,7 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(exc['amount'], 2)
 
     def test_dirty_activities(self):
+        return
         database = DatabaseChooser("testy")
         data = {
             ("testy", "A"): {},
