@@ -165,6 +165,13 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         """Returns both the generic ``base_uncertainty_fields`` plus class-specific ``dtype_fields``. ``dtype`` determines the columns of the :ref:`processed array <processing-data>`."""
         return self.dtype_fields + self.base_uncertainty_fields
 
+    def filepath_processed(self):
+        return os.path.join(
+            projects.dir,
+            "processed",
+            self.filename + ".pickle"
+        )
+
     def write(self, data, process=True):
         """Serialize intermediate data to disk.
 
