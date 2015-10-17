@@ -418,7 +418,6 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(exc['amount'], 2)
 
     def test_dirty_activities(self):
-        return
         database = DatabaseChooser("testy")
         data = {
             ("testy", "A"): {},
