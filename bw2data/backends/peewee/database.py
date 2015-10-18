@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import sqlite3_lci_db
-from ... import mapping, geomapping, config, databases
+from ... import mapping, geomapping, config, databases, preferences
 from ...errors import UntypedExchange, InvalidExchange, UnknownObject
 from ...search import IndexManager, Searcher
 from ...sqlite import Key
@@ -214,6 +214,11 @@ class SQLiteBackend(LCIBackend):
         databases[self.name]['number'] = len(data)
         databases.set_modified(self.name)
         mapping.add(data.keys())
+
+        if preferences.get('allow incomplete imports'):
+            mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})
+            mapping.add({exc['output'] for ds in data.values() for exc in ds.get('exchanges', [])})
+
         geomapping.add({x["location"] for x in data.values() if
                        x.get("location")})
         if data:

@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from ... import databases, config, mapping, geomapping, projects
+from ... import databases, config, mapping, geomapping, projects, preferences
 from ...errors import MissingIntermediateData
 from ...fatomic import open as atomic_open
 from .proxies import Activity
@@ -181,6 +181,11 @@ class SingleFileDatabase(LCIBackend):
         mapping.add(data.keys())
         geomapping.add({x[u"location"] for x in data.values() if
                        x.get(u"location", False)})
+
+        if preferences.get('allow incomplete imports'):
+            mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})
+            mapping.add({exc['output'] for ds in data.values() for exc in ds.get('exchanges', [])})
+
         with atomic_open(self.filepath_intermediate(), "wb") as f:
             pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
 

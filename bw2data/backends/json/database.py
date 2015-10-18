@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from ... import config, mapping, geomapping, databases, projects
+from ... import config, mapping, geomapping, databases, projects, preferences
 from .proxies import Activity
 from ..base import LCIBackend
 from .sync_json_dict import SynchronousJSONDict
@@ -78,6 +78,10 @@ class JSONDatabase(LCIBackend):
         mapping.add(data.keys())
         geomapping.add({x[u"location"] for x in data.values() if
                        x.get(u"location", False)})
+
+        if preferences.get('allow incomplete imports'):
+            mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})
+            mapping.add({exc['output'] for ds in data.values() for exc in ds.get('exchanges', [])})
 
         if isinstance(data, SynchronousJSONDict) and \
                 data.dirpath == self.filepath_intermediate():
