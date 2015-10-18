@@ -135,13 +135,6 @@ class LCIBackend(ProcessedDataStore):
     def filepath_intermediate(self):
         raise NotImplementedError
 
-    def filepath_processed(self):
-        return os.path.join(
-            projects.dir,
-            "processed",
-            self.filename + ".pickle"
-        )
-
     def filepath_geomapping(self):
         return os.path.join(
             projects.dir,
@@ -189,7 +182,7 @@ class LCIBackend(ProcessedDataStore):
 
         seed, extended = {self.name}, extend({self.name})
         while extended != seed:
-            seed, extended = extended, extend(seed)
+            seed, extended = extended, extend(extended)
         return extended
 
     def delete(self):

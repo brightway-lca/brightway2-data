@@ -1,5 +1,32 @@
 # -*- coding: utf-8 -*-
+__all__ = [
+    'calculation_setups',
+    'config',
+    'convert_backend',
+    'Database',
+    'database_parameters',
+    'DatabaseParameterSet',
+    'databases',
+    'DataStore',
+    'get_activity',
+    'IndexManager',
+    'JsonWrapper',
+    'mapping',
+    'Method',
+    'methods',
+    'Normalization',
+    'normalizations',
+    'preferences',
+    'ProcessedDataStore',
+    'projects',
+    'Searcher',
+    'set_data_dir',
+    'Weighting',
+    'weightings',
+]
+
 __version__ = (2, 0, "dev2")
+
 
 from .project import projects
 from .configuration import config
@@ -46,7 +73,6 @@ from .data_store import DataStore, ProcessedDataStore
 from .method import Method
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
-from .query import Query, Filter, Result
 from .backends import convert_backend
 # Don't confuse nose tests
 from .updates import Updates
