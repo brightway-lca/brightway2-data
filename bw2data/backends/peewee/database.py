@@ -419,11 +419,29 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def search(self, string, *args, **kwargs):
+        """Search this database for ``string``.
+
+        The searcher include the following fields:
+
+        * name
+        * comment
+        * categories
+        * location
+        * reference product
+
+        ``string`` can include wild cards, e.g. ``trans*``.
+
+        Optional keyword arguments:
+
+        * ``limit``: Number of results to return.
+        * ``facet``: Field to facet results. Must be one of ``name``, ``product``, ``categories``, ``location``, or ``database``.
+        * ``proxy``: Return ``Activity`` proxies instead of raw Whoosh documents. Default is ``True``.
+
+        Returns a list of ``Activity`` datasets."""
         kwargs['database'] = self.name
         with Searcher() as s:
             results = s.search(string, **kwargs)
         return results
-        # return Searcher().search(string, **kwargs)
 
     def graph_technosphere(self, filename=None, **kwargs):
         from bw2analyzer.matrix_grapher import SparseMatrixGrapher
