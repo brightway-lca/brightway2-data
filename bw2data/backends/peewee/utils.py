@@ -2,7 +2,8 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from ... import Method
+from ...method import Method
+from ...meta import methods
 
 
 def dict_as_activitydataset(ds):
@@ -37,6 +38,8 @@ def replace_exchanges(old_key, new_key):
     for index, exc in enumerate(Exchanges(old_key, reverse=True)):
         exc["input"] = new_key
         exc.save()
+    else:
+        return 0
     return index + 1
 
 
@@ -44,14 +47,14 @@ def replace_cfs(old_key, new_key):
     """Replace ``old_key`` with ``new_key`` in characterization factors.
 
     Returns list of modified methods."""
+    altered_methods = []
     for name in methods:
-        changed, lst = False. []
+        changed = False
         data = Method(name).load()
         for line in data:
             if line[0] == old_key:
-                line[0] = new_key
-                changed = True
+                line[0], changed = new_key, True
         if changed:
             Method(name).write(data)
-            lst.append(name)
-        return lst
+            altered_methods.append(name)
+    return altered_methods
