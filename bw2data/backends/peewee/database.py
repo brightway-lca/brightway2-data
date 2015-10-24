@@ -217,7 +217,9 @@ class SQLiteBackend(LCIBackend):
 
         if preferences.get('allow incomplete imports'):
             mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})
-            mapping.add({exc['output'] for ds in data.values() for exc in ds.get('exchanges', [])})
+            mapping.add({exc.get('output') for ds in data.values()
+                                           for exc in ds.get('exchanges', [])
+                                           if exc.get('output')})
 
         geomapping.add({x["location"] for x in data.values() if
                        x.get("location")})
