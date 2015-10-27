@@ -173,16 +173,34 @@ class ProjectManager(collections.Iterable):
         self._reset_databases()
         return temp_dir
 
-    def delete_project(self, name=None):
+    def delete_project(self, name=None, delete_dir=False):
+        """Delete project ``name``, or the current project.
+
+        ``name`` is the project to delete. If ``name`` is not provided, delete the current project.
+
+        By default, the underlying project directory is not deleted; only the project name is removed from the list of active projects. If ``delete_dir`` is ``True``, then also delete the project directory.
+
+        If deleting the current project, this function sets the current directory to ``default`` if it exists, or to a random project.
+
+        Returns the current project."""
+        victim = name or self.current
+        if victim not in self:
+            raise ValueError("{} is not a project".format(victim))
+        ProjectDataset.delete().where(ProjectDataset.name == victim).execute()
+
+        if delete_dir:
+            dir_path = os.path.join(
+                self._base_data_dir,
+                safe_filename(victim)
+            )
+            assert os.path.isdir(dir_path), "Can't find project directory"
+            shutil.rmtree(dir_path)
+
         if name is None:
-            name = self.current
-        if name not in self:
-            raise ValueError("{} is not a project".format(name))
-        ProjectDataset.delete().where(ProjectDataset.name == name).execute()
-        if "default" in self:
-            self.current = "default"
-        else:
-            self.current = next(iter(self)).name
+            if "default" in self:
+                self.current = "default"
+            else:
+                self.current = next(iter(self)).name
         return self.current
 
     def report(self):
