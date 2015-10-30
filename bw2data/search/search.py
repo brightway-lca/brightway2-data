@@ -16,6 +16,9 @@ def open_files():
 
 
 class Searcher(object):
+    # def __init__(self):
+    #     self.index = IndexManager().get()
+
     def __enter__(self):
         self.index = IndexManager().get()
         return self
@@ -24,8 +27,8 @@ class Searcher(object):
         self.index.close()
 
     def search(self, string, limit=25, facet=None, proxy=True, **kwargs):
-        FILTER_TERMS = {'name', 'product', 'location', 'database'}
-        fields = ["name", "comment", "product", "categories", 'location']
+        FILTER_TERMS = {u'name', u'product', u'location', u'database'}
+        fields = [u"name", u"comment", u"product", u"categories"]
 
         filter_kwargs = {
             k: v for k, v in kwargs.items()
@@ -41,13 +44,10 @@ class Searcher(object):
         qp = MultifieldParser(
             fields,
             self.index.schema,
-            fieldboosts={
-                "name": 5.,
-                "categories": 2.,
-                "product": 2.,
-                'location': 2,
-            }
+            fieldboosts={u"name": 5., u"categories": 2., u"product": 3.}
         )
+
+        # print("Before search:", open_files())
 
         with self.index.searcher() as searcher:
             if facet is None:
@@ -63,6 +63,8 @@ class Searcher(object):
                         groupedby=facet,
                         filter=filter_kwargs
                     ).groups().items()}
+
+        # print("After search:", open_files())
 
         from ..database import get_activity
 
