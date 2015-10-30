@@ -7,6 +7,7 @@ from .errors import WebUIError
 from .fatomic import open
 from .project import safe_filename
 from contextlib import contextmanager
+from io import StringIO
 import collections
 import datetime
 import itertools
@@ -20,11 +21,7 @@ import urllib
 import webbrowser
 import zipfile
 import sys
-try:
-    import StringIO as StringIO
-except ImportError:
-    # Py3
-    from io import StringIO
+
 
 # Maximum value for unsigned integer stored in 4 bytes
 MAX_INT_32 = 4294967295
@@ -194,13 +191,17 @@ def merge_databases(parent_db, *others):
     pass
 
 
-def download_file(filename, directory="downloads"):
-    """Download a file from the Brightway2 website and write it to disk in ``downloads`` directory.
+def download_file(filename, directory="downloads", url=None):
+    """Download a file and write it to disk in ``downloads`` directory.
+
+    If ``url`` is None, uses the Brightway2 data base URL. ``url`` should everything up to the filename, such that ``url`` + ``filename`` is the valid complete URL to download from.
 
     Streams download to reduce memory usage.
 
     Args:
         * *filename* (str): The filename to download.
+        * *directory* (str, optional): Directory to save the file. Created if it doesn't already exist.
+        * *url* (str, optional): URL where the file is located, if not the default Brightway data URL.
 
     Returns:
         The path of the created file.
@@ -210,7 +211,8 @@ def download_file(filename, directory="downloads"):
     assert isinstance(directory, str), "`directory` must be a string"
     dirpath = projects.request_directory(directory)
     filepath = os.path.join(dirpath, filename)
-    download = requests.get(DOWNLOAD_URL + filename, stream=True).raw
+    download_path = (url if url is not None else DOWNLOAD_URL) + filename
+    download = requests.get(download_path, stream=True).raw
     chunk = 128 * 1024
     with open(filepath, "wb") as f:
         while True:
@@ -261,7 +263,7 @@ def set_data_dir(dirpath, permanent=True):
 
 def create_in_memory_zipfile_from_directory(path):
     # Based on http://stackoverflow.com/questions/2463770/python-in-memory-zip-library
-    memory_obj = StringIO.StringIO()
+    memory_obj = StringIO()
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     zf = zipfile.ZipFile(memory_obj, "a", zipfile.ZIP_DEFLATED, False)
     for filename in files:
