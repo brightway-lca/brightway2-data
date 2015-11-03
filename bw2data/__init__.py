@@ -25,7 +25,7 @@ __all__ = [
     'weightings',
 ]
 
-__version__ = (2, 0, "dev4")
+__version__ = (2, 0, "dev5")
 
 
 from .project import projects
