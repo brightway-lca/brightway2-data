@@ -21,6 +21,8 @@ class IOTableBackend(SQLiteBackend):
     """IO tables have too much data to store each value in a database; instead, we only store the processed data in NumPy arrays.
 
     Activities will not seem to have any activities."""
+    backend = "iotable"
+
     def write(self, products, exchanges, **kwargs):
         """
 

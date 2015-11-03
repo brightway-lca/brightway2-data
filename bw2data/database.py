@@ -6,6 +6,7 @@ from . import databases, config
 from .backends.single_file import SingleFileDatabase
 from .backends.json import JSONDatabase
 from .backends.peewee import SQLiteBackend
+from .backends.iotable import IOTableBackend
 from .utils import get_activity
 
 
@@ -42,6 +43,8 @@ def DatabaseChooser(name, backend=None):
         return SQLiteBackend(name)
     elif backend == "singlefile":
         return SingleFileDatabase(name)
+    elif backend == "iotable":
+        return IOTableBackend(name)
     elif backend == "json":
         raise ValueError("JSON backend not supported in dev release")
         return JSONDatabase(name)
