@@ -210,12 +210,20 @@ class ProjectManager(collections.Iterable):
         from . import databases
         _current = self.current
         data = []
-        import os
+
+        def get_dir_size(dirpath):
+            """Modified from http://stackoverflow.com/questions/12480367/how-to-generate-directory-size-recursively-in-python-like-du-does.
+
+            Does not follow symbolic links"""
+            return sum(
+                sum(os.path.getsize(os.path.join(root, name))
+                for name in files
+            ) for root, dirs, files in os.walk(dirpath))
+
         names = sorted([x.name for x in self])
         for obj in names:
             self.current = obj
-            fp = os.path.join(projects.dir, "lci", "databases.db")
-            data.append((obj, len(databases), os.stat(fp).st_size / 1e9))
+            data.append((obj, len(databases), get_dir_size(projects.dir) / 1e9))
         self.current = _current
         return data
 
