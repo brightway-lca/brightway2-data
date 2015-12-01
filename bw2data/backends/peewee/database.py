@@ -373,6 +373,8 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 raise UntypedExchange
             if "amount" not in data or "input" not in data:
                 raise InvalidExchange
+            if np.isnan(data['amount']) or np.isinf(data['amount']):
+                raise ValueError("Invalid amount in exchange {}".format(data))
 
             found_exchanges = True
 

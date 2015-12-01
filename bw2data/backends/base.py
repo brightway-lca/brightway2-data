@@ -267,6 +267,8 @@ Doesn't return anything, but writes two files to disk.
                     raise InvalidExchange
                 if "type" not in exc:
                     raise UntypedExchange
+                if np.isnan(exc['amount']) or np.isinf(exc['amount']):
+                    raise ValueError("Invalid amount in exchange {}".format(data))
 
                 if exc['type'] == 'production':
                     production_found = True

@@ -34,6 +34,7 @@ from ..validate import db_validator
 from .fixtures import food, biosphere
 import copy
 import datetime
+import numpy as np
 import os
 import pickle
 import warnings
@@ -461,6 +462,23 @@ class DatabaseTest(BW2DataTest):
             ]},
         }
         with self.assertRaises(UnknownObject):
+            database.write(data)
+
+    def test_process_invalid_exchange_value(self):
+        database = DatabaseChooser("testy")
+        database.register()
+        data = {
+            ("testy", "A"): {},
+            ("testy", "B"): {'exchanges': [
+                {'input': ("testy", "A"),
+                 'amount': np.nan,
+                 'type': 'technosphere'},
+                {'input': ("testy", "C"),
+                 'amount': 1,
+                 'type': 'technosphere'},
+            ]},
+        }
+        with self.assertRaises(ValueError):
             database.write(data)
 
     def test_untyped_exchange_error(self):
@@ -1008,6 +1026,23 @@ class SingleFileDatabaseTest(BW2DataTest):
         database = SingleFileDatabase("a database")
         self.assertEqual(database.validator, db_validator)
         self.assertTrue(database.validate({}))
+
+    def test_process_invalid_exchange_value(self):
+        database = SingleFileDatabase("testy")
+        database.register()
+        data = {
+            ("testy", "A"): {},
+            ("testy", "B"): {'exchanges': [
+                {'input': ("testy", "A"),
+                 'amount': np.nan,
+                 'type': 'technosphere'},
+                {'input': ("testy", "C"),
+                 'amount': 1,
+                 'type': 'technosphere'},
+            ]},
+        }
+        with self.assertRaises(ValueError):
+            database.write(data)
 
     def test_delete(self):
         d = SingleFileDatabase("biosphere")
