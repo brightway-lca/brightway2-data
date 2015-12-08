@@ -5,7 +5,19 @@ from eight import *
 from .. import config, projects
 from ..sqlite import keyjoin
 from .schema import bw2_schema
-from whoosh import index, query
+from whoosh import index as windex
+from whoosh import query
+import os
+
+
+path = projects.request_directory(u"whoosh")
+if not os.path.exists(path):
+    os.mkdir(path)
+
+try:
+    index_ = windex.open_dir(path)
+except index.EmptyIndexError:
+    index_ = windex.create_in(path, bw2_schema)
 
 
 class IndexManager(object):
@@ -13,13 +25,15 @@ class IndexManager(object):
         self.path = projects.request_directory(u"whoosh")
 
     def get(self):
-        try:
-            return index.open_dir(self.path)
-        except index.EmptyIndexError:
-            return self.create()
+        return index_
+        # try:
+        #     return index.open_dir(self.path)
+        # except index.EmptyIndexError:
+        #     return self.create()
 
     def create(self):
-        return index.create_in(self.path, bw2_schema)
+        return
+        return windex.create_in(self.path, bw2_schema)
 
     def reset(self):
         return self.create()

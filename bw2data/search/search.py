@@ -16,15 +16,16 @@ def open_files():
 
 
 class Searcher(object):
-    # def __init__(self):
-    #     self.index = IndexManager().get()
-
     def __enter__(self):
+        print("Entering __enter__", open_files())
         self.index = IndexManager().get()
+        print("__enter__: Got index", open_files())
         return self
 
     def __exit__(self, type, value, traceback):
-        self.index.close()
+        print("Calling __exit__", open_files())
+        # self.index.close()
+        print("__exit__: Closed index", open_files())
 
     def search(self, string, limit=25, facet=None, proxy=True, **kwargs):
         FILTER_TERMS = {u'name', u'product', u'location', u'database'}
@@ -47,8 +48,6 @@ class Searcher(object):
             fieldboosts={u"name": 5., u"categories": 2., u"product": 3.}
         )
 
-        # print("Before search:", open_files())
-
         with self.index.searcher() as searcher:
             if facet is None:
                 results = [
@@ -63,8 +62,6 @@ class Searcher(object):
                         groupedby=facet,
                         filter=filter_kwargs
                     ).groups().items()}
-
-        # print("After search:", open_files())
 
         from ..database import get_activity
 
