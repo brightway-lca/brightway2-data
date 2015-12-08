@@ -25,7 +25,7 @@ from ..backends.single_file import (
     Activity as SFActivity,
     Exchange as SFExchange,
 )
-from ..errors import NotAllowed
+from ..errors import NotAllowed, WrongDatabase
 from ..meta import mapping, geomapping, databases, methods
 from ..serialization import JsonWrapper, JsonSanitizer
 from ..sqlite import Key
@@ -287,6 +287,14 @@ class DatabaseTest(BW2DataTest):
             list(d.load().values())[0]['exchanges'][0]['input'],
             ('old name', '1')
         )
+
+    def test_raise_wrong_database(self):
+        data = {
+            ("foo", '1'): {}
+        }
+        d = DatabaseChooser("bar")
+        with self.assertRaises(WrongDatabase):
+            d.write(data)
 
     def test_deletes_from_database(self):
         d = DatabaseChooser("biosphere")

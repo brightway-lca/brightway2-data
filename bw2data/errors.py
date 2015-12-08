@@ -38,3 +38,7 @@ class ValidityError(BW2Exception):
 class NotAllowed(BW2Exception):
     """This operation is not allowed"""
     pass
+
+class WrongDatabase(BW2Exception):
+    """"""
+    pass

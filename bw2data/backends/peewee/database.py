@@ -4,7 +4,7 @@ from eight import *
 
 from . import sqlite3_lci_db
 from ... import mapping, geomapping, config, databases, preferences
-from ...errors import UntypedExchange, InvalidExchange, UnknownObject
+from ...errors import UntypedExchange, InvalidExchange, UnknownObject, WrongDatabase
 from ...search import IndexManager, Searcher
 from ...sqlite import Key
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
@@ -211,6 +211,12 @@ class SQLiteBackend(LCIBackend):
 
         This deletes all existing data for this database."""
         self.register()
+        wrong_database = {key[0] for key in data}.difference({self.name})
+        if wrong_database:
+            raise WrongDatabase("Can't write activities in databases {} to database {}".format(
+                                wrong_database, self.name))
+
+
         databases[self.name]['number'] = len(data)
         databases.set_modified(self.name)
         mapping.add(data.keys())
