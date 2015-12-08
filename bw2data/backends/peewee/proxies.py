@@ -4,6 +4,7 @@ from eight import *
 
 from ... import databases, mapping, geomapping, config
 from ...errors import ValidityError, NotAllowed
+from ...project import writable_project
 from ...proxies import ActivityProxyBase, ExchangeProxyBase
 from ...search import IndexManager
 from ...sqlite import keyjoin, Key
@@ -35,7 +36,9 @@ class Exchanges(collections.Iterable):
     def filter(self, expr):
         self._args.append(expr)
 
+    @writable_project
     def delete(self):
+        databases.set_dirty(self._key[0])
         ExchangeDataset.delete().where(*self._args).execute()
 
     def _get_queryset(self):
@@ -70,12 +73,14 @@ class Activity(ActivityProxyBase):
     def dbkey(self):
         return keyjoin(self.key)
 
+    @writable_project
     def delete(self):
         IndexManager().delete_dataset(self._data)
         self.exchanges().delete()
         self._document.delete_instance()
         self = None
 
+    @writable_project
     def save(self):
         if not self.valid():
             raise ValidityError("This activity can't be saved for the "
@@ -133,6 +138,7 @@ class Activity(ActivityProxyBase):
             exc[key] = kwargs[key]
         return exc
 
+    @writable_project
     def copy(self, name, code=None):
         activity = Activity()
         for key, value in self.items():
@@ -168,6 +174,7 @@ class Exchange(ExchangeProxyBase):
             self._document = document
             self._data = self._document.data
 
+    @writable_project
     def save(self):
         if not self.valid():
             raise ValidityError("This exchange can't be saved for the "
@@ -181,6 +188,7 @@ class Exchange(ExchangeProxyBase):
             setattr(self._document, key, value)
         self._document.save()
 
+    @writable_project
     def delete(self):
         self._document.delete_instance()
         databases.set_dirty(self['output'][0])

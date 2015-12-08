@@ -5,6 +5,7 @@ from eight import *
 from . import sqlite3_lci_db
 from ... import mapping, geomapping, config, databases, preferences
 from ...errors import UntypedExchange, InvalidExchange, UnknownObject, WrongDatabase
+from ...project import writable_project
 from ...search import IndexManager, Searcher
 from ...sqlite import Key
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
@@ -206,6 +207,7 @@ class SQLiteBackend(LCIBackend):
 
     # Public API
 
+    @writable_project
     def write(self, data, process=True):
         """Write ``data`` to database.
 
@@ -274,6 +276,7 @@ class SQLiteBackend(LCIBackend):
         obj.update(kwargs)
         return obj
 
+    @writable_project
     def make_searchable(self):
         if self._searchable:
             print("This database is already searchable")
@@ -282,11 +285,13 @@ class SQLiteBackend(LCIBackend):
         databases.flush()
         IndexManager().add_datasets(self)
 
+    @writable_project
     def make_unsearchable(self):
         databases[self.name]['searchable'] = False
         databases.flush()
         IndexManager().delete_database(self.name)
 
+    @writable_project
     def delete(self):
         """Delete all data from SQLite database and Whoosh index"""
         ActivityDataset.delete().where(ActivityDataset.database== self.name).execute()

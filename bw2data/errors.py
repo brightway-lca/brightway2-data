@@ -40,5 +40,10 @@ class NotAllowed(BW2Exception):
     pass
 
 class WrongDatabase(BW2Exception):
-    """"""
+    """Can't save activities from database `x` to database `y`."""
+    pass
+
+
+class ReadOnlyProject(BW2Exception):
+    """Current project is read only"""
     pass

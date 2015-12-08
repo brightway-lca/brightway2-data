@@ -25,11 +25,11 @@ __all__ = [
     'weightings',
 ]
 
-__version__ = (2, 0, "dev6")
+__version__ = (2, 0, "dev7")
 
 
-from .project import projects
 from .configuration import config
+from .project import projects
 
 # Add projects database to global list of sqlite3 databases
 config.sqlite3_databases.append((

@@ -3,8 +3,12 @@ from __future__ import print_function, unicode_literals
 from future.utils import python_2_unicode_compatible
 from eight import *
 
+from . import config
+from .errors import ReadOnlyProject
 from .filesystem import safe_filename, create_dir
 from .sqlite import PickleField, create_database
+from fasteners import InterProcessLock
+from functools import wraps
 from peewee import Model, TextField, BlobField
 import appdirs
 import collections
@@ -13,8 +17,19 @@ import re
 import shutil
 import sys
 import tempfile
+import warnings
+import wrapt
+
 
 LABEL = "Brightway2" if sys.version_info < (3, 0) else "Brightway3"
+
+READ_ONLY_PROJECT = """
+***Read only project***
+
+This project is being used by another process and no writes can be made until:
+    1. You close the other program, or switch to a different project, *and*
+    2. You call `projects.enable_writes` *and* get the response `True`.
+"""
 
 @python_2_unicode_compatible
 class ProjectDataset(Model):
@@ -44,10 +59,10 @@ class ProjectManager(collections.Iterable):
             LABEL,
             "pylca",
         )
+        self.read_only = True
         self._create_base_directories()
-        self._project_name = "default"
         self.db = self._create_projects_database()
-        self.create_project()
+        self.current = "default"
 
     def __iter__(self):
         for project_ds in ProjectDataset.select():
@@ -75,18 +90,24 @@ class ProjectManager(collections.Iterable):
         return self._project_name
 
     def _set_project(self, name):
+        if not self.read_only:
+            self._lock.release()
         self._project_name = str(name)
         self.create_project(name)
+        self._lock = InterProcessLock(os.path.join(self.dir, "write-lock"))
+        self.read_only = not self._lock.acquire(timeout = 0.05)
+
+        if self.read_only:
+            warnings.warn(READ_ONLY_PROJECT)
+
         self._reset_meta()
         self._reset_databases()
 
     def _reset_meta(self):
-        from . import config
         for obj in config.metadata:
             obj.__init__()
 
     def _reset_databases(self):
-        from . import config
         for name, obj, include_project in config.sqlite3_databases:
             if include_project:
                 fp = os.path.join(self.dir, name)
@@ -133,6 +154,14 @@ class ProjectManager(collections.Iterable):
                 create_dir(os.path.join(self.dir, dir_name))
         if not os.path.isdir(self.logs_dir):
             create_dir(self.logs_dir)
+
+    def enable_writes(self):
+        """Enable writing for the current project."""
+        self.read_only = not self._lock.acquire(timeout = 0.05)
+        if not self.read_only:
+            self._reset_meta()
+            self._reset_databases()
+        return not self.read_only
 
     def copy_project(self, new_name, switch=True):
         """Copy current project to a new project named ``new_name``. If ``switch``, switch to new project."""
@@ -228,3 +257,10 @@ class ProjectManager(collections.Iterable):
         return data
 
 projects = ProjectManager()
+
+
+@wrapt.decorator
+def writable_project(wrapped, instance, args, kwargs):
+    if projects.read_only:
+        raise ReadOnlyProject(READ_ONLY_PROJECT)
+    return wrapped(*args, **kwargs)

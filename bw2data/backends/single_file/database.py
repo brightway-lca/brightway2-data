@@ -5,9 +5,10 @@ from eight import *
 from ... import databases, config, mapping, geomapping, projects, preferences
 from ...errors import MissingIntermediateData
 from ...fatomic import open as atomic_open
-from .proxies import Activity
+from ...project import writable_project
 from ...utils import natural_sort, safe_filename
 from ...validate import db_validator
+from .proxies import Activity
 from ..base import LCIBackend
 import datetime
 import os
@@ -154,6 +155,7 @@ class SingleFileDatabase(LCIBackend):
             datetime.datetime.fromtimestamp(os.stat(os.path.join(
             projects.dir, directory, name)).st_mtime)) for name in files])
 
+    @writable_project
     def write(self, data, process=True):
         """Serialize data to disk.
 

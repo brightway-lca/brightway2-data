@@ -5,6 +5,7 @@ from future.utils import python_2_unicode_compatible
 
 from . import config, projects
 from .fatomic import open as atomic_open
+from .project import writable_project
 from time import time
 import bz2
 import os
@@ -140,6 +141,7 @@ class SerializedDict(collections.MutableMapping):
             key = tuple(key)
         return self.data[key]
 
+    @writable_project
     def __setitem__(self, key, value):
         self.data[key] = value
         self.flush()
@@ -171,6 +173,7 @@ class SerializedDict(collections.MutableMapping):
     def values(self):
         return self.data.values()
 
+    @writable_project
     def serialize(self, filepath=None):
         """Method to do the actual serialization. Can be replaced with other serialization formats.
 
@@ -209,6 +212,7 @@ class SerializedDict(collections.MutableMapping):
 
 class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
+    @writable_project
     def serialize(self):
         with atomic_open(self.filepath, "wb") as f:
             pickle.dump(self.pack(self.data), f,

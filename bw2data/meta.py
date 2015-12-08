@@ -4,6 +4,7 @@ from eight import *
 from future.utils import python_2_unicode_compatible
 
 from . import config
+from .project import writable_project
 from .serialization import SerializedDict, PickledDict, CompoundJSONDict
 import datetime
 
@@ -17,6 +18,7 @@ class Mapping(PickledDict):
     This dictionary does not support setting items directly; instead, use the ``add`` method to add multiple keys."""
     filename = "mapping.pickle"
 
+    @writable_project
     def add(self, keys):
         """Add a set of keys. These keys can already be in the mapping; only new keys will be added.
 
@@ -62,7 +64,8 @@ class GeoMapping(Mapping):
     def __init__(self, *args, **kwargs):
         super(GeoMapping, self).__init__(*args, **kwargs)
         # At a minimum, "GLO" should always be present
-        self.add(["GLO"])
+        if "GLO" not in self:
+            self.add(["GLO"])
 
     def __unicode__(self):
         return u"Mapping from locations to parameter indices."
@@ -73,6 +76,7 @@ class Databases(SerializedDict):
     """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
     filename = "databases.json"
 
+    @writable_project
     def increment_version(self, database, number=None):
         """Increment the ``database`` version. Returns the new version."""
         self.data[database]["version"] += 1
@@ -85,10 +89,12 @@ class Databases(SerializedDict):
         """Return the ``database`` version"""
         return self.data[database].get("version")
 
+    @writable_project
     def set_modified(self, database):
         self[database]['modified'] = datetime.datetime.now().isoformat()
         self.flush()
 
+    @writable_project
     def set_dirty(self, database):
         self.set_modified(database)
         if self[database].get('dirty'):
@@ -97,6 +103,7 @@ class Databases(SerializedDict):
             self[database]['dirty'] = True
             self.flush()
 
+    @writable_project
     def clean(self):
         from . import Database
         for x in self:
@@ -109,6 +116,7 @@ class Databases(SerializedDict):
         return u"Brightway2 databases metadata with %i objects" % len(
             self.data)
 
+    @writable_project
     def __delitem__(self, name):
         from . import Database
         try:
@@ -157,7 +165,8 @@ class Preferences(PickledDict):
         super(Preferences, self).__init__(*args, **kwargs)
 
         # Default preferences
-        self['use_cache'] = self.get('use_cache', True)
+        if 'use_cache' not in self:
+            self['use_cache'] = True
 
 
 databases = Databases()

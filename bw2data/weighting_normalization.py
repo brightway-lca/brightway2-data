@@ -4,6 +4,7 @@ from eight import *
 
 from .ia_data_store import ImpactAssessmentDataStore
 from .meta import weightings, mapping, normalizations
+from .project import writable_project
 from .utils import MAX_INT_32, numpy_string
 from .validate import weighting_validator, normalization_validator
 import numpy as np
@@ -27,6 +28,7 @@ class Weighting(ImpactAssessmentDataStore):
     validator = weighting_validator
     dtype_fields = []
 
+    @writable_project
     def write(self, data):
         """Because of DataStore assumptions, need a one-element list"""
         if not isinstance(data, list) or not len(data) == 1:

@@ -5,6 +5,7 @@ from eight import *
 from . import config, projects
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
+from .project import writable_project
 from .utils import safe_filename, numpy_string
 from future.utils import python_2_unicode_compatible
 import numpy as np
@@ -43,6 +44,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
             )
         return self._metadata[self.name]
 
+    @writable_project
     def _set_metadata(self, value):
         self._get_metadata()
         self._metadata[self.name] = value
@@ -59,11 +61,13 @@ Base class for all Brightway2 data stores. Subclasses should define:
     def registered(self):
         return self.name in self._metadata
 
+    @writable_project
     def register(self, **kwargs):
         """Register an object with the metadata store. Takes any number of keyword arguments."""
         if self.name not in self._metadata:
             self._metadata[self.name] = kwargs
 
+    @writable_project
     def deregister(self):
         """Remove an object from the metadata store. Does not delete any files."""
         del self._metadata[self.name]
@@ -86,6 +90,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
         except OSError:
             raise MissingIntermediateData("Can't load intermediate data")
 
+    @writable_project
     def copy(self, name):
         """Make a copy of this object with a new ``name``.
 
@@ -114,6 +119,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
         from bw2io import BW2Package
         return BW2Package.export_obj(self)
 
+    @writable_project
     def write(self, data):
         """Serialize intermediate data to disk.
 
@@ -172,6 +178,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             self.filename + ".pickle"
         )
 
+    @writable_project
     def write(self, data, process=True):
         """Serialize intermediate data to disk.
 

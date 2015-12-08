@@ -8,11 +8,12 @@ bw2ui>=0.15
 colorama
 dictdiffer
 docopt
+fasteners
 flask
 lxml
 nose
 numpy
-peewee
+peewee>=2.7.4
 progressbar-ipython
 requests
 scipy
@@ -20,3 +21,4 @@ stats_arrays>=0.2.4
 unicodecsv
 voluptuous
 whoosh
+wrapt

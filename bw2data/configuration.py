@@ -9,7 +9,6 @@ import platform
 import sys
 import tempfile
 import warnings
-from .project import projects
 from .filesystem import check_dir
 
 # os.getenv returns unicode in Py2
@@ -54,11 +53,9 @@ class Config(object):
             "`config.dir` is deprecated; please use `projects.dir` instead",
             DeprecationWarning
         )
-        return projects.dir
 
     def check_dir(self, directory=None):
         warnings.warn("`config.check_dir` is deprecated, please use `filesystem.check_dir`", DeprecationWarning)
-        return check_dir(directory or projects.dir)
 
     def load_preferences(self):
         warnings.warn(
@@ -78,7 +75,6 @@ class Config(object):
             "`config.request_dir` is deprecated; please use `projects.request_directory`",
             DeprecationWarning
         )
-        return projects.request_directory(dirname)
 
     def get_home_directory(self, path=None):
         """Get data directory, trying in order:
