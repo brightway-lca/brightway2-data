@@ -7,6 +7,7 @@ from . import config
 from .project import writable_project
 from .serialization import SerializedDict, PickledDict, CompoundJSONDict
 import datetime
+import pprint
 
 
 @python_2_unicode_compatible
@@ -113,8 +114,24 @@ class Databases(SerializedDict):
         self.flush()
 
     def __str__(self):
-        return u"Brightway2 databases metadata with %i objects" % len(
-            self.data)
+        if len(self) > 20:
+            return ("Brightway2 databases metadata with {} objects, including:"
+                    "{}\nUse `list(databases)` to get full list.").format(
+                len(self),
+                "".join(["\n\t{}".format(x) for x in sorted(self.data)[:10]])
+            )
+        else:
+            return ("Brightway2 databases metadata with {} objects:{}").format(
+                len(self),
+                "".join(["\n\t{}".format(x) for x in sorted(self.data)])
+            )
+
+
+
+        return "Brightway2 databases metadata with {} objects, including:\n{}".format(
+            len(self.data),
+            "".join(["\t{}\n".format(x) for x in sorted(self.data.keys())[:20]])
+        )
 
     @writable_project
     def __delitem__(self, name):
@@ -133,8 +150,10 @@ class CalculationSetups(PickledDict):
     filename = "setups.pickle"
 
     def __str__(self):
-        return u"Brightway2 calculations setup metadata with %i objects" % len(
-            self.data)
+        return "Brightway2 calculation setups metadata with {} objects, including:\n{}".format(
+            len(self.data),
+            "".join(["\t{}\n".format(x) for x in sorted(self.data.keys())[:20]])
+        )
 
 
 @python_2_unicode_compatible

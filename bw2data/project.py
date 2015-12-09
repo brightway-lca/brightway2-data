@@ -74,6 +74,21 @@ class ProjectManager(collections.Iterable):
     def __len__(self):
         return ProjectDataset.select().count()
 
+    def __repr__(self):
+        if len(self) > 20:
+            return ("Brightway2 projects manager with {} objects, including:"
+                    "{}\nUse `list(projects)` to get full list, "
+                    "`projects.report()` to get\n\ta report on all projects.").format(
+                len(self),
+                "".join(["\n\t{}".format(x) for x in sorted([x.name for x in self])[:10]])
+            )
+        else:
+            return ("Brightway2 projects manager with {} objects:{}"
+                    "\nUse `projects.report()` to get a report on all projects.").format(
+                len(self),
+                "".join(["\n\t{}".format(x) for x in sorted([x.name for x in self])])
+            )
+
     ### Internal functions for managing projects
 
     def _create_base_directories(self):
