@@ -126,13 +126,6 @@ class Databases(SerializedDict):
                 "".join(["\n\t{}".format(x) for x in sorted(self.data)])
             )
 
-
-
-        return "Brightway2 databases metadata with {} objects, including:\n{}".format(
-            len(self.data),
-            "".join(["\t{}\n".format(x) for x in sorted(self.data.keys())[:20]])
-        )
-
     @writable_project
     def __delitem__(self, name):
         from . import Database
