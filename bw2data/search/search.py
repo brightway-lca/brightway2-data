@@ -17,15 +17,15 @@ def open_files():
 
 class Searcher(object):
     def __enter__(self):
-        print("Entering __enter__", open_files())
+        # print("Entering __enter__", open_files())
         self.index = IndexManager().get()
-        print("__enter__: Got index", open_files())
+        # print("__enter__: Got index", open_files())
         return self
 
     def __exit__(self, type, value, traceback):
-        print("Calling __exit__", open_files())
-        # self.index.close()
-        print("__exit__: Closed index", open_files())
+        # print("Calling __exit__", open_files())
+        self.index.close()
+        # print("__exit__: Closed index", open_files())
 
     def search(self, string, limit=25, facet=None, proxy=True, **kwargs):
         FILTER_TERMS = {u'name', u'product', u'location', u'database'}
