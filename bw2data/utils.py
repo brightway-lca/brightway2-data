@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import config, projects
-from .errors import WebUIError
+from .errors import WebUIError, UnknownObject
 from .fatomic import open
 from .project import safe_filename
 from contextlib import contextmanager
@@ -282,6 +282,8 @@ def create_in_memory_zipfile_from_directory(path):
 
 def get_activity(key):
     from .database import Database
-    assert isinstance(key, (tuple, list)), \
-        "Must pass (database, code) key to this function"
-    return Database(key[0]).get(key[1])
+    try:
+        return Database(key[0]).get(key[1])
+    except TypeError:
+        raise UnknownObject("Key {} cannot be understood as an activity"
+                            " or `(database, code)` tuple.")
