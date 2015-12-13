@@ -7,19 +7,19 @@ from peewee import Model, TextField, BlobField
 
 
 class ActivityDataset(Model):
-    data = PickleField()
-    code = TextField()
-    database = TextField()
-    location = TextField(null=True)
-    name = TextField(null=True)
-    product = TextField(null=True)
-    type = TextField(null=True)
+    data = PickleField()             # Canonical
+    code = TextField()               # Canonical
+    database = TextField()           # Canonical
+    location = TextField(null=True)  # Reset from `data`
+    name = TextField(null=True)      # Reset from `data`
+    product = TextField(null=True)   # Reset from `data`
+    type = TextField(null=True)      # Reset from `data`
 
 
 class ExchangeDataset(Model):
-    data = PickleField()
-    input_code = TextField()
-    input_database = TextField()
-    output_code = TextField()
-    output_database = TextField()
-    type = TextField()
+    data = PickleField()           # Canonical
+    input_code = TextField()       # Canonical
+    input_database = TextField()   # Canonical
+    output_code = TextField()      # Canonical
+    output_database = TextField()  # Canonical
+    type = TextField()             # Reset from `data`
