@@ -2,6 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
+from . import sqlite3_lci_db
 from ... import databases, mapping, geomapping, config
 from ...errors import ValidityError, NotAllowed
 from ...project import writable_project
@@ -101,6 +102,30 @@ class Activity(ActivityProxyBase):
             mapping.add([self.key])
         if self.get('location') and self['location'] not in geomapping:
             geomapping.add([self['location']])
+
+    def change_code(self, new_code):
+        if self['code'] == new_code:
+            return
+
+        with sqlite3_lci_db.atomic() as txn:
+            ActivityDataset.update(key=Key(self['database'], new_code)
+                ).where(ActivityDataset.key == Key(self.key)
+                ).execute()
+            ExchangeDataset.update(output=Key(self['database'], new_code)
+                ).where(ExchangeDataset.output == Key(self.key)
+                ).execute()
+            ExchangeDataset.update(input=Key(self['database'], new_code)
+                ).where(ExchangeDataset.input == Key(self.key)
+                ).execute()
+
+        if databases[self['database']].get('searchable', True):
+            IndexManager().delete_dataset(self)
+            self._data['code'] = new_code
+            IndexManager().add_datasets([self])
+        else:
+            self._data['code'] = new_code
+
+        # Change _data['products'] as well
 
     def exchanges(self):
         return Exchanges(self._document.key)
