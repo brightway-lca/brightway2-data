@@ -7,12 +7,11 @@ from ... import mapping, geomapping, config, databases, preferences
 from ...errors import UntypedExchange, InvalidExchange, UnknownObject, WrongDatabase
 from ...project import writable_project
 from ...search import IndexManager, Searcher
-from ...sqlite import Key
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ..base import LCIBackend
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset
-from .utils import dict_as_activitydataset
+from .utils import dict_as_activitydataset, dict_as_exchangedataset
 from peewee import fn, DoesNotExist
 import itertools
 import datetime
@@ -113,8 +112,7 @@ class SQLiteBackend(LCIBackend):
     def get(self, code):
         return Activity(
             self._get_queryset(filters=False).where(
-                ActivityDataset.key == Key(self.name, code)
-            ).get()
+                ActivityDataset.code == code).get()
         )
 
     ### Data management
@@ -125,16 +123,14 @@ class SQLiteBackend(LCIBackend):
     def _drop_indices(self):
         with sqlite3_lci_db.transaction():
             sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "activitydataset_key"')
-            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_database"')
             sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_input"')
             sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_output"')
 
     def _add_indices(self):
         with sqlite3_lci_db.transaction():
-            sqlite3_lci_db.execute_sql('CREATE UNIQUE INDEX "activitydataset_key" ON "activitydataset" ("key")')
-            sqlite3_lci_db.execute_sql('CREATE INDEX "exchangedataset_database" ON "exchangedataset" ("database")')
-            sqlite3_lci_db.execute_sql('CREATE INDEX "exchangedataset_input" ON "exchangedataset" ("input")')
-            sqlite3_lci_db.execute_sql('CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output")')
+            sqlite3_lci_db.execute_sql('CREATE UNIQUE INDEX "activitydataset_key" ON "activitydataset" ("database", "code")')
+            sqlite3_lci_db.execute_sql('CREATE INDEX "exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")')
+            sqlite3_lci_db.execute_sql('CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")')
 
     def _efficient_write_many_data(self, data, indices=True):
         be_complicated = len(data) >= 100 and indices
@@ -160,20 +156,14 @@ class SQLiteBackend(LCIBackend):
                     if 'type' not in exchange:
                         raise UntypedExchange
                     exchange['output'] = key
-                    exchanges.append({
-                        'input': exchange["input"],
-                        'database': key[0],
-                        "output": key,
-                        "type": exchange["type"],
-                        "data": exchange
-                    })
+                    exchanges.append(dict_as_exchangedataset(exchange))
 
                     # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
                     # SQLite3 has a limit of 999 variables,
-                    # So 5 fields * 150 is under the limit
+                    # So 6 fields * 125 is under the limit
                     # Otherwise get the following:
                     # peewee.OperationalError: too many SQL variables
-                    if len(exchanges) > 150:
+                    if len(exchanges) > 125:
                         ExchangeDataset.insert_many(exchanges).execute()
                         exchanges = []
 
@@ -310,30 +300,39 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         except ImportError:
             faces = None
 
+        # Get number of exchanges and processes to set
+        # initial Numpy array size (still have to include)
+        # implicit production exchanges
+
         num_exchanges = ExchangeDataset.select().where(ExchangeDataset.database == self.name).count()
         num_processes = ActivityDataset.select().where(
             ActivityDataset.database == self.name,
             ActivityDataset.type == "process"
         ).count()
 
-        # Create geomapping array
+        # Create geomapping array, from dataset keys to locations
+
         arr = np.zeros((num_processes, ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
+
+        # Also include mapping, from dataset keys to
+        # topographic face ids
 
         topo_mapping = []
 
         for index, row in enumerate(ActivityDataset.select(
-                ActivityDataset.location, ActivityDataset.key
+                ActivityDataset.location,
+                ActivityDataset.code
                 ).where(
                 ActivityDataset.database == self.name,
                 ActivityDataset.type == "process"
-                ).order_by(ActivityDataset.key).dicts()):
+                ).order_by(ActivityDataset.code).dicts()):
 
             if faces is not None:
                 for face_id in faces.get(row['location'], []):
-                    topo_mapping.append((row['key'], face_id))
+                    topo_mapping.append(((self.name, row['code']), face_id))
 
             arr[index] = (
-                mapping[row['key']],
+                mapping[(self.name, row['code'])],
                 geomapping[row['location'] or config.global_location],
                 MAX_INT_32, MAX_INT_32,
                 0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
@@ -341,6 +340,8 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         with open(self.filepath_geomapping(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # Reformat and then write topo mapping to disk
 
         if faces is not None:
             arr = np.zeros((len(topo_mapping), ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
@@ -357,22 +358,33 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
             with open(self.filepath_geomapping().replace("geomapping", "topomapping"), "wb") as f:
                 pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-        missing_production_keys = [x[0] for x in ActivityDataset.select(
-            ActivityDataset.key).where(
+        # Figure out when the production exchanges are implicit
+
+        missing_production_keys = [
+            (self.name, x)
+            # Get all codes
+            for x in ActivityDataset.select(ActivityDataset.code).where(
+                # Get correct database name
                 ActivityDataset.database == self.name,
+                # Only consider `process` type activities
                 ActivityDataset.type == "process",
-                ~(ActivityDataset.key << ExchangeDataset.select(
-                    ExchangeDataset.output).where(
-                    ExchangeDataset.database == self.name,
-                    ExchangeDataset.type == 'production'))
-            ).tuples()]
+                # But exclude activities that already have production exchanges
+                ~(ActivityDataset.code << ExchangeDataset.select(
+                            # Get codes to exclude
+                            ExchangeDataset.output_code).where(
+                                ExchangeDataset.output_database == self.name,
+                                ExchangeDataset.type == 'production'
+                            )
+                )
+            ).tuples()
+        ]
 
         arr = np.zeros((num_exchanges + len(missing_production_keys), ), dtype=self.dtype)
 
-        # Using raw sqlite3 for ~2x speed boost
+        # Using raw sqlite3 to retrieve data for ~2x speed boost
         connection = sqlite3.connect(sqlite3_lci_db.database)
         cursor = connection.cursor()
-        SQL = "SELECT data FROM exchangedataset WHERE database = ? ORDER BY input, output"
+        SQL = "SELECT data, input_database, input_code, output_database, output_code FROM exchangedataset WHERE output_database = ? ORDER BY input_database, input_code, output_database, output_code"
 
         dependents = set()
         found_exchanges = False
@@ -389,12 +401,12 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
             found_exchanges = True
 
-            dependents.add(data["input"][0])
+            dependents.add(row["input_database"])
 
             try:
                 arr[index] = (
-                    mapping[data["input"]],
-                    mapping[data["output"]],
+                    mapping[(row["input_database"], row["input_code"])],
+                    mapping[(row["output_datbase"], row["output_code"])],
                     MAX_INT_32,
                     MAX_INT_32,
                     TYPE_DICTIONARY[data["type"]],
@@ -413,7 +425,10 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 raise UnknownObject(("Exchange between {} and {} is invalid "
                     "- one of these objects is unknown (i.e. doesn't exist "
                     "as a process dataset)"
-                    ).format(data["input"], data["output"])
+                    ).format(
+                        (row["input_database"], row["input_code"]),
+                        (row["output_datbase"], row["output_code"])
+                    )
                 )
 
         # If exchanges were found, start inserting rows at len(exchanges) + 1

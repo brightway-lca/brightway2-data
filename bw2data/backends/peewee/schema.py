@@ -8,7 +8,6 @@ from peewee import Model, TextField, BlobField
 
 class ActivityDataset(Model):
     data = PickleField()
-    # key = TupleField(index=True, unique=True)
     code = TextField()
     database = TextField()
     location = TextField(null=True)
@@ -23,5 +22,4 @@ class ExchangeDataset(Model):
     input_database = TextField()
     output_code = TextField()
     output_database = TextField()
-    # database = TextField(index=True)
     type = TextField()

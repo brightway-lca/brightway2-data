@@ -10,7 +10,7 @@ def dict_as_activitydataset(ds):
     return {
         "data": ds,
         "database": ds["database"],
-        "key": (ds["database"], ds["code"]),
+        "code": ds["code"],
         "location": ds.get("location"),
         "name": ds.get("name"),
         "product": ds.get("reference product"),
@@ -21,9 +21,10 @@ def dict_as_activitydataset(ds):
 def dict_as_exchangedataset(ds):
     return {
         "data": ds,
-        "input": ds['input'],
-        "output": ds['output'],
-        "database": ds['output'][0],
+        "input_database": ds['input'][0],
+        "input_code": ds['input'][1],
+        "output_database": ds['output'][0],
+        "output_code": ds['output'][1],
         "type": ds['type']
     }
 
