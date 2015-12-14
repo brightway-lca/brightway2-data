@@ -29,19 +29,19 @@ def dict_as_exchangedataset(ds):
     }
 
 
-def replace_exchanges(old_key, new_key):
-    """Replace ``old_key`` with ``new_key`` in input field of exchanges.
+# def replace_exchanges(old_key, new_key):
+#     """Replace ``old_key`` with ``new_key`` in input field of exchanges.
 
-    Returns number of modified exchanges."""
-    from .proxies import Exchanges
+#     Returns number of modified exchanges."""
+#     from .proxies import Exchanges
 
-    # reverse means search by input field, not output field of exchange
-    for index, exc in enumerate(Exchanges(old_key, reverse=True)):
-        exc["input"] = new_key
-        exc.save()
-    else:
-        return 0
-    return index + 1
+#     # reverse means search by input field, not output field of exchange
+#     for index, exc in enumerate(Exchanges(old_key, reverse=True)):
+#         exc["input"] = new_key
+#         exc.save()
+#     else:
+#         return 0
+#     return index + 1
 
 
 def replace_cfs(old_key, new_key):

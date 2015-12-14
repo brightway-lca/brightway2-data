@@ -77,10 +77,6 @@ class PeeweeProxyTest(BW2DataTest):
         act = self.get_activity()
         self.assertEqual(act.key, ("a database", "foo"))
 
-    def test_dbkey(self):
-        act = self.get_activity()
-        self.assertEqual(act.dbkey, "a database⊡foo")
-
     def test_delete(self):
         act = self.get_activity()
         self.assertEqual(ExchangeDataset.select().count(), 1)

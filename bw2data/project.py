@@ -62,7 +62,7 @@ class ProjectManager(collections.Iterable):
         self.read_only = True
         self._create_base_directories()
         self.db = self._create_projects_database()
-        self.current = "default"
+        self._set_project("default", False)
 
     def __iter__(self):
         for project_ds in ProjectDataset.select():
@@ -104,7 +104,7 @@ class ProjectManager(collections.Iterable):
     def _get_project(self):
         return self._project_name
 
-    def _set_project(self, name):
+    def _set_project(self, name, update=True):
         if not self.read_only:
             self._lock.release()
         self._project_name = str(name)
@@ -117,6 +117,16 @@ class ProjectManager(collections.Iterable):
 
         self._reset_meta()
         self._reset_databases()
+
+        if not self.read_only and update:
+            self._do_automatic_updates()
+
+    def _do_automatic_updates(self):
+        """Run any available automatic updates"""
+        from .updates import Updates
+        for update_name in Updates.check_automatic_updates():
+            print("Applying automatic update {}".format(update_name))
+            Updates.do_update(update_name)
 
     def _reset_meta(self):
         for obj in config.metadata:

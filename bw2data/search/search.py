@@ -2,7 +2,6 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from ..sqlite import keysplit
 from .indices import IndexManager
 from whoosh.collectors import TimeLimitCollector, TimeLimit
 from whoosh.qparser import MultifieldParser
@@ -13,6 +12,11 @@ import psutil
 def open_files():
     proc = psutil.Process()
     return len(proc.open_files())
+
+
+def keysplit(strng):
+    """Split an activity key joined into a single string using the magic sequence `⊡|⊡`"""
+    return tuple(strng.split("⊡|⊡"))
 
 
 class Searcher(object):

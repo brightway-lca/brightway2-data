@@ -8,7 +8,6 @@ from ...errors import ValidityError, NotAllowed
 from ...project import writable_project
 from ...proxies import ActivityProxyBase, ExchangeProxyBase
 from ...search import IndexManager
-from ...sqlite import keyjoin, Key
 from ...utils import get_activity
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset, dict_as_exchangedataset
@@ -25,12 +24,17 @@ class Exchanges(collections.Iterable):
         self._kind = kind
         if reverse:
             self._args = [
-            ExchangeDataset.input == Key(*self._key),
+            ExchangeDataset.input_database == self._key[0],
+            ExchangeDataset.input_code == self._key[1],
             # No production exchanges
-            ExchangeDataset.output != Key(*self._key)
+            ExchangeDataset.output_database != self._key[0],
+            ExchangeDataset.output_code != self._key[1],
         ]
         else:
-            self._args = [ExchangeDataset.output == Key(*self._key)]
+            self._args = [
+                ExchangeDataset.output_database == self._key[0],
+                ExchangeDataset.output_code == self._key[1],
+            ]
         if self._kind:
             self._args.append(ExchangeDataset.type == self._kind)
 
@@ -55,13 +59,23 @@ class Exchanges(collections.Iterable):
 
 class Activity(ActivityProxyBase):
     def __init__(self, document=None):
-        self._document = document or ActivityDataset()
-        self._data = self._document.data if document else {}
+        if document is None:
+            self._document = ActivityDataset()
+            self._data = {}
+        else:
+            self._document = document
+            self._data = self._document.data
+            self._data['code'] = self._document.code
+            self._data['database'] = self._document.database
 
     def __setitem__(self, key, value):
-        if key in ('code', 'database') and key in self:
+        if key == 'code':
             raise NotAllowed(
-                "Changing the `code` or `database` would break exchange links."
+                "Use `change_code` method to change the activity code"
+            )
+        elif key == 'database':
+            raise NotAllowed(
+                "Use `change_database` method to change the activity database"
             )
         else:
             super(Activity, self).__setitem__(key, value)
@@ -69,10 +83,6 @@ class Activity(ActivityProxyBase):
     @property
     def key(self):
         return (self.get("database"), self.get("code"))
-
-    @property
-    def dbkey(self):
-        return keyjoin(self.key)
 
     @writable_project
     def delete(self):
@@ -108,15 +118,18 @@ class Activity(ActivityProxyBase):
             return
 
         with sqlite3_lci_db.atomic() as txn:
-            ActivityDataset.update(key=Key(self['database'], new_code)
-                ).where(ActivityDataset.key == Key(self.key)
-                ).execute()
-            ExchangeDataset.update(output=Key(self['database'], new_code)
-                ).where(ExchangeDataset.output == Key(self.key)
-                ).execute()
-            ExchangeDataset.update(input=Key(self['database'], new_code)
-                ).where(ExchangeDataset.input == Key(self.key)
-                ).execute()
+            ActivityDataset.update(code=new_code).where(
+                ActivityDataset.database == self['database'],
+                ActivityDataset.code == self['code']
+            ).execute()
+            ExchangeDataset.update(output_code=new_code).where(
+                ExchangeDataset.output_database == self['database'],
+                ExchangeDataset.output_code == self['code'],
+            ).execute()
+            ExchangeDataset.update(input_code=new_code).where(
+                ExchangeDataset.input_database == self['database'],
+                ExchangeDataset.input_code == self['code'],
+            ).execute()
 
         if databases[self['database']].get('searchable', True):
             IndexManager().delete_dataset(self)
@@ -128,29 +141,29 @@ class Activity(ActivityProxyBase):
         # Change _data['products'] as well
 
     def exchanges(self):
-        return Exchanges(self._document.key)
+        return Exchanges(self.key)
 
     def technosphere(self):
         return Exchanges(
-            self._document.key,
+            self.key,
             kind="technosphere"
         )
 
     def biosphere(self):
         return Exchanges(
-            self._document.key,
+            self.key,
             kind="biosphere",
         )
 
     def production(self):
         return Exchanges(
-            self._document.key,
+            self.key,
             kind="production",
         )
 
     def upstream(self):
         return Exchanges(
-            self._document.key,
+            self.key,
             kind="technosphere",
             reverse=True
         )
@@ -158,35 +171,35 @@ class Activity(ActivityProxyBase):
     def new_exchange(self, **kwargs):
         """Create a new exchange linked to this activity"""
         exc = Exchange()
-        exc.output = self
+        exc.output = self.key
         for key in kwargs:
             exc[key] = kwargs[key]
         return exc
 
     @writable_project
-    def copy(self, name, code=None):
+    def copy(self, code=None, **kwargs):
+        """Copy the activity. Returns a new `Activity`.
+
+        `code` is the new activity code; if not given, a UUID is used.
+
+        `kwargs` are additional new fields and field values, e.g. name='foo'
+
+        """
         activity = Activity()
         for key, value in self.items():
             activity[key] = value
-        activity._data[u'database'] = self['database']
+        for k, v in kwargs.items():
+            setattr(activity._data, k, v)
         activity._data[u'code'] = str(code or uuid.uuid4().hex)
-        activity[u'name'] = str(name)
         activity.save()
 
         for exc in self.exchanges():
             data = copy.deepcopy(exc._data)
             data['output'] = activity.key
-            new_data = {
-                'data': data,
-                'type': exc['type'],
-                'output': activity.key,
-                'input': exc._document.input,
-                'database': self['database']
-            }
+            # Change `input` for production exchanges
             if exc['input'] == exc['output']:
-                new_data['input'] = new_data['output']
-            ExchangeDataset.create(**new_data)
-
+                data['input'] = activity.key
+            ExchangeDataset.create(**data)
         return activity
 
 
@@ -198,6 +211,8 @@ class Exchange(ExchangeProxyBase):
         else:
             self._document = document
             self._data = self._document.data
+            self._data['input'] = (self._document.input_database, self._document.input_code)
+            self._data['output'] = (self._document.output_database, self._document.output_code)
 
     @writable_project
     def save(self):

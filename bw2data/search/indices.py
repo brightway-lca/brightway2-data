@@ -3,7 +3,6 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from .. import config, projects
-from ..sqlite import keyjoin
 from .schema import bw2_schema
 from whoosh import index as windex
 from whoosh import query
@@ -16,8 +15,13 @@ if not os.path.exists(path):
 
 try:
     index_ = windex.open_dir(path)
-except index.EmptyIndexError:
+except windex.EmptyIndexError:
     index_ = windex.create_in(path, bw2_schema)
+
+
+def keyjoin(x, y):
+    """Join an activity key into a single string using the magic sequence `⊡|⊡`"""
+    return x + "⊡|⊡" + y
 
 
 class IndexManager(object):
@@ -46,7 +50,7 @@ class IndexManager(object):
             categories=u", ".join(ds.get(u"categories", [])),
             location=ds.get(u"location", u""),
             database=ds[u"database"],
-            key=keyjoin((ds[u'database'], ds[u'code']))
+            key=keyjoin(ds['database'], ds['code'])
         )
 
     def add_dataset(self, ds):
