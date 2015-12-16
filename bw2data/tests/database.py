@@ -448,8 +448,9 @@ class DatabaseTest(BW2DataTest):
         exc = [x for x in act.production()][0]
         exc['amount'] = 2
         exc.save()
+        self.assertTrue(databases['testy']['dirty'])
         lca = act.lca()
-        lca.fix_dictionaries()
+        self.assertFalse(databases['testy'].get('dirty'))
         self.assertEqual(
             lca.supply_array[lca.activity_dict[("testy", "A")]],
             0.5
