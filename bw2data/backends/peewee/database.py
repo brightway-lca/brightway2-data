@@ -54,6 +54,9 @@ class SQLiteBackend(LCIBackend):
     def __len__(self):
         return self._get_queryset().count()
 
+    def __contains__(self, obj):
+        return self._get_queryset(filters={'code': obj[1]}).count() > 0
+
     @property
     def _searchable(self):
         return databases.get(self.name, {}).get('searchable', True)

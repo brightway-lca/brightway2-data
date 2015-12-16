@@ -4,7 +4,7 @@ from eight import *
 
 from . import sqlite3_lci_db
 from ... import databases, mapping, geomapping, config
-from ...errors import ValidityError, NotAllowed
+from ...errors import ValidityError
 from ...project import writable_project
 from ...proxies import ActivityProxyBase, ExchangeProxyBase
 from ...search import IndexManager
@@ -70,13 +70,11 @@ class Activity(ActivityProxyBase):
 
     def __setitem__(self, key, value):
         if key == 'code':
-            raise NotAllowed(
-                "Use `change_code` method to change the activity code"
-            )
+            self.change_code(value)
+            print("Successfully switched activity dataset to new code `{}`".format(value))
         elif key == 'database':
-            raise NotAllowed(
-                "Use `change_database` method to change the activity database"
-            )
+            self.change_database(value)
+            print("Successfully switch activity dataset to database `{}`".format(value))
         else:
             super(Activity, self).__setitem__(key, value)
 
@@ -114,6 +112,14 @@ class Activity(ActivityProxyBase):
             geomapping.add([self['location']])
 
     def change_code(self, new_code):
+        if ActivityDataset.select().where(
+            ActivityDataset.database == self['database'],
+            ActivityDataset.code == new_code
+        ).count():
+            raise ValueError(
+                "Activity database with code `{}` already exists".format(new_code)
+            )
+
         if self['code'] == new_code:
             return
 
@@ -138,7 +144,33 @@ class Activity(ActivityProxyBase):
         else:
             self._data['code'] = new_code
 
-        # Change _data['products'] as well
+    def change_database(self, new_database):
+        if new_database not in databases:
+            raise ValueError("Database {} does not exist".format(new_database))
+
+        if self['database'] == new_database:
+            return
+
+        with sqlite3_lci_db.atomic() as txn:
+            ActivityDataset.update(database=new_database).where(
+                ActivityDataset.database == self['database'],
+                ActivityDataset.code == self['code']
+            ).execute()
+            ExchangeDataset.update(output_database=new_database).where(
+                ExchangeDataset.output_database == self['database'],
+                ExchangeDataset.output_code == self['code'],
+            ).execute()
+            ExchangeDataset.update(input_database=new_database).where(
+                ExchangeDataset.input_database == self['database'],
+                ExchangeDataset.input_code == self['code'],
+            ).execute()
+
+        if databases[self['database']].get('searchable', True):
+            IndexManager().delete_dataset(self)
+            self._data['database'] = new_database
+            IndexManager().add_datasets([self])
+        else:
+            self._data['database'] = new_database
 
     def exchanges(self):
         return Exchanges(self.key)
