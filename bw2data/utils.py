@@ -35,7 +35,7 @@ TYPE_DICTIONARY = {
     "substitution": 3,
 }
 
-DOWNLOAD_URL = "http://brightwaylca.org/data/"
+DOWNLOAD_URL = "https://brightwaylca.org/data/"
 
 numpy_string = lambda x: bytes(x) if sys.version_info < (3, 0) else x
 
