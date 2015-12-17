@@ -28,7 +28,6 @@ from ..backends.single_file import (
 from ..errors import NotAllowed, WrongDatabase
 from ..meta import mapping, geomapping, databases, methods
 from ..serialization import JsonWrapper, JsonSanitizer
-from ..sqlite import Key
 from ..utils import numpy_string, get_activity
 from ..validate import db_validator
 from .fixtures import food, biosphere
@@ -103,16 +102,20 @@ class PeeweeProxyTest(BW2DataTest):
         self.assertEqual(ExchangeDataset.select().count(), 2)
         self.assertEqual(ActivityDataset.select().count(), 2)
         self.assertEqual(ActivityDataset.select().where(
-            ActivityDataset.key == Key(cp.key)
+            ActivityDataset.code == cp['code'],
+            ActivityDataset.database == cp['database'],
         ).count(), 1)
         self.assertEqual(ActivityDataset.select().where(
-            ActivityDataset.key == Key(act.key)
+            ActivityDataset.code == act['code'],
+            ActivityDataset.database == act['database'],
         ).count(), 1)
         self.assertEqual(ExchangeDataset.select().where(
-            ExchangeDataset.input == Key(cp.key)
+            ActivityDataset.code == cp['code'],
+            ActivityDataset.database == cp['database'],
         ).count(), 1)
         self.assertEqual(ExchangeDataset.select().where(
-            ExchangeDataset.input == Key(act.key)
+            ExchangeDataset.input_database == act['database'],
+            ExchangeDataset.input_code == act['code'],
         ).count(), 1)
 
     def test_find_graph_dependents(self):
@@ -305,7 +308,7 @@ class DatabaseTest(BW2DataTest):
         )
         self.assertEqual(
             next(sqlite3_lci_db.execute_sql(
-                "select count(*) from exchangedataset where database = 'biosphere'"
+                "select count(*) from exchangedataset where output_database = 'biosphere'"
             )),
             (0,)
         )

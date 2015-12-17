@@ -250,7 +250,7 @@ class SQLiteBackend(LCIBackend):
             o['exchanges'] = []
 
         exchange_qs = (ExchangeDataset.select(ExchangeDataset.data)
-            .where(ExchangeDataset.database == self.name).dicts())
+            .where(ExchangeDataset.output_database == self.name).dicts())
 
         for exc in exchange_qs:
             try:
@@ -288,7 +288,7 @@ class SQLiteBackend(LCIBackend):
     def delete(self):
         """Delete all data from SQLite database and Whoosh index"""
         ActivityDataset.delete().where(ActivityDataset.database== self.name).execute()
-        ExchangeDataset.delete().where(ExchangeDataset.database== self.name).execute()
+        ExchangeDataset.delete().where(ExchangeDataset.output_database== self.name).execute()
         IndexManager().delete_database(self.name)
 
     def process(self):
@@ -307,7 +307,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         # initial Numpy array size (still have to include)
         # implicit production exchanges
 
-        num_exchanges = ExchangeDataset.select().where(ExchangeDataset.database == self.name).count()
+        num_exchanges = ExchangeDataset.select().where(ExchangeDataset.output_database == self.name).count()
         num_processes = ActivityDataset.select().where(
             ActivityDataset.database == self.name,
             ActivityDataset.type == "process"
@@ -364,7 +364,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         # Figure out when the production exchanges are implicit
 
         missing_production_keys = [
-            (self.name, x)
+            (self.name, x[0])
             # Get all codes
             for x in ActivityDataset.select(ActivityDataset.code).where(
                 # Get correct database name
@@ -393,7 +393,8 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         found_exchanges = False
 
         for index, row in enumerate(cursor.execute(SQL, (self.name,))):
-            data = pickle.loads(bytes(row[0]))
+            data, input_database, input_code, output_database, output_code = row
+            data = pickle.loads(bytes(data))
 
             if "type" not in data:
                 raise UntypedExchange
@@ -404,12 +405,12 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
             found_exchanges = True
 
-            dependents.add(row["input_database"])
+            dependents.add(input_database)
 
             try:
                 arr[index] = (
-                    mapping[(row["input_database"], row["input_code"])],
-                    mapping[(row["output_datbase"], row["output_code"])],
+                    mapping[(input_database, input_code)],
+                    mapping[(output_database, output_code)],
                     MAX_INT_32,
                     MAX_INT_32,
                     TYPE_DICTIONARY[data["type"]],
@@ -429,8 +430,8 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                     "- one of these objects is unknown (i.e. doesn't exist "
                     "as a process dataset)"
                     ).format(
-                        (row["input_database"], row["input_code"]),
-                        (row["output_datbase"], row["output_code"])
+                        (input_database, input_code),
+                        (output_database, output_code)
                     )
                 )
 

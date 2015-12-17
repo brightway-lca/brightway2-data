@@ -69,10 +69,10 @@ class Activity(ActivityProxyBase):
             self._data['database'] = self._document.database
 
     def __setitem__(self, key, value):
-        if key == 'code':
+        if key == 'code' and 'code' in self._data:
             self.change_code(value)
             print("Successfully switched activity dataset to new code `{}`".format(value))
-        elif key == 'database':
+        elif key == 'database' and 'database' in self._data:
             self.change_database(value)
             print("Successfully switch activity dataset to database `{}`".format(value))
         else:
