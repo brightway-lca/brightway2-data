@@ -4,43 +4,28 @@ from eight import *
 
 from .. import config, projects
 from .schema import bw2_schema
-from whoosh import index as windex
+from whoosh import index
 from whoosh import query
 import os
-
-
-path = projects.request_directory(u"whoosh")
-if not os.path.exists(path):
-    os.mkdir(path)
-
-try:
-    index_ = windex.open_dir(path)
-except windex.EmptyIndexError:
-    index_ = windex.create_in(path, bw2_schema)
-
-
-def keyjoin(x, y):
-    """Join an activity key into a single string using the magic sequence `⊡|⊡`"""
-    return x + "⊡|⊡" + y
+import shutil
 
 
 class IndexManager(object):
-    def __init__(self, dir_name=u"whoosh"):
-        self.path = projects.request_directory(u"whoosh")
+    def __init__(self, database_path, dir_name="whoosh"):
+        self.path = os.path.join(projects.request_directory("whoosh"), database_path)
+        if not os.path.exists(self.path):
+            os.mkdir(self.path)
 
     def get(self):
-        return index_
-        # try:
-        #     return index.open_dir(self.path)
-        # except index.EmptyIndexError:
-        #     return self.create()
+        try:
+            return index.open_dir(self.path)
+        except index.EmptyIndexError:
+            return self.create()
 
     def create(self):
-        return
-        return windex.create_in(self.path, bw2_schema)
-
-    def reset(self):
-        return self.create()
+        self.delete_database()
+        os.mkdir(self.path)
+        return index.create_in(self.path, bw2_schema)
 
     def _format_dataset(self, ds):
         return dict(
@@ -50,13 +35,11 @@ class IndexManager(object):
             categories=u", ".join(ds.get(u"categories", [])),
             location=ds.get(u"location", u""),
             database=ds[u"database"],
-            key=keyjoin(ds['database'], ds['code'])
+            code=ds['code']
         )
 
     def add_dataset(self, ds):
-        writer = self.get().writer()
-        writer.add_document(**self._format_dataset(ds))
-        writer.commit()
+        self.add_datasets([ds])
 
     def add_datasets(self, datasets):
         writer = self.get().writer()
@@ -71,8 +54,7 @@ class IndexManager(object):
 
     def delete_dataset(self, ds):
         index = self.get()
-        index.delete_by_term(u"key", keyjoin((ds[u'database'], ds[u'code'])))
+        index.delete_by_term("code", ds['code'])
 
-    def delete_database(self, db_name):
-        index = self.get()
-        index.delete_by_query(query.Term("database", db_name))
+    def delete_database(self):
+        shutil.rmtree(self.path)

@@ -9,7 +9,7 @@ bw2_schema = Schema(
     comment=TEXT(stored=True),
     product=TEXT(stored=True, sortable=True),
     categories=TEXT(stored=True),
-    location=ID(stored=True, sortable=True),
-    database=ID(stored=True, sortable=True),
-    key=ID(unique=True, stored=True),
+    location=TEXT(stored=True, sortable=True),
+    database=TEXT(stored=True),
+    code=ID(unique=True, stored=True),
 )

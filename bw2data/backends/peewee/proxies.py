@@ -90,13 +90,16 @@ class Activity(ActivityProxyBase):
 
     @writable_project
     def delete(self):
-        IndexManager().delete_dataset(self._data)
+        from ... import Database
+        IndexManager(Database(self['database']).filename).delete_dataset(self._data)
         self.exchanges().delete()
         self._document.delete_instance()
         self = None
 
     @writable_project
     def save(self):
+        from ... import Database
+
         if not self.valid():
             raise ValidityError("This activity can't be saved for the "
                 "following reasons\n\t* " + \
@@ -110,7 +113,7 @@ class Activity(ActivityProxyBase):
         self._document.save()
 
         if databases[self['database']].get('searchable', True):
-            IndexManager().update_dataset(self._data)
+            IndexManager(Database(self['database']).filename).update_dataset(self._data)
 
         if self.key not in mapping:
             mapping.add([self.key])
@@ -144,9 +147,10 @@ class Activity(ActivityProxyBase):
             ).execute()
 
         if databases[self['database']].get('searchable', True):
-            IndexManager().delete_dataset(self)
+            from ... import Database
+            IndexManager(Database(self['database']).filename).delete_dataset(self)
             self._data['code'] = new_code
-            IndexManager().add_datasets([self])
+            IndexManager(Database(self['database']).filename).add_datasets([self])
         else:
             self._data['code'] = new_code
 
@@ -172,9 +176,10 @@ class Activity(ActivityProxyBase):
             ).execute()
 
         if databases[self['database']].get('searchable', True):
-            IndexManager().delete_dataset(self)
+            from ... import Database
+            IndexManager(Database(self['database']).filename).delete_dataset(self)
             self._data['database'] = new_database
-            IndexManager().add_datasets([self])
+            IndexManager(Database(self['database']).filename).add_datasets([self])
         else:
             self._data['database'] = new_database
 

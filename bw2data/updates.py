@@ -11,6 +11,7 @@ import os
 import pprint
 import pyprind
 import re
+import shutil
 import sqlite3
 import warnings
 
@@ -89,6 +90,11 @@ class Updates(object):
             'explanation': "",
             'automatic': True
         },
+        "2.0 database search directories": {
+            'method': "database_search_directories_20",
+            'automatic': True,
+            'explanation': ""
+        }
         # Update to 3.2 biosphere
     }
 
@@ -172,3 +178,13 @@ class Updates(object):
             print("Updating ExchangeDataset table schema and data")
             conn.executescript(UPDATE_EXCHANGEDATASET)
             print("Finished with schema change")
+
+    @classmethod
+    def database_search_directories_20(cls):
+        shutil.rmtree(projects.request_directory("whoosh"))
+        for db in databases:
+            if databases[db].get('searchable'):
+                databases[db]['searchable'] = False
+                print("Reindexing database {}".format(db))
+                Database(db).make_searchable()
+

@@ -125,7 +125,7 @@ class ProjectManager(collections.Iterable):
         """Run any available automatic updates"""
         from .updates import Updates
         for update_name in Updates.check_automatic_updates():
-            print("Applying automatic update {}".format(update_name))
+            print("Applying automatic update: {}".format(update_name))
             Updates.do_update(update_name)
 
     def _reset_meta(self):

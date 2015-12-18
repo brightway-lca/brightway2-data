@@ -59,7 +59,7 @@ class SQLiteBackend(LCIBackend):
 
     @property
     def _searchable(self):
-        return databases.get(self.name, {}).get('searchable', True)
+        return databases.get(self.name, {}).get('searchable', False)
 
     def _get_queryset(self, random=False, filters=True):
         qs = ActivityDataset.select().where(
@@ -233,8 +233,8 @@ class SQLiteBackend(LCIBackend):
                 raise
 
         if self._searchable:
-            IndexManager().delete_database(self.name)
-            IndexManager().add_datasets(self)
+            IndexManager(self.filename).delete_database()
+            IndexManager(self.filename).add_datasets(self)
 
         if process:
             self.process()
@@ -276,20 +276,20 @@ class SQLiteBackend(LCIBackend):
             return
         databases[self.name]['searchable'] = True
         databases.flush()
-        IndexManager().add_datasets(self)
+        IndexManager(self.filename).add_datasets(self)
 
     @writable_project
     def make_unsearchable(self):
         databases[self.name]['searchable'] = False
         databases.flush()
-        IndexManager().delete_database(self.name)
+        IndexManager(self.filename).delete_database()
 
     @writable_project
     def delete(self):
         """Delete all data from SQLite database and Whoosh index"""
         ActivityDataset.delete().where(ActivityDataset.database== self.name).execute()
         ExchangeDataset.delete().where(ExchangeDataset.output_database== self.name).execute()
-        IndexManager().delete_database(self.name)
+        IndexManager(self.filename).delete_database()
 
     def process(self):
         """
@@ -452,7 +452,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         with open(self.filepath_processed(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def search(self, string, *args, **kwargs):
+    def search(self, string, **kwargs):
         """Search this database for ``string``.
 
         The searcher include the following fields:
@@ -472,8 +472,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         * ``proxy``: Return ``Activity`` proxies instead of raw Whoosh documents. Default is ``True``.
 
         Returns a list of ``Activity`` datasets."""
-        kwargs['database'] = self.name
-        with Searcher() as s:
+        with Searcher(self.filename) as s:
             results = s.search(string, **kwargs)
         return results
 
