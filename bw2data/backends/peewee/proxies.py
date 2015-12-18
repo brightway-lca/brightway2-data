@@ -24,12 +24,13 @@ class Exchanges(collections.Iterable):
         self._kind = kind
         if reverse:
             self._args = [
-                ExchangeDataset.input_database == self._key[0],
-                ExchangeDataset.input_code == self._key[1],
-                # No production exchanges
-                ExchangeDataset.output_database != self._key[0],
-                ExchangeDataset.output_code != self._key[1],
-            ]
+            ExchangeDataset.input_database == self._key[0],
+            ExchangeDataset.input_code == self._key[1],
+            # No production exchanges - these two clauses have to be together,
+            # not individually
+            ExchangeDataset.output_database != self._key[0] &
+            ExchangeDataset.output_code != self._key[1],
+        ]
         else:
             self._args = [
                 ExchangeDataset.output_database == self._key[0],
@@ -58,10 +59,15 @@ class Exchanges(collections.Iterable):
 
 
 class Activity(ActivityProxyBase):
-    def __init__(self, document=None):
+    def __init__(self, document=None, **kwargs):
+        """Create an `Activity` proxy object.
+
+        If this is a new activity, can pass `kwargs`.
+
+        If the activity exists in the database, `document` should be an `ActivityDataset`."""
         if document is None:
             self._document = ActivityDataset()
-            self._data = {}
+            self._data = kwargs
         else:
             self._document = document
             self._data = self._document.data
@@ -231,15 +237,20 @@ class Activity(ActivityProxyBase):
             # Change `input` for production exchanges
             if exc['input'] == exc['output']:
                 data['input'] = activity.key
-            ExchangeDataset.create(**data)
+            ExchangeDataset.create(**dict_as_exchangedataset(data))
         return activity
 
 
 class Exchange(ExchangeProxyBase):
-    def __init__(self, document=None):
+    def __init__(self, document=None, **kwargs):
+        """Create an `Exchange` proxy object.
+
+        If this is a new exchange, can pass `kwargs`.
+
+        If the exchange exists in the database, `document` should be an `ExchangeDataset`."""
         if document is None:
             self._document = ExchangeDataset()
-            self._data = {}
+            self._data = kwargs
         else:
             self._document = document
             self._data = self._document.data

@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import Database, databases, Method, methods, Weighting, \
-    weightings, Normalization, normalizations, preferences
+    weightings, Normalization, normalizations, preferences, projects
 from .backends.peewee import sqlite3_lci_db
 from .ia_data_store import abbreviate
 from .utils import recursive_str_to_unicode
@@ -92,52 +92,55 @@ class Updates(object):
         # Update to 3.2 biosphere
     }
 
-    @staticmethod
-    def explain(key):
-        return Updates.UPDATES[key]['explanation']
+    @classmethod
+    def explain(cls, key):
+        return cls.UPDATES[key]['explanation']
 
-    @staticmethod
-    def do_update(key):
-        method = getattr(Updates, Updates.UPDATES[key]['method'])
+    @classmethod
+    def do_update(cls, key):
+        method = getattr(cls, cls.UPDATES[key]['method'])
         method()
         preferences['updates'][key] = True
         preferences.flush()
 
-    @staticmethod
-    def check_status(verbose=True):
+    @classmethod
+    def check_status(cls, verbose=True):
         """Check if updates need to be applied.
 
         Returns:
             List of needed updates (strings), if any.
 
         """
-        updates = []
-
-        if "updates" not in preferences:
-            preferences['updates'] = {key: True for key in Updates.UPDATES}
-        else:
-            updates = sorted([key for key in Updates.UPDATES
-                              if not preferences['updates'].get(key)
-                              and not Updates.UPDATES[key]['automatic']])
+        cls.set_initial_updates()
+        updates = sorted([key for key in cls.UPDATES
+            if not preferences['updates'].get(key)
+            and not cls.UPDATES[key]['automatic']])
         if updates and verbose:
             warnings.warn(UPTODATE_WARNING)
         return updates
 
-    @staticmethod
-    def check_automatic_updates():
-        """Get list of automatic updates to be applied"""
-        if "updates" not in preferences:
-            preferences['updates'] = {
-                key: True
-                for key in Updates.UPDATES
-                if key != "2.0 schema change"
-            }
-        return sorted([key for key in Updates.UPDATES
-                          if not preferences['updates'].get(key)
-                          and Updates.UPDATES[key]['automatic']])
+    @classmethod
+    def set_initial_updates(cls):
+        if "updates" in preferences:
+            return
+        SQL = "PRAGMA table_info(activitydataset)"
+        with sqlite3.connect(sqlite3_lci_db.database) as conn:
+            column_names = {x[1] for x in conn.execute(SQL)}
+        if "code" in column_names:
+            preferences['updates'] = {key: True for key in cls.UPDATES}
+        else:
+            preferences['updates'] = {}
 
-    @staticmethod
-    def reprocess_all_1_0():
+    @classmethod
+    def check_automatic_updates(cls):
+        """Get list of automatic updates to be applied"""
+        cls.set_initial_updates()
+        return sorted([key for key in cls.UPDATES
+                          if not preferences['updates'].get(key)
+                          and cls.UPDATES[key]['automatic']])
+
+    @classmethod
+    def reprocess_all_1_0(cls):
         """1.0: Reprocess all to make sure default 'loc' value inserted when not specified."""
         objects = [
             (methods, Method, "LCIA methods"),
@@ -161,8 +164,8 @@ class Updates(object):
                     pbar.update()
                 print(pbar)
 
-    @staticmethod
-    def schema_change_20_compound_keys():
+    @classmethod
+    def schema_change_20_compound_keys(cls):
         with sqlite3.connect(sqlite3_lci_db.database) as conn:
             print("Update ActivityDataset table schema and data")
             conn.executescript(UPDATE_ACTIVITYDATASET)

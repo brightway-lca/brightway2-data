@@ -57,12 +57,12 @@ class PeeweeProxyTest(BW2DataTest):
 
     def test_set_code(self):
         act = self.get_activity()
-        with self.assertRaises(NotAllowed):
+        with self.assertRaises(ValueError):
             act['code'] = 'foo'
 
     def test_set_database(self):
         act = self.get_activity()
-        with self.assertRaises(NotAllowed):
+        with self.assertRaises(ValueError):
             act['database'] = 'foo'
 
     def test_set_item(self):
@@ -110,8 +110,8 @@ class PeeweeProxyTest(BW2DataTest):
             ActivityDataset.database == act['database'],
         ).count(), 1)
         self.assertEqual(ExchangeDataset.select().where(
-            ActivityDataset.code == cp['code'],
-            ActivityDataset.database == cp['database'],
+            ExchangeDataset.input_code == cp['code'],
+            ExchangeDataset.input_database == cp['database'],
         ).count(), 1)
         self.assertEqual(ExchangeDataset.select().where(
             ExchangeDataset.input_database == act['database'],
