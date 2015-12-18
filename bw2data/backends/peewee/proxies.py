@@ -121,6 +121,9 @@ class Activity(ActivityProxyBase):
             geomapping.add([self['location']])
 
     def _change_code(self, new_code):
+        if self['code'] == new_code:
+            return
+
         if ActivityDataset.select().where(
             ActivityDataset.database == self['database'],
             ActivityDataset.code == new_code
@@ -128,9 +131,6 @@ class Activity(ActivityProxyBase):
             raise ValueError(
                 "Activity database with code `{}` already exists".format(new_code)
             )
-
-        if self['code'] == new_code:
-            return
 
         with sqlite3_lci_db.atomic() as txn:
             ActivityDataset.update(code=new_code).where(
@@ -146,7 +146,7 @@ class Activity(ActivityProxyBase):
                 ExchangeDataset.input_code == self['code'],
             ).execute()
 
-        if databases[self['database']].get('searchable', True):
+        if databases[self['database']].get('searchable'):
             from ... import Database
             IndexManager(Database(self['database']).filename).delete_dataset(self)
             self._data['code'] = new_code
@@ -155,11 +155,11 @@ class Activity(ActivityProxyBase):
             self._data['code'] = new_code
 
     def _change_database(self, new_database):
-        if new_database not in databases:
-            raise ValueError("Database {} does not exist".format(new_database))
-
         if self['database'] == new_database:
             return
+
+        if new_database not in databases:
+            raise ValueError("Database {} does not exist".format(new_database))
 
         with sqlite3_lci_db.atomic() as txn:
             ActivityDataset.update(database=new_database).where(
@@ -175,7 +175,7 @@ class Activity(ActivityProxyBase):
                 ExchangeDataset.input_code == self['code'],
             ).execute()
 
-        if databases[self['database']].get('searchable', True):
+        if databases[self['database']].get('searchable'):
             from ... import Database
             IndexManager(Database(self['database']).filename).delete_dataset(self)
             self._data['database'] = new_database

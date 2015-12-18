@@ -205,7 +205,8 @@ class SQLiteBackend(LCIBackend):
         """Write ``data`` to database.
 
         This deletes all existing data for this database."""
-        self.register()
+        if self.name not in databases:
+            self.register(searchable=True)
         wrong_database = {key[0] for key in data}.difference({self.name})
         if wrong_database:
             raise WrongDatabase("Can't write activities in databases {} to database {}".format(

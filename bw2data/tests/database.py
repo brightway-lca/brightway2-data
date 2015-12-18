@@ -56,16 +56,6 @@ class PeeweeProxyTest(BW2DataTest):
         })
         return database.get('foo')
 
-    def test_set_code(self):
-        act = self.get_activity()
-        with self.assertRaises(ValueError):
-            act['code'] = 'foo'
-
-    def test_set_database(self):
-        act = self.get_activity()
-        with self.assertRaises(ValueError):
-            act['database'] = 'foo'
-
     def test_set_item(self):
         act = self.get_activity()
         act['foo'] = 'bar'
@@ -88,6 +78,10 @@ class PeeweeProxyTest(BW2DataTest):
         with self.assertRaises(DoesNotExist):
             get_activity(old_key)
 
+    def test_change_code_same_code(self):
+        act = self.get_activity()
+        act['code'] = 'foo'
+
     def test_change_database(self):
         act = self.get_activity()
         db = DatabaseChooser("a database")
@@ -109,6 +103,10 @@ class PeeweeProxyTest(BW2DataTest):
         act = self.get_activity()
         with self.assertRaises(ValueError):
             act['database'] = "nope!"
+
+    def test_database_same_database(self):
+        act = self.get_activity()
+        act['database'] = "a database"
 
     def test_change_code_not_unique(self):
         database = DatabaseChooser("a database")
