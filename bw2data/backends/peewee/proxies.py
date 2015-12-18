@@ -26,8 +26,9 @@ class Exchanges(collections.Iterable):
             self._args = [
             ExchangeDataset.input_database == self._key[0],
             ExchangeDataset.input_code == self._key[1],
-            # No production exchanges
-            ExchangeDataset.output_database != self._key[0],
+            # No production exchanges - these two clauses have to be together,
+            # not individually
+            ExchangeDataset.output_database != self._key[0] &
             ExchangeDataset.output_code != self._key[1],
         ]
         else:
