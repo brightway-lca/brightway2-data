@@ -31,6 +31,7 @@ from ..serialization import JsonWrapper, JsonSanitizer
 from ..utils import numpy_string, get_activity
 from ..validate import db_validator
 from .fixtures import food, biosphere
+from peewee import DoesNotExist
 import copy
 import datetime
 import numpy as np
@@ -75,6 +76,65 @@ class PeeweeProxyTest(BW2DataTest):
     def test_key(self):
         act = self.get_activity()
         self.assertEqual(act.key, ("a database", "foo"))
+
+    def test_change_code(self):
+        act = self.get_activity()
+        db = DatabaseChooser("a database")
+        self.assertEqual(len(db), 1)
+        old_key = act.key[:]
+        act['code'] = 'a new one'
+        self.assertEqual(len(db), 1)
+        self.assertTrue(get_activity(("a database", "a new one")))
+        with self.assertRaises(DoesNotExist):
+            get_activity(old_key)
+
+    def test_change_database(self):
+        act = self.get_activity()
+        db = DatabaseChooser("a database")
+        db2 = DatabaseChooser("another database")
+        db2.write({})
+        self.assertEqual(len(db2), 0)
+        self.assertEqual(len(db), 1)
+        old_key = act.key[:]
+        self.assertEqual(len(get_activity(old_key).production()), 1)
+        act['database'] = "another database"
+        self.assertEqual(len(db), 0)
+        self.assertEqual(len(db2), 1)
+        self.assertTrue(get_activity(("another database", "foo")))
+        self.assertEqual(len(get_activity(("another database", "foo")).production()), 1)
+        with self.assertRaises(DoesNotExist):
+            get_activity(old_key)
+
+    def test_change_database_not_exist(self):
+        act = self.get_activity()
+        with self.assertRaises(ValueError):
+            act['database'] = "nope!"
+
+    def test_change_code_not_unique(self):
+        database = DatabaseChooser("a database")
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [{
+                    'input': ("a database", "foo"),
+                    'amount': 1,
+                    'type': 'production',
+                }],
+                'location': 'bar',
+                'name': 'baz'
+            },
+            ("a database", "already there"): {
+                'exchanges': [{
+                    'input': ("a database", "already there"),
+                    'amount': 1,
+                    'type': 'production',
+                }],
+                'location': 'bar',
+                'name': 'baz'
+            },
+        })
+        act = database.get('foo')
+        with self.assertRaises(ValueError):
+            act['code'] = "already there"
 
     def test_delete(self):
         act = self.get_activity()

@@ -76,10 +76,10 @@ class Activity(ActivityProxyBase):
 
     def __setitem__(self, key, value):
         if key == 'code' and 'code' in self._data:
-            self.change_code(value)
+            self._change_code(value)
             print("Successfully switched activity dataset to new code `{}`".format(value))
         elif key == 'database' and 'database' in self._data:
-            self.change_database(value)
+            self._change_database(value)
             print("Successfully switch activity dataset to database `{}`".format(value))
         else:
             super(Activity, self).__setitem__(key, value)
@@ -120,7 +120,7 @@ class Activity(ActivityProxyBase):
         if self.get('location') and self['location'] not in geomapping:
             geomapping.add([self['location']])
 
-    def change_code(self, new_code):
+    def _change_code(self, new_code):
         if ActivityDataset.select().where(
             ActivityDataset.database == self['database'],
             ActivityDataset.code == new_code
@@ -154,7 +154,7 @@ class Activity(ActivityProxyBase):
         else:
             self._data['code'] = new_code
 
-    def change_database(self, new_database):
+    def _change_database(self, new_database):
         if new_database not in databases:
             raise ValueError("Database {} does not exist".format(new_database))
 
