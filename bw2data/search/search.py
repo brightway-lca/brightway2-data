@@ -60,9 +60,9 @@ class Searcher(object):
         from ..database import get_activity
 
         if proxy and facet is not None:
-            return {key: [get_activity(keysplit(obj['key'])) for obj in value]
+            return {key: [get_activity((obj['database'], obj['code'])) for obj in value]
                     for key, value in results.items()}
         elif proxy:
-            return [get_activity(keysplit(obj['key'])) for obj in results]
+            return [get_activity((obj['database'], obj['code'])) for obj in results]
         else:
             return results
