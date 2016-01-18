@@ -4,8 +4,7 @@ from eight import *
 
 from .. import config, projects
 from .schema import bw2_schema
-from whoosh import index
-from whoosh import query
+from whoosh import index, query
 import os
 import shutil
 

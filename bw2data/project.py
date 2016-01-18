@@ -21,8 +21,6 @@ import warnings
 import wrapt
 
 
-LABEL = "Brightway2" if sys.version_info < (3, 0) else "Brightway3"
-
 READ_ONLY_PROJECT = """
 ***Read only project***
 
@@ -51,14 +49,7 @@ class ProjectManager(collections.Iterable):
     )
 
     def __init__(self):
-        self._base_data_dir = appdirs.user_data_dir(
-            LABEL,
-            "pylca",
-        )
-        self._base_logs_dir = appdirs.user_log_dir(
-            LABEL,
-            "pylca",
-        )
+        self._base_data_dir, self._base_logs_dir = self._get_base_directories()
         self.read_only = True
         self._create_base_directories()
         self.db = self._create_projects_database()
@@ -90,6 +81,24 @@ class ProjectManager(collections.Iterable):
             )
 
     ### Internal functions for managing projects
+
+    def _get_base_directories(self):
+        envvar = os.getenv("BRIGHTWAY2_DIR")
+        if envvar:
+            if not os.path.isdir(envvar):
+                raise OSError(("BRIGHTWAY2_DIR variable is {}, but this is not"
+                               " a valid directory").format(envvar))
+            else:
+                print("Using environment variable BRIGHTWAY2_DIR for data "
+                      "directory:\n{}".format(envvar))
+                envvar = os.path.abspath(envvar)
+                logs_dir = os.path.join(envvar, "logs")
+                return envvar, logs_dir
+
+        LABEL = "Brightway2" if sys.version_info < (3, 0) else "Brightway3"
+        data_dir = appdirs.user_data_dir(LABEL, "pylca")
+        logs_dir = appdirs.user_log_dir(LABEL, "pylca")
+        return data_dir, logs_dir
 
     def _create_base_directories(self):
         create_dir(self._base_data_dir)
