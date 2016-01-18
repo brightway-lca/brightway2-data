@@ -90,7 +90,7 @@ class Updates(object):
             'explanation': "",
             'automatic': True
         },
-        "2.0 database search directories": {
+        "2.0-2 database search directories": {
             'method': "database_search_directories_20",
             'automatic': True,
             'explanation': ""
