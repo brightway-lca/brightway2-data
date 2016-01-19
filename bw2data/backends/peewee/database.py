@@ -233,9 +233,8 @@ class SQLiteBackend(LCIBackend):
                 self.delete()
                 raise
 
-        if self._searchable:
-            IndexManager(self.filename).delete_database()
-            IndexManager(self.filename).add_datasets(self)
+        IndexManager(self.filename).delete_database()
+        IndexManager(self.filename).add_datasets(self)
 
         if process:
             self.process()
@@ -272,6 +271,8 @@ class SQLiteBackend(LCIBackend):
 
     @writable_project
     def make_searchable(self):
+        if self.name not in databases:
+            raise UnknownObject("This database is not yet registered")
         if self._searchable:
             print("This database is already searchable")
             return
