@@ -28,10 +28,10 @@ from ..backends.single_file import (
 from ..errors import NotAllowed, WrongDatabase
 from ..meta import mapping, geomapping, databases, methods
 from ..serialization import JsonWrapper, JsonSanitizer
-from ..sqlite import Key
 from ..utils import numpy_string, get_activity
 from ..validate import db_validator
 from .fixtures import food, biosphere
+from peewee import DoesNotExist
 import copy
 import datetime
 import numpy as np
@@ -56,16 +56,6 @@ class PeeweeProxyTest(BW2DataTest):
         })
         return database.get('foo')
 
-    def test_set_code(self):
-        act = self.get_activity()
-        with self.assertRaises(NotAllowed):
-            act['code'] = 'foo'
-
-    def test_set_database(self):
-        act = self.get_activity()
-        with self.assertRaises(NotAllowed):
-            act['database'] = 'foo'
-
     def test_set_item(self):
         act = self.get_activity()
         act['foo'] = 'bar'
@@ -77,9 +67,72 @@ class PeeweeProxyTest(BW2DataTest):
         act = self.get_activity()
         self.assertEqual(act.key, ("a database", "foo"))
 
-    def test_dbkey(self):
+    def test_change_code(self):
         act = self.get_activity()
-        self.assertEqual(act.dbkey, "a database⊡foo")
+        db = DatabaseChooser("a database")
+        self.assertEqual(len(db), 1)
+        old_key = act.key[:]
+        act['code'] = 'a new one'
+        self.assertEqual(len(db), 1)
+        self.assertTrue(get_activity(("a database", "a new one")))
+        with self.assertRaises(DoesNotExist):
+            get_activity(old_key)
+
+    def test_change_code_same_code(self):
+        act = self.get_activity()
+        act['code'] = 'foo'
+
+    def test_change_database(self):
+        act = self.get_activity()
+        db = DatabaseChooser("a database")
+        db2 = DatabaseChooser("another database")
+        db2.write({})
+        self.assertEqual(len(db2), 0)
+        self.assertEqual(len(db), 1)
+        old_key = act.key[:]
+        self.assertEqual(len(get_activity(old_key).production()), 1)
+        act['database'] = "another database"
+        self.assertEqual(len(db), 0)
+        self.assertEqual(len(db2), 1)
+        self.assertTrue(get_activity(("another database", "foo")))
+        self.assertEqual(len(get_activity(("another database", "foo")).production()), 1)
+        with self.assertRaises(DoesNotExist):
+            get_activity(old_key)
+
+    def test_change_database_not_exist(self):
+        act = self.get_activity()
+        with self.assertRaises(ValueError):
+            act['database'] = "nope!"
+
+    def test_database_same_database(self):
+        act = self.get_activity()
+        act['database'] = "a database"
+
+    def test_change_code_not_unique(self):
+        database = DatabaseChooser("a database")
+        database.write({
+            ("a database", "foo"): {
+                'exchanges': [{
+                    'input': ("a database", "foo"),
+                    'amount': 1,
+                    'type': 'production',
+                }],
+                'location': 'bar',
+                'name': 'baz'
+            },
+            ("a database", "already there"): {
+                'exchanges': [{
+                    'input': ("a database", "already there"),
+                    'amount': 1,
+                    'type': 'production',
+                }],
+                'location': 'bar',
+                'name': 'baz'
+            },
+        })
+        act = database.get('foo')
+        with self.assertRaises(ValueError):
+            act['code'] = "already there"
 
     def test_delete(self):
         act = self.get_activity()
@@ -107,16 +160,20 @@ class PeeweeProxyTest(BW2DataTest):
         self.assertEqual(ExchangeDataset.select().count(), 2)
         self.assertEqual(ActivityDataset.select().count(), 2)
         self.assertEqual(ActivityDataset.select().where(
-            ActivityDataset.key == Key(cp.key)
+            ActivityDataset.code == cp['code'],
+            ActivityDataset.database == cp['database'],
         ).count(), 1)
         self.assertEqual(ActivityDataset.select().where(
-            ActivityDataset.key == Key(act.key)
+            ActivityDataset.code == act['code'],
+            ActivityDataset.database == act['database'],
         ).count(), 1)
         self.assertEqual(ExchangeDataset.select().where(
-            ExchangeDataset.input == Key(cp.key)
+            ExchangeDataset.input_code == cp['code'],
+            ExchangeDataset.input_database == cp['database'],
         ).count(), 1)
         self.assertEqual(ExchangeDataset.select().where(
-            ExchangeDataset.input == Key(act.key)
+            ExchangeDataset.input_database == act['database'],
+            ExchangeDataset.input_code == act['code'],
         ).count(), 1)
 
     def test_find_graph_dependents(self):
@@ -309,7 +366,7 @@ class DatabaseTest(BW2DataTest):
         )
         self.assertEqual(
             next(sqlite3_lci_db.execute_sql(
-                "select count(*) from exchangedataset where database = 'biosphere'"
+                "select count(*) from exchangedataset where output_database = 'biosphere'"
             )),
             (0,)
         )
@@ -855,6 +912,11 @@ class DatabaseQuerysetTest(BW2DataTest):
     def test_len_respects_filters(self):
         self.db.filters = {'product': 'widget'}
         self.assertEqual(len(self.db), 2)
+
+    def test_make_searchable_unknown_object(self):
+        db = DatabaseChooser("mysterious")
+        with self.assertRaises(UnknownObject):
+            db.make_searchable()
 
     def test_convert_same_backend(self):
         database = DatabaseChooser("a database")

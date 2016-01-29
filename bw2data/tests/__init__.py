@@ -21,7 +21,7 @@ from .ia import (
     WeightingTest,
 )
 # from .json_database import JSONDatabaseTest, SynchronousJSONDictTest
-from .query import QueryTest, FilterTest, ResultTest
+# from .query import QueryTest, FilterTest, ResultTest
 from .search import SearchTest, IndexTest
 from .serialization import JsonSantizierTestCase
 from .updates import UpdatesTest

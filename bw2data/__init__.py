@@ -25,7 +25,7 @@ __all__ = [
     'weightings',
 ]
 
-__version__ = (2, 0, "dev8")
+__version__ = (2, 0, "dev9")
 
 
 from .configuration import config
@@ -76,6 +76,8 @@ from .weighting_normalization import Weighting, Normalization
 from .backends import convert_backend
 # Don't confuse nose tests
 from .updates import Updates
+
+projects.current = "default"
 
 Updates.check_status()
 

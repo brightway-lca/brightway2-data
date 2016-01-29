@@ -2,23 +2,24 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from ...sqlite import PickleField, TupleField
+from ...sqlite import PickleField
 from peewee import Model, TextField, BlobField
 
 
 class ActivityDataset(Model):
-    data = PickleField()
-    key = TupleField(index=True, unique=True)
-    database = TextField()
-    location = TextField(null=True)
-    name = TextField(null=True)
-    product = TextField(null=True)
-    type = TextField(null=True)
+    data = PickleField()             # Canonical, except for other C fields
+    code = TextField()               # Canonical
+    database = TextField()           # Canonical
+    location = TextField(null=True)  # Reset from `data`
+    name = TextField(null=True)      # Reset from `data`
+    product = TextField(null=True)   # Reset from `data`
+    type = TextField(null=True)      # Reset from `data`
 
 
 class ExchangeDataset(Model):
-    data = PickleField()
-    input = TupleField(index=True)
-    output = TupleField(index=True)
-    database = TextField(index=True)
-    type = TextField()
+    data = PickleField()           # Canonical, except for other C fields
+    input_code = TextField()       # Canonical
+    input_database = TextField()   # Canonical
+    output_code = TextField()      # Canonical
+    output_database = TextField()  # Canonical
+    type = TextField()             # Reset from `data`
