@@ -1,10 +1,16 @@
 # -*- coding: utf-8 -*-
-from . import config
-from .utils import safe_save
+from __future__ import print_function, unicode_literals
+from eight import *
+from future.utils import python_2_unicode_compatible
+
+from . import config, projects
+from .fatomic import open as atomic_open
+from .project import writable_project
 from time import time
 import bz2
 import os
 import random
+import collections
 try:
     import anyjson
 except ImportError:
@@ -19,29 +25,32 @@ except ImportError:
 class JsonWrapper(object):
     @classmethod
     def dump(self, data, filepath):
-        with safe_save(filepath) as filepath:
-            with open(filepath, "wb") as f:
-                if anyjson:
-                    f.write(anyjson.serialize(data))
-                else:
-                    json.dump(data, f, indent=2)
+        with atomic_open(filepath, "w") as f:
+            if anyjson:
+                f.write(anyjson.serialize(data))
+            else:
+                json.dump(data, f, indent=2)
 
     @classmethod
     def dump_bz2(self, data, filepath):
-        with safe_save(filepath) as filepath:
-            with bz2.BZ2File(filepath, "wb") as f:
-                f.write(JsonWrapper.dumps(data))
+        with atomic_open(filepath, "wb") as f:
+            with bz2.BZ2File(f.name, "wb") as b:
+                b.write(
+                    (JsonWrapper.dumps(data)).encode('utf-8')
+                )
 
     @classmethod
     def load(self, file):
         if anyjson:
-            return anyjson.deserialize(open(file).read())
+            return anyjson.deserialize(open(file, encoding='utf-8').read())
         else:
-            return json.load(open(file))
+            return json.load(open(file, encoding='utf-8'))
 
     @classmethod
     def load_bz2(self, filepath):
-        return JsonWrapper.loads(bz2.BZ2File(filepath).read())
+        return JsonWrapper.loads(
+            (bz2.BZ2File(filepath).read()).decode('utf-8')
+            )
 
     @classmethod
     def dumps(self, data):
@@ -95,7 +104,8 @@ class JsonSanitizer(object):
             return data
 
 
-class SerializedDict(object):
+@python_2_unicode_compatible
+class SerializedDict(collections.MutableMapping):
     """Base class for dictionary that can be `serialized <http://en.wikipedia.org/wiki/Serialization>`_ to or unserialized from disk. Uses JSON as its storage format. Has most of the methods of a dictionary.
 
     Upon instantiation, the serialized dictionary is read from disk."""
@@ -103,7 +113,7 @@ class SerializedDict(object):
         if not getattr(self, "filename"):
             raise NotImplemented("SerializedDict must be subclassed, and the filename must be set.")
         self.filepath = os.path.join(
-            dirpath or config.dir,
+            dirpath or projects.dir,
             self.filename
         )
         self.load()
@@ -131,6 +141,7 @@ class SerializedDict(object):
             key = tuple(key)
         return self.data[key]
 
+    @writable_project
     def __setitem__(self, key, value):
         self.data[key] = value
         self.flush()
@@ -139,10 +150,9 @@ class SerializedDict(object):
         return key in self.data
 
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return "Brightway2 serialized dictionary with {} entries".format(len(self))
 
-    def __unicode__(self):
-        return u"Brightway2 serialized dictionary with {} entries".format(len(self))
+    __repr__ = lambda x: str(x)
 
     def __delitem__(self, name):
         del self.data[name]
@@ -154,8 +164,8 @@ class SerializedDict(object):
     def __iter__(self):
         return iter(self.data)
 
-    def iteritems(self):
-        return self.data.iteritems()
+    def __hash__(self):
+        return hash(self.data)
 
     def keys(self):
         return self.data.keys()
@@ -163,6 +173,7 @@ class SerializedDict(object):
     def values(self):
         return self.data.values()
 
+    @writable_project
     def serialize(self, filepath=None):
         """Method to do the actual serialization. Can be replaced with other serialization formats.
 
@@ -170,11 +181,8 @@ class SerializedDict(object):
             * *filepath* (str, optional): Provide an alternate filepath (e.g. for backup).
 
         """
-        with safe_save(filepath or self.filepath) as filepath:
-            JsonWrapper.dump(
-                self.pack(self.data),
-                filepath
-            )
+        with atomic_open(filepath or self.filepath, "w") as f:
+            f.write(JsonWrapper.dumps(self.pack(self.data)))
 
     def deserialize(self):
         """Load the serialized data. Can be replaced with other serialization formats."""
@@ -193,22 +201,22 @@ class SerializedDict(object):
         if not self.data:
             return None
         else:
-            return random.choice(self.data.keys())
+            return random.choice(list(self.data.keys()))
 
     def backup(self):
         """Write a backup version of the data to the ``backups`` directory."""
-        filepath = os.path.join(config.dir, "backups",
+        filepath = os.path.join(projects.dir, "backups",
             self.filename + ".%s.backup" % int(time()))
         self.serialize(filepath)
 
 
 class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
+    @writable_project
     def serialize(self):
-        with safe_save(self.filepath) as filepath:
-            with open(filepath, "wb") as f:
-                pickle.dump(self.pack(self.data), f,
-                    protocol=pickle.HIGHEST_PROTOCOL)
+        with atomic_open(self.filepath, "wb") as f:
+            pickle.dump(self.pack(self.data), f,
+                protocol=pickle.HIGHEST_PROTOCOL)
 
     def deserialize(self):
         return self.unpack(pickle.load(open(self.filepath, "rb")))
@@ -218,7 +226,7 @@ class CompoundJSONDict(SerializedDict):
     """Subclass of ``SerializedDict`` that allows tuples as dictionary keys (not allowed in JSON)."""
     def pack(self, data):
         """Transform the dictionary to a list because JSON can't handle lists as keys"""
-        return [(k, v) for k, v in data.iteritems()]
+        return [(k, v) for k, v in data.items()]
 
     def unpack(self, data):
         """Transform data back to a dictionary"""

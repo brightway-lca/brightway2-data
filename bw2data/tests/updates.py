@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import BW2DataTest
 from .. import Updates, config
 import random
@@ -13,7 +16,7 @@ class UpdatesTest(BW2DataTest):
         )
 
     def test_explain(self):
-        key = random.choice(Updates.UPDATES.keys())
+        key = random.choice(list(Updates.UPDATES.keys()))
         self.assertEqual(
             Updates.UPDATES[key]['explanation'],
             Updates.explain(key)

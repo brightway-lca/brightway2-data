@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
+from .. import config
 from ..meta import databases
 import copy
 import warnings
@@ -13,19 +18,23 @@ def convert_backend(database_name, backend):
         * `backend` (unicode): Type of database. `backend` should be recoginized by `DatabaseChooser`.
 
     Returns `False` if the old and new backend are the same. Otherwise returns an instance of the new Database object."""
+    if database_name not in databases:
+        print("Can't find database {}".format(database_name))
+
     from ..database import Database
     db = Database(database_name)
     if db.backend == backend:
         return False
     # Needed to convert from async json dict
-    data = {key: dict(value) for key, value in db.load().items()}
-    metadata = copy.deepcopy(databases[database_name])
-    metadata[u"backend"] = unicode(backend)
+    data = db.load(as_dict=True)
+    if database_name in config.cache:
+        del config.cache[database_name]
+    metadata = copy.deepcopy(db.metadata)
+    metadata[u"backend"] = str(backend)
     del databases[database_name]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         new_db = Database(database_name, backend)
         new_db.register(**metadata)
     new_db.write(data)
-    new_db.process()
     return new_db

@@ -1,6 +1,11 @@
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from .ia_data_store import ImpactAssessmentDataStore
 from .meta import weightings, mapping, normalizations
-from .utils import MAX_INT_32
+from .project import writable_project
+from .utils import MAX_INT_32, numpy_string
 from .validate import weighting_validator, normalization_validator
 import numpy as np
 
@@ -19,10 +24,11 @@ class Weighting(ImpactAssessmentDataStore):
             ))
 
     """
-    metadata = weightings
+    _metadata = weightings
     validator = weighting_validator
     dtype_fields = []
 
+    @writable_project
     def write(self, data):
         """Because of DataStore assumptions, need a one-element list"""
         if not isinstance(data, list) or not len(data) == 1:
@@ -54,11 +60,11 @@ class Normalization(ImpactAssessmentDataStore):
         * ``maybe_uncertainty`` is either a number or an uncertainty dictionary
 
     """
-    metadata = normalizations
+    _metadata = normalizations
     validator = normalization_validator
     dtype_fields = [
-        ('flow', np.uint32),
-        ('index', np.uint32),
+        (numpy_string('flow'), np.uint32),
+        (numpy_string('index'), np.uint32),
     ]
 
     def add_mappings(self, data):

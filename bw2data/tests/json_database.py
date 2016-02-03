@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import BW2DataTest
-from .. import config, databases
+from .. import config, databases, projects
 from ..backends.json import JSONDatabase, SynchronousJSONDict
 from ..backends.json.mapping import KeyMapping, cache as mapping_cache
+from ..proxies import Activity
 from ..serialization import JsonWrapper, JsonSanitizer
-from .fixtures import food2
+from .fixtures import food2, biosphere
 import json
 import os
 import shutil
@@ -12,6 +16,35 @@ import unittest
 
 
 class JSONDatabaseTest(BW2DataTest):
+    def create_biosphere(self):
+        d = JSONDatabase("biosphere")
+        d.register()
+        d.write(biosphere)
+        return d
+
+    def test_get(self):
+        d = JSONDatabase("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        activity = d.get('1')
+        self.assertTrue(isinstance(activity, Activity))
+        self.assertEqual(activity.name, 'an emission')
+
+    def test_iter(self):
+        d = JSONDatabase("biosphere")
+        d.write(biosphere)
+        activity = next(iter(d))
+        self.assertTrue(isinstance(activity, Activity))
+        self.assertTrue(activity.name in ('an emission', 'another emission'))
+
+    def test_get_random(self):
+        d = JSONDatabase("biosphere")
+        d.register(depends=[])
+        d.write(biosphere)
+        activity = d.random()
+        self.assertTrue(isinstance(activity, Activity))
+        self.assertTrue(activity.name in ('an emission', 'another emission'))
+
     def test_load_write(self):
         jd = JSONDatabase("foo")
         jd.register()
@@ -35,17 +68,17 @@ class JSONDatabaseTest(BW2DataTest):
 
     def test_register_creates_directory(self):
         self.assertFalse(os.path.exists(os.path.join(
-            config.dir, u"intermediate", u"foo"
+            projects.dir, u"intermediate", u"foo"
         )))
         JSONDatabase("foo").register()
-        print os.listdir(os.path.join(config.dir, u"intermediate"))
+        print(os.listdir(os.path.join(projects.dir, u"intermediate")))
         self.assertTrue(os.path.exists(os.path.join(
-            config.dir,
+            projects.dir,
             u"intermediate",
             u"foo.acbd18db4cc2f85cedef654fccc4a4d8"
         )))
         self.assertTrue(os.path.isdir(os.path.join(
-            config.dir,
+            projects.dir,
             u"intermediate",
             u"foo.acbd18db4cc2f85cedef654fccc4a4d8"
         )))
@@ -57,6 +90,7 @@ class JSONDatabaseTest(BW2DataTest):
         self.assertEqual(databases["foo"]["number"], 10)
 
     def test_load_as_dict(self):
+        self.create_biosphere()
         d = JSONDatabase("food")
         d.register()
         d.write(food2, process=False)
@@ -66,6 +100,7 @@ class JSONDatabaseTest(BW2DataTest):
         self.assertFalse(isinstance(data, dict))
 
     def test_db_is_json_serializable(self):
+        self.create_biosphere()
         d = JSONDatabase("food")
         d.register()
         d.write(food2, process=False)
@@ -77,7 +112,7 @@ class SynchronousJSONDictTest(unittest.TestCase):
     def setUp(self):
         global mapping_cache
         mapping_cache = {}
-        self.fp = config.request_dir("futball")
+        self.fp = projects.request_directory("futball")
         self.js = SynchronousJSONDict(self.fp, "futball")
         self.js.mapping = KeyMapping(self.fp)
 
@@ -95,7 +130,7 @@ class SynchronousJSONDictTest(unittest.TestCase):
                 u"brazil.6e5fa4d9c48ca921c0a2ce1e64c9ae6f.json"
                 )) as f:
             data = json.load(f)
-            print data
+            print(data)
         self.assertEqual(
             data,
             {u'foot': u'ball', u'key': [u'futball', u'brazil']}
@@ -130,7 +165,7 @@ class SynchronousJSONDictTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             del self.js[key]
 
-    def test_iter_keys_values_iteritems(self):
+    def test_iter_keys_values_items(self):
         keys = {(u'x', str(x)) for x in [1,2,3,4]}
         for key in keys:
             self.js[key] = {}
@@ -163,11 +198,11 @@ class SynchronousJSONDictTest(unittest.TestCase):
             self.js[key] = {}
         self.assertEqual(len(self.js), 4)
 
-    def test_iteritems(self):
+    def test_items(self):
         keys = {(u'x', str(x)) for x in [1,2,3,4]}
         for key in keys:
             self.js[key] = {}
-        for k, v in self.js.iteritems():
+        for k, v in self.js.items():
             self.assertIn(k, keys)
             self.assertEqual(v.keys(), [u'key'])
 

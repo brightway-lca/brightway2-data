@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from ..query import *
 from .fixtures import food
 import collections
@@ -12,110 +15,110 @@ class FilterTest(unittest.TestCase):
 
     def test_le(self):
         self.assertEqual(
-            [("food", 1)],
-            Filter("code", "<=", 1.5)(food).keys()
+            [("food", "1")],
+            list(Filter("code", "<=", 1.5)(food).keys())
         )
 
     def test_lt(self):
         self.assertEqual(
-            [("food", 1)],
-            Filter("code", "<", 1.5)(food).keys()
+            [("food", "1")],
+            list(Filter("code", "<", 1.5)(food).keys())
         )
 
     def test_eq(self):
         self.assertEqual(
-            [("food", 1)],
-            Filter("code", "==", 1)(food).keys()
+            [("food", "1")],
+            list(Filter("code", "==", 1)(food).keys())
         )
         self.assertEqual(
-            [("food", 1)],
-            Filter("code", "is", 1)(food).keys()
+            [("food", "1")],
+            list(Filter("code", "is", 1)(food).keys())
         )
 
     def test_ne(self):
         self.assertEqual(
-            [("food", 1)],
-            Filter("code", "!=", 2)(food).keys()
+            [("food", "1")],
+            list(Filter("code", "!=", 2)(food).keys())
         )
         self.assertEqual(
-            [("food", 1)],
-            Filter("code", "<>", 2)(food).keys()
+            [("food", "1")],
+            list(Filter("code", "<>", 2)(food).keys())
         )
         self.assertEqual(
-            [("food", 1)],
-            Filter("code", "not", 2)(food).keys()
+            [("food", "1")],
+            list(Filter("code", "not", 2)(food).keys())
         )
 
     def test_inot(self):
         self.assertEqual(
-            [("food", 2)],
-            Filter("name", "inot", "LuNCH")(food).keys()
+            [("food", "2")],
+            list(Filter("name", "inot", "LuNCH")(food).keys())
         )
 
     def test_gt(self):
         self.assertEqual(
-            [("food", 2)],
-            Filter("code", ">=", 1.5)(food).keys()
+            [("food", "2")],
+            list(Filter("code", ">=", 1.5)(food).keys())
         )
 
     def test_ge(self):
         self.assertEqual(
-            [("food", 2)],
-            Filter("code", ">", 1.5)(food).keys()
+            [("food", "2")],
+            list(Filter("code", ">", 1.5)(food).keys())
         )
 
     def test_has(self):
         self.assertEqual(
-            [("food", 1)],
-            Filter("name", "has", "lun")(food).keys()
+            [("food", "1")],
+            list(Filter("name", "has", "lun")(food).keys())
         )
 
     def test_ihas(self):
         self.assertEqual(
-            [("food", 1)],
-            Filter("name", "ihas", "LUN")(food).keys()
+            [("food", "1")],
+            list(Filter("name", "ihas", "LUN")(food).keys())
         )
 
     def test_nothas(self):
         self.assertEqual(
-            [("food", 1)],
-            Filter("name", "nothas", "inner")(food).keys()
+            [("food", "1")],
+            list(Filter("name", "nothas", "inner")(food).keys())
         )
 
     def test_in(self):
         self.assertEqual(
-            [("food", 1)],
-            Filter("name", "in", {'lunch', 'breakfast'})(food).keys()
+            [("food", "1")],
+            list(Filter("name", "in", {'lunch', 'breakfast'})(food).keys())
         )
         self.assertEqual(
-            [("food", 1)],
-            Filter("name", "in", 'lunchbreakfast')(food).keys()
+            [("food", "1")],
+            list(Filter("name", "in", 'lunchbreakfast')(food).keys())
         )
 
     def test_notin(self):
         self.assertEqual(
-            [("food", 2)],
-            Filter("name", "notin", {'lunch', 'breakfast'})(food).keys()
+            [("food", "2")],
+            list(Filter("name", "notin", {'lunch', 'breakfast'})(food).keys())
         )
 
     def test_len(self):
         self.assertEqual(
-            [("food", 2)],
-            Filter("name", "len", 6)(food).keys()
+            [("food", "2")],
+            list(Filter("name", "len", 6)(food).keys())
         )
 
     def test_custom_function(self):
         def my_func(x, y):
             return x + y == "lunchlunch!"
         self.assertEqual(
-            [("food", 1)],
-            Filter("name", my_func, 'lunch!')(food).keys()
+            [("food", "1")],
+            list(Filter("name", my_func, 'lunch!')(food).keys())
         )
 
     def test_NF(self):
         self.assertEqual(
-            [("food", 1)],
-            NF("lun")(food).keys()
+            [("food", "1")],
+            list(NF("lun")(food).keys())
         )
 
     def test_PF(self):
@@ -125,7 +128,7 @@ class FilterTest(unittest.TestCase):
         }
         self.assertEqual(
             ['a'],
-            PF("fo")(ds).keys()
+            list(PF("fo")(ds).keys())
         )
 
     def test_missing_attributes(self):
@@ -146,7 +149,7 @@ class QueryTest(unittest.TestCase):
         query = Query(NF("lun"), Filter("name", "nothas", "inner"))
         self.assertEqual(
             query(food).result,
-            {("food", 1): food[("food", 1)]}
+            {("food", "1"): food[("food", "1")]}
         )
 
     def test_add(self):
@@ -154,7 +157,7 @@ class QueryTest(unittest.TestCase):
         query.add(Filter("name", "nothas", "inner"))
         self.assertEqual(
             query(food).result,
-            {("food", 1): food[("food", 1)]}
+            {("food", "1"): food[("food", "1")]}
         )
 
 
@@ -237,25 +240,25 @@ class ResultTest(unittest.TestCase):
         result.sort('name', True)
         self.assertTrue(isinstance(result.result, collections.OrderedDict))
         # Sort by name - 'foo9' sorts highest
-        self.assertEqual(result.result.keys()[0], 9)
+        self.assertEqual(list(result.result.keys())[0], 9)
 
     def test_len(self):
         self.assertEqual(40, len(self.r()))
 
     def test_iter(self):
-        self.assertEqual(0, iter(self.r()).next())
+        self.assertEqual(0, next(iter(self.r())))
 
     def test_keys(self):
-        self.assertEqual(range(40), self.r().keys())
+        self.assertEqual(list(range(40)), list(self.r().keys()))
 
     def test_items(self):
         self.assertEqual(
-            self.r().items(),
-            {x: {'name': 'foo%s' % x} for x in range(40)}.items()
+            list(self.r().items()),
+            list({x: {'name': 'foo%s' % x} for x in range(40)}.items())
         )
         self.assertEqual(
-            list(self.r().iteritems()),
-            list({x: {'name': 'foo%s' % x} for x in range(40)}.iteritems())
+            list(self.r().items()),
+            list({x: {'name': 'foo%s' % x} for x in range(40)}.items())
         )
 
     def test_contains(self):

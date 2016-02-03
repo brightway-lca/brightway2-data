@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from ...serialization import JsonWrapper
 from ...utils import safe_filename
 from .mapping import get_mapping
@@ -63,7 +67,7 @@ class SynchronousJSONDict(collections.MutableMapping):
     def _save_file(self, key, data):
         """Save data ``data`` to file for key ``key``."""
         # Use json instead of anyjson because need indent for version control
-        with open(self.filepath(key), "w") as f:
+        with open(self.filepath(key), "w", encoding='utf-8') as f:
             json.dump(data, f, indent=2)
 
     def _load_file(self, key):

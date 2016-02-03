@@ -13,3 +13,4 @@ cover
 bw2data.egg-info
 *.orig
 *.patch
+.cache

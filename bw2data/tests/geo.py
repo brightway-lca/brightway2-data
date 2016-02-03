@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import BW2DataTest
-from .. import Database, geomapping, config, Method
-from fixtures import food, biosphere
+from .. import Database, geomapping, config, Method, projects
+from .fixtures import food, biosphere
 import copy
 import numpy as np
 import os
@@ -15,7 +18,7 @@ class GeoTest(BW2DataTest):
         geomapping.__init__()
 
     def add_biosphere(self):
-        d = Database("biosphere")
+        d = Database(u"biosphere")
         d.register(depends=[])
         d.write(biosphere)
 
@@ -40,12 +43,11 @@ class GeoTest(BW2DataTest):
 
     def test_method_adds_correct_geo(self):
         method = self.add_method()
-        method.process()
-        pickled = pickle.load(open(os.path.join(config.dir, "processed",
+        pickled = pickle.load(open(os.path.join(projects.dir, "processed",
             method.get_abbreviation() + ".pickle"), "rb"))
         self.assertEqual(geomapping["foo"], int(pickled[0]["geo"]))
         self.assertEqual(geomapping["bar"], int(pickled[1]["geo"]))
-        self.assertEquals(pickled.shape, (2,))
+        self.assertEqual(pickled.shape, (2,))
 
     # TODO: Adapt or remove
     def test_database_adds_correct_geo(self):
@@ -54,8 +56,7 @@ class GeoTest(BW2DataTest):
         database = Database("food")
         database.register(depends=["biosphere"])
         database.write(food)
-        database.process()
-        pickled = pickle.load(open(os.path.join(config.dir, "processed",
+        pickled = pickle.load(open(os.path.join(projects.dir, "processed",
             database.filename + ".pickle"), "rb"))
         self.assertTrue(geomapping["CA"] in pickled["geo"].tolist())
         self.assertTrue(geomapping["CH"] in pickled["geo"].tolist())
@@ -70,8 +71,7 @@ class GeoTest(BW2DataTest):
         for v in new_food.values():
             del v["location"]
         database.write(new_food)
-        database.process()
-        pickled = pickle.load(open(os.path.join(config.dir, "processed",
+        pickled = pickle.load(open(os.path.join(projects.dir, "processed",
             database.filename + ".pickle"), "rb"))
         self.assertTrue(np.allclose(pickled["geo"],
             geomapping["GLO"] * np.ones(pickled.shape)))
@@ -85,6 +85,6 @@ class GeoTest(BW2DataTest):
         self.add_biosphere()
         d = Database("food")
         d.register(depends=["biosphere"])
-        d.write(food)
+        d.write(food, process=False)
         self.assertTrue("CA" in geomapping)
         self.assertTrue("CH" in geomapping)

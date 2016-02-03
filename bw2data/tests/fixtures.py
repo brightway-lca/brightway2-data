@@ -1,5 +1,10 @@
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
+
 biosphere = {
-    ("biosphere", 1): {
+    ("biosphere", '1'): {
         'categories': ['things'],
         'code': 1,
         'exchanges': [],
@@ -7,7 +12,7 @@ biosphere = {
         'type': 'emission',
         'unit': 'kg'
         },
-    ("biosphere", 2): {
+    ("biosphere", '2'): {
         'categories': ['things'],
         'code': 2,
         'exchanges': [],
@@ -18,16 +23,16 @@ biosphere = {
 }
 
 food = {
-    ("food", 1): {
+    ("food", '1'): {
         'categories': ['stuff', 'meals'],
         'code': 1,
         'exchanges': [{
             'amount': 0.5,
-            'input': ('food', 2),
+            'input': ('food', '2'),
             'type': 'technosphere',
             'uncertainty type': 0},
             {'amount': 0.05,
-            'input': ('biosphere', 1),
+            'input': ('biosphere', '1'),
             'type': 'biosphere',
             'uncertainty type': 0}],
         'location': 'CA',
@@ -35,16 +40,16 @@ food = {
         'type': 'process',
         'unit': 'kg'
         },
-    ("food", 2): {
+    ("food", '2'): {
         'categories': ['stuff', 'meals'],
         'code': 2,
         'exchanges': [{
             'amount': 0.25,
-            'input': ('food', 1),
+            'input': ('food', '1'),
             'type': 'technosphere',
             'uncertainty type': 0},
             {'amount': 0.15,
-            'input': ('biosphere', 2),
+            'input': ('biosphere', '2'),
             'type': 'biosphere',
             'uncertainty type': 0}],
         'location': 'CH',
@@ -60,11 +65,11 @@ food2 = {
         'code': 1,
         'exchanges': [{
             'amount': 0.5,
-            'input': ('food', 2),
+            'input': ('food', '2'),
             'type': 'technosphere',
             'uncertainty type': 0},
             {'amount': 0.05,
-            'input': ('biosphere', 1),
+            'input': ('biosphere', '1'),
             'type': 'biosphere',
             'uncertainty type': 0}],
         'location': 'CA',
@@ -77,11 +82,11 @@ food2 = {
         'code': 2,
         'exchanges': [{
             'amount': 0.25,
-            'input': ('food', 1),
+            'input': ('food', '1'),
             'type': 'technosphere',
             'uncertainty type': 0},
             {'amount': 0.15,
-            'input': ('biosphere', 2),
+            'input': ('biosphere', '2'),
             'type': 'biosphere',
             'uncertainty type': 0}],
         'location': 'CH',

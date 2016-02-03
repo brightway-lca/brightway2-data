@@ -1,17 +1,29 @@
 # -*- coding: utf-8 -*-
-from .array import ArrayProxyTest, ListArrayProxyTest
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from .base import BW2DataTest
 from .config import ConfigTest
 from .data_store import DataStoreTestCase
-from .database import DatabaseTest, SingleFileDatabaseTest
+from .database import (
+    DatabaseQuerysetTest,
+    DatabaseTest,
+    ExchangeTest,
+    PeeweeProxyTest,
+    SingleFileDatabaseTest,
+)
+from .database_parameters import DatabaseParameterTest
 from .geo import GeoTest
-from .ia import IADSTest, MethodTest, WeightingTest, NormalizationTest
-from .json_database import JSONDatabaseTest, SynchronousJSONDictTest
-from .packaging import BW2PackageTest
-from .query import QueryTest, FilterTest, ResultTest
+from .ia import (
+    IADSTest,
+    MethodTest,
+    NormalizationTest,
+    WeightingTest,
+)
+# from .json_database import JSONDatabaseTest, SynchronousJSONDictTest
+# from .query import QueryTest, FilterTest, ResultTest
+from .search import SearchTest, IndexTest
 from .serialization import JsonSantizierTestCase
-from .simapro import SimaProImportTest
-from .sparse import SparseMatrixProxyTest
 from .updates import UpdatesTest
 from .utils import UtilsTest, UncertainifyTestCase
 from .validation import ValidationTestCase

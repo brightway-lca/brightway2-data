@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-from .data_store import DataStore
+from __future__ import print_function, unicode_literals
+from eight import *
+from future.utils import python_2_unicode_compatible
+
+from .data_store import ProcessedDataStore
 from .utils import safe_filename
 import hashlib
 import string
@@ -23,12 +27,17 @@ def abbreviate(names, length=8):
     """
     safe_names = [safe_filename(x, False) for x in names]
     abbrev = lambda x: x if x[0] in string.digits else x[0].lower()
-    name = u" ".join(safe_names).split(" ")[0].lower() + \
-        u"".join([abbrev(x) for x in u" ".join(safe_names).split(" ")[1:]])
-    return name + u"." + hashlib.md5(unicode(u"-".join(names))).hexdigest()
+    name = " ".join(safe_names).split(" ")[0].lower() + \
+        "".join([abbrev(x) for x in " ".join(safe_names).split(" ")[1:]])
+    return name + "." + str(
+        hashlib.md5(
+            ("-".join(names)).encode('utf-8')
+        ).hexdigest()
+    )
 
 
-class ImpactAssessmentDataStore(DataStore):
+@python_2_unicode_compatible
+class ImpactAssessmentDataStore(ProcessedDataStore):
     """
 A subclass of ``DataStore`` for impact assessment methods.
 
@@ -40,16 +49,16 @@ Args:
     * *name* (tuple): Name of the IA object to manage. Must be a tuple of unicode strings.
 
     """
-    def __unicode__(self):
-        return u"Brightway2 %s: %s" % (
+    def __str__(self):
+        return "Brightway2 %s: %s" % (
             self.__class__.__name__,
-            u": ".join(self.name)
+            ": ".join(self.name)
         )
 
     def get_abbreviation(self):
         """Retrieve the abbreviation of the method identifier from the metadata store. See class documentation."""
-        self.assert_registered()
-        return self.metadata[self.name]["abbreviation"]
+        self.register()
+        return self.metadata["abbreviation"]
 
     def copy(self, name=None):
         """Make a copy of the method, including its CFs and metadata.

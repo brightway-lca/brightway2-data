@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
-from ... import config, mapping, geomapping, databases
-from ...units import normalize_units
+from __future__ import print_function, unicode_literals
+from eight import *
+
+from ... import config, mapping, geomapping, databases, projects, preferences
+from .proxies import Activity
 from ..base import LCIBackend
 from .sync_json_dict import SynchronousJSONDict
 import os
@@ -10,17 +13,7 @@ class JSONDatabase(LCIBackend):
     """
     A data store for LCI databases. Stores each dataset in a separate file, serialized to JSON.
 
-    Instead of loading all the data at once, ``.load()`` creates a :class:`.SynchronousJSONDict`, which loads values on demand, and saves changes as they are made. In order to make sure that changes are saved correctly, each dataset is returned as a ``frozendict``, which doesn't allow modifications. Any modifications must be done by creating a new dictionary, e.g.:
-
-    .. code-block:: python
-
-        >>> my_db = JSONDatabase("some database")
-        >>> my_ds = my_db["some key"]
-        >>> my_ds["new key"] = "new value"
-        AttributeError: A frozendict cannot be modified
-        >> my_new_ds = dict(my_ds)  # Create new object for modifications
-        >> my_new_ds["new key"] = "new value"
-        >> my_db["some key"] = my_new_ds  # New data saved to disk
+    Instead of loading all the data at once, ``.load()`` creates a :class:`.SynchronousJSONDict`, which loads values on demand.
 
     Use this backend by setting ``"backend":"json"`` in the database metadata. This is done automatically if you call ``.register()`` from this class.
     """
@@ -28,24 +21,44 @@ class JSONDatabase(LCIBackend):
 
     def filepath_intermediate(self):
         return os.path.join(
-            config.dir,
+            projects.dir,
             u"intermediate",
             self.filename
         )
 
     def load(self, as_dict=False, *args, **kwargs):
         """Instantiate :class:`.SynchronousJSONDict` for this database."""
-        self.assert_registered()
-        dct = SynchronousJSONDict(self.filepath_intermediate(), self.name)
+        self.register()
+
+        if config.p.get("use_cache"):
+            try:
+                dct = config.cache[self.name]
+            except KeyError:
+                dct = SynchronousJSONDict(self.filepath_intermediate(),
+                                          self.name)
+                config.cache[self.name] = dct
+        else:
+            dct = SynchronousJSONDict(self.filepath_intermediate(), self.name)
+
         if as_dict:
-            return {key: dict(value) for key, value in dct.iteritems()}
+            return {key: dict(value) for key, value in dct.items()}
         else:
             return dct
 
-    def register(self, *args, **kwargs):
+    def __iter__(self):
+        json_dict = self.load()
+        for key in json_dict:
+            yield Activity(key, json_dict[key])
+
+    def get(self, code):
+        """Get Activity proxy for this dataset"""
+        key = (self.name, code)
+        data = self.load()[key]
+        return Activity(key, data)
+
+    def register(self, **kwargs):
         """Register a database with the metadata store, using the correct value for ``backend``, and creates database directory."""
-        kwargs[u"backend"] = u"json"
-        super(JSONDatabase, self).register(*args, **kwargs)
+        super(JSONDatabase, self).register(**kwargs)
         if not os.path.exists(self.filepath_intermediate()):
             os.mkdir(self.filepath_intermediate())
 
@@ -58,17 +71,17 @@ class JSONDatabase(LCIBackend):
             * *data* (dict): Inventory data
 
         """
-        self.assert_registered()
-
+        self.register()
         databases[self.name]["number"] = len(data)
         databases.flush()
 
         mapping.add(data.keys())
-        for ds in data.values():
-            if u'unit' in ds:
-                ds[u"unit"] = normalize_units(ds[u"unit"])
         geomapping.add({x[u"location"] for x in data.values() if
                        x.get(u"location", False)})
+
+        if preferences.get('allow incomplete imports'):
+            mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})
+            mapping.add({exc['output'] for ds in data.values() for exc in ds.get('exchanges', [])})
 
         if isinstance(data, SynchronousJSONDict) and \
                 data.dirpath == self.filepath_intermediate():
@@ -76,7 +89,7 @@ class JSONDatabase(LCIBackend):
             pass
         else:
             new_dict = self.load()
-            for key, value in data.iteritems():
+            for key, value in data.items():
                 new_dict[key] = value
         if process:
             self.process()

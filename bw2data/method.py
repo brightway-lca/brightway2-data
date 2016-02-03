@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
 from . import mapping, methods, geomapping, config
-from .utils import MAX_INT_32
+from .utils import MAX_INT_32, numpy_string
 from .validate import ia_validator
 from .ia_data_store import ImpactAssessmentDataStore
 import numpy as np
@@ -33,13 +36,13 @@ class Method(ImpactAssessmentDataStore):
         * *name* (tuple): Name of impact assessment method to manage.
 
     """
-    metadata = methods
+    _metadata = methods
     validator = ia_validator
     dtype_fields = [
-            ('flow', np.uint32),
-            ('geo', np.uint32),
-            ('row', np.uint32),
-            ('col', np.uint32),
+            (numpy_string('flow'), np.uint32),
+            (numpy_string('geo'), np.uint32),
+            (numpy_string('row'), np.uint32),
+            (numpy_string('col'), np.uint32),
     ]
 
     def add_mappings(self, data):
@@ -55,10 +58,10 @@ class Method(ImpactAssessmentDataStore):
             MAX_INT_32,
             ), row[1]
 
-    def write(self, data):
+    def write(self, data, process=True):
         """Serialize intermediate data to disk.
 
         Sets the metadata key ``num_cfs`` automatically."""
-        self.metadata[self.name][u"num_cfs"] = len(data)
-        self.metadata.flush()
+        self.metadata[u"num_cfs"] = len(data)
+        self._metadata.flush()
         super(Method, self).write(data)

@@ -1,9 +1,20 @@
 # -*- coding: utf-8 -*-
-from .. import databases, config, mapping, geomapping
+from __future__ import print_function, unicode_literals
+from eight import *
+
+from .. import (
+    config,
+    database_parameters,
+    databases,
+    geomapping,
+    mapping,
+    projects,
+)
+from ..data_store import ProcessedDataStore
+from ..database_parameters import database_parameters, DatabaseParameterSet
+from ..errors import UntypedExchange, InvalidExchange, UnknownObject
 from ..query import Query
-from ..data_store import DataStore
-from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename
-from ..errors import UntypedExchange, InvalidExchange
+from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename, numpy_string
 import copy
 import numpy as np
 import os
@@ -15,7 +26,7 @@ except ImportError:
     import pickle
 
 
-class LCIBackend(DataStore):
+class LCIBackend(ProcessedDataStore):
     """
     A base class for LCI backends.
 
@@ -50,7 +61,7 @@ class LCIBackend(DataStore):
                 Required("input"): valid_tuple,
                 Required("type"): basestring,
                 }
-        exchange.update(**uncertainty_dict)
+        exchange.update(uncertainty_dict)
         lci_dataset = {
             Optional("categories"): Any(list, tuple),
             Optional("location"): object,
@@ -71,21 +82,20 @@ class LCIBackend(DataStore):
         *name* (unicode string): Name of the database to manage.
 
     """
-    metadata = databases
+    _metadata = databases
     validator = None
     dtype_fields = [
-        ('input', np.uint32),
-        ('output', np.uint32),
-        ('row', np.uint32),
-        ('col', np.uint32),
-        ('type', np.uint8),
+        (numpy_string('input'), np.uint32),
+        (numpy_string('output'), np.uint32),
+        (numpy_string('row'), np.uint32),
+        (numpy_string('col'), np.uint32),
+        (numpy_string('type'), np.uint8),
     ]
-
     dtype_fields_geomapping = [
-        ('activity', np.uint32),
-        ('geo', np.uint32),
-        ('row', np.uint32),
-        ('col', np.uint32),
+        (numpy_string('activity'), np.uint32),
+        (numpy_string('geo'), np.uint32),
+        (numpy_string('row'), np.uint32),
+        (numpy_string('col'), np.uint32),
     ]
 
     def copy(self, name):
@@ -110,28 +120,30 @@ class LCIBackend(DataStore):
         return new_database
 
     @property
+    def parameters(self):
+        if not hasattr(self, "_database_parameters"):
+            self._database_parameters = DatabaseParameterSet(
+                self.name,
+                database_parameters.get(self.name, {})
+            )
+        return self._database_parameters
+
+    @property
     def filename(self):
         return safe_filename(self.name)
 
     def filepath_intermediate(self):
         raise NotImplementedError
 
-    def filepath_processed(self):
-        return os.path.join(
-            config.dir,
-            u"processed",
-            self.filename + u".pickle"
-        )
-
     def filepath_geomapping(self):
         return os.path.join(
-            config.dir,
-            u"processed",
-            self.filename + u".geomapping.pickle"
+            projects.dir,
+            "processed",
+            self.filename + ".geomapping.pickle"
         )
 
     def find_dependents(self, data=None, ignore=None):
-        """Get sorted list of dependent databases (databases linked from exchanges).
+        """Get sorted list of direct dependent databases (databases linked from exchanges).
 
         Args:
             * *data* (dict, optional): Inventory data
@@ -146,15 +158,37 @@ class LCIBackend(DataStore):
             data = self.load()
             ignore.add(self.name)
         dependents = {
-            exc.get(u'input')[0]
+            exc.get('input')[0]
             for ds in data.values()
-            for exc in ds.get(u'exchanges', [])
-            if ds.get(u'type', u'process') == u'process'
-            and exc.get(u'type') != u"unknown"
-            and exc.get(u'input', [None])[0] is not None
-            and exc.get(u'input', [None])[0] not in ignore
+            for exc in ds.get('exchanges', [])
+            if ds.get('type', 'process') == 'process'
+            and exc.get('type') != "unknown"
+            and exc.get('input', [None])[0] is not None
+            and exc.get('input', [None])[0] not in ignore
         }
         return sorted(dependents)
+
+    def find_graph_dependents(self):
+        """Recursively get list of all dependent databases.
+
+        Returns:
+            A set of database names
+
+        """
+        def extend(seeds):
+            return set.union(seeds,
+                             set.union(*[set(databases[obj]['depends'])
+                                         for obj in seeds]))
+
+        seed, extended = {self.name}, extend({self.name})
+        while extended != seed:
+            seed, extended = extended, extend(extended)
+        return extended
+
+    def delete(self):
+        """Delete data from this instance. For the base class, only clears cached data."""
+        if self.name in config.cache:
+            del config.cache[self.name]
 
     def load(self, *args, **kwargs):
         """Load the intermediate data for this database.
@@ -170,7 +204,7 @@ class LCIBackend(DataStore):
         * ``keys()``
         * ``values()``
         * ``items()``
-        * ``iteritems()``
+        * ``items()``
 
         However, this method **must** support the keyword argument ``as_dict``, and ``.load(as_dict=True)`` must return a normal dictionary with all Database data. This is necessary for JSON serialization.
 
@@ -193,11 +227,11 @@ Args:
 Doesn't return anything, but writes two files to disk.
 
         """
-        data = self.load(*args, **kwargs)
+        data = self.load(as_dict=True, *args, **kwargs)
         num_exchanges = sum([
-            len(obj.get(u"exchanges", []))
+            len(obj.get("exchanges", []))
             for obj in data.values()
-            if obj.get(u"type", u"process") == u"process"
+            if obj.get("type", "process") == "process"
         ])
 
         gl = config.global_location
@@ -206,10 +240,10 @@ Doesn't return anything, but writes two files to disk.
         count = 0
         arr = np.zeros((len(data), ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
         for key in sorted(data.keys(), key=lambda x: x[1]):
-            if data[key].get(u'type', u'process') == u'process':
+            if data[key].get('type', 'process') == 'process':
                 arr[count] = (
                     mapping[key],
-                    geomapping[data[key].get(u"location", gl) or gl],
+                    geomapping[data[key].get("location", gl) or gl],
                     MAX_INT_32, MAX_INT_32,
                     0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
                 )
@@ -223,49 +257,59 @@ Doesn't return anything, but writes two files to disk.
 
         for key in sorted(data.keys(), key=lambda x: x[1]):
             production_found = False
-            if data[key].get('type', u'process') != u"process":
+            if data[key].get('type', 'process') != "process":
                 continue
             for exc in sorted(
-                    data[key].get(u"exchanges", []),
-                    key=lambda x: x.get(u"input")):
+                    data[key].get("exchanges", []),
+                    key=lambda x: x.get("input")):
 
-                if u"amount" not in exc or u"input" not in exc:
+                if "amount" not in exc or "input" not in exc:
                     raise InvalidExchange
-                if u"type" not in exc:
+                if "type" not in exc:
                     raise UntypedExchange
+                if np.isnan(exc['amount']) or np.isinf(exc['amount']):
+                    raise ValueError("Invalid amount in exchange {}".format(data))
 
                 if exc['type'] == 'production':
                     production_found = True
-                arr[count] = (
-                    mapping[exc[u"input"]],
-                    mapping[key],
-                    MAX_INT_32,
-                    MAX_INT_32,
-                    TYPE_DICTIONARY[exc[u"type"]],
-                    exc.get(u"uncertainty type", 0),
-                    exc[u"amount"],
-                    exc[u"amount"] \
-                        if exc.get(u"uncertainty type", 0) in (0,1) \
-                        else exc.get(u"loc", np.NaN),
-                    exc.get(u"scale", np.NaN),
-                    exc.get(u"shape", np.NaN),
-                    exc.get(u"minimum", np.NaN),
-                    exc.get(u"maximum", np.NaN),
-                    exc[u"amount"] < 0
-                )
+                try:
+                    arr[count] = (
+                        mapping[exc["input"]],
+                        mapping[key],
+                        MAX_INT_32,
+                        MAX_INT_32,
+                        TYPE_DICTIONARY[exc["type"]],
+                        exc.get("uncertainty type", 0),
+                        exc["amount"],
+                        exc["amount"] \
+                            if exc.get("uncertainty type", 0) in (0,1) \
+                            else exc.get("loc", np.NaN),
+                        exc.get("scale", np.NaN),
+                        exc.get("shape", np.NaN),
+                        exc.get("minimum", np.NaN),
+                        exc.get("maximum", np.NaN),
+                        exc["amount"] < 0
+                    )
+
+                except KeyError:
+                    raise UnknownObject(("Exchange between {} and {} is invalid "
+                        "- {} is unknown (i.e. doesn't exist as a process dataset)"
+                        ).format(exc["input"], key, exc["input"])
+                    )
+
                 count += 1
             if not production_found:
                 # Add amount produced for each process (default 1)
                 arr[count] = (
                     mapping[key], mapping[key],
-                    MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY[u"production"],
+                    MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY["production"],
                     0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
                 )
                 count += 1
 
         # Automatically set 'depends'
-        self.metadata[self.name]['depends'] = self.find_dependents()
-        self.metadata.flush()
+        self.metadata['depends'] = self.find_dependents()
+        self._metadata.flush()
 
         # The array is too big, because it can include a default production
         # amount for each activity. Trim to actual size.
@@ -281,12 +325,12 @@ Doesn't return anything, but writes two files to disk.
         """Return a random activity key.
 
         Returns a random activity key, or ``None`` (and issues a warning) if the current database is empty."""
-        keys = self.load().keys()
+        keys = [x for x in mapping if x and x[0] == self.name]
         if not keys:
-            warnings.warn(u"This database is empty")
+            warnings.warn("This database is empty")
             return None
         else:
-            return random.choice(keys)
+            return self.get(random.choice(keys)[1])
 
     def register(self, **kwargs):
         """Register a database with the metadata store.
@@ -301,8 +345,9 @@ Doesn't return anything, but writes two files to disk.
             * *format* (str, optional): Format that the database was converted from, e.g. "Ecospold"
 
         """
-        if u'depends' not in kwargs:
-            kwargs[u'depends'] = []
+        if 'depends' not in kwargs:
+            kwargs['depends'] = []
+        kwargs["backend"] = self.backend
         super(LCIBackend, self).register(**kwargs)
 
     def relabel_data(self, data, new_name):
@@ -330,7 +375,7 @@ Doesn't return anything, but writes two files to disk.
                         ]
                     }
                 }
-            print relabel_database(data, "shiny new")
+            print(relabel_database(data, "shiny new"))
             >> {
                 ("shiny new", 1):
                     {"exchanges": [
@@ -357,13 +402,13 @@ Doesn't return anything, but writes two files to disk.
 
         """
         def relabel_exchanges(obj, new_name):
-            for e in obj.get(u'exchanges', []):
-                if e[u"input"] in data:
-                    e[u"input"] = (new_name, e[u"input"][1])
+            for e in obj.get('exchanges', []):
+                if e["input"] in data:
+                    e["input"] = (new_name, e["input"][1])
             return obj
 
         return dict([((new_name, k[1]), relabel_exchanges(v, new_name)) \
-            for k, v in data.iteritems()])
+            for k, v in data.items()])
 
     def rename(self, name):
         """Rename a database. Modifies exchanges to link to new name. Deregisters old database.
@@ -382,7 +427,6 @@ Doesn't return anything, but writes two files to disk.
             databases[name] = databases[old_name]
         new_data = self.relabel_data(self.load(), name)
         new_db.write(new_data)
-        new_db.process()
         del databases[old_name]
         return new_db
 

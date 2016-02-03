@@ -1,17 +1,21 @@
 # -*- coding: utf-8 -*-
-from ... import databases, config, mapping, geomapping
+from __future__ import print_function, unicode_literals
+from eight import *
+
+from ... import databases, config, mapping, geomapping, projects, preferences
 from ...errors import MissingIntermediateData
-from ...units import normalize_units
-from ...utils import natural_sort, safe_filename, safe_save
+from ...fatomic import open as atomic_open
+from ...project import writable_project
+from ...utils import natural_sort, safe_filename
 from ...validate import db_validator
+from .proxies import Activity
+from ..base import LCIBackend
 import datetime
 import os
-import random
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
-from ..base import LCIBackend
 
 
 class SingleFileDatabase(LCIBackend):
@@ -25,7 +29,16 @@ class SingleFileDatabase(LCIBackend):
 
     """
     validator = db_validator
-    backend = u"default"
+    backend = u"singlefile"
+
+    def __iter__(self):
+        for k, v in self.load().items():
+            yield Activity(k, v)
+
+    def get(self, code):
+        """Get Activity proxy for this dataset"""
+        key = (self.name, code)
+        return Activity(key, self.load()[key])
 
     @property
     def filename(self):
@@ -45,7 +58,7 @@ class SingleFileDatabase(LCIBackend):
 
     def filepath_intermediate(self, version=None):
         return os.path.join(
-            config.dir,
+            projects.dir,
             u"intermediate",
             self.filename_for_version(version) + u".pickle"
         )
@@ -67,15 +80,19 @@ class SingleFileDatabase(LCIBackend):
                 version = int(version)
             except:
                 raise ValueError("Version number must be an integer")
-        self.assert_registered()
-        if version is None and config.p.get(u"use_cache", False) and \
-                self.name in config.cache:
-            return config.cache[self.name]
+        self.register()
+
         try:
-            data = pickle.load(open(self.filepath_intermediate(version), "rb"))
-            if version is None and config.p.get(u"use_cache", False):
-                config.cache[self.name] = data
-            return data
+            if (version is None
+                and config.p.get("use_cache", False)
+                and self.name in config.cache):
+                return config.cache[self.name]
+            else:
+                data = pickle.load(open(self.filepath_intermediate(version), "rb"))
+                if (version is None
+                    and config.p.get("use_cache", False)):
+                    config.cache[self.name] = data
+                return data
         except (OSError, IOError):
             raise MissingIntermediateData("This version (%i) not found" % version)
 
@@ -87,23 +104,13 @@ class SingleFileDatabase(LCIBackend):
         databases[self.name][u"version"] = self.versions()[-1][0]
         self.write(data)
 
-    def random(self):
-        """Use mapping a index to select random activity key."""
-        return random.choice([
-            key for key in mapping
-            if isinstance(key, tuple)
-            and key[0] == self.name
-        ])
-
     def register(self, **kwargs):
         """Register a database with the metadata store.
 
         Databases must be registered before data can be written.
 
         """
-        kwargs.update(
-            version=kwargs.get(u'version', None) or 0
-        )
+        kwargs.update(version=kwargs.get(u'version', None) or 0)
         super(SingleFileDatabase, self).register(**kwargs)
 
     def revert(self, version):
@@ -118,7 +125,8 @@ class SingleFileDatabase(LCIBackend):
         assert version in [x[0] for x in self.versions()], "Version not found"
         self.backup()
         databases[self.name][u"version"] = version
-        if config.p.get(u"use_cache", False) and self.name in config.cache:
+        if (config.p.get(u"use_cache", False)
+            and self.name in config.cache):
             config.cache[self.name] = self.load(version)
         self.process(version)
 
@@ -139,37 +147,49 @@ class SingleFileDatabase(LCIBackend):
             List of (version, datetime created) tuples.
 
         """
-        directory = os.path.join(config.dir, u"intermediate")
+        directory = os.path.join(projects.dir, u"intermediate")
         files = natural_sort(filter(
             lambda x: ".".join(x.split(".")[:-2]) == safe_filename(self.name),
             os.listdir(directory)))
         return sorted([(int(name.split(".")[-2]),
             datetime.datetime.fromtimestamp(os.stat(os.path.join(
-            config.dir, directory, name)).st_mtime)) for name in files])
+            projects.dir, directory, name)).st_mtime)) for name in files])
 
+    @writable_project
     def write(self, data, process=True):
         """Serialize data to disk.
-
-        Normalizes units when found.
 
         Args:
             * *data* (dict): Inventory data
 
         """
-        self.assert_registered()
+        self.register()
+
+        # Need to use iterator to reduce memory usage
+        try:  # Py2
+            itr = data.iteritems()
+        except AttributeError:  # Py3
+            itr = data.items()
+        for key, obj in itr:
+            obj['database'] = key[0]
+            obj['code'] = key[1]
+
+        if (config.p.get(u"use_cache", False)
+            and self.name in config.cache):
+            config.cache[self.name] = data
+
         databases.increment_version(self.name, len(data))
 
         mapping.add(data.keys())
-        for ds in data.values():
-            if u'unit' in ds:
-                ds[u"unit"] = normalize_units(ds[u"unit"])
         geomapping.add({x[u"location"] for x in data.values() if
                        x.get(u"location", False)})
 
-        if config.p.get(u"use_cache", False) and self.name in config.cache:
-            config.cache[self.name] = data
-        with safe_save(self.filepath_intermediate()) as filepath:
-            with open(filepath, "wb") as f:
-                pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        if preferences.get('allow incomplete imports'):
+            mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})
+            mapping.add({exc['output'] for ds in data.values() for exc in ds.get('exchanges', [])})
+
+        with atomic_open(self.filepath_intermediate(), "wb") as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
         if process:
             self.process()

@@ -1,7 +1,13 @@
-# -*- coding: utf-8 -*
-from . import config
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+
+from . import config, projects
 from .errors import UnknownObject, MissingIntermediateData
-from .utils import safe_filename, safe_save
+from .fatomic import open as atomic_open
+from .project import writable_project
+from .utils import safe_filename, numpy_string
+from future.utils import python_2_unicode_compatible
 import numpy as np
 import os
 import warnings
@@ -10,71 +16,61 @@ try:
 except ImportError:
     import pickle
 
-
+@python_2_unicode_compatible
 class DataStore(object):
     """
 Base class for all Brightway2 data stores. Subclasses should define:
 
     * **metadata**: A :ref:`serialized-dict` instance, e.g. ``databases`` or ``methods``. The custom is that each type of data store has a new metadata store, so the data store ``Foo`` would have a metadata store ``foos``.
-    * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``. Fields names **must** be bytestrings, not unicode (i.e. ``"foo"`` instead of ``u"foo"``). Uncertainty fields (``base_uncertainty_fields``) are added automatically.
     * **validator**: A data validator. Optional. See bw2data.validate.
-
-In order to use ``dtype_fields``, subclasses should override the method ``process_data``. This function takes rows of data, and returns the correct values for the custom dtype fields (as a tuple), **and** the ``amount`` field with its associated uncertainty. This second part is a little flexible - if there is no uncertainty, a number can be returned; otherwise, an uncertainty dictionary should be returned.
-
-Subclasses should also override ``add_mappings``. This method takes the entire dataset, and loads objects to :ref:`mapping` or :ref:`geomapping` as needed.
 
     """
     validator = None
-    metadata = None
-    dtype_fields = None
-    # Numpy columns names can't be unicode
-    base_uncertainty_fields = [
-        ('uncertainty_type', np.uint8),
-        ('amount', np.float32),
-        ('loc', np.float32),
-        ('scale', np.float32),
-        ('shape', np.float32),
-        ('minimum', np.float32),
-        ('maximum', np.float32),
-        ('negative', np.bool),
-    ]
+    _metadata = None
+    _intermediate_dir = u'intermediate'
 
     def __init__(self, name):
         self.name = name
-        if self.name not in self.metadata and not \
-                getattr(config, "dont_warn", False):
-            warnings.warn(u"%s is not registered" % self)
-
-    def __unicode__(self):
-        return u"Brightway2 %s: %s" % (self.__class__.__name__, self.name)
 
     def __str__(self):
-        return unicode(self).encode('utf-8')
+        return "Brightway2 %s: %s" % (self.__class__.__name__, self.name)
+
+    __repr__ = lambda x: str(x)
+
+    def _get_metadata(self):
+        if self.name not in self._metadata:
+            raise UnknownObject(
+                "This object is not yet registered; can't get or set metadata"
+            )
+        return self._metadata[self.name]
+
+    @writable_project
+    def _set_metadata(self, value):
+        self._get_metadata()
+        self._metadata[self.name] = value
+        self._metadata.flush()
+
+    metadata = property(_get_metadata, _set_metadata)
 
     @property
     def filename(self):
         """Remove filesystem-unsafe characters and perform unicode normalization on ``self.name`` using :func:`.utils.safe_filename`."""
         return safe_filename(self.name)
 
+    @property
+    def registered(self):
+        return self.name in self._metadata
+
+    @writable_project
     def register(self, **kwargs):
-        """Register an object with the metadata store.
+        """Register an object with the metadata store. Takes any number of keyword arguments."""
+        if self.name not in self._metadata:
+            self._metadata[self.name] = kwargs
 
-        Objects must be registered before data can be written. If this object is not yet registered in the metadata store, a warning is written to **stdout**.
-
-        Takes any number of keyword arguments.
-
-        """
-        assert self.name not in self.metadata, u"%s is already registered" % self
-        self.metadata[self.name] = kwargs
-
+    @writable_project
     def deregister(self):
         """Remove an object from the metadata store. Does not delete any files."""
-        del self.metadata[self.name]
-
-    def assert_registered(self):
-        """Raise ``UnknownObject`` if not yet registered"""
-        if self.name not in self.metadata:
-            raise UnknownObject(u"%s is not yet registered" % self)
+        del self._metadata[self.name]
 
     def load(self):
         """Load the intermediate data for this object.
@@ -83,21 +79,18 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             The intermediate data.
 
         """
-        self.assert_registered()
+        if not self.registered:
+            raise UnknownObject("This object is not registered and has no data")
         try:
             return pickle.load(open(os.path.join(
-                config.dir,
-                u"intermediate",
-                self.filename + u".pickle"
+                projects.dir,
+                "intermediate",
+                self.filename + ".pickle"
             ), "rb"))
         except OSError:
-            raise MissingIntermediateData(u"Can't load intermediate data")
+            raise MissingIntermediateData("Can't load intermediate data")
 
-    @property
-    def dtype(self):
-        """Returns both the generic ``base_uncertainty_fields`` plus class-specific ``dtype_fields``. ``dtype`` determines the columns of the :ref:`processed array <processing-data>`."""
-        return self.dtype_fields + self.base_uncertainty_fields
-
+    @writable_project
     def copy(self, name):
         """Make a copy of this object with a new ``name``.
 
@@ -110,11 +103,10 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             The new object.
 
         """
-        assert name not in self.metadata, u"%s already exists" % name
+        assert name not in self._metadata, "%s already exists" % name
         new_obj = self.__class__(name)
-        new_obj.register(**self.metadata[self.name])
+        new_obj.register(**self.metadata)
         new_obj.write(self.load())
-        new_obj.process()
         return new_obj
 
     def backup(self):
@@ -124,9 +116,10 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             File path of backup.
 
         """
-        from .io import BW2Package
+        from bw2io import BW2Package
         return BW2Package.export_obj(self)
 
+    @writable_project
     def write(self, data):
         """Serialize intermediate data to disk.
 
@@ -134,16 +127,76 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             * *data* (object): The data
 
         """
-        self.assert_registered()
+        self.register()
+        filepath = os.path.join(
+            projects.dir,
+            self._intermediate_dir,
+            self.filename + ".pickle"
+        )
+        with atomic_open(filepath, "wb") as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def validate(self, data):
+        """Validate data. Must be called manually."""
+        self.validator(data)
+        return True
+
+
+class ProcessedDataStore(DataStore):
+    """
+Brightway2 data stores that can be processed to NumPy arrays. In addition to ``metadata`` and (optionally) ``validator``, subclasses should define:
+
+    * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``. Fields names **must** be bytestrings, not unicode (i.e. ``b"foo"`` instead of ``"foo"``). Uncertainty fields (``base_uncertainty_fields``) are added automatically.
+
+In order to use ``dtype_fields``, subclasses should override the method ``process_data``. This function takes rows of data, and returns the correct values for the custom dtype fields (as a tuple), **and** the ``amount`` field with its associated uncertainty. This second part is a little flexible - if there is no uncertainty, a number can be returned; otherwise, an uncertainty dictionary should be returned.
+
+Subclasses should also override ``add_mappings``. This method takes the entire dataset, and loads objects to :ref:`mapping` or :ref:`geomapping` as needed.
+
+    """
+    dtype_fields = None
+    # Numpy columns names can't be unicode
+    base_uncertainty_fields = [
+        (numpy_string('uncertainty_type'), np.uint8),
+        (numpy_string('amount'), np.float32),
+        (numpy_string('loc'), np.float32),
+        (numpy_string('scale'), np.float32),
+        (numpy_string('shape'), np.float32),
+        (numpy_string('minimum'), np.float32),
+        (numpy_string('maximum'), np.float32),
+        (numpy_string('negative'), np.bool),
+    ]
+
+    @property
+    def dtype(self):
+        """Returns both the generic ``base_uncertainty_fields`` plus class-specific ``dtype_fields``. ``dtype`` determines the columns of the :ref:`processed array <processing-data>`."""
+        return self.dtype_fields + self.base_uncertainty_fields
+
+    def filepath_processed(self):
+        return os.path.join(
+            projects.dir,
+            "processed",
+            self.filename + ".pickle"
+        )
+
+    @writable_project
+    def write(self, data, process=True):
+        """Serialize intermediate data to disk.
+
+        Args:
+            * *data* (object): The data
+
+        """
+        self.register()
         self.add_mappings(data)
         filepath = os.path.join(
-            config.dir,
-            u"intermediate",
-            self.filename + u".pickle"
+            projects.dir,
+            self._intermediate_dir,
+            self.filename + ".pickle"
         )
-        with safe_save(filepath) as filepath:
-            with open(filepath, "wb") as f:
-                pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with atomic_open(filepath, "wb") as f:
+            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+        if process:
+            self.process()
 
     def process_data(self, row):
         """Translate data into correct order"""
@@ -171,21 +224,21 @@ Doesn't return anything, but writes a file to disk.
             assert len(values) == len(self.dtype_fields)
             assert u'amount' in uncertainties, "Must provide at least `amount` field in `uncertainties`"
             arr[index] = values + (
-                uncertainties.get(u"uncertainty type", 0),
-                uncertainties[u"amount"],
-                uncertainties[u"amount"] \
-                    if uncertainties.get(u"uncertainty type", 0) in (0, 1) \
-                    else uncertainties.get(u"loc", np.NaN),
-                uncertainties.get(u"scale", np.NaN),
-                uncertainties.get(u"shape", np.NaN),
-                uncertainties.get(u"minimum", np.NaN),
-                uncertainties.get(u"maximum", np.NaN),
-                uncertainties.get(u"amount" < 0),
+                uncertainties.get("uncertainty type", 0),
+                uncertainties["amount"],
+                uncertainties["amount"] \
+                    if uncertainties.get("uncertainty type", 0) in (0, 1) \
+                    else uncertainties.get("loc", np.NaN),
+                uncertainties.get("scale", np.NaN),
+                uncertainties.get("shape", np.NaN),
+                uncertainties.get("minimum", np.NaN),
+                uncertainties.get("maximum", np.NaN),
+                uncertainties.get("amount") < 0,
             )
         filepath = os.path.join(
-            config.dir,
-            u"processed",
-            self.filename + u".pickle"
+            projects.dir,
+            "processed",
+            self.filename + ".pickle"
         )
         with open(filepath, "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)

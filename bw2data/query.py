@@ -1,4 +1,8 @@
-# -*- coding: utf-8 -*
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+from eight import *
+from future.utils import python_2_unicode_compatible
+
 import collections
 import operator
 import itertools
@@ -45,10 +49,11 @@ class Dictionaries(object):
     def __init__(self, *args):
         self.dicts = args
 
-    def iteritems(self):
-        return itertools.chain(*[x.iteritems() for x in self.dicts])
+    def items(self):
+        return itertools.chain(*[x.items() for x in self.dicts])
 
 
+@python_2_unicode_compatible
 class Result(object):
     """A container that wraps a filtered dataset. Returned by a calling a ``Query`` object. A result object functions like a read-only dictionary; you can call ``Result[some_key]``, or ``some_key in Result``, or ``len(Result)``.
 
@@ -69,7 +74,7 @@ class Result(object):
     def __repr__(self):
         if not self.result:
             return u"Query result:\n\tNo query results found."
-        data = self.result.items()[:20]
+        data = list(self.result.items())[:20]
         return (u"Query result: (total %i)\n" % len(self.result) + \
             u"\n".join([u"%s: %s" % (k, v.get("name", "Unknown"))
                         for k, v in data])
@@ -83,7 +88,7 @@ class Result(object):
             * *reverse* (bool, optional): Reverse normal sorting order.
 
         """
-        self.result = collections.OrderedDict(sorted(self.result.iteritems(),
+        self.result = collections.OrderedDict(sorted(self.result.items(),
             key=lambda t: t[1].get(field, None), reverse=reverse))
 
     # Generic dictionary methods
@@ -99,8 +104,8 @@ class Result(object):
     def items(self):
         return self.result.items()
 
-    def iteritems(self):
-        return self.result.iteritems()
+    def items(self):
+        return self.result.items()
 
     def __getitem__(self, key):
         return self.result[key]
@@ -174,7 +179,7 @@ class Filter(object):
             raise ValueError("No valid function found")
 
     def __call__(self, data):
-        return dict(((k, v) for k, v in data.iteritems() if try_op(
+        return dict(((k, v) for k, v in data.items() if try_op(
             self.function, v.get(self.key, None), self.value)))
 
 
