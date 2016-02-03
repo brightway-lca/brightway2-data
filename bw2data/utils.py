@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
-from . import config
-from .errors import WebUIError
+from __future__ import print_function, unicode_literals
+from eight import *
+
+from . import config, projects
+from .errors import WebUIError, UnknownObject
+from .fatomic import open
+from .project import safe_filename
 from contextlib import contextmanager
-import codecs
+from io import StringIO
 import collections
 import datetime
-import hashlib
 import itertools
 import os
 import random
@@ -13,14 +17,11 @@ import re
 import requests
 import stats_arrays as sa
 import string
-import unicodedata
 import urllib
 import webbrowser
 import zipfile
-try:
-    import cStringIO as StringIO
-except ImportError:
-    import StringIO
+import sys
+
 
 # Maximum value for unsigned integer stored in 4 bytes
 MAX_INT_32 = 4294967295
@@ -31,29 +32,20 @@ TYPE_DICTIONARY = {
     "production": 0,
     "technosphere": 1,
     "biosphere": 2,
+    "substitution": 3,
 }
 
-DOWNLOAD_URL = "http://brightwaylca.org/data/"
+DOWNLOAD_URL = "https://brightwaylca.org/data/"
 
-re_slugify = re.compile('[^\w\s-]', re.UNICODE)
+numpy_string = lambda x: bytes(x) if sys.version_info < (3, 0) else x
 
 
 def natural_sort(l):
     """Sort the given list in the way that humans expect, e.g. 9 before 10."""
     # http://nedbatchelder.com/blog/200712/human_sorting.html#comments
-    convert = lambda text: int(text) if text.isdigit() else text
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
     return sorted(l, key=alphanum_key)
-
-
-def recursively_sort(obj):
-    """Recursively sort a nested data structure."""
-    if isinstance(obj, dict):
-        return sorted([(k, recursively_sort(v)) for k, v in obj.iteritems()])
-    elif hasattr(obj, "__iter__"):
-        return sorted((recursively_sort(x) for x in obj))
-    else:
-        return obj
 
 
 def random_string(length=8):
@@ -66,8 +58,8 @@ def random_string(length=8):
         A string (not unicode)
 
     """
-    return ''.join(random.choice(string.letters + string.digits
-                                 ) for i in xrange(length))
+    return ''.join(random.choice(string.ascii_letters + string.digits
+                                 ) for i in range(length))
 
 
 def combine_methods(name, *ms):
@@ -91,72 +83,11 @@ def combine_methods(name, *ms):
         ", ".join([str(x) for x in ms]),
         "unit": list(units)[0] if len(units) == 1 else "Unknown"
     }
-    data = [(key, cf, geo) for (key, geo), cf in data.iteritems()]
+    data = [(key, cf, geo) for (key, geo), cf in data.items()]
     method = Method(name)
     method.register(**meta)
     method.write(data)
-    method.process()
     return method
-
-
-def safe_filename(string, add_hash=True):
-    """Convert arbitrary strings to make them safe for filenames. Substitutes strange characters, and uses unicode normalization.
-
-    if `add_hash`, appends hash of `string` to avoid name collisions.
-
-    From http://stackoverflow.com/questions/295135/turn-a-string-into-a-valid-filename-in-python"""
-    safe = re.sub(
-        '[-\s]+',
-        '-',
-        unicode(
-            re_slugify.sub(
-                '',
-                unicodedata.normalize('NFKD', unicode(string))
-            ).strip()
-        )
-    )
-    if add_hash:
-        if isinstance(string, unicode):
-            string = string.encode("utf8")
-        return safe + u"." + hashlib.md5(string).hexdigest()
-    else:
-        return safe
-
-
-@contextmanager
-def safe_save(filepath):
-    """Safe to a temporary filename, and restore to the correct filename only upon a successful write.
-
-    This avoids data loss when a file is not completely written, for whatever reason. If an error occurs, the existing good data will not be overwritten. Usage:
-
-    .. code-block:: python
-
-        with safe_save("foo.txt") as filepath:
-            with open(filepath, "w") as f:
-                f.write("bar")
-
-    Inside the context block, ``filepath`` is transformed to ``".foo.txt"`` (keeping the correct path). As the context block is exited, the written file is renamed to ``"foo.txt"``.
-
-    Only needed in cases where you expect a data file to already be present on disk, e.g. metadata, or intermediate data. Not used on ``.process()`` as this can be repeated on error without data loss.
-
-    """
-    filepath = os.path.abspath(filepath)
-    save_filepath = os.path.join(
-        os.path.dirname(filepath),
-        u"." + os.path.basename(filepath)
-    )
-    if os.path.exists(save_filepath):
-        os.unlink(save_filepath)
-    yield save_filepath
-    if os.path.exists(filepath):
-        backup_filepath = os.path.join(
-            os.path.dirname(filepath),
-            u"." + os.path.basename(filepath) + u".backup"
-        )
-        if os.path.exists(backup_filepath):
-            os.unlink(backup_filepath)
-        os.rename(filepath, backup_filepath)
-    os.rename(save_filepath, filepath)
 
 
 def clean_exchanges(data):
@@ -165,7 +96,7 @@ def clean_exchanges(data):
         for exc in value.get('exchanges', []):
             exc['input'] = tuple(exc['input'])
         return value
-    return {key: tupleize(value) for key, value in data.iteritems()}
+    return {key: tupleize(value) for key, value in data.items()}
 
 
 def uncertainify(data, distribution=None, bounds_factor=0.1, sd_factor=0.1):
@@ -194,7 +125,7 @@ Returns the modified data.
         "bounds_factor must be a positive number"
     assert sd_factor * 1. > 0, "sd_factor must be a positive number"
 
-    for key, value in data.iteritems():
+    for key, value in data.items():
         for exchange in value.get(u'exchanges', []):
             if (exchange.get(u'type') == u'production') or \
                     (exchange.get(u'uncertainty type',
@@ -230,18 +161,18 @@ def recursive_str_to_unicode(data, encoding="utf8"):
     """Convert the strings inside a (possibly nested) python data structure to unicode strings using `encoding`."""
     # Adapted from
     # http://stackoverflow.com/questions/1254454/fastest-way-to-convert-a-dicts-keys-values-from-unicode-to-str
-    if isinstance(data, unicode):
+    if isinstance(data, str):
         return data
-    elif isinstance(data, str):
-        return unicode(data, encoding)  # Faster than str.encode
+    elif isinstance(data, bytes):
+        return str(data, encoding)  # Faster than str.encode
     elif isinstance(data, collections.Mapping):
-        return dict(itertools.imap(
+        return dict(map(
             recursive_str_to_unicode,
-            data.iteritems(),
+            data.items(),
             itertools.repeat(encoding)
         ))
     elif isinstance(data, collections.Iterable):
-        return type(data)(itertools.imap(
+        return type(data)(map(
             recursive_str_to_unicode,
             data,
             itertools.repeat(encoding)
@@ -260,63 +191,28 @@ def merge_databases(parent_db, *others):
     pass
 
 
-def database_hash(data):
-    """Hash a Database.
+def download_file(filename, directory="downloads", url=None):
+    """Download a file and write it to disk in ``downloads`` directory.
 
-    Data is recursively sorted so that the hashes are consistent. Useful for ensuring integrity or compatibility when exchanging data.
-
-    Args:
-        * *data* (dict): The Database data.
-
-    Returns:
-        A MD5 hash string, hex-encoded.
-
-    """
-    return hashlib.md5(unicode(recursively_sort(data))).hexdigest()
-
-
-def activity_hash(data):
-    """Hash an activity dataset.
-
-    Used to import data formats like ecospold 1 (ecoinvent v1-2) and SimaPro, where no unique attributes for datasets are given. This is clearly an imperfect and brittle solution, but there is no other obvious approach at this time.
-
-    Uses the following, in order:
-        * *name* Lower case, defult is ``""`` (empty string).
-        * *categories* In string form, joined together with ``""`` (empty string), default is ``[]``.
-        * *unit* Lower case, default is ``""`` (empty string).
-        * *location* Lower case, default is ``""`` (empty string).
-
-    Args:
-        * *data* (dict): The :ref:`activity dataset data <database-documents>`.
-
-    Returns:
-        A MD5 hash string, hex-encoded.
-
-    """
-    string = ((data.get(u"name") or u"").lower() +
-              u"".join(data.get(u"categories", [])) +
-              (data.get(u"unit") or u"").lower() +
-              (data.get(u"location") or u"").lower() +
-              (data.get(u"reference product") or u"").lower())
-    return unicode(hashlib.md5(string.encode('utf-8')).hexdigest())
-
-
-def download_file(filename):
-    """Download a file from the Brightway2 website and write it to disk in ``downloads`` directory.
+    If ``url`` is None, uses the Brightway2 data base URL. ``url`` should everything up to the filename, such that ``url`` + ``filename`` is the valid complete URL to download from.
 
     Streams download to reduce memory usage.
 
     Args:
         * *filename* (str): The filename to download.
+        * *directory* (str, optional): Directory to save the file. Created if it doesn't already exist.
+        * *url* (str, optional): URL where the file is located, if not the default Brightway data URL.
 
     Returns:
         The path of the created file.
 
     """
 
-    dirpath = config.request_dir("downloads")
+    assert isinstance(directory, str), "`directory` must be a string"
+    dirpath = projects.request_directory(directory)
     filepath = os.path.join(dirpath, filename)
-    download = requests.get(DOWNLOAD_URL + filename, stream=True).raw
+    download_path = (url if url is not None else DOWNLOAD_URL) + filename
+    download = requests.get(download_path, stream=True).raw
     chunk = 128 * 1024
     with open(filepath, "wb") as f:
         while True:
@@ -360,38 +256,14 @@ def set_data_dir(dirpath, permanent=True):
     Creates ``dirpath`` if needed. Also creates basic directories, and resets metadata.
 
     """
-    if not os.path.exists(dirpath):
-        os.mkdir(dirpath)
-
-    if permanent:
-        user_dir = os.path.expanduser("~")
-        filename = "brightway2path.txt" if config._windows else ".brightway2path"
-        with codecs.open(
-                os.path.join(user_dir, filename),
-                "w",
-                encoding="utf-8") as f:
-            f.write(dirpath)
-
-        config.reset()
-    else:
-        config.dir = dirpath
-    config.create_basic_directories()
-    from .meta import reset_meta
-    reset_meta()
-
-
-def bw2setup():
-    """Create basic directories, and download biosphere and LCIA methods"""
-    from .io import download_biosphere, download_methods
-    config.create_basic_directories()
-    # config.is_temp_dir = False
-    download_biosphere()
-    download_methods()
+    warnings.warn("`set_data_dir` is deprecated; use `projects.current = 'my "
+                  "project name'` for a new project space.",
+                  DeprecationWarning)
 
 
 def create_in_memory_zipfile_from_directory(path):
     # Based on http://stackoverflow.com/questions/2463770/python-in-memory-zip-library
-    memory_obj = StringIO.StringIO()
+    memory_obj = StringIO()
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     zf = zipfile.ZipFile(memory_obj, "a", zipfile.ZIP_DEFLATED, False)
     for filename in files:
@@ -406,3 +278,12 @@ def create_in_memory_zipfile_from_directory(path):
     zf.close()
     memory_obj.seek(0)
     return memory_obj
+
+
+def get_activity(key):
+    from .database import Database
+    try:
+        return Database(key[0]).get(key[1])
+    except TypeError:
+        raise UnknownObject("Key {} cannot be understood as an activity"
+                            " or `(database, code)` tuple.")
