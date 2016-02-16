@@ -104,14 +104,21 @@ class Databases(SerializedDict):
             self[database]['dirty'] = True
             self.flush()
 
-    @writable_project
     def clean(self):
         from . import Database
-        for x in self:
-            if self[x].get('dirty'):
-                Database(x).process()
-                del self[x]['dirty']
-        self.flush()
+
+        @writable_project
+        def _clean():
+            for x in self:
+                if self[x].get('dirty'):
+                    Database(x).process()
+                    del self[x]['dirty']
+            self.flush()
+
+        if not any(self[x].get('dirty') for x in self):
+            return
+        else:
+            return _clean()
 
     def __str__(self):
         if len(self) > 20:
