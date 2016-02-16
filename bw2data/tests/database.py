@@ -30,7 +30,7 @@ from ..meta import mapping, geomapping, databases, methods
 from ..serialization import JsonWrapper, JsonSanitizer
 from ..utils import numpy_string, get_activity
 from ..validate import db_validator
-from .fixtures import food, biosphere
+from .fixtures import food, biosphere, get_naughty
 from peewee import DoesNotExist
 import copy
 import datetime
@@ -286,6 +286,15 @@ class DatabaseTest(BW2DataTest):
         d = DatabaseChooser("food")
         d.write(food)
         self.assertEqual(len(databases), 2)
+
+    def test_naughty_names(self):
+        db = DatabaseChooser("foo")
+        data = {("foo", str(i)): {'name': x} for i, x in enumerate(get_naughty())}
+        db.write(data)
+        self.assertEqual(
+            set(get_naughty()),
+            set(x['name'] for x in db)
+        )
 
     def test_get(self):
         d = DatabaseChooser("biosphere")

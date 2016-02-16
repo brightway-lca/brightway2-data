@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
+import os
 
 
 biosphere = {
@@ -95,3 +96,7 @@ food2 = {
         'unit': 'kg'
         },
     }
+
+get_naughty = lambda : [x.replace("\n", "")
+                        for x in open(os.path.join(os.path.dirname(__file__), "naughty_strings.txt"), encoding="utf8")
+                        if x[0] != "#"]
