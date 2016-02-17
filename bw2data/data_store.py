@@ -61,11 +61,14 @@ Base class for all Brightway2 data stores. Subclasses should define:
     def registered(self):
         return self.name in self._metadata
 
-    @writable_project
     def register(self, **kwargs):
         """Register an object with the metadata store. Takes any number of keyword arguments."""
-        if self.name not in self._metadata:
+        @writable_project
+        def _register(kwargs):
             self._metadata[self.name] = kwargs
+
+        if self.name not in self._metadata:
+            _register(kwargs)
 
     @writable_project
     def deregister(self):
