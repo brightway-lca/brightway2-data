@@ -114,6 +114,9 @@ class ProjectManager(collections.Iterable):
         return self._project_name
 
     def _set_project(self, name, update=True):
+        if name == getattr(self, "_project_name", None):
+            return
+
         if not self.read_only:
             self._lock.release()
         self._project_name = str(name)
