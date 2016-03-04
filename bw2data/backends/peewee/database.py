@@ -206,7 +206,7 @@ class SQLiteBackend(LCIBackend):
 
         This deletes all existing data for this database."""
         if self.name not in databases:
-            self.register(searchable=True)
+            self.register()
         wrong_database = {key[0] for key in data}.difference({self.name})
         if wrong_database:
             raise WrongDatabase("Can't write activities in databases {} to database {}".format(
@@ -233,8 +233,7 @@ class SQLiteBackend(LCIBackend):
                 self.delete()
                 raise
 
-        IndexManager(self.filename).delete_database()
-        IndexManager(self.filename).add_datasets(self)
+        self.make_searchable()
 
         if process:
             self.process()
@@ -278,6 +277,7 @@ class SQLiteBackend(LCIBackend):
             return
         databases[self.name]['searchable'] = True
         databases.flush()
+        IndexManager(self.filename).delete_database()
         IndexManager(self.filename).add_datasets(self)
 
     @writable_project
