@@ -206,7 +206,7 @@ class SQLiteBackend(LCIBackend):
 
         This deletes all existing data for this database."""
         if self.name not in databases:
-            self.register(searchable=True)
+            self.register()
         wrong_database = {key[0] for key in data}.difference({self.name})
         if wrong_database:
             raise WrongDatabase("Can't write activities in databases {} to database {}".format(
@@ -233,8 +233,7 @@ class SQLiteBackend(LCIBackend):
                 self.delete()
                 raise
 
-        IndexManager(self.filename).delete_database()
-        IndexManager(self.filename).add_datasets(self)
+        self.make_searchable()
 
         if process:
             self.process()
@@ -278,6 +277,7 @@ class SQLiteBackend(LCIBackend):
             return
         databases[self.name]['searchable'] = True
         databases.flush()
+        IndexManager(self.filename).delete_database()
         IndexManager(self.filename).add_datasets(self)
 
     @writable_project
@@ -465,11 +465,26 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         * location
         * reference product
 
-        ``string`` can include wild cards, e.g. ``trans*``.
+        ``string`` can include wild cards, e.g. ``"trans*"``.
+
+        By default, the ``name`` field is given the most weight. The full weighting set is called the ``boost`` dictionary, and the default values are:
+
+        ..code-block:: python
+
+            {
+                "name": 5,
+                "comment": 1,
+                "product": 3,
+                "categories": 2,
+                "location": 3,
+            }
 
         Optional keyword arguments:
 
         * ``limit``: Number of results to return.
+        * ``boosts``: Dictionary of field names and numeric boosts - see default boost values above. New values must be in the same format, but with different weights.
+        * ``filter``: Dictionary of criteria that search results must meet, e.g. ``{'categories': 'air'}``. Keys must be one of the above fields.
+        * ``mask``: Dictionary of criteria that exclude search results. Same format as ``filter``.
         * ``facet``: Field to facet results. Must be one of ``name``, ``product``, ``categories``, ``location``, or ``database``.
         * ``proxy``: Return ``Activity`` proxies instead of raw Whoosh documents. Default is ``True``.
 

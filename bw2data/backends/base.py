@@ -318,7 +318,7 @@ Doesn't return anything, but writes two files to disk.
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def query(self, *queries):
-        """Search through the database. See :ref:`searching-databases` for details."""
+        """Search through the database."""
         return Query(*queries)(self.load())
 
     def random(self):

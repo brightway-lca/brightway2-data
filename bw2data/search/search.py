@@ -6,12 +6,6 @@ from .indices import IndexManager
 from whoosh.collectors import TimeLimitCollector, TimeLimit
 from whoosh.qparser import MultifieldParser
 from whoosh.query import Term, And
-import psutil
-
-
-def open_files():
-    proc = psutil.Process()
-    return len(proc.open_files())
 
 
 def keysplit(strng):
@@ -24,40 +18,72 @@ class Searcher(object):
         self._database = database
 
     def __enter__(self):
-        # print("Entering __enter__", open_files())
         self.index = IndexManager(self._database).get()
-        # print("__enter__: Got index", open_files())
         return self
 
     def __exit__(self, type, value, traceback):
-        # print("Calling __exit__", open_files())
         self.index.close()
-        # print("__exit__: Closed index", open_files())
 
-    def search(self, string, limit=25, facet=None, proxy=True):
-        fields = [u"name", u"comment", u"product", u"categories"]
+    def search(self, string, limit=25, facet=None, proxy=True,
+               boosts=None, filter=None, mask=None):
+        from ..database import get_activity
+
+        fields = [
+            "name",
+            "comment",
+            "product",
+            "categories",
+            "location",
+        ]
+
+        boosts = boosts or {
+            "name": 5,
+            "comment": 1,
+            "product": 3,
+            "categories": 2,
+            "location": 3,
+        }
 
         qp = MultifieldParser(
             fields,
             self.index.schema,
-            fieldboosts={u"name": 5., u"categories": 2., u"product": 3.}
+            fieldboosts=boosts
         )
+
+        kwargs = {'limit': limit}
+        if filter is not None:
+            assert isinstance(filter, dict), "`filter` must be a dictionary"
+            for k in filter:
+                assert k in fields, "`filter` field {} not in search schema".format(k)
+            if len(filter) == 1:
+                kwargs["filter"] = [Term(k, v) for k, v in filter.items()][0]
+            else:
+                kwargs["filter"] = And([Term(k, v) for k, v in filter.items()])
+        if mask is not None:
+            assert isinstance(mask, dict), "`mask` must be a dictionary"
+            for k in mask:
+                assert k in fields, "`mask` field {} not in search schema".format(k)
+            if len(mask) == 1:
+                kwargs["mask"] = [Term(k, v) for k, v in mask.items()][0]
+            else:
+                kwargs["mask"] = And([Term(k, v) for k, v in mask.items()])
+
 
         with self.index.searcher() as searcher:
             if facet is None:
-                results = [
-                    dict(obj.items())
-                    for obj in searcher.search(qp.parse(string), limit=limit)
-                ]
+                results = searcher.search(qp.parse(string), **kwargs)
+                if 'mask' in kwargs or 'filter' in kwargs:
+                    print("Excluding {} filtered results".format(results.filtered_count))
+                results = [dict(obj.items()) for obj in results]
             else:
+                kwargs.pop('limit')
                 results = {
                     k: [searcher.stored_fields(i) for i in v] for k, v in
                     searcher.search(
                         qp.parse(string),
                         groupedby=facet,
+                        **kwargs
                     ).groups().items()}
-
-        from ..database import get_activity
 
         if proxy and facet is not None:
             return {key: [get_activity((obj['database'], obj['code'])) for obj in value]
