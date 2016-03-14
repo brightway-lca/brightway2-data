@@ -146,7 +146,13 @@ class Databases(SerializedDict):
 
 @python_2_unicode_compatible
 class CalculationSetups(PickledDict):
-    """A dictionary for calculation setups: a set of functional units and LCIA methods."""
+    """A dictionary for calculation setups.
+
+    Keys:
+    * `inv`: List of functional units, e.g. ``[{(key): amount}, {(key): amount}]``
+    * `ia`: List of LCIA methods, e.g. ``[(method), (method)]``.
+
+    """
     filename = "setups.pickle"
 
     def __str__(self):
