@@ -269,6 +269,21 @@ class ProjectManager(collections.Iterable):
                 self.current = next(iter(self)).name
         return self.current
 
+    def purge_deleted_directories(self):
+        """Delete project directories for projects which are no longer registered.
+
+        Returns number of directories deleted."""
+        registered = {safe_filename(obj.name) for obj in self}
+        bad_directories = [os.path.join(self._base_data_dir, dirname)
+                           for dirname in os.listdir(self._base_data_dir)
+                           if os.path.isdir(os.path.join(self._base_data_dir, dirname))
+                           and dirname not in registered]
+
+        for fp in bad_directories:
+            shutil.rmtree(fp)
+
+        return len(bad_directories)
+
     def report(self):
         """Give a report on current projects, including installed databases and file sizes.
 
