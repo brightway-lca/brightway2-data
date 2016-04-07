@@ -9,6 +9,7 @@ __all__ = [
     'databases',
     'DataStore',
     'get_activity',
+    'geomapping',
     'IndexManager',
     'JsonWrapper',
     'mapping',
