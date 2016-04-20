@@ -68,8 +68,8 @@ class GeoMapping(Mapping):
         if "GLO" not in self:
             self.add(["GLO"])
 
-    def __unicode__(self):
-        return u"Mapping from locations to parameter indices."
+    def __str__(self):
+        return "Mapping from locations to parameter indices."
 
 
 @python_2_unicode_compatible
@@ -120,19 +120,6 @@ class Databases(SerializedDict):
         else:
             return _clean()
 
-    def __str__(self):
-        if len(self) > 20:
-            return ("Brightway2 databases metadata with {} objects, including:"
-                    "{}\nUse `list(databases)` to get full list.").format(
-                len(self),
-                "".join(["\n\t{}".format(x) for x in sorted(self.data)[:10]])
-            )
-        else:
-            return ("Brightway2 databases metadata with {} objects:{}").format(
-                len(self),
-                "".join(["\n\t{}".format(x) for x in sorted(self.data)])
-            )
-
     @writable_project
     def __delitem__(self, name):
         from . import Database
@@ -155,21 +142,11 @@ class CalculationSetups(PickledDict):
     """
     filename = "setups.pickle"
 
-    def __str__(self):
-        return "Brightway2 calculation setups metadata with {} objects, including:\n{}".format(
-            len(self.data),
-            "".join(["\t{}\n".format(x) for x in sorted(self.data.keys())[:20]])
-        )
-
 
 @python_2_unicode_compatible
 class Methods(CompoundJSONDict):
     """A dictionary for method metadata. File data is saved in ``methods.json``."""
     filename = "methods.json"
-
-    def __str__(self):
-        return u"Brightway2 methods metadata with %i objects" % len(
-            self.data)
 
 
 class WeightingMeta(Methods):

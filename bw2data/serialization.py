@@ -150,7 +150,22 @@ class SerializedDict(collections.MutableMapping):
         return key in self.data
 
     def __str__(self):
-        return "Brightway2 serialized dictionary with {} entries".format(len(self))
+        if not len(self):
+            return "{} dictionary with 0 objects".format(self.__class__.__name__)
+        elif len(self) > 20:
+            return ("{} dictionary with {} objects, including:"
+                    "{}\nUse `list(this object)` to get the complete list."
+            ).format(
+                self.__class__.__name__,
+                len(self),
+                "".join(["\n\t{}".format(x) for x in sorted(self.data)[:10]])
+            )
+        else:
+            return ("{} dictionary with {} object(s):{}").format(
+                self.__class__.__name__,
+                len(self),
+                "".join(["\n\t{}".format(x) for x in sorted(self.data)])
+            )
 
     __repr__ = lambda x: str(x)
 
