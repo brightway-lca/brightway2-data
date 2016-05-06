@@ -39,6 +39,12 @@ class ProjectDataset(Model):
 
     __repr__ = lambda x: str(x)
 
+    def __lt__(self, other):
+        if not isinstance(other, ProjectDataset):
+            raise TypeError
+        else:
+            return self.name.lower() < other.name.lower()
+
 
 class ProjectManager(collections.Iterable):
     _basic_directories = (
@@ -68,7 +74,7 @@ class ProjectManager(collections.Iterable):
     def __repr__(self):
         if len(self) > 20:
             return ("Brightway2 projects manager with {} objects, including:"
-                    "{}\nUse `list(projects)` to get full list, "
+                    "{}\nUse `sorted(projects)` to get full list, "
                     "`projects.report()` to get\n\ta report on all projects.").format(
                 len(self),
                 "".join(["\n\t{}".format(x) for x in sorted([x.name for x in self])[:10]])
