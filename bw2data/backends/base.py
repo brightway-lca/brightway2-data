@@ -433,8 +433,11 @@ Doesn't return anything, but writes two files to disk.
     def write(self, data):
         """Serialize data to disk.
 
-        Args:
-            * *data* (dict): Inventory data
+        ``data`` must be a dictionary of the form::
+
+            {
+                ('database name', 'dataset code'): {dataset}
+            }
 
         """
         raise NotImplementedError

@@ -204,7 +204,13 @@ class SQLiteBackend(LCIBackend):
     def write(self, data, process=True):
         """Write ``data`` to database.
 
-        This deletes all existing data for this database."""
+        ``data`` must be a dictionary of the form::
+
+            {
+                ('database name', 'dataset code'): {dataset}
+            }
+
+        Writing a database will first deletes all existing data."""
         if self.name not in databases:
             self.register()
         wrong_database = {key[0] for key in data}.difference({self.name})
@@ -467,16 +473,14 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         ``string`` can include wild cards, e.g. ``"trans*"``.
 
-        By default, the ``name`` field is given the most weight. The full weighting set is called the ``boost`` dictionary, and the default values are:
-
-        ..code-block:: python
+        By default, the ``name`` field is given the most weight. The full weighting set is called the ``boost`` dictionary, and the default weights are::
 
             {
                 "name": 5,
                 "comment": 1,
                 "product": 3,
                 "categories": 2,
-                "location": 3,
+                "location": 3
             }
 
         Optional keyword arguments:
