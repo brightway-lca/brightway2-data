@@ -16,7 +16,7 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="2.0",
+    version="2.0.1",
     packages=packages,
     package_data={'bw2data': [
         "tests/*.txt",
@@ -35,6 +35,7 @@ setup(
         "lxml",
         "numpy",
         "peewee>=2.7.4",
+        "psutil",
         "pyprind",
         "requests>=1.1.0",
         "scipy",

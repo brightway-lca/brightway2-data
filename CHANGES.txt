@@ -1,10 +1,13 @@
 Changelog
 *********
 
-2.0 (2016-XX-XX)
-================
+2.0.1 (2016-04-14)
+==================
 
-**bw2-uptodate.py is required for this update**. 
+- Bugfix release to add unstated dependency of `pyprind`
+
+2.0 (2016-04-11)
+================
 
 2.0 brings massive changes to how datasets are stored and searched. The first big change is a new default backend, using peewee and SQLite3. This backend has a nicer API, faster random access, and reduced memory consumption. Here are some examples of new usage patterns:
 
@@ -12,6 +15,8 @@ Changelog
 - FEATURE: Backend now return activity and exchange proxies instead of raw data, making for easier manipulation and construction.
 
 .. note:: Both packages ``bw2search`` and ``bw2simple`` are obsolete - their functionality is now included in ``bw2data`` by default.
+
+Data cannot be directly migrated from bw2data < 2; instead, databases should be exported as BW2Package files and then re-imported.
 
 1.4 (2014-11-26)
 ================
