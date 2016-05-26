@@ -201,8 +201,10 @@ class ProjectManager(collections.Iterable):
         if not os.path.isdir(self.logs_dir):
             create_dir(self.logs_dir)
 
-    def enable_writes(self):
+    def enable_writes(self, force=True):
         """Enable writing for the current project."""
+        if force:
+            os.remove(os.path.join(self.dir, "write-lock"))
         self.read_only = not self._lock.acquire(timeout = 0.05)
         if not self.read_only:
             self._reset_meta()

@@ -421,6 +421,7 @@ class DatabaseTest(BW2DataTest):
         ndb = d.rename("buildings")
         ndb_data = ndb.load()
         self.assertEqual(ndb.name, "buildings")
+        self.assertEqual(d.name, "buildings")
         self.assertEqual(len(ndb_data), len(food))
         for key in ndb_data:
             self.assertEqual(key[0], "buildings")

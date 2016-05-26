@@ -428,6 +428,7 @@ Doesn't return anything, but writes two files to disk.
         new_data = self.relabel_data(self.load(), name)
         new_db.write(new_data)
         del databases[old_name]
+        self.name = name
         return new_db
 
     def write(self, data):
