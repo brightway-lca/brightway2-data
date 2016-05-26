@@ -62,7 +62,10 @@ class ProjectManager(collections.Iterable):
         self._set_project("default", False)
 
     def __iter__(self):
-        for project_ds in ProjectDataset.select():
+        # See https://bitbucket.org/cmutel/brightway2-data/issues/38/iterating-over-projects-to-get-a-list-of
+        # Can't iterate because database file gets closed and re-opened
+        project_list = list(ProjectDataset.select())
+        for project_ds in project_list:
             yield project_ds
 
     def __contains__(self, name):
