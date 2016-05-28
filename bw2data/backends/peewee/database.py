@@ -239,7 +239,7 @@ class SQLiteBackend(LCIBackend):
                 self.delete()
                 raise
 
-        self.make_searchable()
+        self.make_searchable(reset=True)
 
         if process:
             self.process()
@@ -275,10 +275,10 @@ class SQLiteBackend(LCIBackend):
         return obj
 
     @writable_project
-    def make_searchable(self):
+    def make_searchable(self, reset=False):
         if self.name not in databases:
             raise UnknownObject("This database is not yet registered")
-        if self._searchable:
+        if self._searchable and not reset:
             print("This database is already searchable")
             return
         databases[self.name]['searchable'] = True

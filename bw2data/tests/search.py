@@ -114,6 +114,7 @@ class IndexTest(BW2DataTest):
         db.write(ds)
         with Searcher(db.filename) as s:
             self.assertFalse(s.search('cream', proxy=False))
+            self.assertTrue(s.search('lollipop', proxy=False))
         ds2 = {('foo', 'bar'): {
             'database': 'foo',
             'code': 'bar',
