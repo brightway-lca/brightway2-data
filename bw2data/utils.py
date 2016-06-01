@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import config, projects
-from .errors import WebUIError, UnknownObject
+from .errors import WebUIError, UnknownObject, NotFound
 from .fatomic import open
 from .project import safe_filename
 from contextlib import contextmanager
@@ -212,7 +212,12 @@ def download_file(filename, directory="downloads", url=None):
     dirpath = projects.request_directory(directory)
     filepath = os.path.join(dirpath, filename)
     download_path = (url if url is not None else DOWNLOAD_URL) + filename
-    download = requests.get(download_path, stream=True).raw
+    request = requests.get(download_path, stream=True)
+    if request.status_code != 200:
+        raise NotFound("URL {} returns status code {}.".format(
+                download_path, request.status_code
+        ))
+    download = request.raw
     chunk = 128 * 1024
     with open(filepath, "wb") as f:
         while True:
