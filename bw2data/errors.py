@@ -35,9 +35,11 @@ class ValidityError(BW2Exception):
     """The activity or exchange dataset does not have all the required fields"""
     pass
 
+
 class NotAllowed(BW2Exception):
     """This operation is not allowed"""
     pass
+
 
 class WrongDatabase(BW2Exception):
     """Can't save activities from database `x` to database `y`."""
@@ -46,4 +48,9 @@ class WrongDatabase(BW2Exception):
 
 class ReadOnlyProject(BW2Exception):
     """Current project is read only"""
+    pass
+
+
+class NotFound(BW2Exception):
+    """Requested web resource not found"""
     pass
