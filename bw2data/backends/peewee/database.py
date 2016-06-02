@@ -306,11 +306,6 @@ Process inventory documents to NumPy structured arrays.
 Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         """
-        try:
-            from bw2regional import faces
-        except ImportError:
-            faces = None
-
         # Get number of exchanges and processes to set
         # initial Numpy array size (still have to include)
         # implicit production exchanges
@@ -325,10 +320,17 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         arr = np.zeros((num_processes, ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
 
-        # Also include mapping, from dataset keys to
-        # topographic face ids
-
-        topo_mapping = []
+        def retupleize(value):
+            if "(" not in value:
+                return value
+            try:
+                # Is this a dirty, dirty hack, or inspiration?
+                # Location is retrieved as a string from the database
+                # The alternative is to retrieve and process the
+                # entire activity dataset...
+                return eval(value)
+            except NameError:
+                return value
 
         for index, row in enumerate(ActivityDataset.select(
                 ActivityDataset.location,
@@ -338,36 +340,15 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 ActivityDataset.type == "process"
                 ).order_by(ActivityDataset.code).dicts()):
 
-            if faces is not None:
-                for face_id in faces.get(row['location'], []):
-                    topo_mapping.append(((self.name, row['code']), face_id))
-
             arr[index] = (
                 mapping[(self.name, row['code'])],
-                geomapping[row['location'] or config.global_location],
+                geomapping[retupleize(row['location']) or config.global_location],
                 MAX_INT_32, MAX_INT_32,
                 0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
             )
 
         with open(self.filepath_geomapping(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
-
-        # Reformat and then write topo mapping to disk
-
-        if faces is not None:
-            arr = np.zeros((len(topo_mapping), ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
-
-            for index, obj in enumerate(topo_mapping):
-                key, face = obj
-                arr[index] = (
-                    mapping[key],
-                    geomapping[face],
-                    MAX_INT_32, MAX_INT_32,
-                    0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
-                )
-
-            with open(self.filepath_geomapping().replace("geomapping", "topomapping"), "wb") as f:
-                pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
         # Figure out when the production exchanges are implicit
 
