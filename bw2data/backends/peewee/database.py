@@ -321,7 +321,9 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         arr = np.zeros((num_processes, ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
 
         def retupleize(value):
-            if "(" not in value:
+            if not value:
+                return value
+            elif "(" not in value:
                 return value
             try:
                 # Is this a dirty, dirty hack, or inspiration?
