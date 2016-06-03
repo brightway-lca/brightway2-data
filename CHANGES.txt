@@ -1,6 +1,28 @@
 Changelog
 *********
 
+2.2 (2016-06-03)
+================
+
+- Deprecated `projects.current = 'foo'` in favor or `projects.set_current('foo')`
+- Added ability to switch to read only project with `projects.set_current('foo', writable=False)`
+- Removed separate write of topomapping files from inventory databases. All topology handling is internal to bw2regional
+- Fixed bug where `download_file` wouldn't raise an error is resource was not found.
+
+2.1 (2016-05-28)
+================
+
+- Fix database writes not propagating to search index
+- Added continuous integration tests on Windows
+- Fix bug when iterating over projects 
+
+2.0.2 (2016-05-20)
+==================
+
+- Better `__str__` for metadata
+- Make projects sortable
+- Allow forcing writes with `projects.enable_writes(force=True)`
+
 2.0.1 (2016-04-14)
 ==================
 
