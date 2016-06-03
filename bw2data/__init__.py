@@ -78,7 +78,7 @@ from .backends import convert_backend
 # Don't confuse nose tests
 from .updates import Updates
 
-projects.current = "default"
+projects.set_current("default")
 
 Updates.check_status()
 

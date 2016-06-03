@@ -261,8 +261,8 @@ def set_data_dir(dirpath, permanent=True):
     Creates ``dirpath`` if needed. Also creates basic directories, and resets metadata.
 
     """
-    warnings.warn("`set_data_dir` is deprecated; use `projects.current = 'my "
-                  "project name'` for a new project space.",
+    warnings.warn("`set_data_dir` is deprecated; use `projects.set_current('my "
+                  "project name')` for a new project space.",
                   DeprecationWarning)
 
 

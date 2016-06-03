@@ -43,7 +43,7 @@ class Config(object):
     def reset(self, *args, **kwargs):
         warnings.warn(
             "`reset` is deprecated and doesn't do anything; please change "
-            "projects using `projects.current = 'foo'",
+            "projects using `projects.set_current('foo')",
             DeprecationWarning
         )
 
@@ -93,7 +93,9 @@ class Config(object):
 
         """
         warnings.warn(
-            "`config.get_home_directory` is deprecated; the data directory is now managed automatically. Start a new project with `projects.current = 'my new project'`",
+            "`config.get_home_directory` is deprecated; the data directory is "
+            "now managed automatically. Start a new project with "
+            "`projects.set_current('my new project')`",
             DeprecationWarning
         )
         user_dir = os.path.expanduser("~")
