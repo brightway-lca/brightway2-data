@@ -27,6 +27,20 @@ READ_ONLY_PROJECT = """
 This project is being used by another process and no writes can be made until:
     1. You close the other program, or switch to a different project, *and*
     2. You call `projects.enable_writes` *and* get the response `True`.
+
+    If you are **sure** that this warning is incorrect, call
+    `projects.enable_writes(force=True)` to enable writes.
+"""
+
+SET_PROJECT_WARNING = """Deprecated interface.
+
+    `projects.current = 'foo'` is deprecated.
+    Please use `projects.set_current('foo')`."
+
+    Using `projects.current` to get the current project is still fine.
+
+    Setting projects with `projects.current` will be removed at
+    the beginning of 2017!
 """
 
 @python_2_unicode_compatible
@@ -123,6 +137,11 @@ class ProjectManager(collections.Iterable):
         return self._project_name
 
     def _set_project(self, name, update=True):
+        warnings.warn(SET_PROJECT_WARNING, DeprecationWarning)
+        self.set_current(name, update=update)
+
+    def set_current(self, name, writable=True, update=True):
+        # Only when importing for the very first time
         if name == getattr(self, "_project_name", None):
             return
 
@@ -130,11 +149,13 @@ class ProjectManager(collections.Iterable):
             self._lock.release()
         self._project_name = str(name)
         self.create_project(name)
-        self._lock = InterProcessLock(os.path.join(self.dir, "write-lock"))
-        self.read_only = not self._lock.acquire(timeout = 0.05)
-
-        if self.read_only:
-            warnings.warn(READ_ONLY_PROJECT)
+        if writable:
+            self._lock = InterProcessLock(os.path.join(self.dir, "write-lock"))
+            self.read_only = not self._lock.acquire(timeout = 0.05)
+            if self.read_only:
+                warnings.warn(READ_ONLY_PROJECT)
+        else:
+            self.read_only = True
 
         self._reset_meta()
         self._reset_databases()
