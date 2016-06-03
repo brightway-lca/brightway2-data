@@ -73,7 +73,7 @@ class ProjectManager(collections.Iterable):
         self.read_only = True
         self._create_base_directories()
         self.db = self._create_projects_database()
-        self._set_project("default", False)
+        self.set_current("default", update=False)
 
     def __iter__(self):
         # See https://bitbucket.org/cmutel/brightway2-data/issues/38/iterating-over-projects-to-get-a-list-of
