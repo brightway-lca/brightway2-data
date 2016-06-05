@@ -247,7 +247,7 @@ class ProjectManager(collections.Iterable):
             safe_filename(new_name)
         ))
         if switch:
-            self.current = new_name
+            self.set_current(new_name)
 
     def request_directory(self, name):
         """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
@@ -296,9 +296,9 @@ class ProjectManager(collections.Iterable):
 
         if name is None:
             if "default" in self:
-                self.current = "default"
+                self.set_current("default")
             else:
-                self.current = next(iter(self)).name
+                self.set_current(next(iter(self)).name)
         return self.current
 
     def purge_deleted_directories(self):
@@ -335,9 +335,9 @@ class ProjectManager(collections.Iterable):
 
         names = sorted([x.name for x in self])
         for obj in names:
-            self.current = obj
+            self.set_current(obj, update=False, writable=False)
             data.append((obj, len(databases), get_dir_size(projects.dir) / 1e9))
-        self.current = _current
+        self.set_current(_current)
         return data
 
 projects = ProjectManager()
