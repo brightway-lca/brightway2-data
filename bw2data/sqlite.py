@@ -29,9 +29,5 @@ def create_database(filepath, tables):
     db = RetryDatabase(filepath)
     for table in tables:
         table._meta.database = db
-    db.create_tables(
-        list(tables),
-        safe=True
-    )
-    db._tables = tables
+    db.create_tables(tables, safe=True)
     return db

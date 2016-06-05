@@ -3,15 +3,15 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from .. import config, projects
-from ..database import DatabaseChooser as Database
-from ..ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS
-from ..meta import mapping, geomapping, weightings, normalizations, methods
-from ..method import Method
-from ..serialization import CompoundJSONDict
-from ..utils import numpy_string
-from ..validate import weighting_validator, normalization_validator, ia_validator
-from ..weighting_normalization import Normalization, Weighting
+from bw2data import config, projects
+from bw2data.database import DatabaseChooser as Database
+from bw2data.ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS
+from bw2data.meta import mapping, geomapping, weightings, normalizations, methods
+from bw2data.method import Method
+from bw2data.serialization import CompoundJSONDict
+from bw2data.utils import numpy_string
+from bw2data.validate import weighting_validator, normalization_validator, ia_validator
+from bw2data.weighting_normalization import Normalization, Weighting
 import hashlib
 import os
 try:

@@ -3,8 +3,8 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from .. import Database, geomapping, config, Method, projects
 from .fixtures import food, biosphere
+from bw2data import Database, geomapping, config, Method, projects
 import copy
 import numpy as np
 import os

@@ -31,14 +31,6 @@ __version__ = (2, 2)
 
 from .configuration import config
 from .project import projects
-
-# Add projects database to global list of sqlite3 databases
-config.sqlite3_databases.append((
-    u"projects.db",
-    projects.db,
-    False
-))
-
 from .utils import set_data_dir
 from .meta import (
     calculation_setups,

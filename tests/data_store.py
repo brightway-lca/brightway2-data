@@ -3,10 +3,10 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from .. import config, projects
-from ..data_store import DataStore, ProcessedDataStore
-from ..errors import UnknownObject
-from ..serialization import SerializedDict
+from bw2data import config, projects
+from bw2data.data_store import DataStore, ProcessedDataStore
+from bw2data.errors import UnknownObject
+from bw2data.serialization import SerializedDict
 from numbers import Number
 from voluptuous import Schema
 import numpy as np

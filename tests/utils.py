@@ -3,12 +3,12 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from .. import Database, Method, methods
-from ..backends.peewee import Activity as PWActivity
-from ..backends.single_file import Activity as SFActivity
-from ..database import Database
 from .fixtures import biosphere
-from ..utils import (
+from bw2data import Database, Method, methods
+from bw2data.backends.peewee import Activity as PWActivity
+from bw2data.backends.single_file import Activity as SFActivity
+from bw2data.database import Database
+from bw2data.utils import (
     combine_methods,
     get_activity,
     natural_sort,

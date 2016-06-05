@@ -3,34 +3,34 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from .. import config, projects
-from ..database import DatabaseChooser
-from ..backends.peewee import (
+from .fixtures import food, biosphere, get_naughty
+from bw2data import config, projects
+from bw2data.database import DatabaseChooser
+from bw2data.backends.peewee import (
     Activity as PWActivity,
     ActivityDataset,
     Exchange as PWExchange,
     ExchangeDataset,
     sqlite3_lci_db,
 )
-from ..backends.utils import convert_backend
-from ..backends.single_file.database import SingleFileDatabase
-from ..errors import (
+from bw2data.backends.utils import convert_backend
+from bw2data.backends.single_file.database import SingleFileDatabase
+from bw2data.errors import (
     InvalidExchange,
     MissingIntermediateData,
     UnknownObject,
     UntypedExchange,
     ValidityError,
 )
-from ..backends.single_file import (
+from bw2data.backends.single_file import (
     Activity as SFActivity,
     Exchange as SFExchange,
 )
-from ..errors import NotAllowed, WrongDatabase
-from ..meta import mapping, geomapping, databases, methods
-from ..serialization import JsonWrapper, JsonSanitizer
-from ..utils import numpy_string, get_activity
-from ..validate import db_validator
-from .fixtures import food, biosphere, get_naughty
+from bw2data.errors import NotAllowed, WrongDatabase
+from bw2data.meta import mapping, geomapping, databases, methods
+from bw2data.serialization import JsonWrapper, JsonSanitizer
+from bw2data.utils import numpy_string, get_activity
+from bw2data.validate import db_validator
 from peewee import DoesNotExist
 import copy
 import datetime

@@ -3,8 +3,8 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from ..database import Database
-from ..database_parameters import database_parameters, DatabaseParameterSet
+from bw2data.database import Database
+from bw2data.database_parameters import database_parameters, DatabaseParameterSet
 
 
 class DatabaseParameterTest(BW2DataTest):

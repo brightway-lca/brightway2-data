@@ -4,7 +4,7 @@ from eight import *
 
 from voluptuous import Invalid
 import unittest
-from ..validate import *
+from bw2data.validate import *
 
 
 class ValidationTestCase(unittest.TestCase):

@@ -3,8 +3,8 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from ..search import *
-from ..backends.peewee import *
+from bw2data.search import *
+from bw2data.backends.peewee import *
 
 
 class IndexTest(BW2DataTest):

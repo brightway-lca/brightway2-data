@@ -4,7 +4,7 @@ from eight import *
 
 import os
 from . import BW2DataTest
-from .. import config
+from bw2data import config
 import json
 
 

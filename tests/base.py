@@ -2,9 +2,10 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from .. import config, databases, methods, mapping, geomapping
-from ..project import projects
+from bw2data import config, databases, methods, mapping, geomapping
+from bw2data.project import projects
 import unittest
+import wrapt
 
 
 class BW2DataTest(unittest.TestCase):
@@ -28,3 +29,24 @@ class BW2DataTest(unittest.TestCase):
         self.assertTrue("GLO" in geomapping)
         self.assertEqual(len(projects), 1)  # Default project
         self.assertTrue("default" in projects)
+
+
+@wrapt.decorator
+def bw2test(wrapped, instance, args, kwargs):
+    config.dont_warn = True
+    config.is_test = True
+    config.cache = {}
+    projects.use_temp_directory()
+    projects.set_current("default")
+    return wrapped(*args, **kwargs)
+
+
+@bw2test
+def test_bw2test_decorator():
+    assert list(databases) == []
+    assert list(methods) == []
+    assert not len(mapping)
+    assert len(geomapping) == 1
+    assert "GLO" in geomapping
+    assert len(projects) == 1
+    assert [x.name for x in projects] == ['default']

@@ -12,7 +12,7 @@ from .schema import ActivityDataset, ExchangeDataset
 
 sqlite3_lci_db = create_database(
     os.path.join(projects.dir, "lci", "databases.db"),
-    (ActivityDataset, ExchangeDataset)
+    [ActivityDataset, ExchangeDataset]
 )
 
 from .proxies import Activity, Exchange
@@ -21,5 +21,5 @@ from .database import SQLiteBackend
 config.sqlite3_databases.append((
     os.path.join("lci", "databases.db"),
     sqlite3_lci_db,
-    True
+    [ActivityDataset, ExchangeDataset]
 ))

@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from ..serialization import JsonSanitizer
+from bw2data.serialization import JsonSanitizer
 import unittest
 
 

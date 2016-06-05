@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import BW2DataTest
-from .. import Updates, config
+from bw2data import Updates, config
 import random
 
 class UpdatesTest(BW2DataTest):

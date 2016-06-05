@@ -18,7 +18,6 @@ setup(
     name='bw2data',
     version="2.2",
     packages=packages,
-    package_data={'bw2data': ["tests/*.txt",]},
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
     license=open('LICENSE.txt').read(),
