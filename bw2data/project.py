@@ -67,19 +67,19 @@ class ProjectManager(collections.Iterable):
         "lci",
         "processed",
     )
-    read_only = True
 
     def __init__(self):
         self._base_data_dir, self._base_logs_dir = self._get_base_directories()
+        self.read_only = True
         self._create_base_directories()
-        self.db = create_database(
-            os.path.join(self._base_data_dir, "projects.db"),
-            [ProjectDataset]
-        )
+        self.db = self._create_projects_database()
         self.set_current("default", update=False)
 
     def __iter__(self):
-        for project_ds in ProjectDataset.select():
+        # See https://bitbucket.org/cmutel/brightway2-data/issues/38/iterating-over-projects-to-get-a-list-of
+        # Can't iterate because database file gets closed and re-opened
+        project_list = list(ProjectDataset.select())
+        for project_ds in project_list:
             yield project_ds
 
     def __contains__(self, name):
@@ -116,7 +116,6 @@ class ProjectManager(collections.Iterable):
                       "directory:\n{}".format(envvar))
                 envvar = os.path.abspath(envvar)
                 logs_dir = os.path.join(envvar, "logs")
-                create_dir(logs_dir)
                 return envvar, logs_dir
 
         LABEL = "Brightway2" if sys.version_info < (3, 0) else "Brightway3"
@@ -128,6 +127,12 @@ class ProjectManager(collections.Iterable):
         create_dir(self._base_data_dir)
         create_dir(self._base_logs_dir)
 
+    def _create_projects_database(self):
+        return create_database(
+            os.path.join(self._base_data_dir, "projects.db"),
+            [ProjectDataset]
+        )
+
     def _get_project(self):
         return self._project_name
 
@@ -136,17 +141,14 @@ class ProjectManager(collections.Iterable):
         self.set_current(name, update=update)
 
     def set_current(self, name, writable=True, update=True):
+        # Only when importing for the very first time
+        if name == getattr(self, "_project_name", None):
+            return
+
         if not self.read_only:
             self._lock.release()
         self._project_name = str(name)
-
-        # Need to allow writes when creating a new project
-        # for new metadata stores
-        self.read_only = False
         self.create_project(name)
-        self._reset_meta()
-        self._reset_sqlite3_databases()
-
         if writable:
             self._lock = InterProcessLock(os.path.join(self.dir, "write-lock"))
             self.read_only = not self._lock.acquire(timeout = 0.05)
@@ -154,6 +156,9 @@ class ProjectManager(collections.Iterable):
                 warnings.warn(READ_ONLY_PROJECT)
         else:
             self.read_only = True
+
+        self._reset_meta()
+        self._reset_databases()
 
         if not self.read_only and update:
             self._do_automatic_updates()
@@ -169,14 +174,20 @@ class ProjectManager(collections.Iterable):
         for obj in config.metadata:
             obj.__init__()
 
-    def _reset_sqlite3_databases(self):
-        for name, obj, tables in config.sqlite3_databases:
-            # Can't use `create_tables` because can't replace the existing object
-            fp = os.path.join(self.dir, name)
+    def _reset_databases(self):
+        for name, obj, include_project in config.sqlite3_databases:
+            if include_project:
+                fp = os.path.join(self.dir, name)
+            else:
+                fp = os.path.join(self._base_data_dir, name)
             obj.close()
             obj.database = fp
             obj.connect()
-            obj.create_tables(tables, safe=True)
+            obj.create_tables(
+                obj._tables,
+                safe=True
+            )
+
 
     ### Public API
 
@@ -198,16 +209,18 @@ class ProjectManager(collections.Iterable):
 
     def create_project(self, name=None, **kwargs):
         name = name or self.current
-        if not ProjectDataset.select().where(
+        if not ProjectDataset().select().where(
                 ProjectDataset.name == name).count():
-            ProjectDataset.create(
+            ProjectDataset().create(
                 data=kwargs,
                 name=name
             )
-        create_dir(self.dir)
-        for dir_name in self._basic_directories:
-            create_dir(os.path.join(self.dir, dir_name))
-        create_dir(self.logs_dir)
+        if not os.path.isdir(self.dir):
+            create_dir(self.dir)
+            for dir_name in self._basic_directories:
+                create_dir(os.path.join(self.dir, dir_name))
+        if not os.path.isdir(self.logs_dir):
+            create_dir(self.logs_dir)
 
     def enable_writes(self, force=True):
         """Enable writing for the current project."""
@@ -216,7 +229,7 @@ class ProjectManager(collections.Iterable):
         self.read_only = not self._lock.acquire(timeout = 0.05)
         if not self.read_only:
             self._reset_meta()
-            self._reset_sqlite3_databases()
+            self._reset_databases()
         return not self.read_only
 
     def copy_project(self, new_name, switch=True):
@@ -227,14 +240,14 @@ class ProjectManager(collections.Iterable):
         if os.path.exists(fp):
             raise ValueError("Project directory already exists")
         project_data = ProjectDataset.select(ProjectDataset.name == self.current).get().data
-        ProjectDataset.create(data=project_data, name=new_name)
+        ProjectDataset().create(data=project_data, name=new_name)
         shutil.copytree(self.dir, fp)
         create_dir(os.path.join(
             self._base_logs_dir,
             safe_filename(new_name)
         ))
         if switch:
-            self.set_current(new_name)
+            self.current = new_name
 
     def request_directory(self, name):
         """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
@@ -242,20 +255,20 @@ class ProjectManager(collections.Iterable):
         Returns ``False`` if directory can't be created."""
         fp = os.path.join(self.dir, str(name))
         create_dir(fp)
-        if not os.path.isdir(fp):
-            return False
         return fp
 
     def use_temp_directory(self):
         """Use a temporary directory instead of `user_data_dir`. Used for tests."""
         temp_dir = tempfile.mkdtemp()
         self._base_data_dir = os.path.join(temp_dir, "data")
+        create_dir(self._base_data_dir)
         self._base_logs_dir = os.path.join(temp_dir, "logs")
-        self.set_current("tests", update=False)
-
-        self.db.close()
-        self.db = create_database(':memory:', [ProjectDataset])
-        self.set_current("default", update=False)
+        create_dir(self._base_logs_dir)
+        self.db = self._create_projects_database()
+        self._create_base_directories()
+        self.create_project()
+        self._reset_meta()
+        self._reset_databases()
         return temp_dir
 
     def delete_project(self, name=None, delete_dir=False):
@@ -271,8 +284,6 @@ class ProjectManager(collections.Iterable):
         victim = name or self.current
         if victim not in self:
             raise ValueError("{} is not a project".format(victim))
-        if len(self) == 1:
-            raise ValueError("Can't delete only remaining project")
         ProjectDataset.delete().where(ProjectDataset.name == victim).execute()
 
         if delete_dir:
@@ -283,11 +294,11 @@ class ProjectManager(collections.Iterable):
             assert os.path.isdir(dir_path), "Can't find project directory"
             shutil.rmtree(dir_path)
 
-        if name is None or name == self.current:
+        if name is None:
             if "default" in self:
-                self.set_current("default")
+                self.current = "default"
             else:
-                self.set_current(next(iter(self)).name)
+                self.current = next(iter(self)).name
         return self.current
 
     def purge_deleted_directories(self):
@@ -324,11 +335,10 @@ class ProjectManager(collections.Iterable):
 
         names = sorted([x.name for x in self])
         for obj in names:
-            self.set_current(obj, update=False, writable=False)
+            self.current = obj
             data.append((obj, len(databases), get_dir_size(projects.dir) / 1e9))
-        self.set_current(_current)
+        self.current = _current
         return data
-
 
 projects = ProjectManager()
 
