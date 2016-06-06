@@ -1,6 +1,15 @@
 Changelog
 *********
 
+2.2.1 (2016-06-06)
+==================
+
+- Fix some places where set_current wasn't introduced
+- Rework initialization of projects and add projects tests
+- Moved tests to main directory
+
+Windows tests are failing due to naughty strings being used for project names.
+
 2.2 (2016-06-03)
 ================
 
