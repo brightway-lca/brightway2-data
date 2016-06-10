@@ -12,6 +12,7 @@ from functools import wraps
 from peewee import Model, TextField, BlobField
 import appdirs
 import collections
+import eight
 import os
 import re
 import shutil
@@ -19,6 +20,10 @@ import sys
 import tempfile
 import warnings
 import wrapt
+
+
+# Return unicode in Py2
+eight.wrap_os_environ_io()
 
 
 READ_ONLY_PROJECT = """
@@ -229,7 +234,7 @@ class ProjectManager(collections.Iterable):
             raise ValueError("Project directory already exists")
         project_data = ProjectDataset.select(ProjectDataset.name == self.current).get().data
         ProjectDataset.create(data=project_data, name=new_name)
-        shutil.copytree(self.dir, fp)
+        shutil.copytree(self.dir, fp, ignore=lambda x, y: ["write-lock"])
         create_dir(os.path.join(
             self._base_logs_dir,
             safe_filename(new_name)
