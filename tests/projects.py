@@ -52,6 +52,7 @@ def test_repeatedly_set_name_same_value():
     projects.set_current("foo")
     assert sorted([x.name for x in projects]) == ['default', 'foo']
 
+@pytest.mark.skipif(config._windows, reason="Windows doesn't allow fun")
 @bw2test
 def test_funny_project_names():
     NAMES = [
