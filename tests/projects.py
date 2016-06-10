@@ -71,9 +71,17 @@ def test_funny_project_names():
         "הָיְתָהtestالصفحات التّحول",
         "　",
     ]
+    error_found = False
     for name in NAMES:
-        projects.set_current(name)
-        assert [x for x in os.listdir(projects.dir)]
+        try:
+            projects.set_current(name)
+            assert [x for x in os.listdir(projects.dir)]
+            print("This is OK:", name)
+        except:
+            print("This is not OK:", name)
+            error_found = True
+    if error_found:
+        raise ValueError("Oops")
 
 @bw2test
 def test_report():
