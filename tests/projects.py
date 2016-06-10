@@ -6,10 +6,12 @@ from . import bw2test
 from bw2data import projects, databases, methods, mapping, geomapping, config
 from bw2data.errors import ReadOnlyProject
 from peewee import DoesNotExist
+import eight
 import os
 import pytest
 import tempfile
 
+eight.wrap_os_environ_io()
 
 ###
 ### Basic setup
