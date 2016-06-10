@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import bw2test
-from bw2data import projects, databases, methods, mapping, geomapping
+from bw2data import projects, databases, methods, mapping, geomapping, config
 from bw2data.errors import ReadOnlyProject
 from peewee import DoesNotExist
 import os
