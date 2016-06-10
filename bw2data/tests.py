@@ -15,7 +15,7 @@ class BW2DataTest(unittest.TestCase):
         config.dont_warn = True
         config.is_test = True
         config.cache = {}
-        projects.use_temp_directory()
+        projects._use_temp_directory()
         self.extra_setup()
 
     def extra_setup(self):
@@ -36,6 +36,6 @@ def bw2test(wrapped, instance, args, kwargs):
     config.dont_warn = True
     config.is_test = True
     config.cache = {}
-    projects.use_temp_directory()
+    projects._use_temp_directory()
     projects.set_current("default")
     return wrapped(*args, **kwargs)
