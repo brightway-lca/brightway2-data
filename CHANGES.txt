@@ -1,6 +1,11 @@
 Changelog
 *********
 
+2.2.2 (2016-06-10)
+==================
+
+- Changes to improve testing for bw2data and bw2calc
+
 2.2.1 (2016-06-06)
 ==================
 
