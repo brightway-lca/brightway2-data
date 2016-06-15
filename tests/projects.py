@@ -3,14 +3,16 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import bw2test
-from bw2data import projects, databases, methods, mapping, geomapping
+from bw2data import projects, databases, methods, mapping, geomapping, config
 from bw2data.errors import ReadOnlyProject
 from future.utils import PY2
 from peewee import DoesNotExist
+import eight
 import os
 import pytest
 import tempfile
 
+eight.wrap_os_environ_io()
 
 ###
 ### Basic setup
@@ -58,6 +60,7 @@ def test_repeatedly_set_name_same_value():
     projects.set_current("foo")
     assert sorted([x.name for x in projects]) == ['default', 'foo']
 
+@pytest.mark.skipif(config._windows, reason="Windows doesn't allow fun")
 @bw2test
 def test_funny_project_names():
     NAMES = [
@@ -77,9 +80,17 @@ def test_funny_project_names():
         "הָיְתָהtestالصفحات التّحول",
         "　",
     ]
+    error_found = False
     for name in NAMES:
-        projects.set_current(name)
-        assert [x for x in os.listdir(projects.dir)]
+        try:
+            projects.set_current(name)
+            assert [x for x in os.listdir(projects.dir)]
+            print("This is OK:", name)
+        except:
+            print("This is not OK:", name)
+            error_found = True
+    if error_found:
+        raise ValueError("Oops")
 
 @bw2test
 def test_report():

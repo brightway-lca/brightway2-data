@@ -12,6 +12,7 @@ from functools import wraps
 from peewee import Model, TextField, BlobField
 import appdirs
 import collections
+import eight
 import os
 import re
 import shutil
@@ -19,6 +20,10 @@ import sys
 import tempfile
 import warnings
 import wrapt
+
+
+# Return unicode in Py2
+eight.wrap_os_environ_io()
 
 
 READ_ONLY_PROJECT = """
@@ -67,6 +72,7 @@ class ProjectManager(collections.Iterable):
         "lci",
         "processed",
     )
+    _is_temp_dir = False
     read_only = True
 
     def __init__(self):
@@ -228,7 +234,7 @@ class ProjectManager(collections.Iterable):
             raise ValueError("Project directory already exists")
         project_data = ProjectDataset.select(ProjectDataset.name == self.current).get().data
         ProjectDataset.create(data=project_data, name=new_name)
-        shutil.copytree(self.dir, fp)
+        shutil.copytree(self.dir, fp, ignore=lambda x, y: ["write-lock"])
         create_dir(os.path.join(
             self._base_logs_dir,
             safe_filename(new_name)
@@ -246,8 +252,13 @@ class ProjectManager(collections.Iterable):
             return False
         return fp
 
-    def use_temp_directory(self):
-        """Use a temporary directory instead of `user_data_dir`. Used for tests."""
+    def _use_temp_directory(self):
+        """Point the ProjectManager towards a temporary directory instead of `user_data_dir`.
+
+        Used exclusively for tests."""
+        if not self._is_temp_dir:
+            self._orig_base_data_dir = self._base_data_dir
+            self._orig_base_logs_dir = self._base_logs_dir
         temp_dir = tempfile.mkdtemp()
         self._base_data_dir = os.path.join(temp_dir, "data")
         self._base_logs_dir = os.path.join(temp_dir, "logs")
@@ -256,7 +267,26 @@ class ProjectManager(collections.Iterable):
         self.db.close()
         self.db = create_database(':memory:', [ProjectDataset])
         self.set_current("default", update=False)
+        self._is_temp_dir = True
         return temp_dir
+
+    def _restore_orig_directory(self):
+        """Point the ProjectManager back to original directories.
+
+        Used exclusively in tests."""
+        if not self._is_temp_dir:
+            return
+        self._base_data_dir = self._orig_base_data_dir
+        del self._orig_base_data_dir
+        self._base_logs_dir = self._orig_base_logs_dir
+        del self._orig_base_logs_dir
+        self.db.close()
+        self.db = create_database(
+            os.path.join(self._base_data_dir, "projects.db"),
+            [ProjectDataset]
+        )
+        self.set_current("default", update=False)
+        self._is_temp_dir = False
 
     def delete_project(self, name=None, delete_dir=False):
         """Delete project ``name``, or the current project.
