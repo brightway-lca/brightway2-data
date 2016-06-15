@@ -5,6 +5,7 @@ from eight import *
 from . import bw2test
 from bw2data import projects, databases, methods, mapping, geomapping
 from bw2data.errors import ReadOnlyProject
+from future.utils import PY2
 from peewee import DoesNotExist
 import os
 import pytest
@@ -15,6 +16,9 @@ import tempfile
 ### Basic setup
 ###
 
+no_py27 = pytest.mark.skipif(PY2,
+                             reason="Can't decode env variables in tests becase sys.stdin.encoding is None")
+
 
 @bw2test
 def test_project_directories():
@@ -22,6 +26,7 @@ def test_project_directories():
     for dirname in projects._basic_directories:
         assert os.path.isdir(os.path.join(projects.dir, dirname))
 
+@no_py27
 @bw2test
 def test_from_env_var():
     dirpath = tempfile.mkdtemp()
@@ -30,6 +35,7 @@ def test_from_env_var():
     assert os.path.isdir(base)
     assert os.path.isdir(logs)
 
+@no_py27
 @bw2test
 def test_invalid_env_var():
     os.environ['BRIGHTWAY2_DIR'] = "nothing special"
