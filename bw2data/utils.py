@@ -2,11 +2,12 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from . import config, projects
+from . import config
 from .errors import WebUIError, UnknownObject, NotFound
 from .fatomic import open
 from .project import safe_filename
 from contextlib import contextmanager
+from future.utils import PY2
 from io import StringIO
 import collections
 import datetime
@@ -207,7 +208,7 @@ def download_file(filename, directory="downloads", url=None):
         The path of the created file.
 
     """
-
+    from . import projects
     assert isinstance(directory, str), "`directory` must be a string"
     dirpath = projects.request_directory(directory)
     filepath = os.path.join(dirpath, filename)
@@ -292,3 +293,19 @@ def get_activity(key):
     except TypeError:
         raise UnknownObject("Key {} cannot be understood as an activity"
                             " or `(database, code)` tuple.")
+
+
+def python_2_unicode_compatible(cls):
+    """
+    Adaptation of function in future library which was causing recursion.
+
+    We check and define __unicode__ only if it doesn't exist already.
+
+    A decorator that defines __unicode__ and __str__ methods under Python
+    2. Under Python 3, this decorator is a no-op.
+
+    """
+    if PY2 and not hasattr(cls, "__unicode__"):
+        cls.__unicode__ = cls.__str__
+        cls.__str__ = lambda self: self.__unicode__().encode('utf-8')
+    return cls

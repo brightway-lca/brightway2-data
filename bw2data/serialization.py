@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
-from future.utils import python_2_unicode_compatible
 
 from . import config, projects
 from .fatomic import open as atomic_open
 from .project import writable_project
+from .utils import python_2_unicode_compatible
 from time import time
 import bz2
 import os

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
-from future.utils import python_2_unicode_compatible
 
 from . import config
 from .project import writable_project
 from .serialization import SerializedDict, PickledDict, CompoundJSONDict
+from .utils import python_2_unicode_compatible
 import datetime
 import pprint
 

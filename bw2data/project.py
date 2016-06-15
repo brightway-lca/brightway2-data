@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
-from future.utils import python_2_unicode_compatible
 from eight import *
 
 from . import config
 from .errors import ReadOnlyProject
 from .filesystem import safe_filename, create_dir
 from .sqlite import PickleField, create_database
+from .utils import python_2_unicode_compatible
 from fasteners import InterProcessLock
 from functools import wraps
 from peewee import Model, TextField, BlobField

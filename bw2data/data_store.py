@@ -6,8 +6,7 @@ from . import config, projects
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
 from .project import writable_project
-from .utils import safe_filename, numpy_string
-from future.utils import python_2_unicode_compatible
+from .utils import safe_filename, numpy_string, python_2_unicode_compatible
 import numpy as np
 import os
 import warnings
@@ -15,6 +14,7 @@ try:
     import cPickle as pickle
 except ImportError:
     import pickle
+
 
 @python_2_unicode_compatible
 class DataStore(object):
@@ -35,7 +35,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
     def __str__(self):
         return "Brightway2 %s: %s" % (self.__class__.__name__, self.name)
 
-    __repr__ = lambda x: str(x)
+    __repr__ = lambda self: str(self)
 
     def _get_metadata(self):
         if self.name not in self._metadata:

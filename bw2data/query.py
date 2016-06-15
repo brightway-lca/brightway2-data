@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
-from future.utils import python_2_unicode_compatible
 
+from .utils import python_2_unicode_compatible
 import collections
 import operator
 import itertools

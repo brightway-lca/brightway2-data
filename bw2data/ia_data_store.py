@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
-from future.utils import python_2_unicode_compatible
 
 from .data_store import ProcessedDataStore
-from .utils import safe_filename
+from .utils import safe_filename, python_2_unicode_compatible
 import hashlib
 import string
 
