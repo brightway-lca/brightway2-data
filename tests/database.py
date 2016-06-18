@@ -908,10 +908,12 @@ class DatabaseQuerysetTest(BW2DataTest):
     def test_reset_order_by(self):
         self.db.order_by = 'name'
         self.db.order_by = None
-        self.assertFalse(
-            [x['name'] for x in self.db] == \
-            ['a', 'b', 'c', 'd']
-        )
+        as_lists = [
+            [x['name'] for x in self.db]
+            for _ in range(10)
+        ]
+        first_elements = {x[0] for x in as_lists}
+        self.assertTrue(len(first_elements) > 1)
 
     def test_reset_filters(self):
         self.db.filters = {'product': 'widget'}
