@@ -69,6 +69,12 @@ class ActivityProxyBase(ProxyBase):
     def __eq__(self, other):
         return self.key == other
 
+    def __lt__(self, other):
+        if not isinstance(other, ActivityProxyBase):
+            raise TypeError
+        else:
+            return self.key < other.key
+
     def __hash__(self):
         return hash(self.key)
 
@@ -122,6 +128,13 @@ class ExchangeProxyBase(ProxyBase):
                 self.input, self.output)
         else:
             return "Exchange with missing fields (call ``valid(why=True)`` to see more)"
+
+    def __lt__(self, other):
+        if not isinstance(other, ExchangeProxyBase):
+            raise TypeError
+        else:
+            return ((self.input.key, self.output.key) <
+                    (other.input.key, other.output.key))
 
     def _get_input(self):
         """Get or set the exchange input.
