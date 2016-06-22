@@ -43,7 +43,7 @@ class Searcher(object):
             "product": 3,
             "categories": 2,
             "location": 3,
-            "code":2,
+            "code": 4,
         }
 
         qp = MultifieldParser(
