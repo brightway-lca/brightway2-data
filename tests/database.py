@@ -675,6 +675,12 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array[0]['uncertainty_type'], 7)
         self.assertEqual(array[0]['amount'], 42)
 
+    def test_sqlite_processed_array_order(self):
+        pass
+
+    def test_singlefile_processed_array_order(self,):
+        pass
+
     def test_loc_value_if_no_uncertainty(self):
         database = DatabaseChooser("a database")
         database.register()

@@ -123,3 +123,6 @@ class ProcessedDataStoreTestCase(BW2DataTest):
         fp = os.path.join(projects.dir, u"processed", d.filename + u".pickle")
         array = pickle.load(open(fp, "rb"))
         self.assertTrue(np.allclose(np.arange(10), array['loc']))
+
+    def test_order(self):
+        pass
