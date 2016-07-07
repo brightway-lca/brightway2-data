@@ -6,6 +6,7 @@ Changelog
 
 - Use consistent sorting for all `DataStore` objects. However, this sorting is not guaranteed across machines.
 - Use `np.save` instead of pickling for processed arrays.
+- Added `projects.output_dir`.
 
 2.2.2 (2016-06-10)
 ==================

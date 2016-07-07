@@ -22,10 +22,6 @@ import warnings
 import wrapt
 
 
-# Return unicode in Py2
-eight.wrap_os_environ_io()
-
-
 READ_ONLY_PROJECT = """
 ***Read only project***
 
@@ -112,6 +108,7 @@ class ProjectManager(collections.Iterable):
     ### Internal functions for managing projects
 
     def _get_base_directories(self):
+        eight.wrap_os_environ_io()
         envvar = os.getenv("BRIGHTWAY2_DIR")
         if envvar:
             if not os.path.isdir(envvar):
@@ -201,6 +198,24 @@ class ProjectManager(collections.Iterable):
             self._base_logs_dir,
             safe_filename(self.current)
         )
+
+    @property
+    def output_dir(self):
+        """Get directory for output files.
+
+        Uses environment variable ``BRIGHTWAY2_OUTPUT_DIR``; ``preferences['output_dir']``; or directory ``output`` in current project.
+
+        Returns output directory path.
+
+        """
+        eight.wrap_os_environ_io()
+        ep, pp = os.getenv('BRIGHTWAY2_OUTPUT_DIR'), config.p.get('output_dir')
+        if ep and os.path.isdir(ep):
+            return ep
+        elif pp and os.path.isdir(pp):
+            return pp
+        else:
+            return self.request_directory('output')
 
     def create_project(self, name=None, **kwargs):
         name = name or self.current
