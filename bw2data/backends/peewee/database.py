@@ -350,8 +350,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
             )
 
         arr.sort()
-        with open(self.filepath_geomapping(), "wb") as f:
-            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+        np.save(self.filepath_geomapping(), arr, allow_pickle=False)
 
         # Figure out when the production exchanges are implicit
 
@@ -442,8 +441,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         databases.flush()
 
         arr.sort()
-        with open(self.filepath_processed(), "wb") as f:
-            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+        np.save(self.filepath_processed(), arr, allow_pickle=False)
 
     def search(self, string, **kwargs):
         """Search this database for ``string``.

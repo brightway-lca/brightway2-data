@@ -11,10 +11,6 @@ from ...errors import UnknownObject
 import datetime
 import itertools
 import numpy as np
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 
 
 class IOTableBackend(SQLiteBackend):
@@ -56,8 +52,7 @@ class IOTableBackend(SQLiteBackend):
                 0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
             )
 
-        with open(self.filepath_geomapping(), "wb") as f:
-            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+        np.save(self.filepath_geomapping(), arr, allow_pickle=False)
 
         dependents = set()
 
@@ -117,8 +112,7 @@ class IOTableBackend(SQLiteBackend):
         arr = arr[np.where(arr["row"] == MAX_INT_32)]
 
         print("Writing array")
-        with open(self.filepath_processed(), "wb") as f:
-            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+        np.save(self.filepath_processed(), arr, allow_pickle=False)
 
     def process(self):
         """No-op; no intermediate data to process"""

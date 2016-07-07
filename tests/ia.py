@@ -13,6 +13,7 @@ from bw2data.utils import numpy_string
 from bw2data.validate import weighting_validator, normalization_validator, ia_validator
 from bw2data.weighting_normalization import Normalization, Weighting
 import hashlib
+import numpy as np
 import os
 try:
     import cPickle as pickle
@@ -137,8 +138,8 @@ class MethodTest(BW2DataTest):
         method = Method(("a", "method"))
         method.register()
         method.write([[("foo", "bar"), 42]])
-        fp = os.path.join(projects.dir, u"processed", method.filename + u".pickle")
-        array = pickle.load(open(fp, "rb"))
+        fp = os.path.join(projects.dir, "processed", method.filename + ".npy")
+        array = np.load(fp)
 
         fieldnames = {x[0] for x in method.base_uncertainty_fields}.union({'flow', 'geo', 'row', 'col'})
         self.assertEqual(fieldnames, set(array.dtype.names))
@@ -180,8 +181,8 @@ class WeightingTest(BW2DataTest):
         weighting.register()
         weighting.write([42])
 
-        fp = os.path.join(projects.dir, u"processed", weighting.filename + u".pickle")
-        array = pickle.load(open(fp, "rb"))
+        fp = os.path.join(projects.dir, "processed", weighting.filename + ".npy")
+        array = np.load(fp)
 
         fieldnames = {x[0] for x in weighting.base_uncertainty_fields}
         self.assertEqual(fieldnames, set(array.dtype.names))
@@ -220,8 +221,8 @@ class NormalizationTest(BW2DataTest):
         norm.register()
         norm.write([[("foo", "bar"), 42]])
 
-        fp = os.path.join(projects.dir, u"processed", norm.filename + u".pickle")
-        array = pickle.load(open(fp, "rb"))
+        fp = os.path.join(projects.dir, "processed", norm.filename + ".npy")
+        array = np.load(fp)
 
         fieldnames = {x[0] for x in norm.base_uncertainty_fields}.union({'flow', 'index'})
         self.assertEqual(fieldnames, set(array.dtype.names))
