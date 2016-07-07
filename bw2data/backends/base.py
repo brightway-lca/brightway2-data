@@ -255,13 +255,11 @@ Doesn't return anything, but writes two files to disk.
         arr = np.zeros((num_exchanges + len(data), ), dtype=self.dtype)
         count = 0
 
-        for key in sorted(data.keys(), key=lambda x: x[1]):
+        for key in data:
             production_found = False
             if data[key].get('type', 'process') != "process":
                 continue
-            for exc in sorted(
-                    data[key].get("exchanges", []),
-                    key=lambda x: x.get("input")):
+            for exc in data[key].get("exchanges", []):
 
                 if "amount" not in exc or "input" not in exc:
                     raise InvalidExchange
@@ -314,6 +312,7 @@ Doesn't return anything, but writes two files to disk.
         # The array is too big, because it can include a default production
         # amount for each activity. Trim to actual size.
         arr = arr[:count]
+        arr.sort()
         with open(self.filepath_processed(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 

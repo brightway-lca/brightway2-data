@@ -238,6 +238,7 @@ Doesn't return anything, but writes a file to disk.
                 uncertainties.get("maximum", np.NaN),
                 uncertainties.get("amount") < 0,
             )
+        arr.sort()
         filepath = os.path.join(
             projects.dir,
             "processed",

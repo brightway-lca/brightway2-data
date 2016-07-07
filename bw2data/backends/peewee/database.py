@@ -349,6 +349,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
             )
 
+        arr.sort()
         with open(self.filepath_geomapping(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -361,7 +362,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 # Get correct database name
                 ActivityDataset.database == self.name,
                 # Only consider `process` type activities
-                ActivityDataset.type == "process",
+                ActivityDataset.type << ("process", None),
                 # But exclude activities that already have production exchanges
                 ~(ActivityDataset.code << ExchangeDataset.select(
                             # Get codes to exclude
@@ -378,7 +379,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         # Using raw sqlite3 to retrieve data for ~2x speed boost
         connection = sqlite3.connect(sqlite3_lci_db.database)
         cursor = connection.cursor()
-        SQL = "SELECT data, input_database, input_code, output_database, output_code FROM exchangedataset WHERE output_database = ? ORDER BY input_database, input_code, output_database, output_code"
+        SQL = "SELECT data, input_database, input_code, output_database, output_code FROM exchangedataset WHERE output_database = ?"
 
         dependents = set()
         found_exchanges = False
@@ -440,6 +441,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         databases[self.name]['processed'] = datetime.datetime.now().isoformat()
         databases.flush()
 
+        arr.sort()
         with open(self.filepath_processed(), "wb") as f:
             pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
 
