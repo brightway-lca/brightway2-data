@@ -3,7 +3,15 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import bw2test
-from bw2data import projects, databases, methods, mapping, geomapping, config
+from bw2data import (
+    config,
+    databases,
+    geomapping,
+    mapping,
+    methods,
+    preferences,
+    projects,
+)
 from bw2data.errors import ReadOnlyProject
 from future.utils import PY2
 from peewee import DoesNotExist
@@ -36,6 +44,7 @@ def test_from_env_var():
     base, logs = projects._get_base_directories()
     assert os.path.isdir(base)
     assert os.path.isdir(logs)
+    del os.environ["BRIGHTWAY2_DIR"]
 
 @no_py27
 @bw2test
@@ -43,6 +52,34 @@ def test_invalid_env_var():
     os.environ['BRIGHTWAY2_DIR'] = "nothing special"
     with pytest.raises(OSError):
         projects._get_base_directories()
+    del os.environ['BRIGHTWAY2_DIR']
+
+@no_py27
+@bw2test
+def test_invalid_output_env_dir():
+    os.environ['BRIGHTWAY2_OUTPUT_DIR'] = "nothing special"
+    assert projects.dir in projects.output_dir
+    del os.environ['BRIGHTWAY2_OUTPUT_DIR']
+
+@no_py27
+@bw2test
+def test_output_env_dir():
+    assert os.getcwd() != projects.output_dir
+    os.environ['BRIGHTWAY2_OUTPUT_DIR'] = os.getcwd()
+    assert os.getcwd() == projects.output_dir
+    del os.environ['BRIGHTWAY2_OUTPUT_DIR']
+
+@bw2test
+def test_output_dir_from_preferences():
+    assert os.getcwd() != projects.output_dir
+    preferences['output_dir'] = os.getcwd()
+    assert preferences['output_dir'] == projects.output_dir
+
+@bw2test
+def test_invalid_output_dir_from_preferences():
+    preferences['output_dir'] ="nope"
+    assert projects.dir in projects.output_dir
+    del preferences['output_dir']
 
 @bw2test
 def test_directories():
