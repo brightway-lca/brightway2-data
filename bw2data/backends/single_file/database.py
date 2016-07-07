@@ -29,7 +29,7 @@ class SingleFileDatabase(LCIBackend):
 
     """
     validator = db_validator
-    backend = u"singlefile"
+    backend = "singlefile"
 
     def __iter__(self):
         for k, v in self.load().items():
@@ -51,7 +51,7 @@ class SingleFileDatabase(LCIBackend):
             Filename (not path)
 
         """
-        return u"%s.%i" % (
+        return "%s.%i" % (
             safe_filename(self.name),
             version or self.version
         )
@@ -59,8 +59,8 @@ class SingleFileDatabase(LCIBackend):
     def filepath_intermediate(self, version=None):
         return os.path.join(
             projects.dir,
-            u"intermediate",
-            self.filename_for_version(version) + u".pickle"
+            "intermediate",
+            self.filename_for_version(version) + ".pickle"
         )
 
     def load(self, version=None, **kwargs):
@@ -101,7 +101,7 @@ class SingleFileDatabase(LCIBackend):
 
         Requires loading data because a new intermediate data file is created."""
         data = self.load()
-        databases[self.name][u"version"] = self.versions()[-1][0]
+        databases[self.name]["version"] = self.versions()[-1][0]
         self.write(data)
 
     def register(self, **kwargs):
@@ -110,7 +110,7 @@ class SingleFileDatabase(LCIBackend):
         Databases must be registered before data can be written.
 
         """
-        kwargs.update(version=kwargs.get(u'version', None) or 0)
+        kwargs.update(version=kwargs.get('version', None) or 0)
         super(SingleFileDatabase, self).register(**kwargs)
 
     def revert(self, version):
@@ -147,7 +147,7 @@ class SingleFileDatabase(LCIBackend):
             List of (version, datetime created) tuples.
 
         """
-        directory = os.path.join(projects.dir, u"intermediate")
+        directory = os.path.join(projects.dir, "intermediate")
         files = natural_sort(filter(
             lambda x: ".".join(x.split(".")[:-2]) == safe_filename(self.name),
             os.listdir(directory)))
@@ -181,8 +181,8 @@ class SingleFileDatabase(LCIBackend):
         databases.increment_version(self.name, len(data))
 
         mapping.add(data.keys())
-        geomapping.add({x[u"location"] for x in data.values() if
-                       x.get(u"location", False)})
+        geomapping.add({x["location"] for x in data.values() if
+                       x.get("location", False)})
 
         if preferences.get('allow incomplete imports'):
             mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})

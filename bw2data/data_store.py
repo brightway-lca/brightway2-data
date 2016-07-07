@@ -178,7 +178,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         return os.path.join(
             projects.dir,
             "processed",
-            self.filename + ".pickle"
+            self.filename + ".npy"
         )
 
     @writable_project
@@ -239,13 +239,7 @@ Doesn't return anything, but writes a file to disk.
                 uncertainties.get("amount") < 0,
             )
         arr.sort()
-        filepath = os.path.join(
-            projects.dir,
-            "processed",
-            self.filename + ".pickle"
-        )
-        with open(filepath, "wb") as f:
-            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+        np.save(self.filepath_processed(), arr, allow_pickle=False)
 
     def as_uncertainty_dict(self, value):
         """Convert floats to ``stats_arrays`` uncertainty dict, if necessary"""

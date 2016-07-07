@@ -607,9 +607,9 @@ class DatabaseTest(BW2DataTest):
         fp = os.path.join(
             projects.dir,
             "processed",
-            database.filename + ".geomapping.pickle"
+            database.filename + ".geomapping.npy"
         )
-        array = pickle.load(open(fp, "rb"))
+        array = np.load(fp)
         fieldnames = {'activity', 'geo', 'row', 'col'}
         self.assertFalse(fieldnames.difference(set(array.dtype.names)))
 
@@ -645,9 +645,9 @@ class DatabaseTest(BW2DataTest):
         fp = os.path.join(
             projects.dir,
             "processed",
-            database.filename + ".geomapping.pickle"
+            database.filename + ".geomapping.npy"
         )
-        array = pickle.load(open(fp, "rb"))
+        array = np.load(fp)
         self.assertEqual(array.shape, (1,))
         self.assertEqual(array[0]['geo'], geomapping['bar'])
 
@@ -666,9 +666,9 @@ class DatabaseTest(BW2DataTest):
         fp = os.path.join(
             projects.dir,
             "processed",
-            database.filename + ".pickle"
+            database.filename + ".npy"
         )
-        array = pickle.load(open(fp, "rb"))
+        array = np.load(fp)
         fieldnames = {'input', 'output', 'row', 'col', 'type'}
         self.assertFalse(fieldnames.difference(set(array.dtype.names)))
         self.assertEqual(array.shape, (1,))
@@ -695,11 +695,12 @@ class DatabaseTest(BW2DataTest):
         fp = os.path.join(
             projects.dir,
             "processed",
-            database.filename + ".pickle"
+            database.filename + ".npy"
         )
-        array = pickle.load(open(fp, "rb"))
+        array = np.load(fp)
         self.assertEqual(array.shape, (2,))
-        self.assertEqual(array['loc'][0], 42.)
+        self.assertEqual(array['loc'][1], 42.)
+        self.assertEqual(array['loc'][0], 1.)
 
     def test_base_class(self):
         database = DatabaseChooser("a database")
@@ -791,9 +792,9 @@ class DatabaseTest(BW2DataTest):
         fp = os.path.join(
             projects.dir,
             "processed",
-            database.filename + ".pickle"
+            database.filename + ".npy"
         )
-        array = pickle.load(open(fp, "rb"))
+        array = np.load(fp)
         self.assertEqual(array['amount'][0], 1)
         self.assertEqual(array.shape, (1,))
 
@@ -834,9 +835,9 @@ class DatabaseTest(BW2DataTest):
         fp = os.path.join(
             projects.dir,
             "processed",
-            database.filename + ".pickle"
+            database.filename + ".npy"
         )
-        array = pickle.load(open(fp, "rb"))
+        array = np.load(fp)
         self.assertEqual(array.shape, (1,))
         self.assertEqual(array['output'][0], mapping[("a database", "foo")])
         self.assertEqual(array['input'][0], mapping[("a database", "product")])

@@ -108,8 +108,8 @@ class ProcessedDataStoreTestCase(BW2DataTest):
     def test_processed_array(self):
         d = MockPDS("happy")
         d.write([{'amount': 42, 'uncertainty type': 7}])
-        fp = os.path.join(projects.dir, u"processed", d.filename + u".pickle")
-        array = pickle.load(open(fp, "rb"))
+        fp = os.path.join(projects.dir, "processed", d.filename + ".npy")
+        array = np.load(fp)
 
         fieldnames = {x[0] for x in d.base_uncertainty_fields}
         self.assertEqual(fieldnames, set(array.dtype.names))
@@ -120,8 +120,8 @@ class ProcessedDataStoreTestCase(BW2DataTest):
     def test_loc_value_if_no_uncertainty(self):
         d = MockPDS("happy meal")
         d.write(range(10))
-        fp = os.path.join(projects.dir, u"processed", d.filename + u".pickle")
-        array = pickle.load(open(fp, "rb"))
+        fp = os.path.join(projects.dir, "processed", d.filename + ".npy")
+        array = np.load(fp)
         self.assertTrue(np.allclose(np.arange(10), array['loc']))
 
     def test_order(self):

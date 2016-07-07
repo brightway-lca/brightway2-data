@@ -139,7 +139,7 @@ class LCIBackend(ProcessedDataStore):
         return os.path.join(
             projects.dir,
             "processed",
-            self.filename + ".geomapping.pickle"
+            self.filename + ".geomapping.npy"
         )
 
     def find_dependents(self, data=None, ignore=None):
@@ -313,8 +313,7 @@ Doesn't return anything, but writes two files to disk.
         # amount for each activity. Trim to actual size.
         arr = arr[:count]
         arr.sort()
-        with open(self.filepath_processed(), "wb") as f:
-            pickle.dump(arr, f, protocol=pickle.HIGHEST_PROTOCOL)
+        np.save(self.filepath_processed(), arr, allow_pickle=False)
 
     def query(self, *queries):
         """Search through the database."""

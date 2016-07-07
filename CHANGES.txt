@@ -1,6 +1,12 @@
 Changelog
 *********
 
+2.3 (XXXX-XX-XX)
+================
+
+- Use consistent sorting for all `DataStore` objects. However, this sorting is not guaranteed across machines.
+- Use `np.save` instead of pickling for processed arrays.
+
 2.2.2 (2016-06-10)
 ==================
 

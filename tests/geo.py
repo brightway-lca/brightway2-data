@@ -43,8 +43,9 @@ class GeoTest(BW2DataTest):
 
     def test_method_adds_correct_geo(self):
         method = self.add_method()
-        pickled = pickle.load(open(os.path.join(projects.dir, "processed",
-            method.get_abbreviation() + ".pickle"), "rb"))
+        pickled = np.load(os.path.join(projects.dir, "processed",
+            method.get_abbreviation() + ".npy"))
+        print(pickled)
         self.assertEqual(geomapping["foo"], int(pickled[0]["geo"]))
         self.assertEqual(geomapping["bar"], int(pickled[1]["geo"]))
         self.assertEqual(pickled.shape, (2,))
@@ -56,8 +57,8 @@ class GeoTest(BW2DataTest):
         database = Database("food")
         database.register(depends=["biosphere"])
         database.write(food)
-        pickled = pickle.load(open(os.path.join(projects.dir, "processed",
-            database.filename + ".pickle"), "rb"))
+        pickled = np.load(os.path.join(projects.dir, "processed",
+            database.filename + ".npy"))
         self.assertTrue(geomapping["CA"] in pickled["geo"].tolist())
         self.assertTrue(geomapping["CH"] in pickled["geo"].tolist())
 
@@ -71,8 +72,8 @@ class GeoTest(BW2DataTest):
         for v in new_food.values():
             del v["location"]
         database.write(new_food)
-        pickled = pickle.load(open(os.path.join(projects.dir, "processed",
-            database.filename + ".pickle"), "rb"))
+        pickled = np.load(os.path.join(projects.dir, "processed",
+            database.filename + ".npy"))
         self.assertTrue(np.allclose(pickled["geo"],
             geomapping["GLO"] * np.ones(pickled.shape)))
 

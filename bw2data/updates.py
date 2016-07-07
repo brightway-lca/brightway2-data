@@ -7,6 +7,7 @@ from . import Database, databases, Method, methods, Weighting, \
 from .backends.peewee import sqlite3_lci_db
 from .ia_data_store import abbreviate
 from .utils import recursive_str_to_unicode
+import numpy as np
 import os
 import pprint
 import pyprind
@@ -14,7 +15,6 @@ import re
 import shutil
 import sqlite3
 import warnings
-
 try:
     import cPickle as pickle
 except ImportError:
@@ -94,7 +94,12 @@ class Updates(object):
             'method': "database_search_directories_20",
             'automatic': True,
             'explanation': ""
-        }
+        },
+        "2.3 processed data format": {
+            'method': "processed_data_format_change_23",
+            'automatic': True,
+            'explanation': "",
+        },
         # Update to 3.2 biosphere
     }
 
@@ -188,3 +193,17 @@ class Updates(object):
                 print("Reindexing database {}".format(db))
                 Database(db).make_searchable()
 
+    @classmethod
+    def processed_data_format_change_23(cls):
+        processed_dir = os.path.join(projects.dir, "processed")
+        for filename in os.listdir(processed_dir):
+            fp = os.path.join(processed_dir, filename)
+            if os.path.isdir(fp):
+                continue
+            if not filename.endswith(".pickle"):
+                continue
+            np.save(
+                fp[:-7] + ".npy",
+                pickle.load(open(fp, "rb")),
+                allow_pickle=False
+            )
