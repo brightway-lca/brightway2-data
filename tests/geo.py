@@ -2,90 +2,89 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from . import BW2DataTest
+from . import bw2test
 from .fixtures import food, biosphere
-from bw2data import Database, geomapping, config, Method, projects
+from bw2data import (
+    config,
+    Database,
+    geomapping,
+    mapping,
+    Method,
+    projects,
+)
 import copy
 import numpy as np
 import os
 import pickle
+import pytest
 
 
-class GeoTest(BW2DataTest):
-    def extra_setup(self):
-        geomapping.data = {}
-        geomapping.flush()
-        geomapping.__init__()
+@pytest.fixture
+@bw2test
+def add_biosphere():
+    Database("biosphere").write(biosphere)
 
-    def add_biosphere(self):
-        d = Database(u"biosphere")
-        d.register(depends=[])
-        d.write(biosphere)
 
-    def add_method(self):
-        self.add_biosphere()
-        method = Method(("test method",))
-        method.register(unit="kg")
-        method.write([
-            (("biosphere", 1), 6, "foo"),
-            (("biosphere", 2), 5, "bar")
-        ])
-        return method
+@pytest.fixture
+def add_method(add_biosphere):
+    method = Method(("test method",))
+    method.register(unit="kg")
+    method.write([
+        (("biosphere", 1), 6, "foo"),
+        (("biosphere", 2), 5, "bar")
+    ])
 
-    def test_geomapping_retrieval(self):
-        geomapping.add(["foobar"])
-        self.assertTrue("foobar" in geomapping)
-        geomapping.__init__()
-        self.assertTrue("foobar" in geomapping)
 
-    def test_glo_always_present(self):
-        self.assertTrue(config.global_location in geomapping)
+@bw2test
+def test_geomapping_retrieval():
+    geomapping.add(["foobar"])
+    assert "foobar" in geomapping
+    geomapping.__init__()
+    assert "foobar" in geomapping
 
-    def test_method_adds_correct_geo(self):
-        method = self.add_method()
-        pickled = np.load(os.path.join(projects.dir, "processed",
-            method.get_abbreviation() + ".npy"))
-        print(pickled)
-        self.assertEqual(geomapping["foo"], int(pickled[0]["geo"]))
-        self.assertEqual(geomapping["bar"], int(pickled[1]["geo"]))
-        self.assertEqual(pickled.shape, (2,))
+@bw2test
+def test_glo_always_present():
+    assert config.global_location in geomapping
 
-    # TODO: Adapt or remove
-    def test_database_adds_correct_geo(self):
-        return
-        self.add_biosphere()
-        database = Database("food")
-        database.register(depends=["biosphere"])
-        database.write(food)
-        pickled = np.load(os.path.join(projects.dir, "processed",
-            database.filename + ".npy"))
-        self.assertTrue(geomapping["CA"] in pickled["geo"].tolist())
-        self.assertTrue(geomapping["CH"] in pickled["geo"].tolist())
+def test_method_process_adds_correct_geo(add_method):
+    method = Method(("test method",))
+    pickled = np.load(os.path.join(
+        projects.dir,
+        "processed",
+        method.get_abbreviation() + ".npy"
+    ))
+    mapped = {row['flow']: row['geo'] for row in pickled}
+    assert geomapping["foo"] == mapped[mapping[("biosphere", 1)]]
+    assert geomapping["bar"] == mapped[mapping[("biosphere", 2)]]
+    assert pickled.shape == (2,)
 
-    # TODO: Adapt to geomapping processed data
-    def test_database_adds_default_geo(self):
-        return
-        self.add_biosphere()
-        database = Database("food")
-        database.register(depends=["biosphere"])
-        new_food = copy.deepcopy(food)
-        for v in new_food.values():
-            del v["location"]
-        database.write(new_food)
-        pickled = np.load(os.path.join(projects.dir, "processed",
-            database.filename + ".npy"))
-        self.assertTrue(np.allclose(pickled["geo"],
-            geomapping["GLO"] * np.ones(pickled.shape)))
+def test_database_process_adds_correct_geo(add_biosphere):
+    database = Database("food")
+    database.write(food)
+    pickled = np.load(os.path.join(
+        projects.dir,
+        "processed",
+        database.filename + ".geomapping.npy"
+    ))
+    assert geomapping["CA"] in pickled["geo"].tolist()
+    assert geomapping["CH"] in pickled["geo"].tolist()
 
-    def test_method_write_adds_to_geomapping(self):
-        self.add_method()
-        self.assertTrue("foo" in geomapping)
-        self.assertTrue("bar" in geomapping)
+def test_database_process_adds_default_geo(add_biosphere):
+    database = Database("food")
+    new_food = copy.deepcopy(food)
+    for v in new_food.values():
+        del v["location"]
+    database.write(new_food)
+    pickled = np.load(os.path.join(projects.dir, "processed",
+        database.filename + ".geomapping.npy"))
+    assert np.allclose(pickled["geo"], geomapping["GLO"] * np.ones(pickled.shape))
 
-    def test_database_write_adds_to_geomapping(self):
-        self.add_biosphere()
-        d = Database("food")
-        d.register(depends=["biosphere"])
-        d.write(food, process=False)
-        self.assertTrue("CA" in geomapping)
-        self.assertTrue("CH" in geomapping)
+def test_method_write_adds_to_geomapping(add_method):
+    assert "foo" in geomapping
+    assert "bar" in geomapping
+
+def test_database_write_adds_to_geomapping(add_biosphere):
+    d = Database("food")
+    d.write(food, process=False)
+    assert "CA" in geomapping
+    assert "CH" in geomapping
