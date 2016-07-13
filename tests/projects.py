@@ -133,6 +133,11 @@ def test_funny_project_names():
 def test_report():
     assert projects.report
 
+@bw2test
+def test_request_directory():
+    projects.request_directory("foo")
+    assert "foo" in os.listdir(projects.dir)
+
 
 ###
 ### Project deletion
@@ -311,4 +316,3 @@ def test_copy_project_switch_current():
 
 
 # TODO: purge delete directories
-# TODO: request directory
