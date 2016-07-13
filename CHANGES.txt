@@ -1,13 +1,14 @@
 Changelog
 *********
 
-2.3 (XXXX-XX-XX)
+2.3 (2016-07-14)
 ================
 
 - Use consistent sorting for all `DataStore` objects. However, this sorting is not guaranteed across machines.
 - Use `np.save` instead of pickling for processed arrays.
-- Added `projects.output_dir`.
+- Added `projects.output_dir` and environment variable `BW2_OUTPUT_DIR`.
 - Removed deprecated functions in `config`.
+- Add field `code` to search index.
 
 2.2.2 (2016-06-10)
 ==================
