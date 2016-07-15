@@ -16,6 +16,7 @@ from peewee import fn, DoesNotExist
 import itertools
 import datetime
 import numpy as np
+import pprint
 import pyprind
 import sqlite3
 import warnings
@@ -68,8 +69,11 @@ class SQLiteBackend(LCIBackend):
             if isinstance(filters, dict):
                 for key, value in filters.items():
                     qs = qs.where(getattr(ActivityDataset, key) == value)
-            for key, value in self.filters.items():
-                qs = qs.where(getattr(ActivityDataset, key) == value)
+            if self.filters:
+                print("Using the following database filters:")
+                pprint.pprint(self.filters)
+                for key, value in self.filters.items():
+                    qs = qs.where(getattr(ActivityDataset, key) == value)
         if self.order_by and not random:
             qs = qs.order_by(getattr(ActivityDataset, self.order_by))
         else:
@@ -83,6 +87,8 @@ class SQLiteBackend(LCIBackend):
         if not filters:
             self._filters = {}
         else:
+            print("Filters will effect all database queries"
+                  " until unset (`.filters = None`)")
             assert isinstance(filters, dict), "Filter must be a dictionary"
             for key in filters:
                 assert key in _VALID_KEYS, \
