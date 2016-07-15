@@ -232,7 +232,7 @@ class Activity(ActivityProxyBase):
         for key, value in self.items():
             activity[key] = value
         for k, v in kwargs.items():
-            setattr(activity._data, k, v)
+            activity._data[k] = v
         activity._data[u'code'] = str(code or uuid.uuid4().hex)
         activity.save()
 
