@@ -65,6 +65,9 @@ class SQLiteBackend(LCIBackend):
         qs = ActivityDataset.select().where(
             ActivityDataset.database == self.name)
         if filters:
+            if isinstance(filters, dict):
+                for key, value in filters.items():
+                    qs = qs.where(getattr(ActivityDataset, key) == value)
             for key, value in self.filters.items():
                 qs = qs.where(getattr(ActivityDataset, key) == value)
         if self.order_by and not random:
