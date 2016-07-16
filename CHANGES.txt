@@ -1,14 +1,11 @@
 Changelog
 *********
 
-2.3.1 ()
-========
+2.3.1 (2016-07-16)
+==================
 
 - Fixed bug with Activity.copy()
 - Fixed some bugs with database filtering
-
-TODO: Add documentation on .filters and how they persist
-TODO: Tests
 
 2.3 (2016-07-14)
 ================
