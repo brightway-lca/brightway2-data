@@ -2,7 +2,7 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from . import BW2DataTest
+from . import bw2test, BW2DataTest
 from .fixtures import food, biosphere, get_naughty
 from bw2data import config, projects
 from bw2data.database import DatabaseChooser
@@ -37,156 +37,163 @@ import datetime
 import numpy as np
 import os
 import pickle
+import pytest
 import warnings
 
 
-class PeeweeProxyTest(BW2DataTest):
-    def get_activity(self):
-        database = DatabaseChooser("a database")
-        database.write({
-            ("a database", "foo"): {
-                'exchanges': [{
-                    'input': ("a database", "foo"),
-                    'amount': 1,
-                    'type': 'production',
-                }],
-                'location': 'bar',
-                'name': 'baz'
-            },
-        })
-        return database.get('foo')
+@pytest.fixture
+@bw2test
+def activity():
+    database = DatabaseChooser("a database")
+    database.write({
+        ("a database", "foo"): {
+            'exchanges': [{
+                'input': ("a database", "foo"),
+                'amount': 1,
+                'type': 'production',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+    })
+    return database.get('foo')
 
-    def test_set_item(self):
-        act = self.get_activity()
-        act['foo'] = 'bar'
+def test_set_item(activity):
+    activity['foo'] = 'bar'
+    activity.save()
+    act = DatabaseChooser("a database").get("foo")
+    assert act['foo'] == 'bar'
+
+def test_key(activity):
+    assert activity.key == ("a database", "foo")
+
+def test_change_code(activity):
+    db = DatabaseChooser("a database")
+    assert len(db) == 1
+    old_key = activity.key[:]
+    activity['code'] = 'a new one'
+    assert len(db) == 1
+    assert get_activity(("a database", "a new one"))
+    with pytest.raises(DoesNotExist):
+        get_activity(old_key)
+
+def test_change_code_same_code(activity):
+    activity['code'] = 'foo'
+
+def test_change_database(activity):
+    db = DatabaseChooser("a database")
+    db2 = DatabaseChooser("another database")
+    db2.write({})
+    assert len(db2) == 0
+    assert len(db) == 1
+    old_key = activity.key[:]
+    assert len(get_activity(old_key).production()) == 1
+    activity['database'] = "another database"
+    assert len(db) == 0
+    assert len(db2) == 1
+    assert get_activity(("another database", "foo"))
+    assert len(get_activity(("another database", "foo")).production()) == 1
+    with pytest.raises(DoesNotExist):
+        get_activity(old_key)
+
+def test_change_database_not_exist(activity):
+    with pytest.raises(ValueError):
+        activity['database'] = "nope!"
+
+def test_database_same_database(activity):
+    activity['database'] = "a database"
+
+@bw2test
+def test_change_code_not_unique():
+    database = DatabaseChooser("a database")
+    database.write({
+        ("a database", "foo"): {
+            'exchanges': [{
+                'input': ("a database", "foo"),
+                'amount': 1,
+                'type': 'production',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+        ("a database", "already there"): {
+            'exchanges': [{
+                'input': ("a database", "already there"),
+                'amount': 1,
+                'type': 'production',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+    })
+    act = database.get('foo')
+    with pytest.raises(ValueError):
+        act['code'] = "already there"
+
+def test_delete(activity):
+    assert ExchangeDataset.select().count() == 1
+    assert ActivityDataset.select().count() == 1
+    activity.delete()
+    assert ExchangeDataset.select().count() == 0
+    assert ActivityDataset.select().count() == 0
+
+@bw2test
+def test_save_invalid():
+    db = DatabaseChooser("a database")
+    db.register()
+    act = db.new_activity("foo")
+    with pytest.raises(ValidityError):
         act.save()
-        act = DatabaseChooser("a database").get("foo")
-        self.assertEqual(act['foo'], 'bar')
 
-    def test_key(self):
-        act = self.get_activity()
-        self.assertEqual(act.key, ("a database", "foo"))
+def test_copy(activity):
+    assert ExchangeDataset.select().count() == 1
+    assert ActivityDataset.select().count() == 1
+    cp = activity.copy("baz")
+    assert cp['code'] != activity['code']
+    assert cp['name'] == 'baz'
+    assert cp['location'] == 'bar'
+    assert ExchangeDataset.select().count() == 2
+    assert ActivityDataset.select().count() == 2
+    assert ActivityDataset.select().where(
+        ActivityDataset.code == cp['code'],
+        ActivityDataset.database == cp['database'],
+    ).count() == 1
+    assert ActivityDataset.select().where(
+        ActivityDataset.code == activity['code'],
+        ActivityDataset.database == activity['database'],
+    ).count() == 1
+    assert ExchangeDataset.select().where(
+        ExchangeDataset.input_code == cp['code'],
+        ExchangeDataset.input_database == cp['database'],
+    ).count() == 1
+    assert ExchangeDataset.select().where(
+        ExchangeDataset.input_database == activity['database'],
+        ExchangeDataset.input_code == activity['code'],
+    ).count() == 1
 
-    def test_change_code(self):
-        act = self.get_activity()
-        db = DatabaseChooser("a database")
-        self.assertEqual(len(db), 1)
-        old_key = act.key[:]
-        act['code'] = 'a new one'
-        self.assertEqual(len(db), 1)
-        self.assertTrue(get_activity(("a database", "a new one")))
-        with self.assertRaises(DoesNotExist):
-            get_activity(old_key)
+def test_copy_with_kwargs(activity):
+    assert ExchangeDataset.select().count() == 1
+    assert ActivityDataset.select().count() == 1
+    cp = activity.copy("baz", location="here", widget="squirt gun")
+    assert cp['code'] != activity['code']
+    assert cp['name'] == 'baz'
+    assert cp['location'] == 'here'
+    assert cp['widget'] == 'squirt gun'
+    assert ExchangeDataset.select().count() == 2
+    assert ActivityDataset.select().count() == 2
 
-    def test_change_code_same_code(self):
-        act = self.get_activity()
-        act['code'] = 'foo'
-
-    def test_change_database(self):
-        act = self.get_activity()
-        db = DatabaseChooser("a database")
-        db2 = DatabaseChooser("another database")
-        db2.write({})
-        self.assertEqual(len(db2), 0)
-        self.assertEqual(len(db), 1)
-        old_key = act.key[:]
-        self.assertEqual(len(get_activity(old_key).production()), 1)
-        act['database'] = "another database"
-        self.assertEqual(len(db), 0)
-        self.assertEqual(len(db2), 1)
-        self.assertTrue(get_activity(("another database", "foo")))
-        self.assertEqual(len(get_activity(("another database", "foo")).production()), 1)
-        with self.assertRaises(DoesNotExist):
-            get_activity(old_key)
-
-    def test_change_database_not_exist(self):
-        act = self.get_activity()
-        with self.assertRaises(ValueError):
-            act['database'] = "nope!"
-
-    def test_database_same_database(self):
-        act = self.get_activity()
-        act['database'] = "a database"
-
-    def test_change_code_not_unique(self):
-        database = DatabaseChooser("a database")
-        database.write({
-            ("a database", "foo"): {
-                'exchanges': [{
-                    'input': ("a database", "foo"),
-                    'amount': 1,
-                    'type': 'production',
-                }],
-                'location': 'bar',
-                'name': 'baz'
-            },
-            ("a database", "already there"): {
-                'exchanges': [{
-                    'input': ("a database", "already there"),
-                    'amount': 1,
-                    'type': 'production',
-                }],
-                'location': 'bar',
-                'name': 'baz'
-            },
-        })
-        act = database.get('foo')
-        with self.assertRaises(ValueError):
-            act['code'] = "already there"
-
-    def test_delete(self):
-        act = self.get_activity()
-        self.assertEqual(ExchangeDataset.select().count(), 1)
-        self.assertEqual(ActivityDataset.select().count(), 1)
-        act.delete()
-        self.assertEqual(ExchangeDataset.select().count(), 0)
-        self.assertEqual(ActivityDataset.select().count(), 0)
-
-    def test_save_invalid(self):
-        db = DatabaseChooser("a database")
-        db.register()
-        act = db.new_activity("foo")
-        with self.assertRaises(ValidityError):
-            act.save()
-
-    def test_copy(self):
-        act = self.get_activity()
-        self.assertEqual(ExchangeDataset.select().count(), 1)
-        self.assertEqual(ActivityDataset.select().count(), 1)
-        cp = act.copy("baz")
-        self.assertFalse(cp['code'] == act['code'])
-        self.assertEqual(cp['name'], 'baz')
-        self.assertEqual(cp['location'], 'bar')
-        self.assertEqual(ExchangeDataset.select().count(), 2)
-        self.assertEqual(ActivityDataset.select().count(), 2)
-        self.assertEqual(ActivityDataset.select().where(
-            ActivityDataset.code == cp['code'],
-            ActivityDataset.database == cp['database'],
-        ).count(), 1)
-        self.assertEqual(ActivityDataset.select().where(
-            ActivityDataset.code == act['code'],
-            ActivityDataset.database == act['database'],
-        ).count(), 1)
-        self.assertEqual(ExchangeDataset.select().where(
-            ExchangeDataset.input_code == cp['code'],
-            ExchangeDataset.input_database == cp['database'],
-        ).count(), 1)
-        self.assertEqual(ExchangeDataset.select().where(
-            ExchangeDataset.input_database == act['database'],
-            ExchangeDataset.input_code == act['code'],
-        ).count(), 1)
-
-    def test_find_graph_dependents(self):
-        databases['one'] = {'depends': ['two', 'three']}
-        databases['two'] = {'depends': ['four', 'five']}
-        databases['three'] = {'depends': ['four']}
-        databases['four'] = {'depends': ['six']}
-        databases['five'] = {'depends': ['two']}
-        databases['six'] = {'depends': []}
-        self.assertEqual(
-            DatabaseChooser('one').find_graph_dependents(),
-            {'one', 'two', 'three', 'four', 'five', 'six'}
-        )
+@bw2test
+def test_find_graph_dependents():
+    databases['one'] = {'depends': ['two', 'three']}
+    databases['two'] = {'depends': ['four', 'five']}
+    databases['three'] = {'depends': ['four']}
+    databases['four'] = {'depends': ['six']}
+    databases['five'] = {'depends': ['two']}
+    databases['six'] = {'depends': []}
+    assert (
+        DatabaseChooser('one').find_graph_dependents() ==
+        {'one', 'two', 'three', 'four', 'five', 'six'}
+    )
 
 class ExchangeTest(BW2DataTest):
     def extra_setup(self):
@@ -881,9 +888,47 @@ class DatabaseQuerysetTest(BW2DataTest):
         self.assertEqual(len(projects), 1)  # Default project
         self.assertTrue("default" in projects)
 
-    def test_random_respects_filters(self):
+    def test_random_with_global_filters(self):
         self.db.filters = {'product': 'lollipop'}
-        self.assertEqual(self.db.random()['name'], 'c')
+        for _ in range(10):
+            self.assertEqual(self.db.random()['name'], 'c')
+
+    def test_random_with_local_filters(self):
+        for _ in range(10):
+            self.assertEqual(self.db.random(filters={'product': 'lollipop'})['name'], 'c')
+
+    def test_random_with_local_and_global_filters(self):
+        db = DatabaseChooser("Newt")
+        db.write({
+            ("Newt", "first"): {
+                'name': 'a',
+                'location': 'delaware',
+                'reference product': 'widget',
+                },
+            ("Newt", "second"): {
+                'name': 'b',
+                'location': 'delaware',
+                'reference product': 'wiggle',
+                },
+            ("Newt", "third"): {
+                'name': 'c',
+                'location': 'alabama',
+                'reference product': 'widget',
+                },
+            ("Newt", "fourth"): {
+                'name': 'd',
+                'location': 'alabama',
+                'reference product': 'wiggle',
+                },
+        })
+        self.assertTrue(len({db.random()['name'] for _ in range(10)}) > 1)
+        db.filters = {'product': 'widget'}
+        for _ in range(10):
+            self.assertEqual(self.db.random(filters={'location': 'delaware'})['name'], 'a')
+
+    def test_contains_respects_filters(self):
+        self.db.filters = {'product': 'lollipop'}
+        self.assertFalse(("Order!", "fourth") in self.db)
 
     def test_get_ignores_filters(self):
         self.db.filters = {'product': 'giggles'}
