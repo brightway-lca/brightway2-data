@@ -358,7 +358,9 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
             )
 
-        arr.sort()
+        arr.sort(order=self.dtype_field_order(
+            self.dtype_fields_geomapping + self.base_uncertainty_fields
+        ))
         np.save(self.filepath_geomapping(), arr, allow_pickle=False)
 
         # Figure out when the production exchanges are implicit
@@ -449,7 +451,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         databases[self.name]['processed'] = datetime.datetime.now().isoformat()
         databases.flush()
 
-        arr.sort()
+        arr.sort(order=self.dtype_field_order())
         np.save(self.filepath_processed(), arr, allow_pickle=False)
 
     def search(self, string, **kwargs):

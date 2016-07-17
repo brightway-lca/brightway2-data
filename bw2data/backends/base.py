@@ -249,6 +249,10 @@ Doesn't return anything, but writes two files to disk.
                 )
                 count += 1
 
+        arr.sort(order=self.dtype_field_order(
+            self.dtype_fields_geomapping + self.base_uncertainty_fields
+        ))
+
         with open(self.filepath_geomapping(), "wb") as f:
             pickle.dump(arr[:count], f, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -312,7 +316,7 @@ Doesn't return anything, but writes two files to disk.
         # The array is too big, because it can include a default production
         # amount for each activity. Trim to actual size.
         arr = arr[:count]
-        arr.sort()
+        arr.sort(order=self.dtype_field_order())
         np.save(self.filepath_processed(), arr, allow_pickle=False)
 
     def query(self, *queries):

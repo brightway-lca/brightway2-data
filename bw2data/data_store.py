@@ -238,8 +238,19 @@ Doesn't return anything, but writes a file to disk.
                 uncertainties.get("maximum", np.NaN),
                 uncertainties.get("amount") < 0,
             )
-        arr.sort()
+        arr.sort(order=self.dtype_field_order())
         np.save(self.filepath_processed(), arr, allow_pickle=False)
+
+    def dtype_field_order(self, dtype=None):
+        field_names = sorted([x[0] for x in dtype or self.dtype])
+        preferred = ('input', 'output', 'activity', 'geo', 'amount',
+                     'uncertainty_type', 'loc', 'scale', 'shape')
+        return ([numpy_string(field)
+                 for field in preferred
+                 if numpy_string(field) in field_names] +
+                [field
+                 for field in field_names
+                 if str(field) not in preferred])
 
     def as_uncertainty_dict(self, value):
         """Convert floats to ``stats_arrays`` uncertainty dict, if necessary"""
