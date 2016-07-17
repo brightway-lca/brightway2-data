@@ -273,6 +273,7 @@ def test_singlefile_processed_array_order():
     result = [(array['input'][x], array['output'][x], array['amount'][x])
             for x in range(7)]
     assert expected == result
+
 @bw2test
 def test_process_adds_to_mappings():
     database = DatabaseChooser("testy")
