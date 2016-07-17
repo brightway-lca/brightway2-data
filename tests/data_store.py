@@ -2,7 +2,8 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from . import BW2DataTest
+from . import bw2test
+from .fixtures import food as food_data, biosphere
 from bw2data import config, projects
 from bw2data.data_store import DataStore, ProcessedDataStore
 from bw2data.errors import UnknownObject
@@ -12,6 +13,7 @@ from voluptuous import Schema
 import numpy as np
 import os
 import pickle
+import pytest
 
 
 class Metadata(SerializedDict):
@@ -36,93 +38,96 @@ class MockPDS(ProcessedDataStore):
         return (), row
 
 
-class DataStoreTestCase(BW2DataTest):
-    def setUp(self):
-        super(DataStoreTestCase, self).setUp()
-        metadata.__init__()
-
-    def test_repr(self):
-        d = MockDS("food")
-        self.assertTrue(isinstance(str(d), str))
-
-    def test_unicode(self):
-        d = MockDS("food")
-        self.assertEqual(
-            str(d),
-            "Brightway2 MockDS: food"
-        )
-
-    def test_deregister(self):
-        d = MockDS("evening")
-        d.register()
-        self.assertTrue("evening" in metadata)
-        d.deregister()
-        self.assertFalse("evening" in metadata)
-
-    def test_metadata_keyerror(self):
-        d = MockDS("evening")
-        with self.assertRaises(UnknownObject):
-            d.metadata
-
-    def test_metadata_readable_writable(self):
-        d = MockDS("twilight")
-        d.register()
-        d.metadata = {'foo': 'bar'}
-        self.assertEqual(d.metadata, {'foo': 'bar'})
-
-    def test_write_load(self):
-        d = MockDS("full moon")
-        d.write(range(10))
-        data = pickle.load(open(os.path.join(
-            projects.dir,
-            "intermediate",
-            d.filename + ".pickle"
-        ), 'rb'))
-        self.assertEqual(list(data), list(range(10)))
-
-    def test_copy(self):
-        d = MockDS("full moon")
-        d.register(foo='bar')
-        d.write(range(10))
-        gibbous = d.copy("waning gibbous")
-        self.assertEqual(list(gibbous.load()), list(range(10)))
-        self.assertEqual(metadata['waning gibbous'], {'foo': 'bar'})
-
-    def test_validation(self):
-        d = MockDS("cat")
-        self.assertTrue(d.validate(4))
+@pytest.fixture
+@bw2test
+def reset():
+    metadata.__init__()
 
 
-class ProcessedDataStoreTestCase(BW2DataTest):
-    def setUp(self):
-        super(ProcessedDataStoreTestCase, self).setUp()
-        metadata.__init__()
+### DataStore
 
-    def test_as_uncertainty_dict(self):
-        d = MockPDS("sad")
-        self.assertEqual(d.as_uncertainty_dict({}), {})
-        self.assertEqual(d.as_uncertainty_dict(1), {'amount': 1.})
-        with self.assertRaises(TypeError):
-            d.as_uncertainty_dict("foo")
+def test_data_store_repr(reset):
+    d = MockDS("food")
+    assert isinstance(str(d), str)
 
-    def test_processed_array(self):
-        d = MockPDS("happy")
-        d.write([{'amount': 42, 'uncertainty type': 7}])
-        fp = os.path.join(projects.dir, "processed", d.filename + ".npy")
-        array = np.load(fp)
+def test_data_store_unicode(reset):
+    d = MockDS("food")
+    assert str(d) == "Brightway2 MockDS: food"
 
-        fieldnames = {x[0] for x in d.base_uncertainty_fields}
-        self.assertEqual(fieldnames, set(array.dtype.names))
-        self.assertEqual(array.shape, (1,))
-        self.assertEqual(array[0]['uncertainty_type'], 7)
-        self.assertEqual(array[0]['amount'], 42)
+def test_data_store_deregister(reset):
+    d = MockDS("evening")
+    d.register()
+    assert "evening" in metadata
+    d.deregister()
+    assert "evening" not in metadata
 
-    def test_loc_value_if_no_uncertainty(self):
-        d = MockPDS("happy meal")
-        d.write(range(10))
-        fp = os.path.join(projects.dir, "processed", d.filename + ".npy")
-        array = np.load(fp)
-        self.assertTrue(np.allclose(np.arange(10), array['loc']))
+def test_data_store_metadata_keyerror(reset):
+    d = MockDS("evening")
+    with pytest.raises(UnknownObject):
+        d.metadata
 
-    def test_order(self):
-        pass
+def test_data_store_metadata_readable_writable(reset):
+    d = MockDS("twilight")
+    d.register()
+    d.metadata = {'foo': 'bar'}
+    assert d.metadata == {'foo': 'bar'}
+
+def test_data_store_write_load(reset):
+    d = MockDS("full moon")
+    d.write(range(10))
+    data = pickle.load(open(os.path.join(
+        projects.dir,
+        "intermediate",
+        d.filename + ".pickle"
+    ), 'rb'))
+    assert list(data) == list(range(10))
+
+def test_data_store_copy(reset):
+    d = MockDS("full moon")
+    d.register(foo='bar')
+    d.write(range(10))
+    gibbous = d.copy("waning gibbous")
+    assert list(gibbous.load()) == list(range(10))
+    assert metadata['waning gibbous'] == {'foo': 'bar'}
+
+def test_data_store_validation(reset):
+    d = MockDS("cat")
+    assert d.validate(4)
+
+### ProcessedDataStore
+
+def test_processed_data_store_as_uncertainty_dict(reset):
+    d = MockPDS("sad")
+    assert d.as_uncertainty_dict({}) == {}
+    assert d.as_uncertainty_dict(1) == {'amount': 1.}
+    with pytest.raises(TypeError):
+        d.as_uncertainty_dict("foo")
+
+def test_processed_array(reset):
+    d = MockPDS("happy")
+    d.write([{'amount': 42, 'uncertainty type': 7}])
+    fp = os.path.join(projects.dir, "processed", d.filename + ".npy")
+    array = np.load(fp)
+
+    fieldnames = {x[0] for x in d.base_uncertainty_fields}
+    assert fieldnames == set(array.dtype.names)
+    assert array.shape == (1,)
+    assert array[0]['uncertainty_type'] == 7
+    assert array[0]['amount'] == 42
+
+def test_loc_value_if_no_uncertainty(reset):
+    d = MockPDS("happy meal")
+    d.write(range(10))
+    fp = os.path.join(projects.dir, "processed", d.filename + ".npy")
+    array = np.load(fp)
+    assert np.allclose(np.arange(10), array['loc'])
+
+def test_order(reset):
+    d = MockPDS("happy meal")
+    d.write(range(10))
+    fp = os.path.join(projects.dir, "processed", d.filename + ".npy")
+    array = np.load(fp)
+    assert np.allclose(np.arange(10), array['loc'])
+
+def test_order_custom_dtype(reset):
+    pass
