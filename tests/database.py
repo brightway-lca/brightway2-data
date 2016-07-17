@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import bw2test, BW2DataTest
-from .fixtures import food, biosphere, get_naughty
+from .fixtures import food as food_data, biosphere, get_naughty
 from bw2data import config, projects
 from bw2data.database import DatabaseChooser
 from bw2data.backends.peewee import (
@@ -41,6 +41,115 @@ import pytest
 import warnings
 
 
+@pytest.fixture
+@bw2test
+def food():
+    d = DatabaseChooser("biosphere")
+    d.write(biosphere)
+    d = DatabaseChooser("food")
+    d.write(food_data)
+
+def test_food(food):
+    assert len(databases) == 2
+    assert sorted(x for x in databases) == ['biosphere', 'food']
+
+### Basic functions
+
+@bw2test
+def test_get():
+    d = DatabaseChooser("biosphere")
+    d.write(biosphere)
+    activity = d.get('1')
+    assert isinstance(activity, PWActivity)
+    assert activity['name'] == 'an emission'
+
+@bw2test
+def test_iter():
+    d = DatabaseChooser("biosphere")
+    d.write(biosphere)
+    activity = next(iter(d))
+    assert isinstance(activity, PWActivity)
+    assert activity['name'] in ('an emission', 'another emission')
+
+@bw2test
+def test_get_random():
+    d = DatabaseChooser("biosphere")
+    d.write(biosphere)
+    activity = d.random()
+    assert isinstance(activity, PWActivity)
+    assert activity['name'] in ('an emission', 'another emission')
+
+def test_copy(food):
+    d = DatabaseChooser("food")
+    with pytest.raises(AssertionError):
+        d.copy("food")
+    d.copy("repas")
+    assert "repas" in databases
+
+@bw2test
+def test_copy_does_deepcopy():
+    data = {
+        ("old name", '1'): {
+            "exchanges": [{
+                "input": ("old name", '1'),
+                "amount": 1.0,
+                'type': 'technosphere'
+            }]
+        }
+    }
+    d = DatabaseChooser("old name")
+    d.write(data)
+    new_db = d.copy("new name")
+    new_data = new_db.load()
+    assert list(new_data.values())[0]['exchanges'][0]['input'] == ('new name', '1')
+    assert list(data.values())[0]['exchanges'][0]['input'] == ('old name', '1')
+    assert list(d.load().values())[0]['exchanges'][0]['input'] == ('old name', '1')
+
+@bw2test
+def test_raise_wrong_database():
+    data = {
+        ("foo", '1'): {}
+    }
+    d = DatabaseChooser("bar")
+    with pytest.raises(WrongDatabase):
+        d.write(data)
+
+@bw2test
+def test_deletes_from_database():
+    d = DatabaseChooser("biosphere")
+    d.write(biosphere)
+    assert "biosphere" in databases
+    del databases['biosphere']
+    assert next(sqlite3_lci_db.execute_sql(
+        "select count(*) from activitydataset where database = 'biosphere'"
+    )) == (0,)
+    assert next(sqlite3_lci_db.execute_sql(
+        "select count(*) from exchangedataset where output_database = 'biosphere'"
+    )) == (0,)
+
+@bw2test
+def test_relabel_data():
+    old_data = {
+        ("old and boring", '1'): {
+            "exchanges": [{"input": ("old and boring", '42'), "amount": 1.0}]
+        },
+        ("old and boring", '2'): {
+            "exchanges": [{"input": ("old and boring", '1'), "amount": 4.0}]
+        }
+    }
+    shiny_new = {
+        ("shiny new", '1'): {
+            "exchanges": [{"input": ("old and boring", '42'), "amount": 1.0}]
+        },
+        ("shiny new", '2'): {
+            "exchanges": [{"input": ("shiny new", '1'), "amount": 4.0}]
+        }
+    }
+    db = DatabaseChooser("foo")
+    assert shiny_new == db.relabel_data(old_data, "shiny new")
+
+### Metadata
+
 @bw2test
 def test_find_graph_dependents():
     databases['one'] = {'depends': ['two', 'three']}
@@ -54,190 +163,96 @@ def test_find_graph_dependents():
         {'one', 'two', 'three', 'four', 'five', 'six'}
     )
 
+@bw2test
+def test_register():
+    database = DatabaseChooser("testy")
+    database.register()
+    assert "testy" in databases
+    assert 'depends' in databases['testy']
+
+@bw2test
+def test_deregister():
+    d = DatabaseChooser("food")
+    d.register()
+    assert "food" in databases
+    d.deregister()
+    assert "food" not in databases
+
+@bw2test
+def test_write_sets_databases_number_attribute():
+    d = DatabaseChooser("biosphere")
+    d.write(biosphere)
+    assert databases["biosphere"]["number"] == len(biosphere)
+
+### Processed arrays
+
+def test_sqlite_processed_array_order(food):
+    pass
+
+def test_singlefile_processed_array_order(food):
+    pass
+
+@bw2test
+def test_process_adds_to_mappings():
+    database = DatabaseChooser("testy")
+    database_data = {
+        ("testy", "A"): {'location': 'CH'},
+        ("testy", "B"): {'location': 'DE'},
+    }
+    database.write(database_data)
+    assert ("testy", "A") in mapping and ("testy", "B") in mapping
+    assert "CH" in geomapping and "DE" in geomapping
+
+@bw2test
+def test_process_unknown_object():
+    database = DatabaseChooser("testy")
+    data = {
+        ("testy", "A"): {},
+        ("testy", "B"): {'exchanges': [
+            {'input': ("testy", "A"),
+             'amount': 1,
+             'type': 'technosphere'},
+            {'input': ("testy", "C"),
+             'amount': 1,
+             'type': 'technosphere'},
+        ]},
+    }
+    with pytest.raises(UnknownObject):
+        database.write(data)
+
+### String handling
+
+@bw2test
+def test_naughty_activity_codes():
+    db = DatabaseChooser("foo")
+    data = {("foo", str(i)): {'name': x} for i, x in enumerate(get_naughty())}
+    db.write(data)
+    assert set(get_naughty()) == set(x['name'] for x in db)
+
+
+
 
 class DatabaseTest(BW2DataTest):
     def test_setup(self):
         d = DatabaseChooser("biosphere")
         d.write(biosphere)
         d = DatabaseChooser("food")
-        d.write(food)
-        self.assertEqual(len(databases), 2)
-
-    def test_naughty_names(self):
-        db = DatabaseChooser("foo")
-        data = {("foo", str(i)): {'name': x} for i, x in enumerate(get_naughty())}
-        db.write(data)
-        self.assertEqual(
-            set(get_naughty()),
-            set(x['name'] for x in db)
-        )
-
-    def test_get(self):
-        d = DatabaseChooser("biosphere")
-        d.write(biosphere)
-        activity = d.get('1')
-        self.assertTrue(isinstance(activity, PWActivity))
-        self.assertEqual(activity['name'], 'an emission')
-
-    def test_iter(self):
-        d = DatabaseChooser("biosphere")
-        d.write(biosphere)
-        activity = next(iter(d))
-        self.assertTrue(isinstance(activity, PWActivity))
-        self.assertTrue(activity['name'] in ('an emission', 'another emission'))
-
-    def test_get_random(self):
-        d = DatabaseChooser("biosphere")
-        d.write(biosphere)
-        activity = d.random()
-        self.assertTrue(isinstance(activity, PWActivity))
-        self.assertTrue(activity['name'] in ('an emission', 'another emission'))
-
-    def test_copy(self):
-        d = DatabaseChooser("biosphere")
-        d.write(biosphere)
-        d = DatabaseChooser("food")
-        d.write(food)
-        with self.assertRaises(AssertionError):
-            d.copy("food")
-        d.copy("repas")
-        self.assertTrue("repas" in databases.list)
-
-    def test_copy_does_deepcopy(self):
-        data = {
-            ("old name", '1'): {
-                "exchanges": [{
-                    "input": ("old name", '1'),
-                    "amount": 1.0,
-                    'type': 'technosphere'
-                }]
-            }
-        }
-        d = DatabaseChooser("old name")
-        d.write(data)
-        new_db = d.copy("new name")
-        new_data = new_db.load()
-        self.assertEqual(
-            list(new_data.values())[0]['exchanges'][0]['input'],
-            ('new name', '1')
-        )
-        self.assertEqual(
-            list(data.values())[0]['exchanges'][0]['input'],
-            ('old name', '1')
-        )
-        self.assertEqual(
-            list(d.load().values())[0]['exchanges'][0]['input'],
-            ('old name', '1')
-        )
-
-    def test_raise_wrong_database(self):
-        data = {
-            ("foo", '1'): {}
-        }
-        d = DatabaseChooser("bar")
-        with self.assertRaises(WrongDatabase):
-            d.write(data)
-
-    def test_deletes_from_database(self):
-        d = DatabaseChooser("biosphere")
-        d.write(biosphere)
-        self.assertTrue("biosphere" in databases)
-        del databases['biosphere']
-        self.assertEqual(
-            next(sqlite3_lci_db.execute_sql(
-                "select count(*) from activitydataset where database = 'biosphere'"
-            )),
-            (0,)
-        )
-        self.assertEqual(
-            next(sqlite3_lci_db.execute_sql(
-                "select count(*) from exchangedataset where output_database = 'biosphere'"
-            )),
-            (0,)
-        )
-
-    def test_relabel_data(self):
-        old_data = {
-            ("old and boring", '1'): {
-                "exchanges": [{"input": ("old and boring", '42'), "amount": 1.0}]
-            },
-            ("old and boring", '2'): {
-                "exchanges": [{"input": ("old and boring", '1'), "amount": 4.0}]
-            }
-        }
-        shiny_new = {
-            ("shiny new", '1'): {
-                "exchanges": [{"input": ("old and boring", '42'), "amount": 1.0}]
-            },
-            ("shiny new", '2'): {
-                "exchanges": [{"input": ("shiny new", '1'), "amount": 4.0}]
-            }
-        }
-        db = DatabaseChooser("foo")
-        self.assertEqual(shiny_new, db.relabel_data(old_data, "shiny new"))
-
-    def test_register(self):
-        database = DatabaseChooser("testy")
-        database.register()
-        self.assertTrue("testy" in databases)
-        self.assertTrue('depends' in databases['testy'])
-
-    def test_deregister(self):
-        d = DatabaseChooser("food")
-        d.register()
-        self.assertTrue("food" in databases)
-        d.deregister()
-        self.assertTrue("food" not in databases)
+        d.write(food_data)
 
     def test_rename(self):
         d = DatabaseChooser("biosphere")
         d.write(biosphere)
         d = DatabaseChooser("food")
-        d.write(copy.deepcopy(food))
+        d.write(copy.deepcopy(food_data))
         ndb = d.rename("buildings")
         ndb_data = ndb.load()
         self.assertEqual(ndb.name, "buildings")
         self.assertEqual(d.name, "buildings")
-        self.assertEqual(len(ndb_data), len(food))
+        self.assertEqual(len(ndb_data), len(food_data))
         for key in ndb_data:
             self.assertEqual(key[0], "buildings")
             for exc in ndb_data[key]['exchanges']:
                 self.assertTrue(exc['input'][0] in ('biosphere', 'buildings'))
-
-    def test_write_sets_databases_number_attribute(self):
-        d = DatabaseChooser("biosphere")
-        d.write(biosphere)
-        self.assertEqual(databases["biosphere"]["number"], len(biosphere))
-
-    def test_process_adds_to_mappings(self):
-        database = DatabaseChooser("testy")
-        database_data = {
-            ("testy", "A"): {'location': 'CH'},
-            ("testy", "B"): {'location': 'DE'},
-        }
-        database.write(database_data)
-        self.assertTrue(
-            ("testy", "A") in mapping and ("testy", "B") in mapping
-        )
-        self.assertTrue(
-            "CH" in geomapping and "DE" in geomapping
-        )
-
-    def test_process_unknown_object(self):
-        database = DatabaseChooser("testy")
-        data = {
-            ("testy", "A"): {},
-            ("testy", "B"): {'exchanges': [
-                {'input': ("testy", "A"),
-                 'amount': 1,
-                 'type': 'technosphere'},
-                {'input': ("testy", "C"),
-                 'amount': 1,
-                 'type': 'technosphere'},
-            ]},
-        }
-        with self.assertRaises(UnknownObject):
-            database.write(data)
 
     def test_exchange_save(self):
         database = DatabaseChooser("testy")
@@ -450,12 +465,6 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array.shape, (1,))
         self.assertEqual(array[0]['uncertainty_type'], 7)
         self.assertEqual(array[0]['amount'], 42)
-
-    def test_sqlite_processed_array_order(self):
-        pass
-
-    def test_singlefile_processed_array_order(self,):
-        pass
 
     def test_loc_value_if_no_uncertainty(self):
         database = DatabaseChooser("a database")
