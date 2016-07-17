@@ -11,6 +11,8 @@ peewee>=2.7.4
 psutil
 pyprind
 pytest
+pytest-cov
+python-coveralls
 requests>=1.1.0
 scipy
 stats_arrays
