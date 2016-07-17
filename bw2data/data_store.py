@@ -211,8 +211,6 @@ Process intermediate data from a Python dictionary to a `stats_arrays <https://p
 
 Processed arrays are saved in the ``processed`` directory.
 
-Uses ``pickle`` instead of the native NumPy ``.tofile()``. Although pickle is ~2 times slower, this difference in speed has no practical effect (e.g. one twentieth of a second slower for ecoinvent 2.2), and the numpy ``fromfile`` and ``tofile`` functions don't preserve the datatype of structured arrays.
-
 If the uncertainty type is no uncertainty, undefined, or not specified, then the 'amount' value is used for 'loc' as well. This is needed for the random number generator.
 
 Doesn't return anything, but writes a file to disk.
