@@ -8,6 +8,7 @@ from bw2data import config, projects
 from bw2data.data_store import DataStore, ProcessedDataStore
 from bw2data.errors import UnknownObject
 from bw2data.serialization import SerializedDict
+from bw2data.utils import numpy_string
 from numbers import Number
 from voluptuous import Schema
 import numpy as np
@@ -106,8 +107,7 @@ def test_processed_data_store_as_uncertainty_dict(reset):
 def test_processed_array(reset):
     d = MockPDS("happy")
     d.write([{'amount': 42, 'uncertainty type': 7}])
-    fp = os.path.join(projects.dir, "processed", d.filename + ".npy")
-    array = np.load(fp)
+    array = np.load(d.filepath_processed())
 
     fieldnames = {x[0] for x in d.base_uncertainty_fields}
     assert fieldnames == set(array.dtype.names)
@@ -115,19 +115,47 @@ def test_processed_array(reset):
     assert array[0]['uncertainty_type'] == 7
     assert array[0]['amount'] == 42
 
-def test_loc_value_if_no_uncertainty(reset):
+def test_filepath_processed(reset):
     d = MockPDS("happy meal")
     d.write(range(10))
     fp = os.path.join(projects.dir, "processed", d.filename + ".npy")
-    array = np.load(fp)
+    assert d.filepath_processed() == fp
+
+def test_loc_value_if_no_uncertainty(reset):
+    d = MockPDS("happy meal")
+    d.write(range(10))
+    array = np.load(d.filepath_processed())
     assert np.allclose(np.arange(10), array['loc'])
 
 def test_order(reset):
     d = MockPDS("happy meal")
-    d.write(range(10))
-    fp = os.path.join(projects.dir, "processed", d.filename + ".npy")
-    array = np.load(fp)
-    assert np.allclose(np.arange(10), array['loc'])
+    d.write([
+        {'amount': 1, 'uncertainty type': 1},
+        {'amount': 2, 'uncertainty type': 0},
+        {'amount': 1, 'uncertainty type': 0},
+        {'amount': 0, 'uncertainty type': 1},
+    ])
+    array = np.load(d.filepath_processed())
+    values = [(array['amount'][x], array['uncertainty_type'][x]) for x in range(4)]
+    assert values == [(0.0, 1), (1.0, 0), (1.0, 1), (2.0, 0)]
 
 def test_order_custom_dtype(reset):
-    pass
+    class PDS(ProcessedDataStore):
+        _metadata = metadata
+        dtype_fields = [
+            (numpy_string('input'), np.uint32),
+        ]
+
+        def process_data(self, row):
+            return (row['input'],), row
+
+    d = PDS("happy meal")
+    d.write([
+        {'input': 4, 'amount': 3},
+        {'input': 1, 'amount': 1},
+        {'input': 3, 'amount': 2},
+        {'input': 2, 'amount': 4},
+    ])
+    array = np.load(d.filepath_processed())
+    values = [array['amount'][x] for x in range(4)]
+    assert values == [1, 4, 2, 3]
