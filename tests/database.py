@@ -186,12 +186,93 @@ def test_write_sets_databases_number_attribute():
 
 ### Processed arrays
 
-def test_sqlite_processed_array_order(food):
-    pass
+@bw2test
+def test_sqlite_processed_array_order():
+    database = DatabaseChooser("testy")
+    data = {
+        ("testy", "C"): {},
+        ("testy", "A"): {'type': 'biosphere'},
+        ("testy", "B"): {'exchanges': [
+            {'input': ("testy", "A"),
+             'amount': 1,
+             'type': 'technosphere'},
+            {'input': ("testy", "A"),
+             'amount': 2,
+             'type': 'technosphere'},
+            {'input': ("testy", "C"),
+             'amount': 2,
+             'type': 'biosphere'},
+            {'input': ("testy", "C"),
+             'amount': 3,
+             'type': 'biosphere'},
+            {'input': ("testy", "B"),
+             'amount': 4,
+             'type': 'production'},
+            {'input': ("testy", "B"),
+             'amount': 1,
+             'type': 'production'},
+        ]}
+    }
+    database.write(data)
+    lookup = {k: mapping[("testy", k)] for k in "ABC"}
+    expected = sorted([
+        (lookup['A'], lookup['B'], 1),
+        (lookup['A'], lookup['B'], 2),
+        (lookup['B'], lookup['B'], 1),
+        (lookup['B'], lookup['B'], 4),
+        (lookup['C'], lookup['C'], 1),
+        (lookup['C'], lookup['B'], 2),
+        (lookup['C'], lookup['B'], 3),
+    ])
+    array = np.load(database.filepath_processed())
+    assert array.shape == (7,)
+    result = [(array['input'][x], array['output'][x], array['amount'][x])
+            for x in range(7)]
+    assert expected == result
 
-def test_singlefile_processed_array_order(food):
-    pass
-
+@bw2test
+def test_singlefile_processed_array_order():
+    database = DatabaseChooser("testy", "singlefile")
+    data = {
+        ("testy", "C"): {},
+        ("testy", "A"): {'type': 'biosphere'},
+        ("testy", "B"): {'exchanges': [
+            {'input': ("testy", "A"),
+             'amount': 1,
+             'type': 'technosphere'},
+            {'input': ("testy", "A"),
+             'amount': 2,
+             'type': 'technosphere'},
+            {'input': ("testy", "C"),
+             'amount': 2,
+             'type': 'biosphere'},
+            {'input': ("testy", "C"),
+             'amount': 3,
+             'type': 'biosphere'},
+            {'input': ("testy", "B"),
+             'amount': 4,
+             'type': 'production'},
+            {'input': ("testy", "B"),
+             'amount': 1,
+             'type': 'production'},
+        ]}
+    }
+    database.write(data)
+    lookup = {k: mapping[("testy", k)] for k in "ABC"}
+    expected = sorted([
+        (lookup['A'], lookup['B'], 1),
+        (lookup['A'], lookup['B'], 2),
+        (lookup['B'], lookup['B'], 1),
+        (lookup['B'], lookup['B'], 4),
+        (lookup['C'], lookup['C'], 1),
+        (lookup['C'], lookup['B'], 2),
+        (lookup['C'], lookup['B'], 3),
+    ])
+    array = np.load(database.filepath_processed())
+    assert array.shape == (7,)
+    result = [(array['input'][x], array['output'][x], array['amount'][x])
+            for x in range(7)]
+    assert expected == result
 @bw2test
 def test_process_adds_to_mappings():
     database = DatabaseChooser("testy")
