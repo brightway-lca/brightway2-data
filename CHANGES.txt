@@ -1,6 +1,11 @@
 Changelog
 *********
 
+DEV
+===
+
+- `Exchanges` is now consistently ordered
+
 2.3.2 (2016-07-17)
 ==================
 
