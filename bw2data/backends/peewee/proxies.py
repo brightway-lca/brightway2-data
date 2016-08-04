@@ -11,12 +11,14 @@ from ...search import IndexManager
 from ...utils import get_activity
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset, dict_as_exchangedataset
+from future.utils import implements_iterator
 import copy
 import collections
 import warnings
 import uuid
 
 
+@implements_iterator
 class Exchanges(collections.Iterable):
     """Iterator for exchanges with some additional methods"""
     def __init__(self, key, kind=None, reverse=False):
@@ -53,6 +55,12 @@ class Exchanges(collections.Iterable):
     def __iter__(self):
         for obj in self._get_queryset():
             yield Exchange(obj)
+
+    def __next__(self):
+        for obj in self:
+            return obj
+        else:
+            raise StopIteration
 
     def __len__(self):
         return self._get_queryset().count()
