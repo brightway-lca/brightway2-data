@@ -74,3 +74,11 @@ def test_upstream(activity):
     assert len(activity.upstream()) == 1
     exc = list(activity.upstream())[0]
     assert exc['amount'] == 5
+
+def test_exchanges_iteration(activity):
+    exc = activity.exchanges()
+    assert next(exc)
+    assert next(exc)
+    assert next(exc)
+    with pytest.raises(StopIteration):
+        next(exc)
