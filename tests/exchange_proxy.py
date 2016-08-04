@@ -75,10 +75,10 @@ def test_upstream(activity):
     exc = list(activity.upstream())[0]
     assert exc['amount'] == 5
 
-def test_exchanges_iteration(activity):
-    exc = activity.exchanges()
-    assert next(exc)
-    assert next(exc)
-    assert next(exc)
-    with pytest.raises(StopIteration):
-        next(exc)
+def test_ordering_consistency(activity):
+    ordering = [
+        [exc['amount'] for exc in activity.exchanges()]
+        for _ in range(100)
+    ]
+    for sample in ordering[1:]:
+        assert sample == ordering[0]
