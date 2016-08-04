@@ -18,9 +18,30 @@ import warnings
 import uuid
 
 
-@implements_iterator
 class Exchanges(collections.Iterable):
-    """Iterator for exchanges with some additional methods"""
+    """Iterator for exchanges with some additional methods.
+
+    This is not a generator; ``next()`` is not supported. Everything time you start to iterate over the object you get a new list starting from the beginning. However, to get a single item you can do ``next(iter(foo))``.
+
+    Ordering is by database row id.
+
+    Supports the following:
+
+    .. code-block:: python
+
+        exchanges = activity.exchanges()
+
+        # Iterate
+        for exc in exchanges:
+            pass
+
+        # Length
+        len(exchanges)
+
+        # Delete all
+        exchanges.delete()
+
+    """
     def __init__(self, key, kind=None, reverse=False):
         self._key = key
         self._kind = kind
@@ -50,17 +71,11 @@ class Exchanges(collections.Iterable):
         ExchangeDataset.delete().where(*self._args).execute()
 
     def _get_queryset(self):
-        return ExchangeDataset.select().where(*self._args)
+        return ExchangeDataset.select().where(*self._args).order_by(ExchangeDataset.id)
 
     def __iter__(self):
         for obj in self._get_queryset():
             yield Exchange(obj)
-
-    def __next__(self):
-        for obj in self:
-            return obj
-        else:
-            raise StopIteration
 
     def __len__(self):
         return self._get_queryset().count()
