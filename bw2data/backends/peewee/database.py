@@ -62,8 +62,12 @@ class SQLiteBackend(LCIBackend):
     def _searchable(self):
         return databases.get(self.name, {}).get('searchable', False)
 
-    def _get_queryset(self, random=False, filters=True):
-        qs = ActivityDataset.select().where(
+    def _get_queryset(self, random=False, filters=True, select=None):
+        if select is None:
+            base = ActivityDataset.select()
+        else:
+            base = select
+        qs = base.where(
             ActivityDataset.database == self.name)
         if filters:
             if isinstance(filters, dict):
@@ -74,9 +78,11 @@ class SQLiteBackend(LCIBackend):
                 pprint.pprint(self.filters)
                 for key, value in self.filters.items():
                     qs = qs.where(getattr(ActivityDataset, key) == value)
-        if self.order_by and not random:
+        if self.order_by and not random and select is None:
             qs = qs.order_by(getattr(ActivityDataset, self.order_by))
-        else:
+        elif random:
+            # Order by random forces a full table scan.
+            # http://stackoverflow.com/questions/4114940/select-random-rows-in-sqlite
             qs = qs.order_by(fn.Random())
         return qs
 
@@ -115,8 +121,14 @@ class SQLiteBackend(LCIBackend):
 
     def random(self, filters=True):
         try:
-            return Activity(self._get_queryset(random=True, filters=filters
-                            ).get())
+            ids = self._get_queryset(
+                filters=filters,
+                select=ActivityDataset.select(ActivityDataset.id)
+            ).order_by(fn.Random()).limit(1)
+            return Activity(
+                self._get_queryset(filters=filters)\
+                .where(ActivityDataset.id << ids
+            ).get())
         except DoesNotExist:
             warnings.warn("This database is empty")
             return None

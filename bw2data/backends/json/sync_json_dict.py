@@ -31,7 +31,6 @@ class frozendict(dict):
 
 
 class SynchronousJSONDict(collections.MutableMapping):
-
     """A dictionary which stores each value as a separate file on disk. Values are loaded asynchronously (i.e. only as needed), but saved synchronously (i.e. immediately).
 
     Dictionary keys are strings, and do not correspond with filenames. The utility function `safe_filename` is used to translate keys into allowable filenames, and a separate mapping dictionary is kept to map dictionary keys to filenames.
@@ -84,10 +83,11 @@ class SynchronousJSONDict(collections.MutableMapping):
 
     def from_json(self, data):
         """Change exchange `inputs` from lists to tuples (as there is no distinction in JSON, but Python only allows tuples as dictionary keys)."""
-        for exc in data.get(u"exchanges", []):
-            exc[u"input"] = tuple(exc[u"input"])
-        if u"key" in data:
-            data[u"key"] = tuple(data[u"key"])
+        for exc in data.get("exchanges", []):
+            if "input" in exc:
+                exc["input"] = tuple(exc["input"])
+        if "key" in data:
+            data["key"] = tuple(data["key"])
         return data
 
     def __getitem__(self, key):
@@ -103,7 +103,7 @@ class SynchronousJSONDict(collections.MutableMapping):
     def __setitem__(self, key, value):
         assert isinstance(value, dict), "Can only store `dict`s as values"
         value = dict(value)  # Unfreeze if necessary
-        value[u"key"] = key
+        value["key"] = key
         self.cache[key] = value
         self._save_file(key, value)
 

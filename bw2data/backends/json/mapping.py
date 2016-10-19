@@ -3,8 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from ...serialization import PickledDict
-
-cache = {}
+from ... import projects
 
 
 class KeyMapping(PickledDict):
@@ -12,6 +11,8 @@ class KeyMapping(PickledDict):
 
 
 def get_mapping(filepath):
-    if filepath not in cache:
-        cache[filepath] = KeyMapping(filepath)
-    return cache[filepath]
+    print("Called get_mapping with filepath:\n", filepath)
+    print("In cache: ", filepath in projects._json_backend_cache)
+    if filepath not in projects._json_backend_cache:
+        projects._json_backend_cache[filepath] = KeyMapping(filepath)
+    return projects._json_backend_cache[filepath]

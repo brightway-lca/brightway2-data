@@ -69,6 +69,7 @@ class ProjectManager(collections.Iterable):
         "processed",
     )
     _is_temp_dir = False
+    _cache = {}
     read_only = True
 
     def __init__(self):
@@ -171,6 +172,7 @@ class ProjectManager(collections.Iterable):
     def _reset_meta(self):
         for obj in config.metadata:
             obj.__init__()
+        self._cache = {}
 
     def _reset_sqlite3_databases(self):
         for name, obj, tables in config.sqlite3_databases:
@@ -238,6 +240,7 @@ class ProjectManager(collections.Iterable):
         if not self.read_only:
             self._reset_meta()
             self._reset_sqlite3_databases()
+            self._cache = {}
         return not self.read_only
 
     def copy_project(self, new_name, switch=True):

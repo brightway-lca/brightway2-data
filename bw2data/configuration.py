@@ -19,7 +19,6 @@ class Config(object):
     """A singleton that stores configuration settings"""
     version = 3
     backends = {}
-    cache = {}
     metadata = []
     sqlite3_databases = []
     _windows = platform.system() == "Windows"

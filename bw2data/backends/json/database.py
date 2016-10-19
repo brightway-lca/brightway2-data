@@ -3,8 +3,8 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from ... import config, mapping, geomapping, databases, projects, preferences
-from .proxies import Activity
 from ..base import LCIBackend
+from .proxies import Activity
 from .sync_json_dict import SynchronousJSONDict
 import os
 
@@ -13,22 +13,24 @@ class JSONDatabase(LCIBackend):
     """
     A data store for LCI databases. Stores each dataset in a separate file, serialized to JSON.
 
-    Instead of loading all the data at once, ``.load()`` creates a :class:`.SynchronousJSONDict`, which loads values on demand.
-
     Use this backend by setting ``"backend":"json"`` in the database metadata. This is done automatically if you call ``.register()`` from this class.
+
     """
-    backend = u"json"
+    backend = "json"
 
     def filepath_intermediate(self):
         return os.path.join(
             projects.dir,
-            u"intermediate",
+            "intermediate",
             self.filename
         )
 
     def load(self, as_dict=False, *args, **kwargs):
         """Instantiate :class:`.SynchronousJSONDict` for this database."""
         self.register()
+
+        print("Calling .load()")
+        print("config.cache:\n", config.cache)
 
         if config.p.get("use_cache"):
             try:
@@ -49,6 +51,9 @@ class JSONDatabase(LCIBackend):
         json_dict = self.load()
         for key in json_dict:
             yield Activity(key, json_dict[key])
+
+    def __len__(self):
+        return len(self.load())
 
     def get(self, code):
         """Get Activity proxy for this dataset"""
@@ -76,8 +81,8 @@ class JSONDatabase(LCIBackend):
         databases.flush()
 
         mapping.add(data.keys())
-        geomapping.add({x[u"location"] for x in data.values() if
-                       x.get(u"location", False)})
+        geomapping.add({x["location"] for x in data.values() if
+                       x.get("location", False)})
 
         if preferences.get('allow incomplete imports'):
             mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})

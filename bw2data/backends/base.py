@@ -186,9 +186,10 @@ class LCIBackend(ProcessedDataStore):
         return extended
 
     def delete(self):
-        """Delete data from this instance. For the base class, only clears cached data."""
-        if self.name in config.cache:
-            del config.cache[self.name]
+        """Delete data from this instance.
+
+        No-op for the base class."""
+        pass
 
     def load(self, *args, **kwargs):
         """Load the intermediate data for this database.
