@@ -7,7 +7,6 @@ Changelog
 - Write-only locks are now optional and disable by default
 - Removed `projects.current`.
 
-
 2.3.2 (2016-07-17)
 ==================
 
