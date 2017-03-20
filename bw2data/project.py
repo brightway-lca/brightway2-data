@@ -33,17 +33,6 @@ This project is being used by another process and no writes can be made until:
     `projects.enable_writes(force=True)` to enable writes.
 """
 
-SET_PROJECT_WARNING = """Deprecated interface.
-
-    `projects.current = 'foo'` is deprecated.
-    Please use `projects.set_current('foo')`."
-
-    Using `projects.current` to get the current project is still fine.
-
-    Setting projects with `projects.current` will be removed at
-    the beginning of 2017!
-"""
-
 @python_2_unicode_compatible
 class ProjectDataset(Model):
     data = PickleField()
@@ -131,12 +120,9 @@ class ProjectManager(collections.Iterable):
         create_dir(self._base_data_dir)
         create_dir(self._base_logs_dir)
 
-    def _get_project(self):
+    @property
+    def current(self):
         return self._project_name
-
-    def _set_project(self, name, update=True):
-        warnings.warn(SET_PROJECT_WARNING, DeprecationWarning)
-        self.set_current(name, update=update)
 
     def set_current(self, name, writable=True, update=True):
         if not self.read_only:
@@ -182,9 +168,6 @@ class ProjectManager(collections.Iterable):
             obj.create_tables(tables, safe=True)
 
     ### Public API
-
-    current = property(_get_project, _set_project)
-
     @property
     def dir(self):
         return os.path.join(
