@@ -198,6 +198,11 @@ def test_delete_current_project_no_name():
 ### Set project
 ###
 
+@bw2test
+def test_error_outdated_set_project():
+    assert projects.current
+    with pytest.raises(AttributeError):
+        projects.current = 'Foo'
 
 @bw2test
 def test_set_project_creates_new_project():
