@@ -198,6 +198,11 @@ def test_delete_current_project_no_name():
 ### Set project
 ###
 
+@bw2test
+def test_error_outdated_set_project():
+    assert projects.current
+    with pytest.raises(AttributeError):
+        projects.current = 'Foo'
 
 @bw2test
 def test_set_project_creates_new_project():
@@ -211,15 +216,25 @@ def test_set_project():
     assert projects.current == "foo"
 
 @bw2test
+def test_set_project_default_writable():
+    pass
+
+@bw2test
+def test_set_project_writable_even_if_writable_false():
+    pass
+
+@bw2test
 def test_set_readonly_project():
     projects.set_current("foo")
     assert not projects.read_only
+    config.p['lockable'] = True
     projects.set_current("foo", writable=False)
     assert projects.read_only
 
 @bw2test
 def test_set_readonly_project_first_time():
     projects.set_current("foo", writable=False)
+    assert not projects.read_only
 
 @bw2test
 def test_set_current_reset_metadata():
@@ -268,29 +283,26 @@ def test_iterating_over_projects_no_error():
 ### Read-only constraints
 ###
 
-
-@bw2test
-def test_force_enable_writes_delete_lock_file():
-    projects.set_current("foo", writable=False)
-    assert projects.read_only
-    lfp = os.path.join(projects.dir, "write-lock")
-    assert not os.path.isfile(lfp)
-    with open(lfp, "w") as f:
-        pass
-    assert os.path.isfile(lfp)
-    projects.enable_writes(force=True)
-    assert not os.path.isfile(lfp)
-    assert not projects.read_only
-
 @bw2test
 def test_create_lock_file():
+    projects.set_current("foo")
+    config.p['lockable'] = True
     projects.set_current("foo", writable=False)
     assert not os.path.isfile(os.path.join(projects.dir, "write-lock"))
+    projects.set_current("bar")
+    assert not os.path.isfile(os.path.join(projects.dir, "write-lock"))
+    config.p['lockable'] = True
     projects.set_current("bar")
     assert os.path.isfile(os.path.join(projects.dir, "write-lock"))
 
 @bw2test
+def test_lockable_config_missing():
+    assert 'lockable' not in config.p
+
+@bw2test
 def test_read_only_cant_write():
+    projects.set_current("foo")
+    config.p['lockable'] = True
     projects.set_current("foo", writable=False)
     with pytest.raises(ReadOnlyProject):
         databases['foo'] = 'bar'

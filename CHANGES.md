@@ -1,7 +1,9 @@
 # Changelog
 
-# DEV
+## 2.4 (2017-03-20)
 
+- Write-only locks are now optional and disable by default
+- Removed `projects.current`.
 - `Exchanges` is now consistently ordered
 
 ## 2.3.2 (2016-07-17)
@@ -44,7 +46,7 @@ Windows tests are failing due to naughty strings being used for project names.
 
 - Fix database writes not propagating to search index
 - Added continuous integration tests on Windows
-- Fix bug when iterating over projects 
+- Fix bug when iterating over projects
 
 ## 2.0.2 (2016-05-20)
 
@@ -125,7 +127,7 @@ Data cannot be directly migrated from bw2data < 2; instead, databases should be 
 
 # 1.0 (2014-07-30)
 
-**bw2-uptodate.py is required for this update**. 
+**bw2-uptodate.py is required for this update**.
 
 Default values for various attributes need to be added when not previously specified.
 
@@ -134,7 +136,7 @@ Default values for various attributes need to be added when not previously speci
 - FEATURE: `bw2-uptodate` should now work without PATH hassles on windows. Name changed from `bw2-uptodate.py`.
 - FEATURE: Searching databases is better documented and tested. A new notebook shows searching examples.
 - BREAKING CHANGE: The "in" operator in searching is now "has" - the previous semantics were simply incorrect.
-- CHANGE: Database exchanges without `type` now raise UntypedExchange error when processed. 
+- CHANGE: Database exchanges without `type` now raise UntypedExchange error when processed.
 - CHANGE: Database exchanges without `amount` or `input` now raise InvalidExchange error when processed.
 - CHANGE: The order of database exchanges in processed arrays is sorted is changed.
 - CHANGE: LCI database format is now more flexible, and almost all required elements are removed. For example, `{}` is now a valid LCI dataset.
@@ -159,7 +161,7 @@ Default values for various attributes need to be added when not previously speci
 
 ## 0.15.1 (2014-04-17)
 
-- FEATURE: Utility functions to view process datasets in web browser 
+- FEATURE: Utility functions to view process datasets in web browser
 - FEATURE: utils.web_ui_accessible tests if web UI is running and accessible
 - CHANGE: SimaPro importer can now add unlinked exchanges as new process datasets
 - CHANGE: New preference key: "web_ui_address"
