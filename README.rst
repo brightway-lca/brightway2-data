@@ -5,10 +5,6 @@ Brightway2 data management
    :target: https://ci.appveyor.com/project/cmutel/brightway2-data
    :alt: bw2data appveyor build status
 
-.. image:: https://drone.io/bitbucket.org/cmutel/brightway2-data/status.png
-   :target: https://drone.io/bitbucket.org/cmutel/brightway2-data/latest
-   :alt: bw2data drone.io build status
-
 .. image:: https://coveralls.io/repos/bitbucket/cmutel/brightway2-data/badge.svg?branch=master
     :target: https://coveralls.io/bitbucket/cmutel/brightway2-data?branch=default
     :alt: Test coverage report
