@@ -10,6 +10,7 @@ from .utils import python_2_unicode_compatible
 from fasteners import InterProcessLock
 from functools import wraps
 from peewee import Model, TextField, BlobField
+from threading import ThreadError
 import appdirs
 import collections
 import eight
@@ -132,7 +133,7 @@ class ProjectManager(collections.Iterable):
         if not self.read_only and lockable() and hasattr(self, "_lock"):
             try:
                 self._lock.release()
-            except RuntimeError:
+            except (RuntimeError, ThreadError):
                 pass
         self._project_name = str(name)
 
