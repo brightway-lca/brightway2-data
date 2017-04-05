@@ -4,7 +4,7 @@ from eight import *
 
 from . import bw2test
 from bw2data.database import DatabaseChooser
-from bw2data import mapping, geomapping, databases, methods, projects
+from bw2data import mapping, geomapping, databases, methods, projects, get_activity
 import pytest
 
 
@@ -37,6 +37,10 @@ def activity():
                 'input': ("db", "a"),
                 'amount': 5,
                 'type': 'technosphere'
+            }, {
+                'input': ("db", "b"),
+                'amount': -0.1,
+                'type': 'substitution'
             }]
         },
     })
@@ -57,6 +61,11 @@ def test_production(activity):
     exc = list(activity.production())[0]
     assert exc['amount'] == 2
 
+def test_substitution(activity):
+    d = get_activity(("db", "d"))
+    assert len(activity.substitution()) == 0
+    assert len(d.substitution()) == 1
+
 def test_biosphere(activity):
     assert len(list(activity.biosphere())) == 1
     assert len(activity.biosphere()) == 1
@@ -68,6 +77,15 @@ def test_technosphere(activity):
     assert len(activity.technosphere()) == 1
     exc = list(activity.technosphere())[0]
     assert exc['amount'] == 3
+
+def test_technosphere_include_substitution(activity):
+    d = get_activity(("db", "d"))
+    assert len(d.technosphere()) == 2
+    assert len(d.technosphere(include_substitution=True)) == 2
+
+def test_technosphere_exclude_substitution(activity):
+    d = get_activity(("db", "d"))
+    assert len(d.technosphere(include_substitution=False)) == 1
 
 def test_upstream(activity):
     assert len(list(activity.upstream())) == 1
