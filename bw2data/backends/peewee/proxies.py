@@ -42,9 +42,8 @@ class Exchanges(collections.Iterable):
         exchanges.delete()
 
     """
-    def __init__(self, key, kind=None, reverse=False):
-        self._key = key
-        self._kind = kind
+    def __init__(self, key, kinds=None, reverse=False):
+        self._key, self._kinds = key, kinds
         if reverse:
             self._args = [
             ExchangeDataset.input_database == self._key[0],
@@ -59,8 +58,8 @@ class Exchanges(collections.Iterable):
                 ExchangeDataset.output_database == self._key[0],
                 ExchangeDataset.output_code == self._key[1],
             ]
-        if self._kind:
-            self._args.append(ExchangeDataset.type == self._kind)
+        if self._kinds:
+            self._args.append(ExchangeDataset.type << self._kinds)
 
     def filter(self, expr):
         self._args.append(expr)
@@ -209,28 +208,36 @@ class Activity(ActivityProxyBase):
     def exchanges(self):
         return Exchanges(self.key)
 
-    def technosphere(self):
+    def technosphere(self, include_substitution=True):
         return Exchanges(
             self.key,
-            kind="technosphere"
+            kinds=(("technosphere", "substitution")
+                   if include_substitution
+                   else ("technosphere",))
         )
 
     def biosphere(self):
         return Exchanges(
             self.key,
-            kind="biosphere",
+            kinds=("biosphere",),
         )
 
     def production(self):
         return Exchanges(
             self.key,
-            kind="production",
+            kinds=("production",),
+        )
+
+    def substitution(self):
+        return Exchanges(
+            self.key,
+            kinds=("substitution",),
         )
 
     def upstream(self):
         return Exchanges(
             self.key,
-            kind="technosphere",
+            kinds=("technosphere",),
             reverse=True
         )
 
