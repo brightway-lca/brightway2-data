@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.1 (2017-04-05)
+
+- Include substitution types in `.technosphere()` iterator. Can be excluded with `include_substitution=False`.
+
 ## 2.4 (2017-03-20)
 
 - Write-only locks are now optional and disable by default
