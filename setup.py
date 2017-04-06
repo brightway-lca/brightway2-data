@@ -1,5 +1,4 @@
 from setuptools import setup
-import io
 import os
 
 packages = []
@@ -17,11 +16,11 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="2.4.3",
+    version="2.4.3.1",
     packages=packages,
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
-    license=io.open('LICENSE.txt', encoding='utf-8').read(),
+    license=open('LICENSE.txt').read(),
     install_requires=[
         "appdirs",
         "bw2parameters",

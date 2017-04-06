@@ -2,7 +2,7 @@
 
 ## 2.4.3 (2017-04-06)
 
-- Specify encoding of license file
+- Specify encoding of license file, and then don't. Yeah computers.
 
 ## 2.4.2 (2017-04-06)
 
