@@ -119,8 +119,11 @@ Base class for all Brightway2 data stores. Subclasses should define:
             File path of backup.
 
         """
-        from bw2io import BW2Package
-        return BW2Package.export_obj(self)
+        try:
+            from bw2io import BW2Package
+            return BW2Package.export_obj(self)
+        except ImportError:
+            print("bw2io not installed")
 
     @writable_project
     def write(self, data):
