@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.3 (2017-04-06)
+
+- Specify encoding of license file
+
 ## 2.4.2 (2017-04-06)
 
 - Remove dependency on bw2io
