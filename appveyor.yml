@@ -13,7 +13,7 @@ environment:
     - PYTHON_VERSION: "2.7"
       PYTHON_ARCH: "64"
       CONDA_PY: "27"
-      CONDA_INSTALL_LOCN: "C:\Miniconda-x64"
+      CONDA_INSTALL_LOCN: "C:\\Miniconda-x64"
 
     - PYTHON_VERSION: "3.5"
       PYTHON_ARCH: "64"
