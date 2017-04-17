@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.4 (2017-04-17)
+
+- Fix license text
+
 ## 2.4.3 (2017-04-06)
 
 - Specify encoding of license file, and then don't. Yeah computers.
