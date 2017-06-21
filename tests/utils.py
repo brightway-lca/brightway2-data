@@ -2,20 +2,23 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from . import BW2DataTest
+from . import BW2DataTest, bw2test
 from .fixtures import biosphere
-from bw2data import Database, Method, methods
+from bw2data import Database, Method, methods, databases
 from bw2data.backends.peewee import Activity as PWActivity
 from bw2data.backends.single_file import Activity as SFActivity
 from bw2data.database import Database
+from bw2data.errors import ValidityError
 from bw2data.utils import (
     combine_methods,
     get_activity,
+    merge_databases,
     natural_sort,
     random_string,
     safe_filename,
     uncertainify,
 )
+import pytest
 import stats_arrays as sa
 
 
@@ -205,3 +208,113 @@ class UncertainifyTestCase(BW2DataTest):
             Database.get(("a database", "foo")),
             SFActivity
         ))
+
+
+@bw2test
+def test_merge_databases_nonunique_activity_codes():
+    first = Database("a database")
+    first.write({
+        ("a database", "foo"): {
+            'exchanges': [{
+                'input': ("a database", "foo"),
+                'amount': 1,
+                'type': 'production',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+    })
+    second = Database("another database")
+    second.write({
+        ("another database", "foo"): {
+            'exchanges': [{
+                'input': ("another database", "foo"),
+                'amount': 1,
+                'type': 'production',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+    })
+    with pytest.raises(ValidityError):
+        merge_databases("a database", "another database")
+
+@bw2test
+def test_merge_databases_wrong_backend():
+    first = Database("a database", "singlefile")
+    first.write({
+        ("a database", "foo"): {
+            'exchanges': [{
+                'input': ("a database", "foo"),
+                'amount': 1,
+                'type': 'production',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+    })
+    second = Database("another database")
+    second.write({
+        ("another database", "bar"): {
+            'exchanges': [{
+                'input': ("another database", "bar"),
+                'amount': 1,
+                'type': 'production',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+    })
+    with pytest.raises(ValidityError):
+        merge_databases("a database", "another database")
+    with pytest.raises(ValidityError):
+        merge_databases("another database", "a database")
+
+@bw2test
+def test_merge_databases_nonexistent():
+    first = Database("a database")
+    first.write({
+        ("a database", "foo"): {
+            'exchanges': [{
+                'input': ("a database", "foo"),
+                'amount': 1,
+                'type': 'production',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+    })
+    with pytest.raises(AssertionError):
+        merge_databases("a database", "another database")
+    with pytest.raises(AssertionError):
+        merge_databases("another database", "a database")
+
+@bw2test
+def test_merge_databases():
+    first = Database("a database")
+    first.write({
+        ("a database", "foo"): {
+            'exchanges': [{
+                'input': ("a database", "foo"),
+                'amount': 1,
+                'type': 'production',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+    })
+    second = Database("another database")
+    second.write({
+        ("another database", "bar"): {
+            'exchanges': [{
+                'input': ("another database", "bar"),
+                'amount': 1,
+                'type': 'production',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+    })
+    merge_databases("a database", "another database")
+    assert len(Database("a database")) == 2
+    assert "another database" not in databases
