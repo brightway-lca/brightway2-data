@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import config
-from .errors import WebUIError, UnknownObject, NotFound
+from .errors import WebUIError, UnknownObject, NotFound, ValidityError
 from .fatomic import open
 from .project import safe_filename
 from contextlib import contextmanager
@@ -187,10 +187,44 @@ def combine_databases(name, *dbs):
     pass
 
 
-def merge_databases(parent_db, *others):
-    """Merge ``others`` into ``parent_db``, including updating exchanges."""
-    pass
+def merge_databases(parent_db, other):
+    """Merge ``other`` into ``parent_db``, including updating exchanges.
 
+    All databases must be SQLite databases.
+
+    ``parent_db`` and ``other`` should be the names of databases.
+
+    Doesn't return anything."""
+    from .database import Database
+    from .backends.peewee import (ActivityDataset, ExchangeDataset,
+        SQLiteBackend, sqlite3_lci_db)
+    from . import databases
+
+    assert parent_db in databases
+    assert other in databases
+
+    first = Database(parent_db)
+    second = Database(other)
+
+    if not isinstance(first, SQLiteBackend) or not isinstance(second, SQLiteBackend):
+        raise ValidityError("Both databases must be `SQLiteBackend`")
+
+    first_codes = {obj.code for obj in
+                   ActivityDataset.select().where(ActivityDataset.database == parent_db)}
+    second_codes = {obj.code for obj in
+                    ActivityDataset.select().where(ActivityDataset.database == other)}
+    if first_codes.intersection(second_codes):
+        raise ValidityError("Duplicate codes - can't merge databases")
+
+    with sqlite3_lci_db.atomic() as transaction:
+        ActivityDataset.update(database = parent_db).where(
+            ActivityDataset.database == other).execute()
+        ExchangeDataset.update(input_database = parent_db
+            ).where(ExchangeDataset.input_database == other).execute()
+        ExchangeDataset.update(output_database = parent_db
+            ).where(ExchangeDataset.output_database == other).execute()
+
+    del databases[other]
 
 def download_file(filename, directory="downloads", url=None):
     """Download a file and write it to disk in ``downloads`` directory.
