@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.5 (2017-08-15)
+
+- Add database merging function (bw2data.utils.merge_databases)
+
 ## 2.4.4 (2017-04-17)
 
 - Fix license text
