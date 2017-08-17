@@ -134,13 +134,13 @@ class Activity(ActivityProxyBase):
             setattr(self._document, key, value)
         self._document.save()
 
-        if databases[self['database']].get('searchable', True):
-            IndexManager(Database(self['database']).filename).update_dataset(self._data)
-
         if self.key not in mapping:
             mapping.add([self.key])
         if self.get('location') and self['location'] not in geomapping:
             geomapping.add([self['location']])
+
+        if databases[self['database']].get('searchable', True):
+            IndexManager(Database(self['database']).filename).update_dataset(self._data)
 
     def _change_code(self, new_code):
         if self['code'] == new_code:
