@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.6 (2017-08-29)
+
+- Fix bug where `negative` value wasn't used in exchange proxy uncertainty dictionaries
+
 ## 2.4.5 (2017-08-15)
 
 - Add database merging function (bw2data.utils.merge_databases)
