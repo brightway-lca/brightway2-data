@@ -241,7 +241,8 @@ class ExchangeProxyBase(ProxyBase):
             'scale',
             'shape',
             'minimum',
-            'maximum'
+            'maximum',
+            'negative',
         }
         return {k: v for k, v in self.items() if k in KEYS}
 
@@ -256,9 +257,14 @@ class ExchangeProxyBase(ProxyBase):
         array = ut.from_dicts(self.uncertainty)
         return ut.bounded_random_variables(array, n).ravel()
 
-    def lca(self, method=None, amount=1.):
-        """Shortcut to construct an LCA object for this activity."""
+    def lca(self, method=None, amount=None):
+        """Shortcut to construct an LCA object for this exchange **input**.
+
+        Uses the exchange amount if no other amount is provided."""
         from bw2calc import LCA
+
+        if amount is None:
+            amount = self['amount']
 
         lca = LCA({self.input: amount}, method=method)
         lca.lci()

@@ -3,8 +3,15 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import bw2test
+from bw2data import (mapping, geomapping, databases, methods, Method,
+                     projects, get_activity)
 from bw2data.database import DatabaseChooser
-from bw2data import mapping, geomapping, databases, methods, projects, get_activity
+try:
+    import bw2calc
+except ImportError:
+    bw2calc = None
+import numpy as np
+import stats_arrays as sa
 import pytest
 
 
@@ -45,6 +52,44 @@ def activity():
         },
     })
     return database.get("a")
+
+@pytest.fixture
+@bw2test
+def activity_and_method():
+    database = DatabaseChooser("db")
+    database.write({
+        ("db", "a"): {
+            'exchanges': [{
+                'input': ("db", "a"),
+                'amount': 2,
+                'type': 'production',
+            }, {
+                'input': ("db", "b"),
+                'amount': 3,
+                'type': 'technosphere',
+            }, {
+                'input': ("db", "c"),
+                'amount': 4,
+                'type': 'biosphere',
+            }],
+            'name': 'a'
+        },
+        ("db", "b"): {'name': 'b'},
+        ("db", "c"): {'name': 'c', 'type': 'biosphere'},
+        ("db", "d"): {
+            'name': 'd',
+            'exchanges': [{
+                'input': ("db", "a"),
+                'amount': 5,
+                'type': 'technosphere'
+            }]
+        },
+    })
+    cfs = [(("db", "c"), 42)]
+    method = Method(("a method",))
+    method.register()
+    method.write(cfs)
+    return database.get("a"), method
 
 def test_setup_clean(activity):
     assert len(databases) == 1
@@ -100,3 +145,119 @@ def test_ordering_consistency(activity):
     ]
     for sample in ordering[1:]:
         assert sample == ordering[0]
+
+@bw2test
+def test_uncertainty():
+    database = DatabaseChooser("db")
+    database.write({
+        ("db", "a"): {
+            'exchanges': [{
+                'input': ("db", "a"),
+                'amount': 2,
+                'type': 'production',
+                'uncertainty type': 1,
+                'loc': 2,
+                'scale': 3,
+                'shape': 4,
+                'maximum': 5,
+                'negative': True,
+            'name': 'a'
+        }]}
+    })
+    expected = {
+        'uncertainty type': 1,
+        'loc': 2,
+        'scale': 3,
+        'shape': 4,
+        'maximum': 5,
+        'negative': True,
+    }
+    exchange = list(database.get("a").exchanges())[0]
+    assert exchange.uncertainty == expected
+
+@bw2test
+def test_uncertainty_type():
+    database = DatabaseChooser("db")
+    database.write({
+        ("db", "a"): {
+            'exchanges': [{
+                'input': ("db", "a"),
+                'amount': 2,
+                'type': 'production',
+                'uncertainty type': 1,
+            'name': 'a'
+        }]}
+    })
+    exchange = list(database.get("a").exchanges())[0]
+    assert exchange.uncertainty_type.id == 1
+    assert exchange.uncertainty_type == sa.NoUncertainty
+
+@bw2test
+def test_uncertainty_type_missing():
+    database = DatabaseChooser("db")
+    database.write({
+        ("db", "a"): {
+            'exchanges': [{
+                'input': ("db", "a"),
+                'amount': 2,
+                'type': 'production',
+            'name': 'a'
+        }]}
+    })
+    exchange = list(database.get("a").exchanges())[0]
+    assert exchange.uncertainty_type.id == 0
+    assert exchange.uncertainty_type == sa.UndefinedUncertainty
+
+@bw2test
+def test_random_sample():
+    database = DatabaseChooser("db")
+    database.write({
+        ("db", "a"): {
+            'exchanges': [{
+                'input': ("db", "a"),
+                'type': 'production',
+                'amount': 20,
+                'unit': 'kg',
+                'type': 'biosphere',
+                'uncertainty type' : 2,
+                'loc' : np.log(20),
+                'scale' : 1.01,
+            }],
+            'name': 'a'
+        }
+    })
+    exchange = list(database.get("a").exchanges())[0]
+    assert (exchange.random_sample() > 0).sum() == 100
+    assert exchange.random_sample().shape == (100,)
+
+@bw2test
+def test_random_sample_negative():
+    database = DatabaseChooser("db")
+    database.write({
+        ("db", "a"): {
+            'exchanges': [{
+                'input': ("db", "a"),
+                'type': 'production',
+                'amount': -20,
+                'negative': True,
+                'unit': 'kg',
+                'type': 'biosphere',
+                'uncertainty type' : 2,
+                'loc' : np.log(20),
+                'scale' : 1.01,
+            }],
+            'name': 'a'
+        }
+    })
+    exchange = list(database.get("a").exchanges())[0]
+    assert (exchange.random_sample() < 0).sum() == 100
+    assert exchange.random_sample().shape == (100,)
+
+@pytest.mark.skipif(bw2calc is None, reason="requires bw2calc")
+def test_lca(activity_and_method):
+    a, m = activity_and_method
+    exc = list(a.production())[0]
+    lca = exc.lca(method=m.name)
+    assert lca.score == 4 * 42
+    lca = exc.lca(method=m.name, amount = 1)
+    assert lca.score == 2 * 42
