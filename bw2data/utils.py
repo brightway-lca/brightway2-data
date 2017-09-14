@@ -198,7 +198,7 @@ def merge_databases(parent_db, other):
     from .database import Database
     from .backends.peewee import (ActivityDataset, ExchangeDataset,
         SQLiteBackend, sqlite3_lci_db)
-    from . import databases
+    from . import databases, mapping
 
     assert parent_db in databases
     assert other in databases
@@ -216,6 +216,10 @@ def merge_databases(parent_db, other):
     if first_codes.intersection(second_codes):
         raise ValidityError("Duplicate codes - can't merge databases")
 
+    qs = ActivityDataset.select(ActivityDataset.code).where(
+        ActivityDataset.database == other).tuples()
+    mapping.add(((parent_db, o[0]) for o in qs))
+
     with sqlite3_lci_db.atomic() as transaction:
         ActivityDataset.update(database = parent_db).where(
             ActivityDataset.database == other).execute()
@@ -224,7 +228,9 @@ def merge_databases(parent_db, other):
         ExchangeDataset.update(output_database = parent_db
             ).where(ExchangeDataset.output_database == other).execute()
 
+    Database(parent_db).process()
     del databases[other]
+
 
 def download_file(filename, directory="downloads", url=None):
     """Download a file and write it to disk in ``downloads`` directory.
