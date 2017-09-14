@@ -16,7 +16,7 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="2.4.6",
+    version="2.4.7",
     packages=packages,
     author="Chris Mutel",
     author_email="cmutel@gmail.com",

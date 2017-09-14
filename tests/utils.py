@@ -4,7 +4,7 @@ from eight import *
 
 from . import BW2DataTest, bw2test
 from .fixtures import biosphere
-from bw2data import Database, Method, methods, databases
+from bw2data import Database, Method, methods, databases, mapping
 from bw2data.backends.peewee import Activity as PWActivity
 from bw2data.backends.single_file import Activity as SFActivity
 from bw2data.database import Database
@@ -18,6 +18,7 @@ from bw2data.utils import (
     safe_filename,
     uncertainify,
 )
+import numpy as np
 import pytest
 import stats_arrays as sa
 
@@ -318,3 +319,7 @@ def test_merge_databases():
     merge_databases("a database", "another database")
     assert len(Database("a database")) == 2
     assert "another database" not in databases
+    assert ("a database", "bar") in mapping
+    array = np.load(Database("a database").filepath_processed())
+    assert mapping[("a database", "bar")] in {x['output'] for x in array}
+    assert mapping[("a database", "foo")] in {x['output'] for x in array}

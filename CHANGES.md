@@ -1,5 +1,10 @@
 # Changelog
 
+
+## 2.4.7 (2017-09-14)
+
+- Fix bugs in `merge_databases`
+
 ## 2.4.6 (2017-08-29)
 
 - Fix bug where `negative` value wasn't used in exchange proxy uncertainty dictionaries
