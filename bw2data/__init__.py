@@ -67,6 +67,7 @@ from .method import Method
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
 from .backends import convert_backend
+from .presamples import create_presample_package
 # Don't confuse nose tests
 from .updates import Updates
 
