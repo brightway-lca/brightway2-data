@@ -4,8 +4,6 @@ __all__ = [
     'config',
     'convert_backend',
     'Database',
-    'database_parameters',
-    'DatabaseParameterSet',
     'databases',
     'DataStore',
     'get_activity',
@@ -17,6 +15,7 @@ __all__ = [
     'methods',
     'Normalization',
     'normalizations',
+    'parameters',
     'preferences',
     'ProcessedDataStore',
     'projects',
@@ -42,13 +41,11 @@ from .meta import (
     preferences,
     weightings,
 )
-from .database_parameters import database_parameters, DatabaseParameterSet
 
 # Add metadata class instances to global list of serialized metadata
 config.metadata.extend([
     calculation_setups,
     databases,
-    database_parameters,
     geomapping,
     mapping,
     methods,
@@ -67,9 +64,9 @@ from .method import Method
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
 from .backends import convert_backend
-from .presamples import create_presample_package
 # Don't confuse nose tests
 from .updates import Updates
+from .parameters import parameters
 
 projects.set_current("default")
 

@@ -8,7 +8,7 @@ from .fixtures import food, biosphere
 
 @bw2test
 def test_repr_str_unicode():
-    objects = (mapping, geomapping, databases, methods, database_parameters,
+    objects = (mapping, geomapping, databases, methods,
                normalizations, weightings, Database("foo"), DataStore("foo"),
                projects)
     for obj in objects:
