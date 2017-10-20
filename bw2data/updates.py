@@ -100,7 +100,6 @@ class Updates(object):
             'automatic': True,
             'explanation': "",
         },
-        # Update to 3.2 biosphere
     }
 
     @classmethod
