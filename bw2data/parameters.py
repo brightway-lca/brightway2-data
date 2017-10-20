@@ -2,11 +2,11 @@
 from __future__ import print_function, unicode_literals
 from eight import *
 
-from . import databases, projects, config
+from . import databases, projects, config, get_activity
 from .sqlite import PickleField, create_database
 from .utils import python_2_unicode_compatible
 from bw2parameters import ParameterSet
-from peewee import Model, TextField, FloatField, BooleanField
+from peewee import Model, TextField, FloatField, BooleanField, IntegerField
 import asteval
 import os
 import re
@@ -14,15 +14,7 @@ import re
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
 clean = lambda x: re.sub('\W|^(?=\d)','_', x)
-clean_db = lambda x: "db_" + clean(x)
 nonempty = lambda dct: {k: v for k, v in dct.items() if v is not None}
-
-
-@python_2_unicode_compatible
-class WarningLabel(Model):
-    kind = TextField()
-    database = TextField(index=True, null=True)
-    code = TextField(index=True, null=True)
 
 
 @python_2_unicode_compatible
@@ -46,8 +38,7 @@ class ProjectParameter(__ParameterBase):
         return "Project parameter: {}".format(self.name)
 
     def save(self, *args, **kwargs):
-        ParameterGroup.get_or_create(name='project')
-        WarningLabel.get_or_create(kind='project')
+        Group.get_or_create(name='project')[0].expire()
         super(ProjectParameter, self).save(*args, **kwargs)
 
     @staticmethod
@@ -60,26 +51,36 @@ class ProjectParameter(__ParameterBase):
     @staticmethod
     def static(only=None):
         qs = ProjectParameter.select(ProjectParameter.name, ProjectParameter.amount)
-        if qs is not None:
+        if only is not None:
             qs = qs.where(ProjectParameter.name << tuple(only))
         return dict(qs.tuples())
 
     @staticmethod
     def expired():
-        return bool(WarningLabel.select().where(WarningLabel.kind=='project').count())
+        try:
+            return not Group.get(name='project').fresh
+        except Group.DoesNotExist:
+            return False
 
     @staticmethod
     def recalculate():
         if not ProjectParameter.expired():
             return
         data = ProjectParameter.load()
+        if not data:
+            return
         ParameterSet(data).evaluate_and_set_amount_field()
         with parameters.db.atomic() as _:
             for key, value in data.items():
-                # TODO: Update `data` too
-                ProjectParameter.update(amount=value['amount']).\
-                where(ProjectParameter.name==key).execute()
-        WarningLabel.delete().where(WarningLabel.kind=='project').execute()
+                ProjectParameter.update(
+                    amount=value['amount'],
+                ).where(ProjectParameter.name==key).execute()
+            Group.get_or_create(name='project')[0].freshen()
+            Group.update(fresh=False).where(
+                Group.name << GroupDependency.select(
+                    GroupDependency.group
+                ).where(GroupDependency.depends=='project')
+            ).execute()
 
     @property
     def dict(self):
@@ -116,19 +117,11 @@ class DatabaseParameter(__ParameterBase):
             DatabaseParameter.database == database)])
 
     @staticmethod
-    def expired(database=None):
-        qs = WarningLabel.select(WarningLabel.database)
-        if database is None:
-            if not ProjectParameter.expired():
-                qs = qs.where(WarningLabel.kind=='database')
-            for m in qs.tuples():
-                yield m[0]
-        else:
-            return (ProjectParameter.expired() or
-                qs.where(
-                    WarningLabel.kind=='database',
-                    WarningLabel.database==database,
-                ).count())
+    def expired(database):
+        try:
+            return not Group.get(name=database).fresh
+        except Group.DoesNotExist:
+            return False
 
     @staticmethod
     def static(database):
@@ -140,43 +133,57 @@ class DatabaseParameter(__ParameterBase):
     def recalculate(database):
         if ProjectParameter.expired():
             ProjectParameter.recalculate()
+
+        # Can we avoid doing anything?
         if not DatabaseParameter.expired(database):
             return
-
         data = DatabaseParameter.load(database)
+        if not data:
+            return
 
-        # Add or delete `project` dependency if needed
+        # Parse all formulas, find missing variables
         new_symbols = get_new_symbols(data.values(), set(data))
         found_symbols = {x[0] for x in ProjectParameter.select(
             ProjectParameter.name).tuples()}
         missing = new_symbols.difference(found_symbols)
         if missing:
-            raise ValueError("The following symbols aren't defined:\t{}".format(";".join(missing)))
+            raise ValueError("The following variables aren't defined:\t{}".format(";".join(missing)))
+
+        # Add or delete `project` dependency if needed
         if new_symbols:
             GroupDependency.get_or_create(
-                group=clean_db(database), depends="project"
+                group=database,
+                depends="project"
             )
+            # Load needed project variables as {'foo': 42} dict
             glo = ProjectParameter.static(new_symbols)
         else:
+            GroupDependency.delete().where(
+                GroupDependency.group==database,
+                GroupDependency.depends=="project"
+            ).execute()
             glo = None
 
+        # Update database parameter values
         ParameterSet(data, glo).evaluate_and_set_amount_field()
         with parameters.db.atomic() as _:
             for key, value in data.items():
-                # TODO: Update `data` too
-                DatabaseParameter.update(amount=value['amount']).where(
+                DatabaseParameter.update(
+                    amount=value['amount'],
+                ).where(
                     DatabaseParameter.name==key,
                     DatabaseParameter.database==database,
                 ).execute()
-        WarningLabel.delete().where(
-            WarningLabel.kind=='database',
-            WarningLabel.database==database,
-        ).execute()
-        # TODO: Expire any activities linking to this group
+            Group.get(name=database).freshen()
+            # Expire any activity parameters that depend on this group
+            Group.update(fresh=False).where(
+                Group.name << GroupDependency.select(
+                    GroupDependency.group
+                ).where(GroupDependency.depends==database)
+            ).execute()
 
     def save(self, *args, **kwargs):
-        ParameterGroup.get_or_create(name=clean_db(self.database))
-        WarningLabel.get_or_create(kind='database', database=self.database)
+        Group.get_or_create(name=self.database)[0].expire()
         super(DatabaseParameter, self).save(*args, **kwargs)
 
     @property
@@ -192,37 +199,97 @@ class DatabaseParameter(__ParameterBase):
 
 
 class ActivityParameter(__ParameterBase):
-    database = TextField(index=True)
-    code = TextField(index=True)
-    name = TextField(index=True)
+    group = TextField()
+    database = TextField()
+    code = TextField()
+    name = TextField()
     formula = TextField(null=True)
     amount = FloatField(null=True)
     data = PickleField(default={})
 
     class Meta:
         indexes = (
-            (('database', 'code', 'name'), True),
+            (('name', 'database', 'code'), True),
+            (('group', 'name'), True),
         )
 
     def __str__(self):
-        return "Activity parameter: {}".format(self.name)
+        return "Activity parameter: {}:{}".format(self.group, self.name)
 
     @staticmethod
-    def load(activity):
-        database, code = activity[0], activity[1]
-        return [
-            o.dict for o in ActivityParameter.select().where(
-            ActivityParameter.database == database,
-            ActivityParameter.code == code)
-        ]
+    def load_group(group):
+        def reformat(o):
+            o = o.dict
+            return (o.pop("name"), o)
+        return dict([reformat(o) for o in ActivityParameter.select().where(
+            ActivityParameter.group == group)])
 
     @staticmethod
-    def expired():
-        return WarningLabel.select(WarningLabel.database, WarningLabel.code
-            ).where(WarningLabel.kind=='activity').tuples()
+    def expired(group):
+        try:
+            return not Group.get(name=group).fresh
+        except Group.DoesNotExist:
+            return False
+
+    @staticmethod
+    def recalculate_group(group):
+        return
+        # Don't bother to check if there is an actual dependency
+        if ProjectParameter.expired():
+            ProjectParameter.recalculate()
+
+        # Recalculate any
+
+        # Can we avoid doing anything?
+        if not DatabaseParameter.expired(database):
+            return
+        data = DatabaseParameter.load(database)
+        if not data:
+            return
+
+        # Parse all formulas, find missing variables
+        new_symbols = get_new_symbols(data.values(), set(data))
+        found_symbols = {x[0] for x in ProjectParameter.select(
+            ProjectParameter.name).tuples()}
+        missing = new_symbols.difference(found_symbols)
+        if missing:
+            raise ValueError("The following variables aren't defined:\t{}".format(";".join(missing)))
+
+        # Add or delete `project` dependency if needed
+        if new_symbols:
+            GroupDependency.get_or_create(
+                group=database,
+                depends="project"
+            )
+            # Load needed project variables as {'foo': 42} dict
+            glo = ProjectParameter.static(new_symbols)
+        else:
+            GroupDependency.delete().where(
+                GroupDependency.group==database,
+                GroupDependency.depends=="project"
+            ).execute()
+            glo = None
+
+        # Update database parameter values
+        ParameterSet(data, glo).evaluate_and_set_amount_field()
+        with parameters.db.atomic() as _:
+            for key, value in data.items():
+                DatabaseParameter.update(
+                    amount=value['amount'],
+                ).where(
+                    DatabaseParameter.name==key,
+                    DatabaseParameter.database==database,
+                ).execute()
+            Group.get(name=database).freshen()
+            # Expire any activity parameters that depend on this group
+            Group.update(fresh=False).where(
+                Group.name << GroupDependency.select(
+                    GroupDependency.group
+                ).where(GroupDependency.depends==database)
+            ).execute()
 
     def save(self, *args, **kwargs):
-        WarningLabel.get_or_create(kind='activity', database=self.database, code=self.code)
+        Group.get_or_create(name=self.group)[0].expire()
         super(ActivityParameter, self).save(*args, **kwargs)
 
     def dict(self):
@@ -238,62 +305,78 @@ class ActivityParameter(__ParameterBase):
 
 
 @python_2_unicode_compatible
-class ParameterGroup(Model):
-    name = TextField()
-    data = PickleField(default={})
+class Group(Model):
+    name = TextField(unique=True)
+    fresh = BooleanField(default=True)
 
-    # Named group of one or more activities
-    # Order of resolution is: activities in order of insertion, database, global
-    # Database params can't depend on other databases
+    def expire(self):
+        self.fresh = False
+        self.save()
 
-    def add_activity(activity):
-        # Add in all activity-level and exchange-level parameters
-        # Raise error if exchange-level parameters have name conflicts
-        # Also modifies activity to add `group` attribute
-        pass
-
-    def add_dependency(group):
-        # Add group to self.dependencies
-        # Atomic
-        pass
+    def freshen(self):
+        self.fresh = True
+        self.save()
 
 
 @python_2_unicode_compatible
 class GroupDependency(Model):
     group = TextField()
     depends = TextField()
+    order = IntegerField(default=0)
 
     class Meta:
         indexes = (
             (('group', 'depends'), True),
         )
 
+    def save(self, *args, **kwargs):
+        if self.group == 'project':
+            raise ValueError("`project` group can't have dependencies")
+        elif self.group in databases and self.depends != 'project':
+            raise ValueError("Database groups can only depend on `project`")
+        super(GroupDependency, self).save(*args, **kwargs)
+
 
 class ParameterManager(object):
     def __init__(self):
         self.db = create_database(
             os.path.join(projects.dir, "parameters.db"),
-            [DatabaseParameter, ProjectParameter,
-             ActivityParameter, WarningLabel,
-             ParameterGroup, GroupDependency]
+            [DatabaseParameter, ProjectParameter, ActivityParameter,
+             Group, GroupDependency]
         )
         config.sqlite3_databases.append((
             "parameters.db",
             self.db,
-            [DatabaseParameter, ProjectParameter,
-             ActivityParameter, WarningLabel,
-             ParameterGroup, GroupDependency]
+            [DatabaseParameter, ProjectParameter, ActivityParameter,
+             Group, GroupDependency]
         ))
 
-    @property
-    def project(self):
-        return ProjectParameter.select()
+    def group(self, group):
+        if group == 'project':
+            return ProjectParameter.select()
+        elif group in databases:
+            return DatabaseParameter.select().where(DatabaseParameter.database==group)
+        else:
+            return ActivityParameter.select().where(ActivityParameter.group==group)
 
-    def database(self, database):
-        assert database in databases, "Database not found"
-        return DatabaseParameter.select().where(DatabaseParameter.database == database)
+    def create_group(self, name, lst=None):
+        """Create a new group of activity parameters.
 
-    def insert_project_parameters(self, data):
+        `name` is the name of the group, `lst` is an optional list of Activity proxies or (``database``, ``code``) keys."""
+        pass
+
+    def add_to_group(self, group, activity):
+        """Add `activity` to group."""
+        pass
+
+    def reorder_dependencies():
+        """??"""
+        pass
+
+    def remove_from_group(self, group, activity):
+        pass
+
+    def new_project_parameters(self, data):
         """Efficiently and correctly enter multiple parameters.
 
         ``data`` should be a list of dictionaries."""
@@ -314,32 +397,62 @@ class ParameterManager(object):
             ProjectParameter.delete().execute()
             for idx in range(0, len(data), 100):
                 ProjectParameter.insert_many(data[idx:idx+100]).execute()
-        WarningLabel.delete().where(WarningLabel.kind=='project')
+            Group.get(name='project').freshen()
+            Group.update(fresh=False).where(
+                Group.name << GroupDependency.select(
+                    GroupDependency.group
+                ).where(GroupDependency.depends=='project')
+            ).execute()
 
-    def update_all(self):
+    def new_database_parameters(self, data, database):
+        """Efficiently and correctly enter multiple parameters.
+
+        ``data`` should be a list of dictionaries. ``database`` should be an existing database."""
+        assert database in databases, "Unknown database"
+        keyed = {ds['name']: ds for ds in data}
+        assert len(keyed) == len(data), "Nonunique names"
+
+        def reformat(ds):
+            return nonempty({
+                'name': ds.pop('name'),
+                'amount': ds.pop('amount', 0),
+                'formula': ds.pop('formula', None),
+                'data': ds
+            })
+        data = [reformat(ds) for ds in data]
+
+        with self.db.atomic():
+            DatabaseParameter.delete().where(
+                DatabaseParameter.database==database).execute()
+            for idx in range(0, len(data), 100):
+                DatabaseParameter.insert_many(data[idx:idx+100]).execute()
+            Group.get(name=database).freshen()
+            Group.update(fresh=False).where(
+                Group.name << GroupDependency.select(
+                    GroupDependency.group
+                ).where(GroupDependency.depends==database)
+            ).execute()
+            DatabaseParameter.recalculate(database)
+
+    def recalculate(self):
         if ProjectParameter.expired():
-            update_project_parameters()
-        for db in DatabaseParameter.expired():
-            update_database_parameters(db)
+            ProjectParameter.recalculate()
+        for db in databases:
+            if DatabaseParameter.expired(db):
+                DatabaseParameter.recalculate(db)
+        for obj in Group.select().where(
+                Group.fresh==False):
+            # Shouldn't be possible? Maybe concurrent access?
+            if obj.name in databases or obj.name == 'project':
+                continue
+            ActivityParameter.recalculate_group(obj.name)
 
     def __len__(self):
         return (DatabaseParameter.select().count() + ProjectParameter.select().count() +
             ActivityParameter.select().count())
 
     def __repr__(self):
-        if len(self) > 20:
-            return ("Brightway2 projects manager with {} objects, including:"
-                    "{}\nUse `sorted(projects)` to get full list, "
-                    "`projects.report()` to get\n\ta report on all projects.").format(
-                len(self),
-                "".join(["\n\t{}".format(x) for x in sorted([x.name for x in self])[:10]])
-            )
-        else:
-            return ("Brightway2 projects manager with {} objects:{}"
-                    "\nUse `projects.report()` to get a report on all projects.").format(
-                len(self),
-                "".join(["\n\t{}".format(x) for x in sorted([x.name for x in self])])
-            )
+        return "Parameters manager with {} objects".format(len(self))
 
 
 parameters = ParameterManager()

@@ -11,7 +11,6 @@ from .. import (
 )
 from ..data_store import ProcessedDataStore
 from ..errors import UntypedExchange, InvalidExchange, UnknownObject
-from ..parameters import parameters
 from ..query import Query
 from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename, numpy_string
 import copy
@@ -117,10 +116,6 @@ class LCIBackend(ProcessedDataStore):
 
         new_database.write(data)
         return new_database
-
-    @property
-    def parameters(self):
-        return parameters.database(self.name)
 
     @property
     def filename(self):
