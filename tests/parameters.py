@@ -4,7 +4,14 @@ from eight import *
 
 from . import bw2test
 from bw2data import parameters, projects
-from bw2data.parameters import DatabaseParameter, ParameterGroup, ProjectParameter, WarningLabel
+from bw2data.parameters import (
+    ActivityParameter,
+    DatabaseParameter,
+    GroupDependency,
+    ParameterGroup,
+    ProjectParameter,
+    WarningLabel,
+)
 import pytest
 
 
@@ -81,3 +88,44 @@ def test_create_database_parameters():
     )
     assert len(parameters)
     assert list(DatabaseParameter.expired()) == ['bar']
+
+@bw2test
+def test_update_database_parameters():
+    assert not ParameterGroup.select().count()
+    assert not GroupDependency.select().count()
+
+    ProjectParameter.create(
+        name="foo",
+        amount=3.14,
+        data={'uncertainty type': 0}
+    )
+    ProjectParameter.create(
+        name="bar",
+        formula="2 * foo",
+    )
+    assert ParameterGroup.get(name="project")
+    DatabaseParameter.create(
+        database='A',
+        name="B",
+        amount=5,
+    )
+    DatabaseParameter.create(
+        database='A',
+        name="C",
+        formula="foo + bar + B",
+    )
+
+    obj = DatabaseParameter.get(name="C")
+    assert obj.amount != 3.14 * 3 + 5
+    assert WarningLabel.select().count() == 2
+    assert ParameterGroup.get(name="db_A")
+    with pytest.raises(GroupDependency.DoesNotExist):
+        GroupDependency.get(group="db_A", depends="project")
+
+    DatabaseParameter.recalculate("A")
+    assert GroupDependency.get(group="db_A", depends="project")
+    assert ParameterGroup.get(name="db_A")
+    assert ParameterGroup.get(name="project")
+    obj = DatabaseParameter.get(name="C")
+    assert obj.amount == 3.14 * 3 + 5
+    assert not WarningLabel.select().count()
