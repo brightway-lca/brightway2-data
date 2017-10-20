@@ -7,17 +7,35 @@ from .sqlite import PickleField, create_database
 from .utils import python_2_unicode_compatible
 from bw2parameters import ParameterSet
 from peewee import Model, TextField, FloatField, BooleanField
+import asteval
 import os
+import re
+
+
+# https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
+clean = lambda varStr: re.sub('\W|^(?=\d)','_', varStr)
+nonempty = lambda dct: {k: v for k, v in dct.items() if v is not None}
 
 
 @python_2_unicode_compatible
 class WarningLabel(Model):
     kind = TextField()
     database = TextField(index=True, null=True)
+    code = TextField(index=True, null=True)
 
 
 @python_2_unicode_compatible
-class ProjectParameter(Model):
+class __ParameterBase(Model):
+    __repr__ = lambda x: str(x)
+
+    def __lt__(self, other):
+        if type(self) != type(other):
+            raise TypeError
+        else:
+            return self.name.lower() < other.name.lower()
+
+
+class ProjectParameter(__ParameterBase):
     name = TextField(index=True, unique=True)
     formula = TextField(null=True)
     amount = FloatField(null=True)
@@ -26,51 +44,69 @@ class ProjectParameter(Model):
     def __str__(self):
         return "Project parameter: {}".format(self.name)
 
-    __repr__ = lambda x: str(x)
-
-    def __lt__(self, other):
-        if not isinstance(other, ProjectParameter):
-            raise TypeError
-        else:
-            return self.name.lower() < other.name.lower()
-
     def save(self, *args, **kwargs):
         WarningLabel.get_or_create(kind='project')
         super(ProjectParameter, self).save(*args, **kwargs)
 
     @staticmethod
+    def load():
+        def reformat(o):
+            o = o.dict
+            return (o.pop("name"), o)
+        return dict([reformat(o) for o in ProjectParameter.select()])
+
+    @staticmethod
+    def static():
+        return ProjectParameter.select(ProjectParameter.name,
+            ProjectParameter.amount).dicts()
+
+    @staticmethod
     def expired():
         return bool(WarningLabel.select().where(WarningLabel.kind=='project').count())
 
+    @staticmethod
+    def recalculate():
+        if not ProjectParameter.expired():
+            return
+        data = ProjectParameter.load()
+        ParameterSet(data).evaluate_and_set_amount_field()
+        with parameters.db.atomic() as _:
+            for key, value in data.items():
+                # TODO: Update `data` too
+                ProjectParameter.update(amount=value['amount']).\
+                where(ProjectParameter.name==key).execute()
+        WarningLabel.delete().where(WarningLabel.kind=='project').execute()
+
     @property
     def dict(self):
-        obj = {
+        obj = nonempty({
             'name': self.name,
             'formula': self.formula,
             'amount': self.amount,
-        }
+        })
         obj.update(self.data)
         return obj
 
 
-@python_2_unicode_compatible
-class DatabaseParameter(Model):
+class DatabaseParameter(__ParameterBase):
     database = TextField(index=True)
-    name = TextField(index=True, unique=True)
+    name = TextField(index=True)
     formula = TextField(null=True)
     amount = FloatField(null=True)
     data = PickleField(default={})
 
+    class Meta:
+        indexes = (
+            (('database', 'name'), True),
+        )
+
     def __str__(self):
-        return "Project parameters: {}".format(self.name)
+        return "Project parameter: {}:{}".format(self.database, self.name)
 
-    __repr__ = lambda x: str(x)
-
-    def __lt__(self, other):
-        if not isinstance(other, DatabaseParameter):
-            raise TypeError
-        else:
-            return self.name.lower() < other.name.lower()
+    @staticmethod
+    def load(database):
+        return [o.dict for o in DatabaseParameter.select().where(
+            DatabaseParameter.database == database)]
 
     @staticmethod
     def expired():
@@ -83,11 +119,58 @@ class DatabaseParameter(Model):
         super(DatabaseParameter, self).save(*args, **kwargs)
 
     def dict(self):
-        obj = {
+        obj = nonempty({
+            'database': self.database,
             'name': self.name,
             'formula': self.formula,
             'amount': self.amount,
-        }
+        })
+        obj.update(self.data)
+        return obj
+
+
+class ActivityParameter(__ParameterBase):
+    database = TextField(index=True)
+    code = TextField(index=True)
+    name = TextField(index=True)
+    formula = TextField(null=True)
+    amount = FloatField(null=True)
+    data = PickleField(default={})
+
+    class Meta:
+        indexes = (
+            (('database', 'code', 'name'), True),
+        )
+
+    def __str__(self):
+        return "Activity parameter: {}".format(self.name)
+
+    @staticmethod
+    def load(activity):
+        database, code = activity[0], activity[1]
+        return [
+            o.dict for o in ActivityParameter.select().where(
+            ActivityParameter.database == database,
+            ActivityParameter.code == code)
+        ]
+
+    @staticmethod
+    def expired():
+        return WarningLabel.select(WarningLabel.database, WarningLabel.code
+            ).where(WarningLabel.kind=='activity').tuples()
+
+    def save(self, *args, **kwargs):
+        WarningLabel.get_or_create(kind='activity', database=self.database, code=self.code)
+        super(ActivityParameter, self).save(*args, **kwargs)
+
+    def dict(self):
+        obj = nonempty({
+            'database': self.database,
+            'code': self.code,
+            'name': self.name,
+            'formula': self.formula,
+            'amount': self.amount,
+        })
         obj.update(self.data)
         return obj
 
@@ -96,6 +179,7 @@ class DatabaseParameter(Model):
 class ParameterGroup(Model):
     # Named group of one or more activities
     # Order of resolution is: activities in order of insertion, database, global
+    # Database params can't depend on other databases
     # Store: name, dependencies (list), data (including mangled namespace), dirty flag
 
     def add_activity(activity):
@@ -114,12 +198,14 @@ class ParameterManager(object):
     def __init__(self):
         self.db = create_database(
             os.path.join(projects.dir, "parameters.db"),
-            [DatabaseParameter, ProjectParameter, WarningLabel]
+            [DatabaseParameter, ProjectParameter,
+             ActivityParameter, WarningLabel]
         )
         config.sqlite3_databases.append((
             "parameters.db",
             self.db,
-            [DatabaseParameter, ProjectParameter, WarningLabel]
+            [DatabaseParameter, ProjectParameter,
+             ActivityParameter, WarningLabel]
         ))
 
     @property
@@ -137,7 +223,8 @@ class ParameterManager(object):
             update_database_parameters(db)
 
     def __len__(self):
-        return DatabaseParameter.select().count() + ProjectParameter.select().count()
+        return (DatabaseParameter.select().count() + ProjectParameter.select().count() +
+            ActivityParameter.select().count())
 
     def __repr__(self):
         if len(self) > 20:
@@ -156,3 +243,16 @@ class ParameterManager(object):
 
 
 parameters = ParameterManager()
+
+
+def get_new_symbols(data, context=None):
+    interpreter = asteval.Interpreter()
+    BUILTIN_SYMBOLS = set(interpreter.symtable) + (context or set())
+    found = set()
+    for ds in data:
+        if 'formula' in ds:
+            nf = asteval.NameFinder()
+        nf.generic_visit(interpreter.parse(expression))
+        found.add(nf.names)
+    return found.difference(BUILTIN_SYMBOLS)
+
