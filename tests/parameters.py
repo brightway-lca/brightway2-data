@@ -39,11 +39,10 @@ def test_project_parameters():
     assert obj.name == "foo"
     assert obj.amount == 3.14
     assert obj.data == {'uncertainty type': 0}
-    assert isinstance(repr(obj), str)
+    assert repr(obj)
     assert isinstance(str(obj), str)
     expected = {
         'name': 'foo',
-        'formula': None,
         'amount': 3.14,
         'uncertainty type': 0,
     }
@@ -53,6 +52,23 @@ def test_project_parameters():
         formula="2 * foo",
     )
     assert another < obj
+
+@bw2test
+def test_project_parameters_recalculate():
+    obj = ProjectParameter.create(
+        name="foo",
+        amount=3.14,
+        data={'uncertainty type': 0}
+    )
+    another = ProjectParameter.create(
+        name="bar",
+        formula="2 * foo",
+    )
+    assert ProjectParameter.expired()
+    ProjectParameter.recalculate()
+    obj = ProjectParameter.get(name="bar")
+    assert obj.amount == 2 * 3.14
+    assert not ProjectParameter.expired()
 
 @bw2test
 def test_create_database_parameters():
