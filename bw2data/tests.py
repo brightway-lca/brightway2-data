@@ -30,7 +30,7 @@ class BW2DataTest(unittest.TestCase):
         self.assertTrue("GLO" in geomapping)
         self.assertEqual(len(projects), 1)  # Default project
         self.assertTrue("default" in projects)
-        self.assertFalse(len(parameters.project))
+        self.assertFalse(len(parameters))
 
 
 @wrapt.decorator
