@@ -6,19 +6,30 @@ from . import databases, projects, config, get_activity
 from .sqlite import PickleField, create_database
 from .utils import python_2_unicode_compatible
 from bw2parameters import ParameterSet
-from peewee import Model, TextField, FloatField, BooleanField, IntegerField
+from peewee import (
+    BooleanField,
+    DateTimeField,
+    FloatField,
+    IntegerField,
+    Model,
+    TextField,
+)
 import asteval
 import os
 import re
+import datetime
 
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
 clean = lambda x: re.sub('\W|^(?=\d)','_', x)
 nonempty = lambda dct: {k: v for k, v in dct.items() if v is not None}
 
+TEMPLATE = """CREATE TRIGGER IF NOT EXISTS {table}_{action}_trigger AFTER {action} ON {table} BEGIN
+    UPDATE group_table SET updated = datetime('now') WHERE name = {name};
+END;"""
 
 @python_2_unicode_compatible
-class __ParameterBase(Model):
+class ParameterBase(Model):
     __repr__ = lambda x: str(x)
 
     def __lt__(self, other):
@@ -27,12 +38,33 @@ class __ParameterBase(Model):
         else:
             return self.name.lower() < other.name.lower()
 
+    @classmethod
+    def create_table(cls, fail_silently=False):
+        super(ParameterBase, cls).create_table(fail_silently)
+        cls._meta.database.execute_sql(
+            TEMPLATE.format(
+                action="INSERT",
+                name=cls._new_name,
+                table=cls._db_table
+        ))
+        for action in ("UPDATE", "DELETE"):
+            cls._meta.database.execute_sql(
+                TEMPLATE.format(
+                    action=action,
+                    name=cls._old_name,
+                    table=cls._db_table
+            ))
 
-class ProjectParameter(__ParameterBase):
+
+class ProjectParameter(ParameterBase):
     name = TextField(index=True, unique=True)
     formula = TextField(null=True)
     amount = FloatField(null=True)
     data = PickleField(default={})
+
+    _old_name = "'project'"
+    _new_name = "'project'"
+    _db_table = "projectparameter"
 
     def __str__(self):
         return "Project parameter: {}".format(self.name)
@@ -93,12 +125,16 @@ class ProjectParameter(__ParameterBase):
         return obj
 
 
-class DatabaseParameter(__ParameterBase):
+class DatabaseParameter(ParameterBase):
     database = TextField(index=True)
     name = TextField(index=True)
     formula = TextField(null=True)
     amount = FloatField(null=True)
     data = PickleField(default={})
+
+    _old_name = "OLD.database"
+    _new_name = "NEW.database"
+    _db_table = "databaseparameter"
 
     class Meta:
         indexes = (
@@ -198,7 +234,7 @@ class DatabaseParameter(__ParameterBase):
         return obj
 
 
-class ActivityParameter(__ParameterBase):
+class ActivityParameter(ParameterBase):
     group = TextField()
     database = TextField()
     code = TextField()
@@ -206,6 +242,10 @@ class ActivityParameter(__ParameterBase):
     formula = TextField(null=True)
     amount = FloatField(null=True)
     data = PickleField(default={})
+
+    _old_name = 'OLD."group"'
+    _new_name = 'NEW."group"'
+    _db_table = "activityparameter"
 
     class Meta:
         indexes = (
@@ -308,6 +348,7 @@ class ActivityParameter(__ParameterBase):
 class Group(Model):
     name = TextField(unique=True)
     fresh = BooleanField(default=True)
+    updated = DateTimeField(null=True)
 
     def expire(self):
         self.fresh = False
@@ -317,6 +358,8 @@ class Group(Model):
         self.fresh = True
         self.save()
 
+    class Meta:
+        db_table = "group_table"
 
 @python_2_unicode_compatible
 class GroupDependency(Model):
