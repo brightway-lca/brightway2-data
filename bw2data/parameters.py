@@ -435,11 +435,11 @@ class Group(Model):
         self.save()
 
     def save(self, *args, **kwargs):
-        self.reorder()
+        self.purge_order()
         super(Group, self).save(*args, **kwargs)
 
-    def reorder(self):
-        reserved = set(databases).union(set(['project'],))
+    def purge_order(self):
+        reserved = set(databases).union(set(['project']))
         self.order = [x for x in self.order if x not in reserved]
 
     class Meta:
@@ -455,6 +455,7 @@ class GroupDependency(Model):
         indexes = (
             (('group', 'depends'), True),
         )
+        constraints = [Check('"group" != depends')]
 
     def save(self, *args, **kwargs):
         if self.group == 'project':
