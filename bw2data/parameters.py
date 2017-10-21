@@ -348,7 +348,8 @@ class ActivityParameter(ParameterBase):
 class Group(Model):
     name = TextField(unique=True)
     fresh = BooleanField(default=True)
-    updated = DateTimeField(null=True)
+    updated = DateTimeField(default=datetime.datetime.now)
+    order = PickleField(default=[])
 
     def expire(self):
         self.fresh = False
@@ -358,6 +359,18 @@ class Group(Model):
         self.fresh = True
         self.save()
 
+    def save(self, *args, **kwargs):
+        self.reorder()
+        super(Group, self).save(*args, **kwargs)
+
+    def reorder(self):
+        reserved = set(databases).union(set(['project'],))
+        self.order = (
+            [x for x in self.order if x not in reserved] +
+            [x for x in self.order if x in databases] +
+            [x for x in self.order if x in ('project',)]
+        )
+
     class Meta:
         db_table = "group_table"
 
@@ -365,7 +378,6 @@ class Group(Model):
 class GroupDependency(Model):
     group = TextField()
     depends = TextField()
-    order = IntegerField(default=0)
 
     class Meta:
         indexes = (
@@ -394,7 +406,7 @@ class ParameterManager(object):
              Group, GroupDependency]
         ))
 
-    def group(self, group):
+    def parameters_for_group(self, group):
         if group == 'project':
             return ProjectParameter.select()
         elif group in databases:
@@ -402,18 +414,8 @@ class ParameterManager(object):
         else:
             return ActivityParameter.select().where(ActivityParameter.group==group)
 
-    def create_group(self, name, lst=None):
-        """Create a new group of activity parameters.
-
-        `name` is the name of the group, `lst` is an optional list of Activity proxies or (``database``, ``code``) keys."""
-        pass
-
     def add_to_group(self, group, activity):
         """Add `activity` to group."""
-        pass
-
-    def reorder_dependencies():
-        """??"""
         pass
 
     def remove_from_group(self, group, activity):
