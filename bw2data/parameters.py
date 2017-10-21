@@ -24,9 +24,19 @@ import datetime
 clean = lambda x: re.sub('\W|^(?=\d)','_', x)
 nonempty = lambda dct: {k: v for k, v in dct.items() if v is not None}
 
-TEMPLATE = """CREATE TRIGGER IF NOT EXISTS {table}_{action}_trigger AFTER {action} ON {table} BEGIN
+TRIGGER = """CREATE TRIGGER IF NOT EXISTS {table}_{action}_trigger AFTER {action} ON {table} BEGIN
     UPDATE group_table SET updated = datetime('now') WHERE name = {name};
 END;"""
+_AP_TEMPLATE = """CREATE TRIGGER IF NOT EXISTS ap_crossdatabase_{action} BEFORE {action} ON activityparameter BEGIN
+    SELECT CASE WHEN
+        ((SELECT COUNT(*) FROM activityparameter WHERE "group" = NEW."group") > 0)
+    AND (NEW.database NOT IN (SELECT DISTINCT "database" FROM activityparameter where "group" = NEW."group"))
+    THEN RAISE(ABORT,'Cross database group')
+    END;
+END;"""
+AP_INSERT_TRIGGER = _AP_TEMPLATE.format(action="INSERT")
+AP_UPDATE_TRIGGER = _AP_TEMPLATE.format(action="UPDATE")
+
 
 @python_2_unicode_compatible
 class ParameterBase(Model):
@@ -42,14 +52,14 @@ class ParameterBase(Model):
     def create_table(cls, fail_silently=False):
         super(ParameterBase, cls).create_table(fail_silently)
         cls._meta.database.execute_sql(
-            TEMPLATE.format(
+            TRIGGER.format(
                 action="INSERT",
                 name=cls._new_name,
                 table=cls._db_table
         ))
         for action in ("UPDATE", "DELETE"):
             cls._meta.database.execute_sql(
-                TEMPLATE.format(
+                TRIGGER.format(
                     action=action,
                     name=cls._old_name,
                     table=cls._db_table
@@ -257,7 +267,8 @@ class ActivityParameter(ParameterBase):
         return "Activity parameter: {}:{}".format(self.group, self.name)
 
     @staticmethod
-    def load_group(group):
+    def load(group):
+        """Load all parameter dictionaries for this group ({name: data})."""
         def reformat(o):
             o = o.dict
             return (o.pop("name"), o)
@@ -273,22 +284,19 @@ class ActivityParameter(ParameterBase):
 
     @staticmethod
     def recalculate_group(group):
+        """Recalculate all values for activity parameters in this group, and update their underlying `Activity` and `Exchange` values."""
         return
-        # Don't bother to check if there is an actual dependency
-        if ProjectParameter.expired():
-            ProjectParameter.recalculate()
-
-        # Recalculate any
-
-        # Can we avoid doing anything?
-        if not DatabaseParameter.expired(database):
+        # Start by traversing and updating the list of dependencies
+        if not ActivityParameter.expired(group):
             return
-        data = DatabaseParameter.load(database)
+        data = ActivityParameter.load(group)
         if not data:
             return
 
         # Parse all formulas, find missing variables
         new_symbols = get_new_symbols(data.values(), set(data))
+
+        # Iteratively search
         found_symbols = {x[0] for x in ProjectParameter.select(
             ProjectParameter.name).tuples()}
         missing = new_symbols.difference(found_symbols)
@@ -332,6 +340,12 @@ class ActivityParameter(ParameterBase):
         Group.get_or_create(name=self.group)[0].expire()
         super(ActivityParameter, self).save(*args, **kwargs)
 
+    @classmethod
+    def create_table(cls, fail_silently=False):
+        super(ActivityParameter, cls).create_table(fail_silently)
+        cls._meta.database.execute_sql(AP_UPDATE_TRIGGER)
+        cls._meta.database.execute_sql(AP_INSERT_TRIGGER)
+
     def dict(self):
         obj = nonempty({
             'database': self.database,
@@ -365,11 +379,7 @@ class Group(Model):
 
     def reorder(self):
         reserved = set(databases).union(set(['project'],))
-        self.order = (
-            [x for x in self.order if x not in reserved] +
-            [x for x in self.order if x in databases] +
-            [x for x in self.order if x in ('project',)]
-        )
+        self.order = [x for x in self.order if x not in reserved]
 
     class Meta:
         db_table = "group_table"

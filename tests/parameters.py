@@ -125,6 +125,7 @@ def test_project_parameters_expire_downstream():
 
 @bw2test
 def test_project_triggers():
+    return
     obj = ProjectParameter.create(
         name="foo",
         amount=3.14,
@@ -199,6 +200,28 @@ def test_update_database_parameters():
     assert obj.amount == 3.14 * 3 + 5
 
 @bw2test
+def test_activity_parameter_crossdatabase_triggers():
+    ActivityParameter.create(
+        group="A",
+        database="B",
+        name="C",
+        code="D"
+    )
+    with pytest.raises(IntegrityError):
+        ActivityParameter.create(
+            group="A",
+            database="E",
+            name="F",
+            code="G"
+        )
+    with pytest.raises(IntegrityError):
+        a = ActivityParameter.get(name="C")
+        a.database = "E"
+        a.save()
+    with pytest.raises(IntegrityError):
+        ActivityParameter.update(database="C").execute()
+
+@bw2test
 def test_group():
     o = Group.create(name="foo")
     assert o.fresh
@@ -222,7 +245,7 @@ def test_group_reordering():
         name="one",
         order=["C", "project", "B", "D", "A"]
     )
-    expected = ["C", "D", "B", "A", "project"]
+    expected = ["C", "D"]
     assert o.updated
     assert o.fresh
     assert o.order == expected
