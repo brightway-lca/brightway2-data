@@ -160,6 +160,15 @@ def test_create_database_parameters():
     assert DatabaseParameter.expired('bar')
 
 @bw2test
+def test_database_parameters_check():
+    with pytest.raises(IntegrityError):
+        DatabaseParameter.create(
+            database='project',
+            name="foo",
+            amount=3.14,
+        )
+
+@bw2test
 def test_update_database_parameters():
     assert not Group.select().count()
     assert not GroupDependency.select().count()
@@ -220,6 +229,23 @@ def test_activity_parameter_crossdatabase_triggers():
         a.save()
     with pytest.raises(IntegrityError):
         ActivityParameter.update(database="C").execute()
+
+@bw2test
+def test_activity_parameter_checks():
+    with pytest.raises(IntegrityError):
+        ActivityParameter.create(
+            group="project",
+            database="E",
+            name="F",
+            code="G"
+        )
+    with pytest.raises(IntegrityError):
+        ActivityParameter.create(
+            group="E",
+            database="E",
+            name="F",
+            code="G"
+        )
 
 @bw2test
 def test_group():
