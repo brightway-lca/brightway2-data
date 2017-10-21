@@ -215,6 +215,20 @@ def test_group():
     Group.create(name="bar")
 
 @bw2test
+def test_group_reordering():
+    Database("A").register()
+    Database("B").register()
+    o = Group.create(
+        name="one",
+        order=["C", "project", "B", "D", "A"]
+    )
+    expected = ["C", "D", "B", "A", "project"]
+    assert o.updated
+    assert o.fresh
+    assert o.order == expected
+    assert Group.get(name="one").order == expected
+
+@bw2test
 def test_group_dependency():
     d = GroupDependency.create(group="foo", depends="bar")
     with pytest.raises(IntegrityError):
