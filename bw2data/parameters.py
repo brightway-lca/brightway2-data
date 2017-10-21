@@ -27,6 +27,7 @@ nonempty = lambda dct: {k: v for k, v in dct.items() if v is not None}
 TRIGGER = """CREATE TRIGGER IF NOT EXISTS {table}_{action}_trigger AFTER {action} ON {table} BEGIN
     UPDATE group_table SET updated = datetime('now') WHERE name = {name};
 END;"""
+
 _AP_TEMPLATE = """CREATE TRIGGER IF NOT EXISTS ap_crossdatabase_{action} BEFORE {action} ON activityparameter BEGIN
     SELECT CASE WHEN
         ((SELECT COUNT(*) FROM activityparameter WHERE "group" = NEW."group") > 0)
@@ -36,6 +37,15 @@ _AP_TEMPLATE = """CREATE TRIGGER IF NOT EXISTS ap_crossdatabase_{action} BEFORE 
 END;"""
 AP_INSERT_TRIGGER = _AP_TEMPLATE.format(action="INSERT")
 AP_UPDATE_TRIGGER = _AP_TEMPLATE.format(action="UPDATE")
+
+_CLOSURE_TEMPLATE = """CREATE TRIGGER IF NOT EXISTS gd_circular_{action} BEFORE {action} ON groupdependency BEGIN
+    SELECT CASE WHEN EXISTS (SELECT * FROM groupdependency AS g WHERE g."group" = NEW.depends AND g.depends = NEW."group")
+    THEN RAISE(ABORT,'Circular dependency')
+    END;
+END;
+"""
+GD_INSERT_TRIGGER = _CLOSURE_TEMPLATE.format(action="INSERT")
+GD_UPDATE_TRIGGER = _CLOSURE_TEMPLATE.format(action="UPDATE")
 
 
 @python_2_unicode_compatible
@@ -400,6 +410,12 @@ class GroupDependency(Model):
         elif self.group in databases and self.depends != 'project':
             raise ValueError("Database groups can only depend on `project`")
         super(GroupDependency, self).save(*args, **kwargs)
+
+    @classmethod
+    def create_table(cls, fail_silently=False):
+        super(GroupDependency, cls).create_table(fail_silently)
+        cls._meta.database.execute_sql(GD_UPDATE_TRIGGER)
+        cls._meta.database.execute_sql(GD_INSERT_TRIGGER)
 
 
 class ParameterManager(object):

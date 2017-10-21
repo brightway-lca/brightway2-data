@@ -263,3 +263,9 @@ def test_group_dependency():
     GroupDependency.create(group="A", depends="project")
     with pytest.raises(ValueError):
         GroupDependency.create(group="A", depends="foo")
+
+@bw2test
+def test_group_dependency_circular():
+    GroupDependency.create(group="foo", depends="bar")
+    with pytest.raises(IntegrityError):
+        GroupDependency.create(group="bar", depends="foo")
