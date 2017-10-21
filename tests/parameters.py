@@ -13,6 +13,7 @@ from bw2data.parameters import (
 )
 from peewee import IntegrityError
 import pytest
+import time
 
 
 @bw2test
@@ -121,6 +122,30 @@ def test_project_parameters_expire_downstream():
     assert Group.get(name="bar").fresh
     ProjectParameter.recalculate()
     assert not Group.get(name="bar").fresh
+
+@bw2test
+def test_project_triggers():
+    obj = ProjectParameter.create(
+        name="foo",
+        amount=3.14,
+        data={'uncertainty type': 0}
+    )
+    first = Group.get(name="project").updated
+    time.sleep(1.1)
+    another = ProjectParameter.create(
+        name="bar",
+        formula="2 * foo",
+    )
+    second = Group.get(name="project").updated
+    assert first != second
+    time.sleep(1.1)
+    ProjectParameter.update(amount=7).execute()
+    third = Group.get(name="project").updated
+    assert second != third
+    time.sleep(1.1)
+    ProjectParameter.get(name="foo").delete_instance()
+    fourth = Group.get(name="project").updated
+    assert fourth != third
 
 @bw2test
 def test_create_database_parameters():
