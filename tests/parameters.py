@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import bw2test
-from bw2data import parameters, projects, Database
+from bw2data import parameters, projects, Database, get_activity
 from bw2data.parameters import (
     ActivityParameter,
     DatabaseParameter,
@@ -414,9 +414,66 @@ def test_create_parameterized_exchange():
     assert obj.formula == "foo + bar"
     assert ParameterizedExchange.select().count()
 
+@bw2test
+def test_create_parameterized_exchange_nonunique():
+    ParameterizedExchange.create(
+        group="A",
+        exchange=42,
+        formula="foo + bar"
+    )
+    with pytest.raises(IntegrityError):
+        ParameterizedExchange.create(
+            group="B",
+            exchange=42,
+            formula="2 + 3"
+        )
+
 #######################
 ### Activity parameters
 #######################
+
+@pytest.fixture
+@bw2test
+def chain():
+    Database("B").register()
+    Database("K").register()
+    Group.create(name="G", order=["A"])
+    ActivityParameter.create(
+        group="A",
+        database="B",
+        code="C",
+        name="D",
+        formula="2 ** 3",
+        amount=1,
+
+    )
+    ActivityParameter.create(
+        group="A",
+        database="B",
+        code="E",
+        name="F",
+        formula="foo + bar + D",
+        amount=2,
+    )
+    ActivityParameter.create(
+        group="G",
+        database="K",
+        code="H",
+        name="J",
+        formula="F + D * 2",
+        amount=3,
+    )
+    DatabaseParameter.create(
+        database="B",
+        name="foo",
+        formula="2 ** 2",
+        amount=5,
+    )
+    ProjectParameter.create(
+        name="bar",
+        formula="2 * 2 * 2",
+        amount=6,
+    )
 
 @bw2test
 def test_create_activity_parameter():
@@ -520,10 +577,17 @@ def test_activity_parameter_load():
     }}
     assert ActivityParameter.load("A") == expected
 
-@bw2test
-def test_activity_parameter_static():
-    # Only, full
-    pass
+def test_activity_parameter_static(chain):
+    expected = {"D": 1, "F": 2}
+    assert ActivityParameter.static("A") == expected
+    expected = {}
+    assert ActivityParameter.static("A", only=[]) == expected
+    expected = {"D": 1}
+    assert ActivityParameter.static("A", only=["D"]) == expected
+    expected = {"D": 1, "F": 2, "foo": 5, "bar": 6}
+    assert ActivityParameter.static("A", full=True) == expected
+    expected = {"foo": 5, "bar": 6}
+    assert ActivityParameter.static("A", full=True, only=["foo", "bar"]) == expected
 
 @bw2test
 def test_activity_parameter_recalculate_shortcut():
@@ -538,41 +602,7 @@ def test_activity_parameter_recalculate_shortcut():
     Group.get(name="A").freshen()
     assert not ActivityParameter.recalculate("A")
 
-@bw2test
-def test_activity_parameter_dependency_chain():
-    Database("B").register()
-    Database("K").register()
-    Group.create(name="G", order=["A"])
-    ActivityParameter.create(
-        group="A",
-        database="B",
-        code="C",
-        name="D",
-        formula="2 ** 3"
-    )
-    ActivityParameter.create(
-        group="A",
-        database="B",
-        code="E",
-        name="F",
-        formula="foo + bar + D"
-    )
-    ActivityParameter.create(
-        group="G",
-        database="K",
-        code="H",
-        name="J",
-        formula="F + D * 2"
-    )
-    DatabaseParameter.create(
-        database="B",
-        name="foo",
-        formula="2 ** 2",
-    )
-    ProjectParameter.create(
-        name="bar",
-        formula="2 * 2 * 2",
-    )
+def test_activity_parameter_dependency_chain(chain):
     expected = [{'kind': 'activity', 'group': 'A', 'names': set(["D", "F"])}]
     assert ActivityParameter.dependency_chain("G") == expected
     expected = [
@@ -581,14 +611,63 @@ def test_activity_parameter_dependency_chain():
     ]
     assert ActivityParameter.dependency_chain("A") == expected
 
-@bw2test
-def test_activity_parameter_static_dependencies():
-    # with, without
-    pass
+def test_activity_parameter_static_dependencies(chain):
+    expected = {"foo": 5, "bar": 6}
+    assert ActivityParameter._static_dependencies("A") == expected
+    expected = {"bar": 6, "D": 1, "F": 2}
+    assert ActivityParameter._static_dependencies("G") == expected
 
 @bw2test
 def test_activity_parameter_recalculate_exchanges():
-    pass
+    db = Database("example")
+    db.register()
+    assert not len(parameters)
+    assert not len(db)
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4").save()
+
+    project_data = [{
+        'name': 'foo',
+        'formula': 'green / 7',
+    }, {
+        'name': 'green',
+        'amount': 7
+    }]
+    parameters.new_project_parameters(project_data)
+
+    database_data = [{
+        'name': 'red',
+        'formula': '(foo + blue ** 2) / 5',
+    }, {
+        'name': 'blue',
+        'amount': 12
+    }]
+    parameters.new_database_parameters(database_data, "example")
+
+    activity_data = [{
+        'name': 'reference_me',
+        'formula': 'sqrt(red - 20)',
+        'database': 'example',
+        'code': "B",
+    }, {
+        'name': 'bar',
+        'formula': 'reference_me + 2',
+        'database': 'example',
+        'code': "A",
+    }]
+    parameters.new_activity_parameters(activity_data, "my group")
+
+    parameters.add_exchanges_to_group("my group", a)
+    ActivityParameter.recalculate_exchanges("my group")
+
+    for exc in a.exchanges():
+        # (((1 + 12 ** 2) / 5 - 20) ** 0.5 + 2) + 4
+        assert exc.amount == 9
+        assert not exc.get("formula")
 
 @bw2test
 def test_activity_parameter_recalculate():
@@ -947,9 +1026,55 @@ def test_parameters_new_activity_parameters():
     assert Group.get(name="another").fresh
 
 @bw2test
-def test_parameters_add_exchanges_to_group():
-    pass
+def test_parameters_add_to_group_empty():
+    db = Database("example")
+    db.register()
+    assert not len(parameters)
+    assert not len(db)
+    assert not Group.select().count()
+    a = db.new_activity(
+        code="A",
+        name="An activity",
+    )
+    a.save()
+    assert parameters.add_to_group("my group", a) is None
+    assert Group.get(name="my group")
+    assert not len(parameters)
 
 @bw2test
 def test_parameters_add_to_group():
-    pass
+    db = Database("example")
+    db.register()
+    assert not len(parameters)
+    assert not len(db)
+    assert not Group.select().count()
+
+    ActivityParameter.create(
+        group="my group",
+        database="example",
+        name="bye bye",
+        code="A",
+        amount=1,
+    )
+
+    a = db.new_activity(
+        code="A",
+        name="An activity",
+        parameters=[
+            {'amount': 4, 'variable': 'one', 'foo': 'bar'},
+            {'amount': 42, 'variable': 'two', 'formula': 'this + that'}
+        ]
+    )
+    a.save()
+    assert "parameters" in get_activity(("example", "A"))
+
+    assert parameters.add_to_group("my group", a) == 2
+    assert Group.get(name="my group")
+    assert not ActivityParameter.select().where(ActivityParameter.name=="bye bye").count()
+    expected = (
+        ('one', 4, None, {'foo': 'bar'}),
+        ('two', 42, 'this + that', {}),
+    )
+    for ap in ActivityParameter.select():
+        assert (ap.name, ap.amount, ap.formula, ap.data) in expected
+    assert "parameters" not in get_activity(("example", "A"))

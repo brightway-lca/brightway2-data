@@ -3,6 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import databases, projects, config, get_activity
+from .backends.peewee.schema import ExchangeDataset
 from .sqlite import PickleField, create_database
 from .utils import python_2_unicode_compatible
 from asteval import Interpreter
@@ -328,25 +329,30 @@ class ActivityParameter(ParameterBase):
             ActivityParameter.amount
         ).where(ActivityParameter.group==group).tuples())
         if full:
-            result.update(ActivityParameter.static_dependencies(group))
+            temp = ActivityParameter._static_dependencies(group)
+            temp.update(result)
+            result = temp
         if only is not None:
             result = {k: v for k, v in result.items() if k in only}
         return result
 
     @staticmethod
-    def static_dependencies(group):
-        """Get dictionary of ``{name: amount}`` for all variables defined in dependency chain."""
+    def _static_dependencies(group):
+        """Get dictionary of ``{name: amount}`` for all variables defined in dependency chain.
+
+        Be careful! This could have variables which overlap with local variable names. Designed for internal use."""
+        database = ActivityParameter.get(group=group).database
+
+        chain = [
+            ProjectParameter.static(),
+            DatabaseParameter.static(database)
+        ] + [
+            ActivityParameter.static(g) for g in Group.get(name=group).order[::-1]
+        ]
+
         result = {}
-        chain = ActivityParameter.dependency_chain(group)
-        mapping = {
-            'project': ProjectParameter,
-            'database': DatabaseParameter,
-            'activity': ActivityParameter
-        }
-        for row in chain:
-            result.update(
-                mapping[row['kind']].static(row['group'], only=row['names'])
-            )
+        for dct in chain:
+            result.update(dct)
         return result
 
     @staticmethod
@@ -452,7 +458,10 @@ class ActivityParameter(ParameterBase):
 
         # Update activity parameter values
         data = ActivityParameter.load(group)
-        static = ActivityParameter.static_dependencies(group)
+        static = {
+            k: v for k, v in ActivityParameter._static_dependencies(group).items()
+            if k not in data
+        }
         ParameterSet(data, static).evaluate_and_set_amount_field()
         with parameters.db.atomic():
             for key, value in data.items():
@@ -469,6 +478,9 @@ class ActivityParameter(ParameterBase):
 
     @staticmethod
     def recalculate_exchanges(group):
+        if ActivityParameter.expired(group):
+            return ActivityParameter.recalculate(group)
+
         interpreter = Interpreter()
         for k, v in ActivityParameter.static(group, full=True).items():
             interpreter.symtable[k] = v
@@ -476,7 +488,7 @@ class ActivityParameter(ParameterBase):
         for obj in ParameterizedExchange.select().where(
                 ParameterizedExchange.group == group):
             exc = ExchangeDataset.get(id=obj.exchange)
-            exc['data']['amount'] = interpreter(obj.formula)
+            exc.data['amount'] = interpreter(obj.formula)
             exc.save()
 
         databases.set_dirty(ActivityParameter.get(group=group).database)
@@ -509,7 +521,7 @@ class ActivityParameter(ParameterBase):
 @python_2_unicode_compatible
 class ParameterizedExchange(Model):
     group = TextField()
-    exchange = IntegerField()
+    exchange = IntegerField(unique=True)
     formula = TextField()
 
 
@@ -582,7 +594,11 @@ class ParameterManager(object):
     def add_to_group(self, group, activity):
         """Add `activity` to group.
 
-        Deletes `parameters` from `Activity`."""
+        Creates ``group`` if needed.
+
+        Will delete any existing ``ActivityParameter`` for this activity.
+
+        Deletes `parameters` key from `Activity`."""
         Group.get_or_create(name=group)
 
         activity = get_activity((activity[0], activity[1]))
@@ -626,10 +642,13 @@ class ParameterManager(object):
     def add_exchanges_to_group(self, group, activity):
         for exc in get_activity((activity[0], activity[1])).exchanges():
             if 'formula' in exc:
-                row = ParameterizedExchange.get_or_create(exchange=exc._document.id)[0]
-                row['group'] = group
-                row['formula'] = formula
-                row.save()
+                try:
+                    obj = ParameterizedExchange.get(exchange=exc._document.id)
+                except ParameterizedExchange.DoesNotExist:
+                    obj = ParameterizedExchange(exchange=exc._document.id)
+                obj.group = group
+                obj.formula = exc['formula']
+                obj.save()
                 del exc['formula']
                 exc.save()
 
@@ -643,12 +662,12 @@ class ParameterManager(object):
 
         ..code-block:: python
 
-            {
+            [{
                 'name': name of variable (unique),
                 'amount': numeric value of variable (optional),
                 'formula': formula in Python as string (optional),
                 optional keys like uncertainty, etc. (no limitations)
-            }
+            }]
 
         """
         names = {ds['name'] for ds in data}
@@ -676,12 +695,12 @@ class ParameterManager(object):
 
         ``database`` should be an existing database. ``data`` should be a list of dictionaries:
 
-            {
+            [{
                 'name': name of variable (unique),
                 'amount': numeric value of variable (optional),
                 'formula': formula in Python as string (optional),
                 optional keys like uncertainty, etc. (no limitations)
-            }
+            }]
 
         """
         assert database in databases, "Unknown database"
@@ -716,12 +735,14 @@ class ParameterManager(object):
 
         ``group`` is the group name; will be autocreated if necessary. ``data`` should be a list of dictionaries:
 
-            {
+            [{
                 'name': name of variable (unique),
+                'database': activity database,
+                'code': activity code,
                 'amount': numeric value of variable (optional),
                 'formula': formula in Python as string (optional),
                 optional keys like uncertainty, etc. (no limitations)
-            }
+            }]
 
         """
         database = {o['database'] for o in data}
