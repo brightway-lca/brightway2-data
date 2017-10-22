@@ -540,11 +540,54 @@ def test_activity_parameter_recalculate_shortcut():
 
 @bw2test
 def test_activity_parameter_dependency_chain():
-    pass
+    Database("B").register()
+    Database("K").register()
+    Group.create(name="G", order=["A"])
+    ActivityParameter.create(
+        group="A",
+        database="B",
+        code="C",
+        name="D",
+        formula="2 ** 3"
+    )
+    ActivityParameter.create(
+        group="A",
+        database="B",
+        code="E",
+        name="F",
+        formula="foo + bar + D"
+    )
+    ActivityParameter.create(
+        group="G",
+        database="K",
+        code="H",
+        name="J",
+        formula="F + D * 2"
+    )
+    DatabaseParameter.create(
+        database="B",
+        name="foo",
+        formula="2 ** 2",
+    )
+    ProjectParameter.create(
+        name="bar",
+        formula="2 * 2 * 2",
+    )
+    expected = [{'kind': 'activity', 'group': 'A', 'names': set(["D", "F"])}]
+    assert ActivityParameter.dependency_chain("G") == expected
+    expected = [
+        {'kind': 'database', 'group': 'B', 'names': set(["foo"])},
+        {'kind': 'project', 'group': 'project', 'names': set(["bar"])},
+    ]
+    assert ActivityParameter.dependency_chain("A") == expected
 
 @bw2test
 def test_activity_parameter_static_dependencies():
     # with, without
+    pass
+
+@bw2test
+def test_activity_parameter_recalculate_exchanges():
     pass
 
 @bw2test
@@ -868,22 +911,45 @@ def test_parameters_new_database_parameters():
 
 @bw2test
 def test_parameters_new_activity_parameters_errors():
-    pass
+    with pytest.raises(AssertionError):
+        parameters.new_activity_parameters([], 'example')
+    with pytest.raises(AssertionError):
+        parameters.new_activity_parameters([{'database': 1}, {'database': 2}], 'example')
+
+    with pytest.raises(AssertionError):
+        parameters.new_activity_parameters([{'database': 'unknown'}], 'example')
+
+    Database("A").register()
+    with pytest.raises(AssertionError):
+        parameters.new_activity_parameters(
+            [{'database': 'A', 'name': 'foo'}, {'database': 'A', 'name': 'foo'}],
+            'example'
+        )
 
 @bw2test
 def test_parameters_new_activity_parameters():
-    with pytest.raises(AssertionError):
-        parameters.new_database_parameters([], 'another')
-    Database("another").register()
-    with pytest.raises(AssertionError):
-        parameters.new_database_parameters([{'name': 'foo'}, {'name': 'foo'}], 'another')
-    data = [
-        {'name': 'foo', 'amount': 4},
-        {'name': 'bar', 'formula': 'foo + 3'},
-    ]
     assert not len(parameters)
-    parameters.new_database_parameters(data, "another")
+    assert not Group.select().count()
+    Database("A").register()
+    data = [
+        {'database': 'A', 'code': 'B', 'name': 'foo', 'amount': 4},
+        {'database': 'A', 'code': 'C', 'name': 'bar', 'formula': 'foo + 3', 'uncertainty type': 0},
+    ]
+    parameters.new_activity_parameters(data, "another")
     assert len(parameters) == 2
-    assert DatabaseParameter.get(name="foo").amount == 4
-    assert DatabaseParameter.get(name="bar").amount == 7
+    a = ActivityParameter.get(code="C")
+    assert a.database == "A"
+    assert a.name == 'bar'
+    assert a.formula == 'foo + 3'
+    assert a.data == {'uncertainty type': 0}
+    assert a.amount == 7
+    assert ActivityParameter.get(name="foo").amount == 4
     assert Group.get(name="another").fresh
+
+@bw2test
+def test_parameters_add_exchanges_to_group():
+    pass
+
+@bw2test
+def test_parameters_add_to_group():
+    pass
