@@ -655,8 +655,10 @@ class ParameterManager(object):
     def remove_from_group(self, group, activity):
         raise NotImplementedError
 
-    def new_project_parameters(self, data):
-        """Efficiently and correctly enter multiple parameters. Deletes **all** existing project parameters.
+    def new_project_parameters(self, data, overwrite=True):
+        """Efficiently and correctly enter multiple parameters.
+
+        Will overwrite existing project parameters with the same name, unless ``overwrite`` is false.
 
         ``data`` should be a list of dictionaries:
 
@@ -681,10 +683,18 @@ class ParameterManager(object):
                 'data': ds
             }
         data = [reformat(ds) for ds in data]
+        new = {o['name'] for o in data}
+        existing = {o[0] for o in ProjectParameter.select(ProjectParameter.name).tuples()}
+
+        if new.intersection(existing) and not overwrite:
+            raise ValueError(
+                "The following parameters already exist:\n{}".format(
+                "|".join(new.intersection(existing)))
+            )
 
         with self.db.atomic():
             # Remove existing values
-            ProjectParameter.delete().execute()
+            ProjectParameter.delete().where(ProjectParameter.name << tuple(new)).execute()
             for idx in range(0, len(data), 100):
                 ProjectParameter.insert_many(data[idx:idx+100]).execute()
             Group.get_or_create(name='project')[0].expire()

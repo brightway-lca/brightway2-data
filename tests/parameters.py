@@ -920,19 +920,33 @@ def test_group_dependency_circular():
 ######################
 
 @bw2test
-def test_parameters_new_project_parameters():
+def test_parameters_new_project_parameters_uniqueness():
     with pytest.raises(AssertionError):
         parameters.new_project_parameters([{'name': 'foo'}, {'name': 'foo'}])
+
+@bw2test
+def test_parameters_new_project_parameters():
+    assert not len(parameters)
+    ProjectParameter.create(name="foo", amount=17)
     data = [
         {'name': 'foo', 'amount': 4},
         {'name': 'bar', 'formula': 'foo + 3'},
     ]
-    assert not len(parameters)
     parameters.new_project_parameters(data)
     assert len(parameters) == 2
     assert ProjectParameter.get(name="foo").amount == 4
     assert ProjectParameter.get(name="bar").amount == 7
     assert Group.get(name="project").fresh
+
+@bw2test
+def test_parameters_new_project_parameters_no_overwrite():
+    ProjectParameter.create(name="foo", amount=17)
+    data = [
+        {'name': 'foo', 'amount': 4},
+        {'name': 'bar', 'formula': 'foo + 3'},
+    ]
+    with pytest.raises(ValueError):
+        parameters.new_project_parameters(data, overwrite=False)
 
 @bw2test
 def test_parameters_repr():
