@@ -67,7 +67,6 @@ GD_INSERT_TRIGGER = _CLOSURE_TEMPLATE.format(action="INSERT")
 GD_UPDATE_TRIGGER = _CLOSURE_TEMPLATE.format(action="UPDATE")
 
 
-@python_2_unicode_compatible
 class ParameterBase(Model):
     __repr__ = lambda x: str(x)
 
@@ -104,6 +103,7 @@ class ParameterBase(Model):
         ).execute()
 
 
+@python_2_unicode_compatible
 class ProjectParameter(ParameterBase):
     name = TextField(index=True, unique=True)
     formula = TextField(null=True)
@@ -178,6 +178,7 @@ class ProjectParameter(ParameterBase):
         return obj
 
 
+@python_2_unicode_compatible
 class DatabaseParameter(ParameterBase):
     database = TextField(index=True)
     name = TextField(index=True)
@@ -287,6 +288,7 @@ class DatabaseParameter(ParameterBase):
         return obj
 
 
+@python_2_unicode_compatible
 class ActivityParameter(ParameterBase):
     group = TextField()
     database = TextField()
