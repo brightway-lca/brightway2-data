@@ -124,6 +124,7 @@ class ProjectParameter(ParameterBase):
 
     @staticmethod
     def load():
+        """Return dictionary of parameter data with names as keys and ``.dict()`` as values."""
         def reformat(o):
             o = o.dict
             return (o.pop("name"), o)
@@ -144,6 +145,7 @@ class ProjectParameter(ParameterBase):
 
     @staticmethod
     def expired():
+        """Return boolean - is this group expired?"""
         try:
             return not Group.get(name='project').fresh
         except Group.DoesNotExist:
@@ -153,7 +155,7 @@ class ProjectParameter(ParameterBase):
     def recalculate(ignored=None):
         """Recalculate all parameters.
 
-        ``ignored`` included for API compatibility with other ``recalculate`` methods."""
+        ``ignored`` included for API compatibility with other ``recalculate`` methods - it will really be ignored."""
         if not ProjectParameter.expired():
             return
         data = ProjectParameter.load()
@@ -170,6 +172,7 @@ class ProjectParameter(ParameterBase):
 
     @property
     def dict(self):
+        """Parameter data as a standardized dictionary"""
         obj = nonempty({
             'name': self.name,
             'formula': self.formula,
@@ -202,6 +205,7 @@ class DatabaseParameter(ParameterBase):
 
     @staticmethod
     def load(database):
+        """Return dictionary of parameter data with names as keys and ``.dict()`` as values."""
         def reformat(o):
             o = o.dict
             return (o.pop("name"), o)
@@ -210,6 +214,7 @@ class DatabaseParameter(ParameterBase):
 
     @staticmethod
     def expired(database):
+        """Return boolean - is this group expired?"""
         try:
             return not Group.get(name=database).fresh
         except Group.DoesNotExist:
@@ -217,6 +222,7 @@ class DatabaseParameter(ParameterBase):
 
     @staticmethod
     def static(database, only=None):
+        """Return dictionary of {name: amount} for database group."""
         result = dict(DatabaseParameter.select(
             DatabaseParameter.name,
             DatabaseParameter.amount
@@ -227,6 +233,7 @@ class DatabaseParameter(ParameterBase):
 
     @staticmethod
     def recalculate(database):
+        """Recalculate all database parameters for ``database``, if expired."""
         if ProjectParameter.expired():
             ProjectParameter.recalculate()
 
@@ -274,11 +281,13 @@ class DatabaseParameter(ParameterBase):
             DatabaseParameter.expire_downstream(database)
 
     def save(self, *args, **kwargs):
+        """Save this model instance"""
         Group.get_or_create(name=self.database)[0].expire()
         super(DatabaseParameter, self).save(*args, **kwargs)
 
     @property
     def dict(self):
+        """Parameter data as a standardized dictionary"""
         obj = nonempty({
             'database': self.database,
             'name': self.name,
@@ -312,7 +321,7 @@ class ActivityParameter(ParameterBase):
 
     @staticmethod
     def load(group):
-        """Load all parameter dictionaries for this group ({name: data})."""
+        """Return dictionary of parameter data with names as keys and ``.dict()`` as values."""
         def reformat(o):
             o = o.dict
             return (o.pop("name"), o)
@@ -357,6 +366,7 @@ class ActivityParameter(ParameterBase):
 
     @staticmethod
     def expired(group):
+        """Return boolean - is this group expired?"""
         try:
             return not Group.get(name=group).fresh
         except Group.DoesNotExist:
@@ -478,6 +488,7 @@ class ActivityParameter(ParameterBase):
 
     @staticmethod
     def recalculate_exchanges(group):
+        """Recalculate formulas for all parameterized exchanges in group ``group``."""
         if ActivityParameter.expired(group):
             return ActivityParameter.recalculate(group)
 
@@ -494,6 +505,7 @@ class ActivityParameter(ParameterBase):
         databases.set_dirty(ActivityParameter.get(group=group).database)
 
     def save(self, *args, **kwargs):
+        """Save this model instance"""
         Group.get_or_create(name=self.group)[0].expire()
         super(ActivityParameter, self).save(*args, **kwargs)
 
@@ -507,6 +519,7 @@ class ActivityParameter(ParameterBase):
 
     @property
     def dict(self):
+        """Parameter data as a standardized dictionary"""
         obj = nonempty({
             'database': self.database,
             'code': self.code,
@@ -533,14 +546,17 @@ class Group(Model):
     order = PickleField(default=[])
 
     def expire(self):
+        """Set ``fresh`` to ``False``"""
         self.fresh = False
         self.save()
 
     def freshen(self):
+        """Set ``fresh`` to ``True``"""
         self.fresh = True
         self.save()
 
     def save(self, *args, **kwargs):
+        """Save this model instance. Will remove 'project' and database names from ``order``."""
         self.purge_order()
         super(Group, self).save(*args, **kwargs)
 
@@ -640,6 +656,7 @@ class ParameterManager(object):
         ).count()
 
     def add_exchanges_to_group(self, group, activity):
+        """Add exchanges with formulas from ``activity`` to ``group``. Will delete formulas from the ``Exchange`` object."""
         for exc in get_activity((activity[0], activity[1])).exchanges():
             if 'formula' in exc:
                 try:
@@ -662,7 +679,7 @@ class ParameterManager(object):
 
         ``data`` should be a list of dictionaries:
 
-        ..code-block:: python
+        .. code-block:: python
 
             [{
                 'name': name of variable (unique),
@@ -705,6 +722,8 @@ class ParameterManager(object):
 
         ``database`` should be an existing database. ``data`` should be a list of dictionaries:
 
+        .. code-block:: python
+
             [{
                 'name': name of variable (unique),
                 'amount': numeric value of variable (optional),
@@ -744,6 +763,8 @@ class ParameterManager(object):
         Input parameters must refer to a single, existing database.
 
         ``group`` is the group name; will be autocreated if necessary. ``data`` should be a list of dictionaries:
+
+        .. code-block:: python
 
             [{
                 'name': name of variable (unique),
@@ -786,6 +807,7 @@ class ParameterManager(object):
             ActivityParameter.recalculate(group)
 
     def recalculate(self):
+        """Recalculate all expired project, database, and activity parameters, as well as exchanges."""
         if ProjectParameter.expired():
             ProjectParameter.recalculate()
         for db in databases:
