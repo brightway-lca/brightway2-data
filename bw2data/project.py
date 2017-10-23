@@ -260,8 +260,6 @@ class ProjectManager(collections.Iterable):
         temp_dir = tempfile.mkdtemp()
         self._base_data_dir = os.path.join(temp_dir, "data")
         self._base_logs_dir = os.path.join(temp_dir, "logs")
-        self.set_current("tests", update=False)
-
         self.db.close()
         self.db = create_database(':memory:', [ProjectDataset])
         self.set_current("default", update=False)
