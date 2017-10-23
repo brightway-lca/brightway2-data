@@ -819,6 +819,7 @@ class ParameterManager(object):
             if obj.name in databases or obj.name == 'project':
                 continue
             ActivityParameter.recalculate(obj.name)
+            ActivityParameter.recalculate_exchanges(obj.name)
 
     def __len__(self):
         return (DatabaseParameter.select().count() + ProjectParameter.select().count() +
