@@ -727,7 +727,7 @@ class ParameterManager(object):
     def new_project_parameters(self, data, overwrite=True):
         """Efficiently and correctly enter multiple parameters.
 
-        Will overwrite existing project parameters with the same name, unless ``overwrite`` is false.
+        Will overwrite existing project parameters with the same name, unless ``overwrite`` is false, in which case a ``ValueError`` is raised.
 
         ``data`` should be a list of dictionaries:
 
@@ -769,8 +769,10 @@ class ParameterManager(object):
             Group.get_or_create(name='project')[0].expire()
             ProjectParameter.recalculate()
 
-    def new_database_parameters(self, data, database):
+    def new_database_parameters(self, data, database, overwrite=True):
         """Efficiently and correctly enter multiple parameters. Deletes **all** existing database parameters for this database.
+
+        Will overwrite existing database parameters with the same name, unless ``overwrite`` is false, in which case a ``ValueError`` is raised.
 
         ``database`` should be an existing database. ``data`` should be a list of dictionaries:
 
@@ -798,19 +800,32 @@ class ParameterManager(object):
                 'data': ds
             }
         data = [reformat(ds) for ds in data]
+        new = {o['name'] for o in data}
+        existing = {o[0] for o in
+            DatabaseParameter.select(DatabaseParameter.name).where(
+                DatabaseParameter.database==database).tuples()}
+
+        if new.intersection(existing) and not overwrite:
+            raise ValueError(
+                "The following parameters already exist:\n{}".format(
+                "|".join(new.intersection(existing)))
+            )
 
         with self.db.atomic():
             # Remove existing values
             DatabaseParameter.delete().where(
-                DatabaseParameter.database==database
+                DatabaseParameter.database==database,
+                DatabaseParameter.name << tuple(new)
             ).execute()
             for idx in range(0, len(data), 100):
                 DatabaseParameter.insert_many(data[idx:idx+100]).execute()
             Group.get_or_create(name=database)[0].expire()
             DatabaseParameter.recalculate(database)
 
-    def new_activity_parameters(self, data, group):
+    def new_activity_parameters(self, data, group, overwrite=True):
         """Efficiently and correctly enter multiple parameters. Deletes **all** existing activity parameters for this group.
+
+        Will overwrite existing parameters in the same group with the same name, unless ``overwrite`` is false, in which case a ``ValueError`` is raised.
 
         Input parameters must refer to a single, existing database.
 
@@ -847,11 +862,22 @@ class ParameterManager(object):
                 'data': ds
             }
         data = [reformat(ds) for ds in data]
+        new = {o['name'] for o in data}
+        existing = {o[0] for o in
+            ActivityParameter.select(ActivityParameter.name).where(
+                ActivityParameter.group==group).tuples()}
+
+        if new.intersection(existing) and not overwrite:
+            raise ValueError(
+                "The following parameters already exist:\n{}".format(
+                "|".join(new.intersection(existing)))
+            )
 
         with self.db.atomic():
             # Remove existing values
             ActivityParameter.delete().where(
-                ActivityParameter.group==group
+                ActivityParameter.group==group,
+                ActivityParameter.name << new
             ).execute()
             for idx in range(0, len(data), 100):
                 ActivityParameter.insert_many(data[idx:idx+100]).execute()

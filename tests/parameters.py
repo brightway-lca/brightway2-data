@@ -928,14 +928,18 @@ def test_parameters_new_project_parameters_uniqueness():
 def test_parameters_new_project_parameters():
     assert not len(parameters)
     ProjectParameter.create(name="foo", amount=17)
+    ProjectParameter.create(name="baz", amount=10)
+    assert len(parameters) == 2
+    assert ProjectParameter.get(name="foo").amount == 17
     data = [
         {'name': 'foo', 'amount': 4},
         {'name': 'bar', 'formula': 'foo + 3'},
     ]
     parameters.new_project_parameters(data)
-    assert len(parameters) == 2
+    assert len(parameters) == 3
     assert ProjectParameter.get(name="foo").amount == 4
     assert ProjectParameter.get(name="bar").amount == 7
+    assert ProjectParameter.get(name="baz").amount == 10
     assert Group.get(name="project").fresh
 
 @bw2test
@@ -991,16 +995,31 @@ def test_parameters_new_database_parameters():
     Database("another").register()
     with pytest.raises(AssertionError):
         parameters.new_database_parameters([{'name': 'foo'}, {'name': 'foo'}], 'another')
+    DatabaseParameter.create(name="foo", database="another", amount=0)
+    DatabaseParameter.create(name="baz", database="another", amount=21)
+    assert len(parameters) == 2
+    assert DatabaseParameter.get(name="foo").amount == 0
     data = [
         {'name': 'foo', 'amount': 4},
         {'name': 'bar', 'formula': 'foo + 3'},
     ]
-    assert not len(parameters)
     parameters.new_database_parameters(data, "another")
-    assert len(parameters) == 2
+    assert len(parameters) == 3
     assert DatabaseParameter.get(name="foo").amount == 4
     assert DatabaseParameter.get(name="bar").amount == 7
+    assert DatabaseParameter.get(name="baz").amount == 21
     assert Group.get(name="another").fresh
+
+@bw2test
+def test_parameters_new_database_parameters_no_overwrite():
+    Database("another").register()
+    DatabaseParameter.create(name="foo", database="another", amount=0)
+    with pytest.raises(ValueError):
+        parameters.new_database_parameters(
+            [{'name': 'foo', 'amount': 4}],
+            "another",
+            overwrite=False
+        )
 
 @bw2test
 def test_parameters_new_activity_parameters_errors():
@@ -1024,12 +1043,32 @@ def test_parameters_new_activity_parameters():
     assert not len(parameters)
     assert not Group.select().count()
     Database("A").register()
+    ActivityParameter.create(
+        group='another',
+        database='A',
+        name='baz',
+        code='D',
+        amount=49
+    )
+    ActivityParameter.create(
+        group='another',
+        database='A',
+        name='foo',
+        code='E',
+        amount=101
+    )
+    assert len(parameters) == 2
+    assert ActivityParameter.get(name='foo').amount == 101
+    assert ActivityParameter.get(name='baz').amount == 49
     data = [
         {'database': 'A', 'code': 'B', 'name': 'foo', 'amount': 4},
         {'database': 'A', 'code': 'C', 'name': 'bar', 'formula': 'foo + 3', 'uncertainty type': 0},
     ]
     parameters.new_activity_parameters(data, "another")
-    assert len(parameters) == 2
+    assert len(parameters) == 3
+    assert ActivityParameter.get(name='foo').amount == 4
+    assert ActivityParameter.get(name='foo').code == 'B'
+    assert ActivityParameter.get(name='baz').amount == 49
     a = ActivityParameter.get(code="C")
     assert a.database == "A"
     assert a.name == 'bar'
@@ -1038,6 +1077,23 @@ def test_parameters_new_activity_parameters():
     assert a.amount == 7
     assert ActivityParameter.get(name="foo").amount == 4
     assert Group.get(name="another").fresh
+
+@bw2test
+def test_parameters_new_activity_parameters_no_overlap():
+    Database("A").register()
+    ActivityParameter.create(
+        group='another',
+        database='A',
+        name='foo',
+        code='D',
+        amount=49
+    )
+    data = [
+        {'database': 'A', 'code': 'B', 'name': 'foo', 'amount': 4},
+        {'database': 'A', 'code': 'C', 'name': 'bar', 'formula': 'foo + 3', 'uncertainty type': 0},
+    ]
+    with pytest.raises(ValueError):
+        parameters.new_activity_parameters(data, "another", overwrite=False)
 
 @bw2test
 def test_parameters_add_to_group_empty():
