@@ -106,6 +106,18 @@ class ParameterBase(Model):
 
 @python_2_unicode_compatible
 class ProjectParameter(ParameterBase):
+    """Parameter set for a project. Group name is 'project'.
+
+    Columns:
+
+        * name: str, unique
+        * formula: str, optional
+        * amount: float, optional
+        * data: object, optional. Used for any other metadata.
+
+    Note that there is no magic for reading and writing to ``data`` (unlike ``Activity`` objects) - it must be used directly.
+
+    """
     name = TextField(index=True, unique=True)
     formula = TextField(null=True)
     amount = FloatField(null=True)
@@ -184,6 +196,19 @@ class ProjectParameter(ParameterBase):
 
 @python_2_unicode_compatible
 class DatabaseParameter(ParameterBase):
+    """Parameter set for a database. Group name is the name of the database.
+
+    Columns:
+
+        * database: str
+        * name: str, unique within a database
+        * formula: str, optional
+        * amount: float, optional
+        * data: object, optional. Used for any other metadata.
+
+    Note that there is no magic for reading and writing to ``data`` (unlike ``Activity`` objects) - it must be used directly.
+
+    """
     database = TextField(index=True)
     name = TextField(index=True)
     formula = TextField(null=True)
@@ -300,6 +325,33 @@ class DatabaseParameter(ParameterBase):
 
 @python_2_unicode_compatible
 class ActivityParameter(ParameterBase):
+    """Parameter set for a group of activities.
+
+    Columns:
+
+        * group: str
+        * database: str
+        * code: str. Code and database define the linked activity for this parameter.
+        * name: str, unique within a group
+        * formula: str, optional
+        * amount: float, optional
+        * data: object, optional. Used for any other metadata.
+
+    Activities can only have parameters in one group. Group names cannot be 'project' or the name of any existing database.
+
+    Activity parameter groups can depend on other activity parameter groups, so that a formula in group "a" can depend on a variable in group "b". This dependency information is stored in ``Group.order`` - in our small example, we could define the following:
+
+    .. code-block:: python
+
+        a = Group.get(name="a")
+        a.order = ["b", "c"]
+        a.save()
+
+    In this case, a variable not found in "a" would be searched for in "b" and then "c", in that order. Database and then project parameters are also implicitly included at the end of ``Group.order``.
+
+    Note that there is no magic for reading and writing to ``data`` (unlike ``Activity`` objects) - it must be used directly.
+
+    """
     group = TextField()
     database = TextField()
     code = TextField()
