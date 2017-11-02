@@ -402,8 +402,18 @@ def test_update_database_parameters():
 ###########################
 
 @bw2test
+def test_create_parameterized_exchange_missing_group():
+    with pytest.raises(IntegrityError):
+        obj = ParameterizedExchange.create(
+            group="A",
+            exchange=42,
+            formula="foo + bar"
+        )
+
+@bw2test
 def test_create_parameterized_exchange():
     assert not ParameterizedExchange.select().count()
+    ActivityParameter.insert_dummy("A", ("b", "c"))
     obj = ParameterizedExchange.create(
         group="A",
         exchange=42,
@@ -416,6 +426,7 @@ def test_create_parameterized_exchange():
 
 @bw2test
 def test_create_parameterized_exchange_nonunique():
+    ActivityParameter.insert_dummy("A", ("b", "c"))
     ParameterizedExchange.create(
         group="A",
         exchange=42,
@@ -611,6 +622,19 @@ def test_activity_parameter_dependency_chain(chain):
     ]
     assert ActivityParameter.dependency_chain("A") == expected
 
+@bw2test
+def test_activity_parameter_dummy():
+    assert not ActivityParameter.select().count()
+    ActivityParameter.insert_dummy("A", ("B", "C"))
+    assert ActivityParameter.select().count() == 1
+    a = ActivityParameter.get()
+    assert a.name == "__dummy__"
+    assert a.database == "B"
+    assert a.amount == 0
+
+    ActivityParameter.insert_dummy("A", ("B", "C"))
+    assert ActivityParameter.select().count() == 1
+
 def test_activity_parameter_static_dependencies(chain):
     expected = {"foo": 5, "bar": 6}
     assert ActivityParameter._static_dependencies("A") == expected
@@ -668,6 +692,58 @@ def test_activity_parameter_recalculate_exchanges():
         # (((1 + 12 ** 2) / 5 - 20) ** 0.5 + 2) + 4
         assert exc.amount == 9
         assert not exc.get("formula")
+
+@bw2test
+def test_pe_no_activities_parameter_group_error():
+    db = Database("example")
+    db.register()
+    assert not len(parameters)
+    assert not len(db)
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    a.new_exchange(amount=0, input=a, type="production").save()
+
+    for exc in a.exchanges():
+        obj = ParameterizedExchange(
+            exchange=exc._document.id,
+            group="my group",
+            formula="1 + 1",
+        )
+        with pytest.raises(IntegrityError):
+            obj.save()
+
+@bw2test
+def test_recalculate_exchanges_no_activities_parameters():
+    db = Database("example")
+    db.register()
+    assert not len(parameters)
+    assert not len(db)
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    a.new_exchange(amount=0, input=a, type="production", formula="foo + 4").save()
+
+    project_data = [{
+        'name': 'foo',
+        'formula': 'green / 7',
+    }, {
+        'name': 'green',
+        'amount': 7
+    }]
+    parameters.new_project_parameters(project_data)
+
+    assert ActivityParameter.select().count() == 0
+    parameters.add_exchanges_to_group("my group", a)
+    ActivityParameter.recalculate_exchanges("my group")
+
+    for exc in a.exchanges():
+        assert exc.amount == 5
+        assert not exc.get("formula")
+
+    assert ActivityParameter.select().count() == 1
+    a = ActivityParameter.get()
+    assert a.name == "__dummy__"
 
 @bw2test
 def test_activity_parameter_recalculate():
