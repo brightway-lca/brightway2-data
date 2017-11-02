@@ -691,7 +691,6 @@ def test_activity_parameter_recalculate_exchanges():
     for exc in a.exchanges():
         # (((1 + 12 ** 2) / 5 - 20) ** 0.5 + 2) + 4
         assert exc.amount == 9
-        assert not exc.get("formula")
 
 @bw2test
 def test_pe_no_activities_parameter_group_error():
@@ -739,7 +738,7 @@ def test_recalculate_exchanges_no_activities_parameters():
 
     for exc in a.exchanges():
         assert exc.amount == 5
-        assert not exc.get("formula")
+        assert exc.get("formula")
 
     assert ActivityParameter.select().count() == 1
     a = ActivityParameter.get()
