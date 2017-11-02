@@ -756,8 +756,6 @@ class ParameterManager(object):
                 obj.group = group
                 obj.formula = exc['formula']
                 obj.save()
-                del exc['formula']
-                exc.save()
 
     def remove_from_group(self, group, activity):
         raise NotImplementedError
