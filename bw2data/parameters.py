@@ -67,6 +67,16 @@ END;
 GD_INSERT_TRIGGER = _CLOSURE_TEMPLATE.format(action="INSERT")
 GD_UPDATE_TRIGGER = _CLOSURE_TEMPLATE.format(action="UPDATE")
 
+"""Parameterized exchange groups must be in activityparameters table"""
+_PE_GROUP_TEMPLATE = """CREATE TRIGGER IF NOT EXISTS pe_group_{action} BEFORE {action} ON parameterizedexchange BEGIN
+    SELECT CASE WHEN
+        ((SELECT COUNT(*) FROM activityparameter WHERE "group" = NEW."group") < 1)
+    THEN RAISE(ABORT,'Missing activity parameter group')
+    END;
+END;
+"""
+PE_INSERT_TRIGGER = _PE_GROUP_TEMPLATE.format(action="INSERT")
+PE_UPDATE_TRIGGER = _PE_GROUP_TEMPLATE.format(action="UPDATE")
 
 class ParameterBase(Model):
     __repr__ = lambda x: str(x)
@@ -417,6 +427,22 @@ class ActivityParameter(ParameterBase):
         return result
 
     @staticmethod
+    def insert_dummy(group, activity):
+        code, database = activity[1], activity[0]
+        if not ActivityParameter.select().where(
+            ActivityParameter.group == group,
+            ActivityParameter.code == code,
+            ActivityParameter.database == database,
+        ).count():
+            ActivityParameter.create(
+                group=group,
+                name="__dummy__",
+                code=code,
+                database=database,
+                amount=0
+            )
+
+    @staticmethod
     def expired(group):
         """Return boolean - is this group expired?"""
         try:
@@ -589,6 +615,12 @@ class ParameterizedExchange(Model):
     exchange = IntegerField(unique=True)
     formula = TextField()
 
+    @classmethod
+    def create_table(cls, fail_silently=False):
+        super(ParameterizedExchange, cls).create_table(fail_silently)
+        cls._meta.database.execute_sql(PE_UPDATE_TRIGGER)
+        cls._meta.database.execute_sql(PE_INSERT_TRIGGER)
+
 
 @python_2_unicode_compatible
 class Group(Model):
@@ -709,6 +741,12 @@ class ParameterManager(object):
 
     def add_exchanges_to_group(self, group, activity):
         """Add exchanges with formulas from ``activity`` to ``group``. Will delete formulas from the ``Exchange`` object."""
+        if not ActivityParameter.select().where(
+                ActivityParameter.database == activity[0],
+                ActivityParameter.code == activity[1],
+            ).count():
+            ActivityParameter.insert_dummy(group, activity)
+
         for exc in get_activity((activity[0], activity[1])).exchanges():
             if 'formula' in exc:
                 try:
