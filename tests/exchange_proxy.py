@@ -6,6 +6,11 @@ from . import bw2test
 from bw2data import (mapping, geomapping, databases, methods, Method,
                      projects, get_activity)
 from bw2data.database import DatabaseChooser
+from bw2data.parameters import (
+    ActivityParameter,
+    ParameterizedExchange,
+    parameters,
+)
 try:
     import bw2calc
 except ImportError:
@@ -261,3 +266,36 @@ def test_lca(activity_and_method):
     assert lca.score == 4 * 42
     lca = exc.lca(method=m.name, amount = 1)
     assert lca.score == 2 * 42
+
+@bw2test
+def test_delete_parameterized_exchange():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    exc = a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4")
+    exc.save()
+
+    activity_data = [{
+        'name': 'reference_me',
+        'formula': 'sqrt(25)',
+        'database': 'example',
+        'code': "B",
+    }, {
+        'name': 'bar',
+        'formula': 'reference_me + 2',
+        'database': 'example',
+        'code': "A",
+    }]
+    parameters.new_activity_parameters(activity_data, "my group")
+    parameters.add_exchanges_to_group("my group", a)
+
+    assert ActivityParameter.select().count() == 2
+    assert ParameterizedExchange.select().count() == 1
+
+    exc.delete()
+    assert ActivityParameter.select().count() == 2
+    assert not ParameterizedExchange.select().count()

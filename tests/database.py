@@ -28,6 +28,12 @@ from bw2data.backends.single_file import (
 )
 from bw2data.errors import NotAllowed, WrongDatabase
 from bw2data.meta import mapping, geomapping, databases, methods
+from bw2data.parameters import (
+    ActivityParameter,
+    DatabaseParameter,
+    ParameterizedExchange,
+    parameters,
+)
 from bw2data.serialization import JsonWrapper, JsonSanitizer
 from bw2data.utils import numpy_string, get_activity
 from bw2data.validate import db_validator
@@ -708,3 +714,47 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(array.shape, (1,))
         self.assertEqual(array['output'][0], mapping[("a database", "foo")])
         self.assertEqual(array['input'][0], mapping[("a database", "product")])
+
+
+@bw2test
+def test_database_delete_parameters():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4").save()
+
+    database_data = [{
+        'name': 'red',
+        'formula': '(blue ** 2) / 5',
+    }, {
+        'name': 'blue',
+        'amount': 12
+    }]
+    parameters.new_database_parameters(database_data, "example")
+
+    activity_data = [{
+        'name': 'reference_me',
+        'formula': 'sqrt(red - 20)',
+        'database': 'example',
+        'code': "B",
+    }, {
+        'name': 'bar',
+        'formula': 'reference_me + 2',
+        'database': 'example',
+        'code': "A",
+    }]
+    parameters.new_activity_parameters(activity_data, "my group")
+    parameters.add_exchanges_to_group("my group", a)
+
+    assert ActivityParameter.select().count() == 2
+    assert ParameterizedExchange.select().count() == 1
+    assert DatabaseParameter.select().count() == 2
+    assert len(parameters) == 4
+
+    del databases['example']
+    assert not len(parameters)
+    assert not ParameterizedExchange.select().count()

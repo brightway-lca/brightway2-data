@@ -113,6 +113,17 @@ class Activity(ActivityProxyBase):
     @writable_project
     def delete(self):
         from ... import Database
+        from ...parameters import ActivityParameter, ParameterizedExchange
+        try:
+            ap = ActivityParameter.get(database=self[0], code=self[1])
+            ParameterizedExchange.delete().where(
+                ParameterizedExchange.group == ap.group).execute()
+            ActivityParameter.delete().where(
+                ActivityParameter.database == self[0],
+                ActivityParameter.code == self[1]
+            ).execute()
+        except ActivityParameter.DoesNotExist:
+            pass
         IndexManager(Database(self['database']).filename).delete_dataset(self._data)
         self.exchanges().delete()
         self._document.delete_instance()
@@ -308,6 +319,9 @@ class Exchange(ExchangeProxyBase):
 
     @writable_project
     def delete(self):
+        from ...parameters import ParameterizedExchange
+        ParameterizedExchange.delete().where(
+            ParameterizedExchange.exchange == self._document.id).execute()
         self._document.delete_instance()
         databases.set_dirty(self['output'][0])
         self = None
