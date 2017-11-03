@@ -1223,3 +1223,34 @@ def test_parameters_add_to_group():
     for ap in ActivityParameter.select():
         assert (ap.name, ap.amount, ap.formula, ap.data) in expected
     assert "parameters" not in get_activity(("example", "A"))
+
+@bw2test
+def test_parameters_remove_from_group():
+    db = Database("example")
+    db.register()
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    a.new_exchange(amount=0, input=b, type="technosphere", formula="bar + 4").save()
+    activity_data = [{
+        'name': 'reference_me',
+        'formula': 'sqrt(25)',
+        'database': 'example',
+        'code': "B",
+    }, {
+        'name': 'bar',
+        'formula': 'reference_me + 2',
+        'database': 'example',
+        'code': "A",
+    }]
+    parameters.new_activity_parameters(activity_data, "my group")
+    parameters.add_exchanges_to_group("my group", a)
+    assert not get_activity(("example", "A")).get('parameters')
+    assert ActivityParameter.select().count() == 2
+    assert ParameterizedExchange.select().count() == 1
+
+    parameters.remove_from_group("my group", a)
+    assert ActivityParameter.select().count() == 1
+    assert not ParameterizedExchange.select().count()
+    assert get_activity(("example", "A"))['parameters']

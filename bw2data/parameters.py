@@ -739,8 +739,37 @@ class ParameterManager(object):
             ActivityParameter.code == activity['code']
         ).count()
 
+    def remove_from_group(self, group, activity):
+        """Remove `activity` from group.
+
+        Will delete any existing ``ActivityParameter`` and ``ParameterizedExchange`` for this activity.
+
+        Restores `parameters` key to this `Activity`."""
+        def drop_fields(dct):
+            dct = {k: v for k, v in dct.items()
+                   if k not in ('database', 'code')}
+            return dct.pop('name'), dct
+
+        activity = get_activity((activity[0], activity[1]))
+        activity['parameters'] = dict([
+            drop_fields(o.dict)
+            for o in ActivityParameter.select().where(
+                ActivityParameter.database == activity[0],
+                ActivityParameter.code == activity[1]
+                )
+        ])
+
+        with self.db.atomic():
+            self.remove_exchanges_from_group(group, activity)
+            ActivityParameter.delete().where(
+                ActivityParameter.database == activity[0],
+                ActivityParameter.code == activity[1]
+            ).execute()
+            activity.save()
+
     def add_exchanges_to_group(self, group, activity):
-        """Add exchanges with formulas from ``activity`` to ``group``. Will delete formulas from the ``Exchange`` object."""
+        """Add exchanges with formulas from ``activity`` to ``group``"""
+        count = 0
         if not ActivityParameter.select().where(
                 ActivityParameter.database == activity[0],
                 ActivityParameter.code == activity[1],
@@ -756,9 +785,14 @@ class ParameterManager(object):
                 obj.group = group
                 obj.formula = exc['formula']
                 obj.save()
+                count += 1
 
-    def remove_from_group(self, group, activity):
-        raise NotImplementedError
+        return count
+
+    def remove_exchanges_from_group(self, group, activity):
+        ParameterizedExchange.delete().where(
+            ParameterizedExchange.group == group).execute()
+
 
     def new_project_parameters(self, data, overwrite=True):
         """Efficiently and correctly enter multiple parameters.
