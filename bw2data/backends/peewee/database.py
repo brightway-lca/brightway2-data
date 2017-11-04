@@ -151,7 +151,7 @@ class SQLiteBackend(LCIBackend):
         sqlite3_lci_db.autocommit = False
         try:
             sqlite3_lci_db.begin()
-            self.delete()
+            self.delete(keep_params=True)
             exchanges, activities = [], []
 
             if not getattr(config, "is_test", None):
@@ -302,22 +302,23 @@ class SQLiteBackend(LCIBackend):
         IndexManager(self.filename).delete_database()
 
     @writable_project
-    def delete(self):
+    def delete(self, keep_params=False):
         """Delete all data from SQLite database and Whoosh index"""
         ActivityDataset.delete().where(ActivityDataset.database== self.name).execute()
         ExchangeDataset.delete().where(ExchangeDataset.output_database== self.name).execute()
         IndexManager(self.filename).delete_database()
 
-        from ...parameters import DatabaseParameter, ActivityParameter, ParameterizedExchange
-        groups = tuple({
-            o[0] for o in ActivityParameter.select(
-            ActivityParameter.group).where(
-            ActivityParameter.database == self.name).tuples()
-        })
-        ParameterizedExchange.delete().where(
-            ParameterizedExchange.group << groups).execute()
-        ActivityParameter.delete().where(ActivityParameter.database == self.name).execute()
-        DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
+        if not keep_params:
+            from ...parameters import DatabaseParameter, ActivityParameter, ParameterizedExchange
+            groups = tuple({
+                o[0] for o in ActivityParameter.select(
+                ActivityParameter.group).where(
+                ActivityParameter.database == self.name).tuples()
+            })
+            ParameterizedExchange.delete().where(
+                ParameterizedExchange.group << groups).execute()
+            ActivityParameter.delete().where(ActivityParameter.database == self.name).execute()
+            DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
 
     def process(self):
         """
