@@ -3,6 +3,7 @@
 # 3.0 (XXX)
 
 - Add support for hierarchical parameters and formulas (expressed as strings), with automatic and recalculation of dependencies ()
+- Make Activity.upstream() more flexible
 
 ## 2.4.7 (2017-09-14)
 
