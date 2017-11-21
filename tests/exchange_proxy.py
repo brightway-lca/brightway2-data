@@ -143,6 +143,18 @@ def test_upstream(activity):
     exc = list(activity.upstream())[0]
     assert exc['amount'] == 5
 
+def test_upstream_no_kinds(activity):
+    act = get_activity(("db", "c"))
+    assert len(list(act.upstream(kinds=None))) == 1
+    assert len(act.upstream(kinds=None)) == 1
+    exc = list(act.upstream(kinds=None))[0]
+    assert exc['amount'] == 4
+
+def test_upstream_bio(activity):
+    act = get_activity(("db", "c"))
+    assert len(list(act.upstream())) == 0
+    assert len(act.upstream()) == 0
+
 def test_ordering_consistency(activity):
     ordering = [
         [exc['amount'] for exc in activity.exchanges()]
