@@ -245,10 +245,10 @@ class Activity(ActivityProxyBase):
             kinds=("substitution",),
         )
 
-    def upstream(self):
+    def upstream(self, kinds=("technosphere",)):
         return Exchanges(
             self.key,
-            kinds=("technosphere",),
+            kinds=kinds,
             reverse=True
         )
 
