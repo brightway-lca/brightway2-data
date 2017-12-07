@@ -144,6 +144,37 @@ class SQLiteBackend(LCIBackend):
             sqlite3_lci_db.execute_sql('CREATE INDEX "exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")')
             sqlite3_lci_db.execute_sql('CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")')
 
+    def _efficient_write_dataset(self, index, key, ds):
+        for exchange in ds.get('exchanges', []):
+            if 'input' not in exchange or 'amount' not in exchange:
+                raise InvalidExchange
+            if 'type' not in exchange:
+                raise UntypedExchange
+            exchange['output'] = key
+            self.exchanges.append(dict_as_exchangedataset(exchange))
+
+            # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
+            # SQLite3 has a limit of 999 variables,
+            # So 6 fields * 125 is under the limit
+            # Otherwise get the following:
+            # peewee.OperationalError: too many SQL variables
+            if len(self.exchanges) > 125:
+                ExchangeDataset.insert_many(self.exchanges).execute()
+                self.exchanges = []
+
+        ds = {k: v for k, v in ds.items() if k != "exchanges"}
+        ds["database"] = key[0]
+        ds["code"] = key[1]
+
+        self.activities.append(dict_as_activitydataset(ds))
+
+        if len(self.activities) > 125:
+            ActivityDataset.insert_many(self.activities).execute()
+            self.activities = []
+
+        if not getattr(config, "is_test", None):
+            self.pbar.update()
+
     def _efficient_write_many_data(self, data, indices=True):
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
@@ -152,52 +183,25 @@ class SQLiteBackend(LCIBackend):
         try:
             sqlite3_lci_db.begin()
             self.delete(keep_params=True)
-            exchanges, activities = [], []
+            self.exchanges, self.activities = [], []
 
             if not getattr(config, "is_test", None):
-                pbar = pyprind.ProgBar(
+                self.pbar = pyprind.ProgBar(
                     len(data),
                     title="Writing activities to SQLite3 database:",
                     monitor=True
                 )
 
             for index, (key, ds) in enumerate(data.items()):
-                for exchange in ds.get('exchanges', []):
-                    if 'input' not in exchange or 'amount' not in exchange:
-                        raise InvalidExchange
-                    if 'type' not in exchange:
-                        raise UntypedExchange
-                    exchange['output'] = key
-                    exchanges.append(dict_as_exchangedataset(exchange))
+                self._efficient_write_dataset(index, key, ds)
 
-                    # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
-                    # SQLite3 has a limit of 999 variables,
-                    # So 6 fields * 125 is under the limit
-                    # Otherwise get the following:
-                    # peewee.OperationalError: too many SQL variables
-                    if len(exchanges) > 125:
-                        ExchangeDataset.insert_many(exchanges).execute()
-                        exchanges = []
-
-                ds = {k: v for k, v in ds.items() if k != "exchanges"}
-                ds["database"] = key[0]
-                ds["code"] = key[1]
-
-                activities.append(dict_as_activitydataset(ds))
-
-                if len(activities) > 125:
-                    ActivityDataset.insert_many(activities).execute()
-                    activities = []
-
-                if not getattr(config, "is_test", None):
-                    pbar.update()
             if not getattr(config, "is_test", None):
-                print(pbar)
+                print(self.pbar)
 
-            if activities:
-                ActivityDataset.insert_many(activities).execute()
-            if exchanges:
-                ExchangeDataset.insert_many(exchanges).execute()
+            if self.activities:
+                ActivityDataset.insert_many(self.activities).execute()
+            if self.exchanges:
+                ExchangeDataset.insert_many(self.exchanges).execute()
             sqlite3_lci_db.commit()
         except:
             sqlite3_lci_db.rollback()
