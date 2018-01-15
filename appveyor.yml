@@ -34,8 +34,7 @@ install:
     # Use the pre-installed Miniconda for the desired arch
     - cmd: call %CONDA_INSTALL_LOCN%\Scripts\activate.bat
     - cmd: conda update -y -q conda
-    - cmd: conda config --add channels conda-forge
-    - cmd: conda install -y -q lxml numpy scipy peewee psutil
+    - cmd: conda install -c defaults -c conda-forge -y -q lxml numpy scipy peewee psutil
     - cmd: pip install --no-cache-dir eight pytest
     - cmd: pip install --no-cache-dir brightway2
 
