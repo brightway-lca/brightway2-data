@@ -240,17 +240,17 @@ def test_search_faceting():
     with Searcher("foo") as s:
         res = s.search('lollipop', proxy=False, facet='location')
     assert res == {
-        'FR': [{'comment': '', 'product': '',
+        'fr': [{'comment': '', 'product': '',
                  'name': 'ice lollipop', 'database': 'foo',
-                 'location': 'FR', 'code': 'bar',
+                 'location': 'fr', 'code': 'bar',
                  'categories': ''}],
-        'CH': [{'comment': '', 'product': '', 'name': 'lollipop',
-                 'database': 'foo', 'location': 'CH',
+        'ch': [{'comment': '', 'product': '', 'name': 'lollipop',
+                 'database': 'foo', 'location': 'ch',
                  'code': 'bar', 'categories': ''}]
     }
 
 @bw2test
-def test_copy_save_propogates_to_seach_index():
+def test_copy_save_propogates_to_search_index():
     db = SQLiteBackend('foo')
     ds = {('foo', 'bar'): {
         'database': 'foo',
@@ -263,3 +263,63 @@ def test_copy_save_propogates_to_seach_index():
     cp['name'] = 'candy'
     cp.save()
     assert db.search("candy")
+
+@bw2test
+def test_case_sensitivity_convert_lowercase():
+    db = SQLiteBackend('foo')
+    ds = {('foo', 'bar'): {
+        'database': 'foo',
+        'code': 'bar',
+        'name': 'LOLLIpop'
+    }}
+    db.write(ds)
+    assert db.search('LOLLIpop'.lower())
+    assert db.search('lollipop')
+    assert db.search('LOLLipop')
+    assert db.search('LOLL*')
+    assert db.search('Lollipop')
+    assert not db.search("nope")
+
+@bw2test
+def test_case_sensitivity_filter():
+    db = SQLiteBackend('foo')
+    ds = {
+        ('foo', 'bar'): {
+            'database': 'foo',
+            'code': 'bar',
+            'name': 'lollipop',
+            'location': 'CH',
+        },
+        ('foo', 'baz'): {
+            'database': 'foo',
+            'code': 'baz',
+            'name': 'ice lollipop',
+            'location': 'FR',
+        }
+    }
+    db.write(ds)
+    assert len(db.search('lollipop')) == 2
+    assert len(db.search('lollipop', filter={'location': 'fr'})) == 1
+    assert len(db.search('lollipop', filter={'location': 'FR'})) == 1
+
+@bw2test
+def test_case_sensitivity_mask():
+    db = SQLiteBackend('foo')
+    ds = {
+        ('foo', 'bar'): {
+            'database': 'foo',
+            'code': 'bar',
+            'name': 'lollipop',
+            'location': 'CH',
+        },
+        ('foo', 'baz'): {
+            'database': 'foo',
+            'code': 'baz',
+            'name': 'ice lollipop',
+            'location': 'FR',
+            'reference product': 'ZEBRA'
+        }
+    }
+    db.write(ds)
+    assert len(db.search('lollipop')) == 2
+    assert len(db.search('lollipop', mask={'product': 'ZEbra'})) == 1
