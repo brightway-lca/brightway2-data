@@ -18,6 +18,7 @@ import datetime
 import numpy as np
 import pprint
 import pyprind
+import random
 import sqlite3
 import warnings
 try:
@@ -113,10 +114,15 @@ class SQLiteBackend(LCIBackend):
     filters = property(_get_filters, _set_filters)
     order_by = property(_get_order_by, _set_order_by)
 
-    def random(self, filters=True):
+    def random(self, filters=True, true_random=False):
+        """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
-            return Activity(self._get_queryset(random=True, filters=filters
-                            ).get())
+            if true_random:
+                return Activity(self._get_queryset(random=True, filters=filters
+                                ).get())
+            else:
+                return Activity(self._get_queryset(filters=filters
+                                ).offset(random.randint(0, len(self))).get())
         except DoesNotExist:
             warnings.warn("This database is empty")
             return None
