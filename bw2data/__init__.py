@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 __all__ = [
+    'dynamic_calculation_setups',
     'calculation_setups',
     'config',
     'convert_backend',
@@ -32,6 +33,7 @@ from .configuration import config
 from .project import projects
 from .utils import set_data_dir
 from .meta import (
+    dynamic_calculation_setups,
     calculation_setups,
     databases,
     geomapping,
@@ -44,6 +46,7 @@ from .meta import (
 
 # Add metadata class instances to global list of serialized metadata
 config.metadata.extend([
+    dynamic_calculation_setups,
     calculation_setups,
     databases,
     geomapping,
