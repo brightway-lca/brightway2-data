@@ -1,5 +1,12 @@
 # Changelog
 
+# 3.1 (2018-01-18)
+
+- Improve performance of `random` (#47)
+- Added `dynamic_calculation_setups`
+- All data in search engine stored in lowercase (#35)
+- Fixes to writing sqlite databases for better interaction with user interfaces (#53)
+
 # 3.0 (2017-12-2)
 
 - Add support for hierarchical parameters and formulas (expressed as strings), with automatic and recalculation of dependencies
