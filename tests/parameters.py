@@ -105,6 +105,8 @@ def test_project_parameters_load():
         'bar': {'formula': '2 * foo'}
     }
     assert ProjectParameter.load() == expected
+    assert ProjectParameter.load('project') == expected
+    assert ProjectParameter.load('foo') == expected
 
 @bw2test
 def test_project_parameters_static():
@@ -396,6 +398,55 @@ def test_update_database_parameters():
     assert Group.get(name="project")
     obj = DatabaseParameter.get(name="C")
     assert obj.amount == 3.14 * 3 + 10
+
+@bw2test
+def test_database_parameter_dependency_chain(chain):
+    Database("B").register()
+    DatabaseParameter.create(
+        database="B",
+        name="car",
+        formula="2 ** fly",
+        amount=8,
+    )
+    DatabaseParameter.create(
+        database="B",
+        name="bike",
+        formula="car - hike",
+        amount=2,
+    )
+    ProjectParameter.create(
+        name="hike",
+        formula="2 * 2 * 2",
+        amount=6,
+    )
+    ProjectParameter.create(
+        name="fly",
+        formula="3",
+        amount=3,
+    )
+    expected = [
+        {'kind': 'project', 'group': 'project', 'names': set(["fly", "hike"])},
+    ]
+    assert DatabaseParameter.dependency_chain("B") == expected
+    assert DatabaseParameter.dependency_chain("missing") == []
+
+@bw2test
+def test_database_parameter_dependency_chain_missing(chain):
+    Database("B").register()
+    DatabaseParameter.create(
+        database="B",
+        name="car",
+        formula="2 ** fly",
+        amount=8,
+    )
+    ProjectParameter.create(
+        name="hike",
+        formula="2 * 2 * 2",
+        amount=6,
+    )
+    with pytest.raises(MissingName):
+        DatabaseParameter.dependency_chain("B")
+
 
 ###########################
 ### Parameterized exchanges
