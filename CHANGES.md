@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.1.1 (2018-02013)
+
+- Minor compatibility changes for parameters to make unified API
+
 # 3.1 (2018-01-18)
 
 - Improve performance of `random` (#47)
