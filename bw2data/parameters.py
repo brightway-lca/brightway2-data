@@ -145,7 +145,7 @@ class ProjectParameter(ParameterBase):
         super(ProjectParameter, self).save(*args, **kwargs)
 
     @staticmethod
-    def load():
+    def load(group=None):
         """Return dictionary of parameter data with names as keys and ``.dict()`` as values."""
         def reformat(o):
             o = o.dict
@@ -314,6 +314,45 @@ class DatabaseParameter(ParameterBase):
                 ).execute()
             Group.get(name=database).freshen()
             DatabaseParameter.expire_downstream(database)
+
+    @staticmethod
+    def dependency_chain(group):
+        """Find where each missing variable is defined in dependency chain.
+
+        Returns:
+
+        .. code-block:: python
+
+            [
+                {
+                    'kind': one of 'project', 'database', 'activity',
+                    'group': group name,
+                    'names': set of variables names
+                }
+            ]
+
+        """
+        data = DatabaseParameter.load(group)
+        if not data:
+            return []
+
+        # Parse all formulas, find missing variables
+        needed = get_new_symbols(data.values(), set(data))
+        if not needed:
+            return []
+
+        names, chain = set(), []
+        for name in ProjectParameter.static(only=needed):
+            names.add(name)
+            needed.remove(name)
+        if names:
+            chain.append({'kind': 'project', 'group': 'project', 'names': names}
+            )
+
+        if needed:
+            raise MissingName("The following variables aren't defined:\n{}".format("|".join(needed)))
+
+        return chain
 
     def save(self, *args, **kwargs):
         """Save this model instance"""
