@@ -513,12 +513,12 @@ class ActivityParameter(ParameterBase):
             return []
 
         # Parse all formulas, find missing variables
-        needed = get_new_symbols(data.values(), set(data))
+        activity_needed = get_new_symbols(data.values(), set(data))
+        exchanges_needed = get_new_symbols(ParameterizedExchange.load(group).values(), set(data))
+        needed = activity_needed.union(exchanges_needed)
+
         if not needed:
             return []
-
-        exchange_needed = get_new_symbols(ParameterizedExchange.load(group).values())
-        needed = needed.union(exchange_needed)
 
         chain = []
 

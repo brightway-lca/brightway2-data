@@ -681,7 +681,7 @@ def test_activity_parameter_dependency_chain_includes_exchanges(chain):
     db = Database("K")
     a = db.new_activity(code="something something danger zone", name="An activity")
     a.save()
-    a.new_exchange(amount=0, input=a, type="production", formula="something_new + 4").save()
+    a.new_exchange(amount=0, input=a, type="production", formula="something_new + 4 - J").save()
     parameters.add_exchanges_to_group("G", a)
 
     expected = [
