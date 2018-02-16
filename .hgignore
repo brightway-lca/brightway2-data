@@ -14,3 +14,4 @@ bw2data.egg-info
 *.orig
 *.patch
 .cache
+.pytest_cache

@@ -673,6 +673,23 @@ def test_activity_parameter_dependency_chain(chain):
     ]
     assert ActivityParameter.dependency_chain("A") == expected
 
+def test_activity_parameter_dependency_chain_includes_exchanges(chain):
+    ProjectParameter.create(
+        name="something_new",
+        amount=10
+    )
+    db = Database("K")
+    a = db.new_activity(code="something something danger zone", name="An activity")
+    a.save()
+    a.new_exchange(amount=0, input=a, type="production", formula="something_new + 4").save()
+    parameters.add_exchanges_to_group("G", a)
+
+    expected = [
+        {'kind': 'activity', 'group': 'A', 'names': {"D", "F"}},
+        {'group': 'project', 'kind': 'project', 'names': {'something_new'}},
+    ]
+    assert ActivityParameter.dependency_chain("G") == expected
+
 @bw2test
 def test_activity_parameter_dummy():
     assert not ActivityParameter.select().count()

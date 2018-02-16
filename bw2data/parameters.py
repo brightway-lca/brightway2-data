@@ -493,6 +493,8 @@ class ActivityParameter(ParameterBase):
     def dependency_chain(group):
         """Find where each missing variable is defined in dependency chain.
 
+        Will also load in all parameters needed to resolve the ``ParameterizedExchanges`` for this group.
+
         Returns:
 
         .. code-block:: python
@@ -514,6 +516,9 @@ class ActivityParameter(ParameterBase):
         needed = get_new_symbols(data.values(), set(data))
         if not needed:
             return []
+
+        exchange_needed = get_new_symbols(ParameterizedExchange.load(group).values())
+        needed = needed.union(exchange_needed)
 
         chain = []
 
@@ -659,6 +664,18 @@ class ParameterizedExchange(Model):
         super(ParameterizedExchange, cls).create_table(fail_silently)
         cls._meta.database.execute_sql(PE_UPDATE_TRIGGER)
         cls._meta.database.execute_sql(PE_INSERT_TRIGGER)
+
+    @staticmethod
+    def load(group):
+        """Return dictionary of parameter data with names as keys and ``.dict()`` as values."""
+        return {o.exchange: o.formula
+                for o in ParameterizedExchange.select().where(
+                ParameterizedExchange.group == group)}
+
+    @staticmethod
+    def recalculate(group):
+        """Shortcut for ``ActivityParameter.recalculate_exchanges``."""
+        return ActivityParameter.recalculate_exchanges(group)
 
 
 @python_2_unicode_compatible
@@ -1024,8 +1041,14 @@ def get_new_symbols(data, context=None):
     BUILTIN_SYMBOLS = set(interpreter.symtable).union(set(context or set()))
     found = set()
     for ds in data:
-        if 'formula' in ds:
-            nf = asteval.NameFinder()
-            nf.generic_visit(interpreter.parse(ds['formula']))
-            found.update(set(nf.names))
+        if isinstance(ds, str):
+            formula = ds
+        elif 'formula' in ds:
+            formula = ds['formula']
+        else:
+            continue
+
+        nf = asteval.NameFinder()
+        nf.generic_visit(interpreter.parse(formula))
+        found.update(set(nf.names))
     return found.difference(BUILTIN_SYMBOLS)
