@@ -1,6 +1,10 @@
 # Changelog
 
-## 3.1.1 (2018-02013)
+## 3.2 (2018-02-16)
+
+- Better find symbol name dependencies in exchange formulas
+
+## 3.1.1 (2018-02-13)
 
 - Minor compatibility changes for parameters to make unified API
 
