@@ -145,7 +145,7 @@ class ProjectParameter(ParameterBase):
         super(ProjectParameter, self).save(*args, **kwargs)
 
     @staticmethod
-    def load():
+    def load(group=None):
         """Return dictionary of parameter data with names as keys and ``.dict()`` as values."""
         def reformat(o):
             o = o.dict
@@ -315,6 +315,45 @@ class DatabaseParameter(ParameterBase):
             Group.get(name=database).freshen()
             DatabaseParameter.expire_downstream(database)
 
+    @staticmethod
+    def dependency_chain(group):
+        """Find where each missing variable is defined in dependency chain.
+
+        Returns:
+
+        .. code-block:: python
+
+            [
+                {
+                    'kind': one of 'project', 'database', 'activity',
+                    'group': group name,
+                    'names': set of variables names
+                }
+            ]
+
+        """
+        data = DatabaseParameter.load(group)
+        if not data:
+            return []
+
+        # Parse all formulas, find missing variables
+        needed = get_new_symbols(data.values(), set(data))
+        if not needed:
+            return []
+
+        names, chain = set(), []
+        for name in ProjectParameter.static(only=needed):
+            names.add(name)
+            needed.remove(name)
+        if names:
+            chain.append({'kind': 'project', 'group': 'project', 'names': names}
+            )
+
+        if needed:
+            raise MissingName("The following variables aren't defined:\n{}".format("|".join(needed)))
+
+        return chain
+
     def save(self, *args, **kwargs):
         """Save this model instance"""
         Group.get_or_create(name=self.database)[0].expire()
@@ -454,6 +493,8 @@ class ActivityParameter(ParameterBase):
     def dependency_chain(group):
         """Find where each missing variable is defined in dependency chain.
 
+        Will also load in all parameters needed to resolve the ``ParameterizedExchanges`` for this group.
+
         Returns:
 
         .. code-block:: python
@@ -472,7 +513,10 @@ class ActivityParameter(ParameterBase):
             return []
 
         # Parse all formulas, find missing variables
-        needed = get_new_symbols(data.values(), set(data))
+        activity_needed = get_new_symbols(data.values(), set(data))
+        exchanges_needed = get_new_symbols(ParameterizedExchange.load(group).values(), set(data))
+        needed = activity_needed.union(exchanges_needed)
+
         if not needed:
             return []
 
@@ -620,6 +664,18 @@ class ParameterizedExchange(Model):
         super(ParameterizedExchange, cls).create_table()
         cls._meta.database.execute_sql(PE_UPDATE_TRIGGER)
         cls._meta.database.execute_sql(PE_INSERT_TRIGGER)
+
+    @staticmethod
+    def load(group):
+        """Return dictionary of parameter data with names as keys and ``.dict()`` as values."""
+        return {o.exchange: o.formula
+                for o in ParameterizedExchange.select().where(
+                ParameterizedExchange.group == group)}
+
+    @staticmethod
+    def recalculate(group):
+        """Shortcut for ``ActivityParameter.recalculate_exchanges``."""
+        return ActivityParameter.recalculate_exchanges(group)
 
 
 @python_2_unicode_compatible
@@ -980,8 +1036,14 @@ def get_new_symbols(data, context=None):
     BUILTIN_SYMBOLS = set(interpreter.symtable).union(set(context or set()))
     found = set()
     for ds in data:
-        if 'formula' in ds:
-            nf = asteval.NameFinder()
-            nf.generic_visit(interpreter.parse(ds['formula']))
-            found.update(set(nf.names))
+        if isinstance(ds, str):
+            formula = ds
+        elif 'formula' in ds:
+            formula = ds['formula']
+        else:
+            continue
+
+        nf = asteval.NameFinder()
+        nf.generic_visit(interpreter.parse(formula))
+        found.update(set(nf.names))
     return found.difference(BUILTIN_SYMBOLS)
