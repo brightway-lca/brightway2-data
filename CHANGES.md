@@ -1,8 +1,23 @@
 # Changelog
 
-# 3.1 (2018-03-31)
+## 3.3 (2018-04-XX)
 
-- Support for Peewee 3.0
+- Compatibility with Peewee 3 [breaking changes](http://docs.peewee-orm.com/en/latest/peewee/changes.html)
+
+## 3.2 (2018-02-16)
+
+- Better find symbol name dependencies in exchange formulas
+
+## 3.1.1 (2018-02-13)
+
+- Minor compatibility changes for parameters to make unified API
+
+# 3.1 (2018-01-18)
+
+- Improve performance of `random` (#47)
+- Added `dynamic_calculation_setups`
+- All data in search engine stored in lowercase (#35)
+- Fixes to writing sqlite databases for better interaction with user interfaces (#53)
 
 # 3.0 (2017-12-2)
 

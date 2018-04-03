@@ -28,6 +28,9 @@ class Searcher(object):
                boosts=None, filter=None, mask=None):
         from ..database import get_activity
 
+        lowercase = lambda x: x.lower() if hasattr(x, "lower") else x
+        string = lowercase(string)
+
         fields = [
             "name",
             "comment",
@@ -58,18 +61,17 @@ class Searcher(object):
             for k in filter:
                 assert k in fields, "`filter` field {} not in search schema".format(k)
             if len(filter) == 1:
-                kwargs["filter"] = [Term(k, v) for k, v in filter.items()][0]
+                kwargs["filter"] = [Term(k, lowercase(v)) for k, v in filter.items()][0]
             else:
-                kwargs["filter"] = And([Term(k, v) for k, v in filter.items()])
+                kwargs["filter"] = And([Term(k, lowercase(v)) for k, v in filter.items()])
         if mask is not None:
             assert isinstance(mask, dict), "`mask` must be a dictionary"
             for k in mask:
                 assert k in fields, "`mask` field {} not in search schema".format(k)
             if len(mask) == 1:
-                kwargs["mask"] = [Term(k, v) for k, v in mask.items()][0]
+                kwargs["mask"] = [Term(k, lowercase(v)) for k, v in mask.items()][0]
             else:
-                kwargs["mask"] = And([Term(k, v) for k, v in mask.items()])
-
+                kwargs["mask"] = And([Term(k, lowercase(v)) for k, v in mask.items()])
 
         with self.index.searcher() as searcher:
             if facet is None:

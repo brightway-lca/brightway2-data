@@ -141,6 +141,17 @@ class CalculationSetups(PickledDict):
 
     """
     filename = "setups.pickle"
+    
+@python_2_unicode_compatible
+class DynamicCalculationSetups(PickledDict):
+    """A dictionary for Dynamic calculation setups.
+
+    Keys:
+    * `inv`: List of functional units, e.g. ``[{(key): amount}, {(key): amount}]``
+    * `ia`: Dictionary of orst case LCIA method and the relative dynamic LCIA method, e.g. `` [{dLCIA_method_1_worstcase:dLCIA_method_1 , dLCIA_method_2_worstcase:dLCIA_method_2}]``.
+
+    """
+    filename = "dynamicsetups.pickle"
 
 
 @python_2_unicode_compatible
@@ -179,3 +190,4 @@ normalizations = NormalizationMeta()
 preferences = Preferences()
 weightings = WeightingMeta()
 calculation_setups = CalculationSetups()
+dynamic_calculation_setups = DynamicCalculationSetups()

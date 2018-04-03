@@ -28,11 +28,11 @@ class IndexManager(object):
 
     def _format_dataset(self, ds):
         return dict(
-            name=ds.get(u"name", u""),
-            comment=ds.get(u"comment", u""),
-            product=ds.get(u"reference product", u""),
-            categories=u", ".join(ds.get(u"categories", [])),
-            location=ds.get(u"location", u""),
+            name=ds.get(u"name", u"").lower(),
+            comment=ds.get(u"comment", u"").lower(),
+            product=ds.get(u"reference product", u"").lower(),
+            categories=u", ".join(ds.get(u"categories", [])).lower(),
+            location=ds.get(u"location", u"").lower(),
             database=ds[u"database"],
             code=ds['code']
         )
