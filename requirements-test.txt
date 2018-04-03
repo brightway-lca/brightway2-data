@@ -7,7 +7,7 @@ fasteners
 future
 lxml
 numpy
-peewee>=2.7.4
+peewee>=3
 psutil
 pyprind
 pytest

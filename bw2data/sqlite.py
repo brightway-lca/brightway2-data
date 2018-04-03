@@ -3,7 +3,6 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from peewee import SqliteDatabase, BlobField, Model, TextField
-from playhouse.shortcuts import RetryOperationalError
 import os
 try:
     import cPickle as pickle
@@ -21,13 +20,13 @@ class PickleField(BlobField):
         return pickle.loads(bytes(value))
 
 
-class RetryDatabase(RetryOperationalError, SqliteDatabase):
-    pass
-
-
 def create_database(filepath, tables):
-    db = RetryDatabase(filepath)
-    for table in tables:
-        table._meta.database = db
-    db.create_tables(tables, safe=True)
+    print("Calling create_database:", filepath)
+    db = SqliteDatabase(filepath)
+    for model in tables:
+        model.bind(db, bind_refs=False, bind_backrefs=False)
+    # for table in tables:
+    #     table._meta.database = db
+    with db.connection_context():
+        db.create_tables(tables)
     return db

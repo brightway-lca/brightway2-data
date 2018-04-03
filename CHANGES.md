@@ -1,5 +1,9 @@
 # Changelog
 
+# 3.1 (2018-03-31)
+
+- Support for Peewee 3.0
+
 # 3.0 (2017-12-2)
 
 - Add support for hierarchical parameters and formulas (expressed as strings), with automatic and recalculation of dependencies

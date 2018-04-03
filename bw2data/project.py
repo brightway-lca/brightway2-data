@@ -175,7 +175,7 @@ class ProjectManager(collections.Iterable):
             obj.close()
             obj.database = fp
             obj.connect()
-            obj.create_tables(tables, safe=True)
+            obj.create_tables(tables)
 
     ### Public API
     @property
