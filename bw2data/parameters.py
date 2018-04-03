@@ -4,7 +4,7 @@ from eight import *
 
 from . import databases, projects, config, get_activity
 from .backends.peewee.schema import ExchangeDataset
-from .sqlite import PickleField, create_database
+from .sqlite import PickleField, SubstitutableDatabase
 from .utils import python_2_unicode_compatible
 from asteval import Interpreter
 from collections import defaultdict
@@ -679,17 +679,12 @@ class GroupDependency(Model):
 
 class ParameterManager(object):
     def __init__(self):
-        self.db = create_database(
+        self.db = SubstitutableDatabase(
             os.path.join(projects.dir, "parameters.db"),
             [DatabaseParameter, ProjectParameter, ActivityParameter,
              ParameterizedExchange, Group, GroupDependency]
         )
-        config.sqlite3_databases.append((
-            "parameters.db",
-            self.db,
-            [DatabaseParameter, ProjectParameter, ActivityParameter,
-             ParameterizedExchange, Group, GroupDependency]
-        ))
+        config.sqlite3_databases.append(("parameters.db", self.db))
 
     def add_to_group(self, group, activity):
         """Add `activity` to group.

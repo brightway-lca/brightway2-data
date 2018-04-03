@@ -181,9 +181,9 @@ class SQLiteBackend(LCIBackend):
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
             self._drop_indices()
-        sqlite3_lci_db.autocommit = False
+        sqlite3_lci_db.db.autocommit = False
         try:
-            sqlite3_lci_db.begin()
+            sqlite3_lci_db.db.begin()
             self.delete(keep_params=True)
             exchanges, activities = [], []
 
@@ -207,12 +207,12 @@ class SQLiteBackend(LCIBackend):
                 ActivityDataset.insert_many(activities).execute()
             if exchanges:
                 ExchangeDataset.insert_many(exchanges).execute()
-            sqlite3_lci_db.commit()
+            sqlite3_lci_db.db.commit()
         except:
-            sqlite3_lci_db.rollback()
+            sqlite3_lci_db.db.rollback()
             raise
         finally:
-            sqlite3_lci_db.autocommit = True
+            sqlite3_lci_db.db.autocommit = True
             if be_complicated:
                 self._add_indices()
 
@@ -408,7 +408,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         arr = np.zeros((num_exchanges + len(missing_production_keys), ), dtype=self.dtype)
 
         # Using raw sqlite3 to retrieve data for ~2x speed boost
-        connection = sqlite3.connect(sqlite3_lci_db.database)
+        connection = sqlite3.connect(sqlite3_lci_db._filepath)
         cursor = connection.cursor()
         SQL = "SELECT data, input_database, input_code, output_database, output_code FROM exchangedataset WHERE output_database = ?"
 
