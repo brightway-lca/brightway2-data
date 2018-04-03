@@ -11,7 +11,6 @@ from bw2data.backends.peewee import (
     ActivityDataset,
     Exchange as PWExchange,
     ExchangeDataset,
-    sqlite3_lci_db,
 )
 from bw2data.backends.utils import convert_backend
 from bw2data.backends.single_file.database import SingleFileDatabase

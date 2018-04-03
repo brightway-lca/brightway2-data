@@ -20,13 +20,34 @@ class PickleField(BlobField):
         return pickle.loads(bytes(value))
 
 
-def create_database(filepath, tables):
-    print("Calling create_database:", filepath)
-    db = SqliteDatabase(filepath)
-    for model in tables:
-        model.bind(db, bind_refs=False, bind_backrefs=False)
-    # for table in tables:
-    #     table._meta.database = db
-    with db.connection_context():
-        db.create_tables(tables)
-    return db
+class SubstitutableDatabase(object):
+    def __init__(self, filepath, tables):
+        self._filepath = filepath
+        self._tables = tables
+        self._database = self._create_database()
+
+    def _create_database(self):
+        db = SqliteDatabase(self._filepath)
+        for model in self._tables:
+            model.bind(db, bind_refs=False, bind_backrefs=False)
+        db.connect()
+        db.create_tables(self._tables)
+        return db
+
+    @property
+    def db(self):
+        return self._database
+
+    def change_path(self, filepath):
+        self.db.close()
+        self._filepath = filepath
+        self._create_database()
+
+    def atomic(self):
+        return self.db.atomic()
+
+    def execute_sql(self, *args, **kwargs):
+        return self.db.execute_sql(*args, **kwargs)
+
+    def transaction(self):
+        return self.db.transaction()

@@ -5,7 +5,7 @@ from eight import *
 from . import config
 from .errors import ReadOnlyProject
 from .filesystem import safe_filename, create_dir
-from .sqlite import PickleField, create_database
+from .sqlite import PickleField, SubstitutableDatabase
 from .utils import python_2_unicode_compatible
 from fasteners import InterProcessLock
 from functools import wraps
@@ -68,7 +68,7 @@ class ProjectManager(collections.Iterable):
     def __init__(self):
         self._base_data_dir, self._base_logs_dir = self._get_base_directories()
         self._create_base_directories()
-        self.db = create_database(
+        self.db = SubstitutableDatabase(
             os.path.join(self._base_data_dir, "projects.db"),
             [ProjectDataset]
         )
@@ -169,13 +169,8 @@ class ProjectManager(collections.Iterable):
             obj.__init__()
 
     def _reset_sqlite3_databases(self):
-        for name, obj, tables in config.sqlite3_databases:
-            # Can't use `create_tables` because can't replace the existing object
-            fp = os.path.join(self.dir, name)
-            obj.close()
-            obj.database = fp
-            obj.connect()
-            obj.create_tables(tables)
+        for relative_path, substitutable_db in config.sqlite3_databases:
+            substitutable_db.change_path(os.path.join(self.dir, relative_path))
 
     ### Public API
     @property
@@ -260,8 +255,7 @@ class ProjectManager(collections.Iterable):
         temp_dir = tempfile.mkdtemp()
         self._base_data_dir = os.path.join(temp_dir, "data")
         self._base_logs_dir = os.path.join(temp_dir, "logs")
-        self.db.close()
-        self.db = create_database(':memory:', [ProjectDataset])
+        self.db.change_path(':memory:')
         self.set_current("default", update=False)
         self._is_temp_dir = True
         return temp_dir
@@ -276,11 +270,7 @@ class ProjectManager(collections.Iterable):
         del self._orig_base_data_dir
         self._base_logs_dir = self._orig_base_logs_dir
         del self._orig_base_logs_dir
-        self.db.close()
-        self.db = create_database(
-            os.path.join(self._base_data_dir, "projects.db"),
-            [ProjectDataset]
-        )
+        self.db.change_path(os.path.join(self._base_data_dir, "projects.db"))
         self.set_current("default", update=False)
         self._is_temp_dir = False
 

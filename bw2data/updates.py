@@ -134,7 +134,7 @@ class Updates(object):
         if "updates" in preferences:
             return
         SQL = "PRAGMA table_info(activitydataset)"
-        with sqlite3.connect(sqlite3_lci_db.database) as conn:
+        with sqlite3.connect(sqlite3_lci_db.db.database) as conn:
             column_names = {x[1] for x in conn.execute(SQL)}
         if "code" in column_names:
             preferences['updates'] = {key: True for key in cls.UPDATES}
@@ -176,7 +176,7 @@ class Updates(object):
 
     @classmethod
     def schema_change_20_compound_keys(cls):
-        with sqlite3.connect(sqlite3_lci_db.database) as conn:
+        with sqlite3.connect(sqlite3_lci_db.db.database) as conn:
             print("Update ActivityDataset table schema and data")
             conn.executescript(UPDATE_ACTIVITYDATASET)
             print("Updating ExchangeDataset table schema and data")

@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from ... import mapping, geomapping, config, databases
-from ..peewee import sqlite3_lci_db, SQLiteBackend
+from ..peewee import SQLiteBackend
 from ..peewee.schema import ActivityDataset, ExchangeDataset
 from ..peewee.utils import dict_as_activitydataset
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
