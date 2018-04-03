@@ -88,8 +88,8 @@ class ParameterBase(Model):
             return self.name.lower() < other.name.lower()
 
     @classmethod
-    def create_table(cls, fail_silently=False):
-        super(ParameterBase, cls).create_table(fail_silently)
+    def create_table(cls):
+        super(ParameterBase, cls).create_table()
         cls._meta.database.execute_sql(
             AUTOUPDATE_TRIGGER.format(
                 action="INSERT",
@@ -588,8 +588,8 @@ class ActivityParameter(ParameterBase):
         super(ActivityParameter, self).save(*args, **kwargs)
 
     @classmethod
-    def create_table(cls, fail_silently=False):
-        super(ActivityParameter, cls).create_table(fail_silently)
+    def create_table(cls):
+        super(ActivityParameter, cls).create_table()
         cls._meta.database.execute_sql(CROSSDATASE_UPDATE_TRIGGER)
         cls._meta.database.execute_sql(CROSSDATASE_INSERT_TRIGGER)
         cls._meta.database.execute_sql(CROSSGROUP_UPDATE_TRIGGER)
@@ -616,8 +616,8 @@ class ParameterizedExchange(Model):
     formula = TextField()
 
     @classmethod
-    def create_table(cls, fail_silently=False):
-        super(ParameterizedExchange, cls).create_table(fail_silently)
+    def create_table(cls):
+        super(ParameterizedExchange, cls).create_table()
         cls._meta.database.execute_sql(PE_UPDATE_TRIGGER)
         cls._meta.database.execute_sql(PE_INSERT_TRIGGER)
 
@@ -649,7 +649,7 @@ class Group(Model):
         self.order = [x for x in self.order if x not in reserved]
 
     class Meta:
-        db_table = "group_table"
+        table_name = "group_table"
 
 
 @python_2_unicode_compatible
@@ -671,8 +671,8 @@ class GroupDependency(Model):
         super(GroupDependency, self).save(*args, **kwargs)
 
     @classmethod
-    def create_table(cls, fail_silently=False):
-        super(GroupDependency, cls).create_table(fail_silently)
+    def create_table(cls):
+        super(GroupDependency, cls).create_table()
         cls._meta.database.execute_sql(GD_UPDATE_TRIGGER)
         cls._meta.database.execute_sql(GD_INSERT_TRIGGER)
 
