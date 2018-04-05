@@ -9,7 +9,7 @@ pipelines:
   default:
     - step:
         script:
-          - conda install -c conda-forge peewee=3.1.5
+          - conda install --force -c conda-forge peewee=3.1.5
           - pip install -U --no-deps bw2data bw2calc bw2io
           - python -c "import peewee; print(peewee.__version__)"
           - pytest --cov=bw2data
