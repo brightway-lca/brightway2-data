@@ -35,10 +35,7 @@ install:
     - cmd: call %CONDA_INSTALL_LOCN%\Scripts\activate.bat
     - cmd: conda update -y -q conda
     - cmd: conda config --system --add pinned_packages defaults::conda
-    - cmd: conda install -c defaults -c conda-forge -y -q lxml numpy scipy peewee psutil
-    - cmd: pip install --no-cache-dir eight pytest
-    - cmd: pip install --no-cache-dir brightway2
-    - cmd: conda install -y -c conda-forge peewee=3.1.5
+    - cmd: conda install -y -q -c defaults -c conda-forge -c cmutel -c haasad brightway2 jupyter pywin32 pytest
 
 build: false
 
