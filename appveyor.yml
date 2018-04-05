@@ -38,7 +38,7 @@ install:
     - cmd: conda install -c defaults -c conda-forge -y -q lxml numpy scipy peewee psutil
     - cmd: pip install --no-cache-dir eight pytest
     - cmd: pip install --no-cache-dir brightway2
-    - cmd: conda install -c conda-forge peewee=3.1.5
+    - cmd: conda install -y -c conda-forge peewee=3.1.5
 
 build: false
 
