@@ -209,8 +209,6 @@ class ProjectManager(collections.Iterable):
         name = name or self.current
         if not ProjectDataset.select().where(
                 ProjectDataset.name == name).count():
-            print("kwargs:", kwargs, type(kwargs))
-            print("name:", name, type(name))
             ProjectDataset.create(
                 data=kwargs,
                 name=name

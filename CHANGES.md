@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.3.1 (2018-04-23)
+
+- Remove print debugging statements
+
 ## 3.3 (2018-04-05)
 
 - Compatibility with Peewee 3 [breaking changes](http://docs.peewee-orm.com/en/latest/peewee/changes.html)
