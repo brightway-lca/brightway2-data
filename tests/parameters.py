@@ -1274,8 +1274,8 @@ def test_parameters_add_to_group():
         code="A",
         name="An activity",
         parameters=[
-            {'amount': 4, 'variable': 'one', 'foo': 'bar'},
-            {'amount': 42, 'variable': 'two', 'formula': 'this + that'}
+            {'amount': 4, 'name': 'one', 'foo': 'bar'},
+            {'amount': 42, 'name': 'two', 'formula': 'this + that'}
         ]
     )
     a.save()

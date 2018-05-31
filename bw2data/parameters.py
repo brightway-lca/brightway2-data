@@ -763,12 +763,12 @@ class ParameterManager(object):
         ).execute()
 
         def reformat(o):
-            skipped = ('variable', 'amount', 'formula')
+            skipped = ('name', 'amount', 'formula')
             return [nonempty({
                 'group': group,
                 'database': o['database'],
                 'code': o['code'],
-                'name': p['variable'],
+                'name': p['name'],
                 'formula': p.get('formula'),
                 'amount': p.get('amount', 0),
                 'data': {k: v for k, v in p.items() if k not in skipped}
