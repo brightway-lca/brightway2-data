@@ -1,6 +1,10 @@
 # Changelog
 
-## 3.3.1 (2018-04-23)
+## 3.4 (2018-05-31)
+
+- Eliminate inconsistency between use of `name` and `variable` by always using `name`
+
+### 3.3.1 (2018-04-23)
 
 - Remove print debugging statements
 
@@ -16,7 +20,7 @@
 
 - Minor compatibility changes for parameters to make unified API
 
-# 3.1 (2018-01-18)
+## 3.1 (2018-01-18)
 
 - Improve performance of `random` (#47)
 - Added `dynamic_calculation_setups`
