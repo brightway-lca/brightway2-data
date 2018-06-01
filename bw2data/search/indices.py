@@ -27,12 +27,13 @@ class IndexManager(object):
         return index.create_in(self.path, bw2_schema)
 
     def _format_dataset(self, ds):
+        fl = lambda o: o[1].lower() if isinstance(o, tuple) else o.lower()
         return dict(
             name=ds.get(u"name", u"").lower(),
             comment=ds.get(u"comment", u"").lower(),
             product=ds.get(u"reference product", u"").lower(),
             categories=u", ".join(ds.get(u"categories", [])).lower(),
-            location=ds.get(u"location", u"").lower(),
+            location=fl(ds.get(u"location", u"")),
             database=ds[u"database"],
             code=ds['code']
         )

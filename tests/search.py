@@ -35,6 +35,23 @@ def test_search_dataset():
         )
 
 @bw2test
+def test_search_geocollection_location():
+    im = IndexManager("foo")
+    im.add_dataset({
+        'database': 'foo',
+        'code': 'bar',
+        'name': 'lollipop',
+        'location': ('foo', 'Here')
+    })
+    with Searcher("foo") as s:
+        assert (
+            s.search('lollipop', proxy=False) ==
+            [{'comment': '', 'product': '', 'name': 'lollipop',
+              'database': 'foo', 'location': 'here', 'code': 'bar',
+              'categories': ''}]
+        )
+
+@bw2test
 def test_update_dataset():
     im = IndexManager("foo")
     ds = {
