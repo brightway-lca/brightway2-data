@@ -475,7 +475,7 @@ class ActivityParameter(ParameterBase):
         ).count():
             ActivityParameter.create(
                 group=group,
-                name="__dummy__",
+                name="__dummy_{}__".format(code),
                 code=code,
                 database=database,
                 amount=0

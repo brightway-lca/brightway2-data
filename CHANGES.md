@@ -1,5 +1,9 @@
 # Changelog
 
+### 3.4.2 (2018-06-01)
+
+- Fix #56: Name conflicts with multiple dummy parameters
+
 ### 3.4.1 (2018-06-01)
 
 - Fix bug with geocollections and search indices
