@@ -1,5 +1,9 @@
 # Changelog
 
+### 3.4.1 (2018-06-01)
+
+- Fix bug with geocollections and search indices
+
 ## 3.4 (2018-05-31)
 
 - Eliminate inconsistency between use of `name` and `variable` by always using `name`
