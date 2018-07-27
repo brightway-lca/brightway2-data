@@ -862,7 +862,7 @@ class ParameterManager(object):
             }]
 
         """
-        potentially_non_unique_names = {ds['name'] for ds in data}
+        potentially_non_unique_names = [ds['name'] for ds in data]
         unique_names = list(set(potentially_non_unique_names))
         assert len(unique_names) == len(potentially_non_unique_names), "Nonunique names: {}".format(
             [p for p in unique_names
@@ -914,7 +914,7 @@ class ParameterManager(object):
         """
         assert database in databases, "Unknown database"
 
-        potentially_non_unique_names = {ds['name'] for ds in data}
+        potentially_non_unique_names = [ds['name'] for ds in data]
         unique_names = list(set(potentially_non_unique_names))
         assert len(unique_names) == len(potentially_non_unique_names), "Nonunique names: {}".format(
             [p for p in unique_names
@@ -977,7 +977,7 @@ class ParameterManager(object):
         assert len(database) == 1, "Multiple databases"
         assert database.pop() in databases, "Unknown database"
 
-        potentially_non_unique_names = {o['name'] for o in data}
+        potentially_non_unique_names = [o['name'] for o in data]
         unique_names = list(set(potentially_non_unique_names))
         assert len(unique_names) == len(potentially_non_unique_names), "Nonunique names: {}".format(
             [p for p in unique_names
