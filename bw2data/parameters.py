@@ -862,8 +862,13 @@ class ParameterManager(object):
             }]
 
         """
-        names = {ds['name'] for ds in data}
-        assert len(names) == len(data), "Nonunique names"
+        potentially_non_unique_names = [ds['name'] for ds in data]
+        unique_names = list(set(potentially_non_unique_names))
+        assert len(unique_names) == len(potentially_non_unique_names), "Nonunique names: {}".format(
+            [p for p in unique_names
+             if potentially_non_unique_names.count(p)>1]
+        )
+
 
         def reformat(ds):
             return {
@@ -909,8 +914,12 @@ class ParameterManager(object):
         """
         assert database in databases, "Unknown database"
 
-        names = {ds['name'] for ds in data}
-        assert len(names) == len(data), "Nonunique names"
+        potentially_non_unique_names = [ds['name'] for ds in data]
+        unique_names = list(set(potentially_non_unique_names))
+        assert len(unique_names) == len(potentially_non_unique_names), "Nonunique names: {}".format(
+            [p for p in unique_names
+             if potentially_non_unique_names.count(p)>1]
+        )
 
         def reformat(ds):
             return {
@@ -967,8 +976,14 @@ class ParameterManager(object):
         database = {o['database'] for o in data}
         assert len(database) == 1, "Multiple databases"
         assert database.pop() in databases, "Unknown database"
-        names = {o['name'] for o in data}
-        assert len(names) == len(data), "Nonunique names"
+
+        potentially_non_unique_names = [o['name'] for o in data]
+        unique_names = list(set(potentially_non_unique_names))
+        assert len(unique_names) == len(potentially_non_unique_names), "Nonunique names: {}".format(
+            [p for p in unique_names
+             if potentially_non_unique_names.count(p)>1]
+        )
+
 
         Group.get_or_create(name=group)
 
