@@ -3,6 +3,7 @@
 ### 3.4.3 (2018-09-21)
 
 - Fix #60: No SQLite index creation after switching projects
+- Merged PR #9: Better handling of non-unique parameter names
 
 ### 3.4.2 (2018-06-01)
 
