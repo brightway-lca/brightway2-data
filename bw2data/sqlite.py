@@ -41,7 +41,7 @@ class SubstitutableDatabase(object):
     def change_path(self, filepath):
         self.db.close()
         self._filepath = filepath
-        self._create_database()
+        self._database = self._create_database()
 
     def atomic(self):
         return self.db.atomic()
