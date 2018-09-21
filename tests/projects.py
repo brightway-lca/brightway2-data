@@ -326,5 +326,4 @@ def test_copy_project_switch_current():
     projects.copy_project('another one')
     assert projects.current == 'another one'
 
-
 # TODO: purge delete directories

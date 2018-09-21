@@ -1,5 +1,9 @@
 # Changelog
 
+### 3.4.3 (2018-09-21)
+
+- Fix #60: No SQLite index creation after switching projects
+
 ### 3.4.2 (2018-06-01)
 
 - Fix #56: Name conflicts with multiple dummy parameters
