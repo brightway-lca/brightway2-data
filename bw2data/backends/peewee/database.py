@@ -146,9 +146,9 @@ class SQLiteBackend(LCIBackend):
 
     def _add_indices(self):
         with sqlite3_lci_db.transaction():
-            sqlite3_lci_db.execute_sql('CREATE UNIQUE INDEX "activitydataset_key" ON "activitydataset" ("database", "code")')
-            sqlite3_lci_db.execute_sql('CREATE INDEX "exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")')
-            sqlite3_lci_db.execute_sql('CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")')
+            sqlite3_lci_db.execute_sql('CREATE UNIQUE INDEX IF NOT EXISTS "activitydataset_key" ON "activitydataset" ("database", "code")')
+            sqlite3_lci_db.execute_sql('CREATE INDEX IF NOT EXISTS "exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")')
+            sqlite3_lci_db.execute_sql('CREATE INDEX IF NOT EXISTS "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")')
 
     def _efficient_write_dataset(self, index, key, ds, exchanges, activities):
         for exchange in ds.get('exchanges', []):
