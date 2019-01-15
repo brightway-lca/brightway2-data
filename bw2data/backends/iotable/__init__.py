@@ -19,7 +19,7 @@ class IOTableBackend(SQLiteBackend):
     Activities will not seem to have any activities."""
     backend = "iotable"
 
-    def write(self, products, exchanges, **kwargs):
+    def write(self, products, exchanges, includes_production=False, **kwargs):
         """
 
         Write IO data to disk in two different formats.
@@ -61,6 +61,22 @@ class IOTableBackend(SQLiteBackend):
         arr = np.zeros((step,), dtype=self.dtype)
 
         for index, row in enumerate(exchanges):
+            if isinstance(row, dict):
+                inpt = row['input']
+                outpt = row['output']
+                row_type = row['type']
+                unc_type = row.get('uncertainty type', 0)
+                amount = row['amount']
+                loc = row.get('loc', row['amount'])
+                scale = row.get('scale', np.NaN)
+                shape = row.get('shape', np.NaN)
+                minimum = row.get('minimum', np.NaN)
+                maximum = row.get('maximum', np.NaN)
+            else:
+                inpt, outpt, row_type, amount = row
+                loc, unc_type = amount, 0
+                scale = shape = minimum = maximum = np.NaN
+
             if index and not index % 1000000:
                 print("On exchange number {}".format(index))
             if index and not index % step:
@@ -70,38 +86,38 @@ class IOTableBackend(SQLiteBackend):
                     np.zeros((step,), dtype=self.dtype)
                 ))
 
-            dependents.add(row[0][0])
+            dependents.add(inpt[0])
 
             try:
                 arr[index] = (
-                    mapping[row[0]],
-                    mapping[row[1]],
+                    mapping[inpt],
+                    mapping[outpt],
                     MAX_INT_32, MAX_INT_32,
-                    TYPE_DICTIONARY[row[2]],
-                    0,  # No uncertainty for IO... :(
-                    row[3], row[3],
-                    np.NaN, np.NaN, np.NaN, np.NaN, row[3] < 0
+                    TYPE_DICTIONARY[row_type],
+                    unc_type, amount, loc,
+                    scale, shape, minimum, maximum, amount < 0
                 )
             except KeyError:
                 raise UnknownObject(("Exchange between {} and {} is invalid "
                     "- one of these objects is unknown (i.e. doesn't exist "
                     "as a process dataset)"
-                    ).format(row[0], row[1])
+                    ).format(inpt, outpt)
                 )
 
-        for index2, obj in enumerate(products):
-            if index and not index % step:
-                arr = np.hstack((
-                    arr,
-                    np.zeros((step,), dtype=self.dtype)
-                ))
+        if not includes_production:
+            for index2, obj in enumerate(products):
+                if index and not index % step:
+                    arr = np.hstack((
+                        arr,
+                        np.zeros((step,), dtype=self.dtype)
+                    ))
 
-            arr[index + index2] = (
-                mapping[obj], mapping[obj],
-                MAX_INT_32, MAX_INT_32,
-                TYPE_DICTIONARY['production'],
-                0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
-            )
+                arr[index + index2] = (
+                    mapping[obj], mapping[obj],
+                    MAX_INT_32, MAX_INT_32,
+                    TYPE_DICTIONARY['production'],
+                    0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
+                )
 
         databases[self.name]['depends'] = sorted(dependents.difference({self.name}))
         databases[self.name]['processed'] = datetime.datetime.now().isoformat()

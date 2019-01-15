@@ -319,6 +319,8 @@ class SQLiteBackend(LCIBackend):
     @writable_project
     def delete(self, keep_params=False):
         """Delete all data from SQLite database and Whoosh index"""
+        vacuum_needed = len(self) > 500
+
         ActivityDataset.delete().where(ActivityDataset.database== self.name).execute()
         ExchangeDataset.delete().where(ExchangeDataset.output_database== self.name).execute()
         IndexManager(self.filename).delete_database()
@@ -334,6 +336,9 @@ class SQLiteBackend(LCIBackend):
                 ParameterizedExchange.group << groups).execute()
             ActivityParameter.delete().where(ActivityParameter.database == self.name).execute()
             DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
+
+        if vacuum_needed:
+            sqlite3_lci_db.vacuum()
 
     def process(self):
         """
