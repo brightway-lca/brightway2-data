@@ -9,6 +9,6 @@ pipelines:
   default:
     - step:
         script:
-          - conda install -c conda-forge -c cmutel -c haasad brightway2 jupyter
+          - conda install -y -c conda-forge -c cmutel -c haasad brightway2 jupyter
           - pytest --cov=bw2data
           - coveralls
