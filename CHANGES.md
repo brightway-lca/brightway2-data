@@ -1,5 +1,9 @@
 # Changelog
 
+### 3.4.4 (2019-05-11)
+
+- Fix `collections.abc` compatibility with Python 3.8
+
 ### 3.4.3 (2018-09-21)
 
 - Fix #60: No SQLite index creation after switching projects
