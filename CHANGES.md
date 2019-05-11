@@ -1,5 +1,9 @@
 # Changelog
 
+### 3.4.5 (2019-05-11)
+
+- Fix `collections.abc` compatibility with Python 3.8
+
 ### 3.4.4 (2019-01-08)
 
 - Make index creation not raise error if index already exists
@@ -7,6 +11,7 @@
 ### 3.4.3 (2018-09-21)
 
 - Fix #60: No SQLite index creation after switching projects
+- Merged PR #9: Better handling of non-unique parameter names
 
 ### 3.4.2 (2018-06-01)
 
