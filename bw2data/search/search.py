@@ -37,7 +37,6 @@ class Searcher(object):
             "product",
             "categories",
             "location",
-            "code",
         ]
 
         boosts = boosts or {
@@ -46,7 +45,6 @@ class Searcher(object):
             "product": 3,
             "categories": 2,
             "location": 3,
-            "code": 4,
         }
 
         qp = MultifieldParser(
