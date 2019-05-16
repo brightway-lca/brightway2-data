@@ -16,11 +16,11 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="3.4.5",
+    version="3.5",
     packages=packages,
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
-    license=open('LICENSE.txt').read(),
+    license="3-clause BSD",
     install_requires=[
         "appdirs",
         "bw2parameters",
