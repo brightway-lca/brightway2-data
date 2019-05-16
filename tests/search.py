@@ -8,6 +8,18 @@ from bw2data.backends.peewee import *
 
 
 @bw2test
+def test_search_dataset_containing_stop_word():
+    im = IndexManager("foo")
+    im.add_dataset({
+        'database': 'foo',
+        'code': 'bar',
+        'name': 'foo of bar, high voltage'
+    })
+    with Searcher("foo") as s:
+        assert s.search('foo of bar, high voltage', proxy=False)
+
+
+@bw2test
 def test_add_dataset():
     im = IndexManager("foo")
     im.add_dataset({
