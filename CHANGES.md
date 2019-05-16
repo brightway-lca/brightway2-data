@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.5 (2019-05-16)
+
+- PR #11: Fix for searching with stop words
+
 ### 3.4.5 (2019-05-11)
 
 - Fix `collections.abc` compatibility with Python 3.8
