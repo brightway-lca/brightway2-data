@@ -5,9 +5,12 @@ from eight import *
 from ...serialization import JsonWrapper
 from ...utils import safe_filename
 from .mapping import get_mapping
-import collections
 import os
 import json
+try:
+    from collections.abc import MutableMapping
+except ImportError:
+    from collections import MutableMapping
 
 
 class frozendict(dict):
@@ -30,7 +33,7 @@ class frozendict(dict):
         pass
 
 
-class SynchronousJSONDict(collections.MutableMapping):
+class SynchronousJSONDict(MutableMapping):
 
     """A dictionary which stores each value as a separate file on disk. Values are loaded asynchronously (i.e. only as needed), but saved synchronously (i.e. immediately).
 
