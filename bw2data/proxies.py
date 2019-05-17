@@ -8,11 +8,14 @@ from .errors import InvalidExchange
 from .utils import get_activity
 from numbers import Number
 from stats_arrays import uncertainty_choices
-import collections
+try:
+    from collections.abc import MutableMapping
+except ImportError:
+    from collections import MutableMapping
 
 
 @python_2_unicode_compatible
-class ProxyBase(collections.MutableMapping):
+class ProxyBase(MutableMapping):
     def __init__(self, data, *args, **kwargs):
         self._data = data
 

@@ -10,7 +10,10 @@ from time import time
 import bz2
 import os
 import random
-import collections
+try:
+    from collections.abc import MutableMapping
+except ImportError:
+    from collections import MutableMapping
 try:
     import anyjson
 except ImportError:
@@ -105,7 +108,7 @@ class JsonSanitizer(object):
 
 
 @python_2_unicode_compatible
-class SerializedDict(collections.MutableMapping):
+class SerializedDict(MutableMapping):
     """Base class for dictionary that can be `serialized <http://en.wikipedia.org/wiki/Serialization>`_ to or unserialized from disk. Uses JSON as its storage format. Has most of the methods of a dictionary.
 
     Upon instantiation, the serialized dictionary is read from disk."""
