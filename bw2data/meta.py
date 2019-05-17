@@ -124,7 +124,7 @@ class Databases(SerializedDict):
     def __delitem__(self, name):
         from . import Database
         try:
-            Database(name).delete()
+            Database(name).delete(warn=False)
         except:
             pass
 
@@ -141,7 +141,7 @@ class CalculationSetups(PickledDict):
 
     """
     filename = "setups.pickle"
-    
+
 @python_2_unicode_compatible
 class DynamicCalculationSetups(PickledDict):
     """A dictionary for Dynamic calculation setups.

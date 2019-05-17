@@ -190,7 +190,7 @@ class SQLiteBackend(LCIBackend):
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
-            self.delete(keep_params=True)
+            self.delete(keep_params=True, warn=False)
             exchanges, activities = [], []
 
             if not getattr(config, "is_test", None):
@@ -260,7 +260,7 @@ class SQLiteBackend(LCIBackend):
                 self._efficient_write_many_data(data)
             except:
                 # Purge all data from database, then reraise
-                self.delete()
+                self.delete(warn=False)
                 raise
 
         self.make_searchable(reset=True)
@@ -317,8 +317,16 @@ class SQLiteBackend(LCIBackend):
         IndexManager(self.filename).delete_database()
 
     @writable_project
-    def delete(self, keep_params=False):
+    def delete(self, keep_params=False, warn=True):
         """Delete all data from SQLite database and Whoosh index"""
+        if warn:
+            MESSAGE = """
+            Please use `del databases['{}']` instead.
+            Otherwise, the metadata and database get out of sync.
+            Call `.delete(warn=False)` to skip this message in the future.
+            """
+            warnings.warn(MESSAGE.format(self.name), UserWarning)
+
         vacuum_needed = len(self) > 500
 
         ActivityDataset.delete().where(ActivityDataset.database== self.name).execute()
