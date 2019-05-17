@@ -134,6 +134,13 @@ def test_deletes_from_database():
     )) == (0,)
 
 @bw2test
+def test_delete_warning():
+    d = DatabaseChooser("biosphere")
+    d.write(biosphere)
+    with pytest.warns(UserWarning):
+        d.delete()
+
+@bw2test
 def test_relabel_data():
     old_data = {
         ("old and boring", '1'): {
