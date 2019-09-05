@@ -5,6 +5,8 @@ from eight import *
 from . import config, databases, methods, mapping, geomapping
 from .project import projects
 from .parameters import parameters
+import atexit
+import shutil
 import unittest
 import wrapt
 
@@ -38,5 +40,6 @@ def bw2test(wrapped, instance, args, kwargs):
     config.dont_warn = True
     config.is_test = True
     config.cache = {}
-    projects._use_temp_directory()
+    tempdir = projects._use_temp_directory()
+    atexit.register(shutil.rmtree, tempdir)
     return wrapped(*args, **kwargs)
