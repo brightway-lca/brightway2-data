@@ -5,9 +5,9 @@ from eight import *
 from . import config, databases, methods, mapping, geomapping
 from .project import projects
 from .parameters import parameters
-import atexit
 import shutil
 import unittest
+import atexit
 import wrapt
 
 
