@@ -400,7 +400,7 @@ def test_update_database_parameters():
     assert obj.amount == 3.14 * 3 + 10
 
 @bw2test
-def test_database_parameter_dependency_chain(chain):
+def test_database_parameter_dependency_chain():
     Database("B").register()
     DatabaseParameter.create(
         database="B",
@@ -431,7 +431,7 @@ def test_database_parameter_dependency_chain(chain):
     assert DatabaseParameter.dependency_chain("missing") == []
 
 @bw2test
-def test_database_parameter_dependency_chain_missing(chain):
+def test_database_parameter_dependency_chain_missing():
     Database("B").register()
     DatabaseParameter.create(
         database="B",
@@ -447,6 +447,31 @@ def test_database_parameter_dependency_chain_missing(chain):
     with pytest.raises(MissingName):
         DatabaseParameter.dependency_chain("B")
 
+@bw2test
+def test_database_parameter_dependency_chain_include_self():
+    Database("B").register()
+    DatabaseParameter.create(
+        database="B",
+        name="car",
+        formula="2 ** fly",
+        amount=8,
+    )
+    DatabaseParameter.create(
+        database="B",
+        name="truck",
+        formula="car * 5",
+    )
+    ProjectParameter.create(
+        name="fly",
+        formula="3",
+        amount=3,
+    )
+    expected = [
+        {'kind': 'project', 'group': 'project', 'names': set(["fly"])},
+        {'kind': 'database', 'group': 'B', 'names': set(["car"])},
+    ]
+    # Method now also includes required names within group
+    assert DatabaseParameter.dependency_chain("B", include_self=True) == expected
 
 ###########################
 ### Parameterized exchanges
