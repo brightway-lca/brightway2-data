@@ -316,8 +316,10 @@ class DatabaseParameter(ParameterBase):
             DatabaseParameter.expire_downstream(database)
 
     @staticmethod
-    def dependency_chain(group):
+    def dependency_chain(group, include_self=False):
         """Find where each missing variable is defined in dependency chain.
+
+        If ``include_self`` is True will include parameters within the group as possible dependencies
 
         Returns:
 
@@ -337,7 +339,8 @@ class DatabaseParameter(ParameterBase):
             return []
 
         # Parse all formulas, find missing variables
-        needed = get_new_symbols(data.values(), set(data))
+        context = set(data) if not include_self else set()
+        needed = get_new_symbols(data.values(), context=context)
         if not needed:
             return []
 
@@ -348,6 +351,16 @@ class DatabaseParameter(ParameterBase):
         if names:
             chain.append({'kind': 'project', 'group': 'project', 'names': names}
             )
+
+        if needed and include_self:
+            names = set()
+            for name in DatabaseParameter.static(group, only=needed):
+                names.add(name)
+                needed.remove(name)
+            if names:
+                chain.append(
+                    {'kind': 'database', 'group': group, 'names': names}
+                )
 
         if needed:
             raise MissingName("The following variables aren't defined:\n{}".format("|".join(needed)))
