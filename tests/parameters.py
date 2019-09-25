@@ -747,6 +747,53 @@ def test_activity_parameter_dependency_chain_includes_exchanges(chain):
     ]
     assert ActivityParameter.dependency_chain("G") == expected
 
+def test_activity_parameter_dependency_chain_include_self(chain):
+    """ Out of the parameters 'D' and 'F' in group 'A', only 'D' counts
+    as a dependency for group 'A'.
+
+    This means that 'F' can be freely deleted, after which 'D' is no longer
+    a dependency for group 'A' (as 'D' was a dependency of 'F') and can now
+    also be deleted.
+    """
+    expected = [
+        {'kind': 'database', 'group': 'B', 'names': set(["foo"])},
+        {'kind': 'project', 'group': 'project', 'names': set(["bar"])},
+    ]
+    assert ActivityParameter.dependency_chain("A") == expected
+    expected = [
+        {'kind': 'activity', 'group': 'A', 'names': set(["D"])},
+        {'kind': 'database', 'group': 'B', 'names': set(["foo"])},
+        {'kind': 'project', 'group': 'project', 'names': set(["bar"])},
+    ]
+    assert ActivityParameter.dependency_chain("A", include_self=True) == expected
+
+def test_activity_parameter_dependency_chain_include_self_exchanges(chain):
+    """ Out of the parameters 'J' and 'H' in group 'G', only 'H' counts
+    as a dependency as 'J' is not used by either 'H' or by any exchanges.
+    """
+    ActivityParameter.create(
+        group="G",
+        database="K",
+        code="L",
+        name="H",
+        amount=7,
+    )
+    db = Database("K")
+    a = db.new_activity(code="not a robot", name="actually an activity")
+    a.save()
+    a.new_exchange(amount=0, input=a, type="production", formula="15 / H").save()
+    parameters.add_exchanges_to_group("G", a)
+
+    expected = [
+        {'kind': 'activity', 'group': 'A', 'names': set(["D", "F"])},
+    ]
+    assert ActivityParameter.dependency_chain("G") == expected
+    expected = [
+        {'kind': 'activity', 'group': 'A', 'names': set(["D", "F"])},
+        {'kind': 'activity', 'group': 'G', 'names': set(["H"])},
+    ]
+    assert ActivityParameter.dependency_chain("G", include_self=True) == expected
+
 @bw2test
 def test_activity_parameter_dummy():
     assert not ActivityParameter.select().count()
