@@ -192,6 +192,39 @@ class ProjectParameter(ParameterBase):
             Group.get_or_create(name='project')[0].freshen()
             ProjectParameter.expire_downstream('project')
 
+    @staticmethod
+    def dependency_chain():
+        """ Determine if ```ProjectParameter`` parameters have dependencies
+        within the group.
+
+        Returns:
+
+        .. code-block:: python
+
+            [
+                {
+                    'kind': 'project',
+                    'group': 'project',
+                    'names': set of variables names
+                }
+            ]
+
+        """
+        data = ProjectParameter.load()
+        if not data:
+            return []
+
+        # Parse all formulas, find missing variables
+        needed = get_new_symbols(data.values())
+        if not needed:
+            return []
+
+        missing = needed.difference(data)
+        if missing:
+            raise MissingName("The following variables aren't defined:\n{}".format("|".join(missing)))
+
+        return [{'kind': 'project', 'group': 'project', 'names': needed}]
+
     @property
     def dict(self):
         """Parameter data as a standardized dictionary"""
