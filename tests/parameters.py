@@ -205,6 +205,38 @@ def test_project_name_uniqueness():
             amount=7,
         )
 
+@bw2test
+def test_project_parameter_dependency_chain():
+    ProjectParameter.create(
+        name="foo",
+        amount=3.14,
+        data={'uncertainty type': 0}
+    )
+    ProjectParameter.create(
+        name="bar",
+        amount=6.28,
+        formula="foo * 2"
+    )
+    expected = [
+        {'kind': 'project', 'group': 'project', 'names': set(["foo"])},
+    ]
+    assert ProjectParameter.dependency_chain() == expected
+
+@bw2test
+def test_project_parameter_dependency_chain_missing():
+    ProjectParameter.create(
+        name="foo",
+        amount=3.14,
+        data={'uncertainty type': 0}
+    )
+    ProjectParameter.create(
+        name="baz",
+        amount=8,
+        formula="foo * bar"
+    )
+    with pytest.raises(MissingName):
+        ProjectParameter.dependency_chain()
+
 #######################
 ### Database parameters
 #######################
