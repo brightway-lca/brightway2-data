@@ -542,6 +542,8 @@ class ActivityParameter(ParameterBase):
 
         Will also load in all parameters needed to resolve the ``ParameterizedExchanges`` for this group.
 
+        If ``include_self`` is True will include parameters within the group as possible dependencies
+
         Returns:
 
         .. code-block:: python
