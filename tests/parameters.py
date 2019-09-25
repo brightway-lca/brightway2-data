@@ -730,6 +730,20 @@ def test_activity_parameter_dependency_chain(chain):
     ]
     assert ActivityParameter.dependency_chain("A") == expected
 
+def test_activity_parameter_dependency_chain_missing(chain):
+    """ Use unknown parameter 'K' in formula to test for MissingName error.
+    """
+    ActivityParameter.create(
+        group="G",
+        database="K",
+        code="L",
+        name="M",
+        formula="foo + bar / K",
+        amount=7,
+    )
+    with pytest.raises(MissingName):
+        ActivityParameter.dependency_chain("G")
+
 def test_activity_parameter_dependency_chain_includes_exchanges(chain):
     ProjectParameter.create(
         name="something_new",
