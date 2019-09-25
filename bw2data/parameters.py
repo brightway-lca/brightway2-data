@@ -387,7 +387,8 @@ class DatabaseParameter(ParameterBase):
 
         if needed and include_self:
             names = set()
-            for name in DatabaseParameter.static(group, only=needed):
+            included = needed.intersection(data)
+            for name in included:
                 names.add(name)
                 needed.remove(name)
             if names:
