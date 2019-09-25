@@ -536,7 +536,7 @@ class ActivityParameter(ParameterBase):
             return False
 
     @staticmethod
-    def dependency_chain(group):
+    def dependency_chain(group, include_self=False):
         """Find where each missing variable is defined in dependency chain.
 
         Will also load in all parameters needed to resolve the ``ParameterizedExchanges`` for this group.
@@ -559,8 +559,11 @@ class ActivityParameter(ParameterBase):
             return []
 
         # Parse all formulas, find missing variables
-        activity_needed = get_new_symbols(data.values(), set(data))
-        exchanges_needed = get_new_symbols(ParameterizedExchange.load(group).values(), set(data))
+        context = set(data) if not include_self else None
+        activity_needed = get_new_symbols(data.values(), context=context)
+        exchanges_needed = get_new_symbols(
+            ParameterizedExchange.load(group).values(), context=context
+        )
         needed = activity_needed.union(exchanges_needed)
 
         if not needed:
@@ -577,6 +580,15 @@ class ActivityParameter(ParameterBase):
                 needed.remove(name)
             if names:
                chain.append({'kind': 'activity', 'group': new_group, 'names': names})
+
+        if needed and include_self:
+            names = set()
+            included = needed.intersection(data)
+            for name in included:
+                names.add(name)
+                needed.remove(name)
+            if names:
+                chain.append({'kind': 'activity', 'group': group, 'names': names})
 
         if needed:
             database = ActivityParameter.get(group=group).database
