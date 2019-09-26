@@ -897,14 +897,24 @@ class ParameterManager(object):
                 obj.group = group
                 obj.formula = exc['formula']
                 obj.save()
+                if 'original_amount' not in exc:
+                    exc["original_amount"] = exc["amount"]
+                    exc.save()
                 count += 1
 
         return count
 
     def remove_exchanges_from_group(self, group, activity):
+        """ Takes a group and activity and removes all ``ParameterizedExchange``
+        objects from the group.
+        """
+        for exc in (ex for ex in activity.exchanges() if 'original_amount' in ex):
+            exc["amount"] = exc["original_amount"]
+            del exc["original_amount"]
+            exc.save()
+
         ParameterizedExchange.delete().where(
             ParameterizedExchange.group == group).execute()
-
 
     def new_project_parameters(self, data, overwrite=True):
         """Efficiently and correctly enter multiple parameters.
