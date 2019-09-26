@@ -379,6 +379,24 @@ def test_database_uniqueness_constraint():
         )
 
 @bw2test
+def test_database_parameter_cross_database_constraint():
+    """Database parameters cannot use parameters on other databases."""
+    Database("B").register()
+    Database("C").register()
+    DatabaseParameter.create(
+        database="B",
+        name="car",
+        amount=8,
+    )
+    DatabaseParameter.create(
+        database="C",
+        name="plane",
+        formula="car ** 5",
+    )
+    with pytest.raises(MissingName):
+        DatabaseParameter.recalculate("C")
+
+@bw2test
 def test_update_database_parameters():
     assert not Group.select().count()
     assert not GroupDependency.select().count()
