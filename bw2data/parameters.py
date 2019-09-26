@@ -424,7 +424,7 @@ class DatabaseParameter(ParameterBase):
         """Perform a test to see if the current parameter can be deleted."""
         # Test if the current parameter is used by other database parameters
         chain = self.dependency_chain(self.database, include_self=True)
-        own_group = next((x for x in chain if x.get("group") == self.group), None)
+        own_group = next((x for x in chain if x.get("group") == self.database), None)
         if own_group and self.name in own_group.get("names", set()):
             return False
 
