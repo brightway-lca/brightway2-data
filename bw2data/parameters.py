@@ -228,8 +228,8 @@ class ProjectParameter(ParameterBase):
     def is_deletable(self):
         """Perform a test to see if the current parameter can be deleted."""
         chain = ProjectParameter.dependency_chain()
-        own_group = next((x for x in chain), None)
-        if own_group and self.name in own_group.get("names", set()):
+        own_group = next(iter(chain), {})
+        if self.name in own_group.get("names", set()):
             return False
         # Test the database parameters
         if DatabaseParameter.is_dependent_on(self.name):
@@ -424,8 +424,8 @@ class DatabaseParameter(ParameterBase):
         """Perform a test to see if the current parameter can be deleted."""
         # Test if the current parameter is used by other database parameters
         chain = self.dependency_chain(self.database, include_self=True)
-        own_group = next((x for x in chain if x.get("group") == self.database), None)
-        if own_group and self.name in own_group.get("names", set()):
+        own_group = next((x for x in chain if x.get("group") == self.database), {})
+        if self.name in own_group.get("names", set()):
             return False
 
         # Then test all relevant activity parameters
@@ -446,8 +446,8 @@ class DatabaseParameter(ParameterBase):
 
         for row in query.execute():
             chain = DatabaseParameter.dependency_chain(row.group)
-            own_group = next((x for x in chain if x.get("group") == "project"), None)
-            if own_group and name in own_group.get("names", set()):
+            own_group = next((x for x in chain if x.get("group") == "project"), {})
+            if name in own_group.get("names", set()):
                 return True
 
         return False
@@ -742,8 +742,8 @@ class ActivityParameter(ParameterBase):
         """Perform a test to see if the current parameter can be deleted."""
         # First check own group
         chain = self.dependency_chain(self.group, include_self=True)
-        own_group = next((x for x in chain if x.get("group") == self.group), None)
-        if own_group and self.name in own_group.get("names", set()):
+        own_group = next((x for x in chain if x.get("group") == self.group), {})
+        if self.name in own_group.get("names", set()):
             return False
 
         # Then test other relevant activity groups.
@@ -764,8 +764,8 @@ class ActivityParameter(ParameterBase):
 
         for row in query.execute():
             chain = ActivityParameter.dependency_chain(row.group)
-            own_group = next((x for x in chain if x.get("group") == group), None)
-            if own_group and name in own_group.get("names", set()):
+            own_group = next((x for x in chain if x.get("group") == group), {})
+            if name in own_group.get("names", set()):
                 return True
 
         return False
