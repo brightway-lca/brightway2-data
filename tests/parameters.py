@@ -1449,3 +1449,41 @@ def test_parameters_remove_from_group():
     assert ActivityParameter.select().count() == 1
     assert not ParameterizedExchange.select().count()
     assert get_activity(("example", "A"))['parameters']
+
+@bw2test
+def test_parameters_save_restore_exchange_amount():
+    """ The original amount of the exchange is restored when it is no
+    longer parameterized.
+    """
+    db = Database("example")
+    db.register()
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    a.new_exchange(amount=5, input=b, type="technosphere", formula="bing + 5").save()
+
+    activity_data = [{
+        'name': 'bing',
+        'amount': '7',
+        'database': 'example',
+        'code': "A",
+    }]
+    parameters.new_activity_parameters(activity_data, "calculate")
+    parameters.add_exchanges_to_group("calculate", a)
+    # The original amount and current amount is 5
+    for exc in a.exchanges():
+        assert exc["amount"] == 5
+        assert 'original_amount' in exc and exc["original_amount"] == 5
+
+    ActivityParameter.recalculate_exchanges("calculate")
+    # Parameterization has caused the amount to change.
+    for exc in a.exchanges():
+        assert exc["amount"] == 12
+        assert 'original_amount' in exc
+
+    # Remove parameterization from the activity, restoring the original amount
+    parameters.remove_from_group("calculate", a)
+    for exc in a.exchanges():
+        assert exc["amount"] == 5
+        assert 'original_amount' not in exc
