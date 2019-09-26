@@ -225,6 +225,20 @@ class ProjectParameter(ParameterBase):
 
         return [{'kind': 'project', 'group': 'project', 'names': needed}]
 
+    def is_deletable(self):
+        """Perform a test to see if the current parameter can be deleted."""
+        chain = ProjectParameter.dependency_chain()
+        own_group = next((x for x in chain), None)
+        if own_group and self.name in own_group.get("names", set()):
+            return False
+        # Test the database parameters
+        if DatabaseParameter.is_dependent_on(self.name):
+            return False
+        # Test activity parameters
+        if ActivityParameter.is_dependent_on(self.name, "project"):
+            return False
+        return True
+
     @property
     def dict(self):
         """Parameter data as a standardized dictionary"""
@@ -405,6 +419,38 @@ class DatabaseParameter(ParameterBase):
         """Save this model instance"""
         Group.get_or_create(name=self.database)[0].expire()
         super(DatabaseParameter, self).save(*args, **kwargs)
+
+    def is_deletable(self):
+        """Perform a test to see if the current parameter can be deleted."""
+        # Test if the current parameter is used by other database parameters
+        chain = self.dependency_chain(self.database, include_self=True)
+        own_group = next((x for x in chain if x.get("group") == self.group), None)
+        if own_group and self.name in own_group.get("names", set()):
+            return False
+
+        # Then test all relevant activity parameters
+        if ActivityParameter.is_dependent_on(self.name, self.database):
+            return False
+
+        return True
+
+    @staticmethod
+    def is_dependent_on(name):
+        """ Test if any database parameters are dependent on the given
+        project parameter name.
+        """
+        query = (GroupDependency
+                 .select(GroupDependency.group)
+                 .where(GroupDependency.depends == "project")
+                 .distinct())
+
+        for row in query.execute():
+            chain = DatabaseParameter.dependency_chain(row.group)
+            own_group = next((x for x in chain if x.get("group") == "project"), None)
+            if own_group and name in own_group.get("names", set()):
+                return True
+
+        return False
 
     @property
     def dict(self):
@@ -691,6 +737,38 @@ class ActivityParameter(ParameterBase):
         """Save this model instance"""
         Group.get_or_create(name=self.group)[0].expire()
         super(ActivityParameter, self).save(*args, **kwargs)
+
+    def is_deletable(self):
+        """Perform a test to see if the current parameter can be deleted."""
+        # First check own group
+        chain = self.dependency_chain(self.group, include_self=True)
+        own_group = next((x for x in chain if x.get("group") == self.group), None)
+        if own_group and self.name in own_group.get("names", set()):
+            return False
+
+        # Then test other relevant activity groups.
+        if ActivityParameter.is_dependent_on(self.name, self.group):
+            return False
+
+        return True
+
+    @staticmethod
+    def is_dependent_on(name, group):
+        """ Test if any activity parameters are dependent on the given
+        parameter name from the given group.
+        """
+        query = (GroupDependency
+                 .select(GroupDependency.group)
+                 .where(GroupDependency.depends == group)
+                 .distinct())
+
+        for row in query.execute():
+            chain = ActivityParameter.dependency_chain(row.group)
+            own_group = next((x for x in chain if x.get("group") == group), None)
+            if own_group and name in own_group.get("names", set()):
+                return True
+
+        return False
 
     @classmethod
     def create_table(cls):
