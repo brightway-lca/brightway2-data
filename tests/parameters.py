@@ -237,6 +237,65 @@ def test_project_parameter_dependency_chain_missing():
     with pytest.raises(MissingName):
         ProjectParameter.dependency_chain()
 
+@bw2test
+def test_project_parameter_is_deletable():
+    """ Project parameters can be deleted if they are no dependencies.
+    """
+    ProjectParameter.create(
+        name="foo",
+        amount=3.14
+    )
+    assert ProjectParameter.get(name="foo").is_deletable()
+
+@bw2test
+def test_project_parameter_is_not_deletable_project():
+    ProjectParameter.create(
+        name="foo",
+        amount=3.14
+    )
+    ProjectParameter.create(
+        name="bar",
+        amount=1,
+        formula="foo * 2"
+    )
+    assert not ProjectParameter.get(name="foo").is_deletable()
+
+@bw2test
+def test_project_parameter_is_not_deletable_database():
+    ProjectParameter.create(
+        name="foo",
+        amount=3.14
+    )
+    Database("B").register()
+    DatabaseParameter.create(
+        database="B",
+        name="bar",
+        amount=1,
+        formula="foo * 5"
+    )
+    # Recalculate to build GroupDependencies.
+    parameters.recalculate()
+    assert not ProjectParameter.get(name="foo").is_deletable()
+
+@bw2test
+def test_project_parameter_is_not_deletable_activity():
+    ProjectParameter.create(
+        name="foo",
+        amount=3.14
+    )
+    Database("B").register()
+    ActivityParameter.create(
+        group="baz",
+        database="B",
+        code="first",
+        name="bar",
+        amount=0,
+        formula="foo + 4"
+    )
+    # Recalculate to build GroupDependencies.
+    parameters.recalculate()
+    assert not ProjectParameter.get(name="foo").is_deletable()
+
 #######################
 ### Database parameters
 #######################
@@ -379,6 +438,24 @@ def test_database_uniqueness_constraint():
         )
 
 @bw2test
+def test_database_parameter_cross_database_constraint():
+    """Database parameters cannot use parameters on other databases."""
+    Database("B").register()
+    Database("C").register()
+    DatabaseParameter.create(
+        database="B",
+        name="car",
+        amount=8,
+    )
+    DatabaseParameter.create(
+        database="C",
+        name="plane",
+        formula="car ** 5",
+    )
+    with pytest.raises(MissingName):
+        DatabaseParameter.recalculate("C")
+
+@bw2test
 def test_update_database_parameters():
     assert not Group.select().count()
     assert not GroupDependency.select().count()
@@ -504,6 +581,77 @@ def test_database_parameter_dependency_chain_include_self():
     ]
     # Method now also includes required names within group
     assert DatabaseParameter.dependency_chain("B", include_self=True) == expected
+
+@bw2test
+def test_database_parameter_is_deletable():
+    """ Database parameters can be deleted if they are no dependencies.
+    """
+    Database("B").register()
+    DatabaseParameter.create(
+        database="B",
+        name="car",
+        amount=8
+    )
+    assert DatabaseParameter.get(name="car").is_deletable()
+
+@bw2test
+def test_database_parameter_is_not_deletable_database():
+    Database("B").register()
+    DatabaseParameter.create(
+        database="B",
+        name="car",
+        amount=8
+    )
+    DatabaseParameter.create(
+        database="B",
+        name="truck",
+        formula="car * 5",
+        amount=4
+    )
+    assert not DatabaseParameter.get(name="car").is_deletable()
+
+@bw2test
+def test_database_parameter_is_not_deletable_activity():
+    Database("B").register()
+    DatabaseParameter.create(
+        database="B",
+        name="car",
+        amount=8
+    )
+    ActivityParameter.create(
+        group="cars",
+        database="B",
+        code="first",
+        name="bar",
+        amount=0,
+        formula="car + 4"
+    )
+    # Build GroupDependencies
+    parameters.recalculate()
+    assert not DatabaseParameter.get(name="car").is_deletable()
+
+@bw2test
+def test_database_parameter_is_dependent_on():
+    """ Databases parameters can be dependent on project parameters.
+    """
+    Database("B").register()
+    ProjectParameter.create(
+        name="foo",
+        amount=2
+    )
+    ProjectParameter.create(
+        name="bar",
+        amount=5
+    )
+    DatabaseParameter.create(
+        database="B",
+        name="baz",
+        amount=1,
+        formula="foo + 2"
+    )
+    parameters.recalculate()
+    assert DatabaseParameter.is_dependent_on("foo")
+    assert not DatabaseParameter.is_dependent_on("bar")
 
 ###########################
 ### Parameterized exchanges
@@ -1006,6 +1154,36 @@ def test_activity_parameter_recalculate():
     ActivityParameter.recalculate("A")
     assert ActivityParameter.get(database="B", code="E").amount == 4 + 8 + 8
     assert Group.get(name="A").fresh
+
+def test_activity_parameter_is_deletable(chain):
+    """ An activity parameter is deletable if it is not a dependency of another
+    activity parameter.
+    """
+    # Ensure that all GroupDependencies exist.
+    Group.get(name="G").expire()
+    parameters.recalculate()
+
+    # Is not used by any other activity parameter
+    assert ActivityParameter.get(name="J", group="G").is_deletable()
+    # Is used by the 'F' activity parameter from the same group.
+    assert not ActivityParameter.get(name="D", group="A").is_deletable()
+    # Is used by the 'J' activity parameter from group 'G'
+    assert not ActivityParameter.get(name="F", group="A").is_deletable()
+
+def test_activity_parameter_is_dependent_on(chain):
+    """ An activity parameter can be dependent on any other type of parameter.
+    """
+    # Ensure that GroupDependencies exist.
+    parameters.recalculate()
+
+    # Some activity parameter is using the "bar" project parameter
+    assert ActivityParameter.is_dependent_on("bar", "project")
+    # Some activity parameter is using the "foo" database parameter
+    assert ActivityParameter.is_dependent_on("foo", "B")
+    # Some activity parameter is using the "F" activity parameter
+    assert ActivityParameter.is_dependent_on("F", "A")
+    # No activity parameter is dependent on the "J" activity parameter
+    assert not ActivityParameter.is_dependent_on("J", "G")
 
 @bw2test
 def test_activity_parameter_crossdatabase_triggers():
