@@ -851,12 +851,17 @@ class ParameterManager(object):
             ActivityParameter.code == activity['code']
         ).count()
 
-    def remove_from_group(self, group, activity):
-        """Remove `activity` from group.
+    def remove_from_group(self, group, activity, restore_amounts=True):
+        """Remove `activity` from `group`.
 
         Will delete any existing ``ActivityParameter`` and ``ParameterizedExchange`` for this activity.
 
-        Restores `parameters` key to this `Activity`."""
+        Restores `parameters` key to this `Activity`.
+        By default, restores `amount` value of each parameterized exchange
+        of the `Activity` to the original value. This can be avoided by using
+        the ``restore_amounts`` parameter.
+
+        """
         def drop_fields(dct):
             dct = {k: v for k, v in dct.items()
                    if k not in ('database', 'code')}
@@ -872,7 +877,7 @@ class ParameterManager(object):
         ])
 
         with self.db.atomic():
-            self.remove_exchanges_from_group(group, activity)
+            self.remove_exchanges_from_group(group, activity, restore_amounts)
             ActivityParameter.delete().where(
                 ActivityParameter.database == activity[0],
                 ActivityParameter.code == activity[1]
@@ -880,7 +885,14 @@ class ParameterManager(object):
             activity.save()
 
     def add_exchanges_to_group(self, group, activity):
-        """Add exchanges with formulas from ``activity`` to ``group``"""
+        """ Add exchanges with formulas from ``activity`` to ``group``.
+
+        Every exchange with a formula field will have its original `amount`
+        value stored as `original_amount`. This original value can be
+        restored when parameterization is removed from the activity with
+        `remove_from_group`.
+
+        """
         count = 0
         if not ActivityParameter.select().where(
                 ActivityParameter.database == activity[0],
@@ -904,14 +916,20 @@ class ParameterManager(object):
 
         return count
 
-    def remove_exchanges_from_group(self, group, activity):
+    def remove_exchanges_from_group(self, group, activity, restore_original=True):
         """ Takes a group and activity and removes all ``ParameterizedExchange``
         objects from the group.
+
+        The ``restore_original`` parameter determines if the original amount
+        values will be restored to those exchanges where a formula was used
+        to alter the amount.
+
         """
-        for exc in (ex for ex in activity.exchanges() if 'original_amount' in ex):
-            exc["amount"] = exc["original_amount"]
-            del exc["original_amount"]
-            exc.save()
+        if restore_original:
+            for exc in (ex for ex in activity.exchanges() if 'original_amount' in ex):
+                exc["amount"] = exc["original_amount"]
+                del exc["original_amount"]
+                exc.save()
 
         ParameterizedExchange.delete().where(
             ParameterizedExchange.group == group).execute()
