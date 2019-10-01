@@ -719,12 +719,23 @@ class ActivityParameter(ParameterBase):
         return chain
 
     @staticmethod
-    def is_dependency_within_group(name, group):
-        own_group = next(
-            (x for x in ActivityParameter.dependency_chain(group, include_self=True)
-             if x.get("group") == group), {}
-        )
-        return True if name in own_group.get("names", set()) else False
+    def is_dependency_within_group(name, group, include_order=False):
+        """ Determine if the given parameter `name` is a dependency within
+        the given activity `group`.
+
+        The optional ``include_order`` parameter will include dependencies
+        from groups found in the the ``Group``.`order` field.
+        """
+        chain = ActivityParameter.dependency_chain(group, include_self=True)
+        own_group = next((x for x in chain if x.get("group") == group), {})
+        names = own_group.get("names", set())
+        if include_order:
+            for new_group in Group.get(name=group).order:
+                order_group = next(
+                    (x for x in chain if x.get("group") == new_group), {}
+                )
+                names = names.union(order_group.get("names", set()))
+        return True if name in names else False
 
     @staticmethod
     def recalculate(group):
