@@ -238,6 +238,21 @@ def test_project_parameter_dependency_chain_missing():
         ProjectParameter.dependency_chain()
 
 @bw2test
+def test_project_parameter_depend_within_group():
+    ProjectParameter.create(
+        name="foo",
+        amount=3.14,
+        data={'uncertainty type': 0}
+    )
+    ProjectParameter.create(
+        name="baz",
+        amount=8,
+        formula="foo * 2"
+    )
+    assert ProjectParameter.is_dependency_within_group("foo")
+    assert not ProjectParameter.is_dependency_within_group("baz")
+
+@bw2test
 def test_project_parameter_is_deletable():
     """ Project parameters can be deleted if they are no dependencies.
     """
@@ -610,6 +625,43 @@ def test_database_parameter_dependency_chain_include_self():
     assert DatabaseParameter.dependency_chain("B", include_self=True) == expected
 
 @bw2test
+def test_database_parameter_depend_within_group():
+    Database("B").register()
+    Database("C").register()
+    DatabaseParameter.create(
+        database="B",
+        name="car",
+        formula="2 ** fly",
+        amount=8,
+    )
+    DatabaseParameter.create(
+        database="B",
+        name="truck",
+        amount=2,
+        formula="car * 5",
+    )
+    DatabaseParameter.create(
+        database="C",
+        name="fly",
+        amount=7,
+    )
+    DatabaseParameter.create(
+        database="C",
+        name="parade",
+        amount=1,
+        formula="fly * 2.7",
+    )
+    ProjectParameter.create(
+        name="fly",
+        formula="3",
+        amount=3,
+    )
+    parameters.recalculate()
+    assert DatabaseParameter.is_dependency_within_group("car", "B")
+    assert not DatabaseParameter.is_dependency_within_group("truck", "B")
+    assert DatabaseParameter.is_dependency_within_group("fly", "C")
+
+@bw2test
 def test_database_parameter_is_deletable():
     """ Database parameters can be deleted if they are no dependencies.
     """
@@ -681,7 +733,7 @@ def test_database_parameter_is_dependent_on():
     assert not DatabaseParameter.is_dependent_on("bar")
 
 @bw2test
-def test_database_parameter_formula_update():
+def test_database_parameter_formula_update_project():
     """ Update formulas of database parameters, only update the formulas
     where the actual ProjectParameter is referenced.
     """
@@ -714,12 +766,14 @@ def test_database_parameter_formula_update():
         formula="tracks * 2"
     )
     parameters.recalculate()
+    assert DatabaseParameter.get(name="bar").formula == "foo + 2"
+    assert DatabaseParameter.get(name="bing").formula == "foo + 2"
     DatabaseParameter.update_formula_project_parameter_name("foo", "baz")
     assert DatabaseParameter.get(name="bar").formula == "baz + 2"
     assert DatabaseParameter.get(name="bing").formula == "foo + 2"
 
 @bw2test
-def test_database_parameter_formula_update_internal():
+def test_database_parameter_formula_update_database():
     """ Update formulas of database parameters, only update the formulas
     where the actual DatabaseParameter is referenced.
     """
@@ -747,6 +801,8 @@ def test_database_parameter_formula_update_internal():
         amount=8,
     )
     parameters.recalculate()
+    assert DatabaseParameter.get(name="bar").formula == "foo + 2"
+    assert DatabaseParameter.get(name="bing").formula == "foo + 2"
     DatabaseParameter.update_formula_database_parameter_name("foo", "baz")
     assert DatabaseParameter.get(name="bar").formula == "foo + 2"
     assert DatabaseParameter.get(name="bing").formula == "baz + 2"
@@ -1054,6 +1110,23 @@ def test_activity_parameter_dependency_chain_include_self_exchanges(chain):
     ]
     assert ActivityParameter.dependency_chain("G", include_self=True) == expected
 
+def test_activity_parameter_depend_within_group(chain):
+    """ When considering only dependencies within the given group. 'D' is
+    a dependency within the group 'A', while 'F' is not.
+    """
+    assert ActivityParameter.is_dependency_within_group("D", "A")
+    assert not ActivityParameter.is_dependency_within_group("F", "A")
+
+def test_activity_parameter_depend_within_group_include(chain):
+    """ The 'J' parameter in group 'G' depends on the 'F' parameter in group
+    'A'. 'F' doesn't exist within the 'G' group but is instead linked to the
+    'J' parameter through the 'G' group order.
+    """
+    parameters.recalculate()
+    assert ActivityParameter.is_dependent_on("F", "A")
+    assert not ActivityParameter.is_dependency_within_group("F", "G")
+    assert ActivityParameter.is_dependency_within_group("F", "G", include_order=True)
+
 @bw2test
 def test_activity_parameter_dummy():
     assert not ActivityParameter.select().count()
@@ -1282,6 +1355,68 @@ def test_activity_parameter_is_dependent_on(chain):
     assert ActivityParameter.is_dependent_on("F", "A")
     # No activity parameter is dependent on the "J" activity parameter
     assert not ActivityParameter.is_dependent_on("J", "G")
+
+def test_activity_parameter_formula_update_project(chain):
+    ActivityParameter.create(
+        group="G",
+        database="K",
+        code="AA",
+        name="bar",
+        amount=2,
+    )
+    ActivityParameter.create(
+        group="G",
+        database="K",
+        code="BB",
+        name="baz",
+        amount=5,
+        formula="bar * 6"
+    )
+    parameters.recalculate()
+    assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + D"
+    assert ActivityParameter.get(name="baz", group="G").formula == "bar * 6"
+    ActivityParameter.update_formula_project_parameter_name("bar", "banana")
+    assert ActivityParameter.get(name="F", group="A").formula == "foo + banana + D"
+    assert ActivityParameter.get(name="baz", group="G").formula == "bar * 6"
+
+def test_activity_parameter_formula_update_database(chain):
+    ActivityParameter.create(
+        group="G",
+        database="K",
+        code="AA",
+        name="foo",
+        amount=2,
+    )
+    ActivityParameter.create(
+        group="G",
+        database="K",
+        code="BB",
+        name="baz",
+        amount=5,
+        formula="foo * 6"
+    )
+    parameters.recalculate()
+    assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + D"
+    assert ActivityParameter.get(name="baz", group="G").formula == "foo * 6"
+    ActivityParameter.update_formula_database_parameter_name("foo", "mango")
+    assert ActivityParameter.get(name="F", group="A").formula == "mango + bar + D"
+    assert ActivityParameter.get(name="baz", group="G").formula == "foo * 6"
+
+def test_activity_parameter_formula_update_activity(chain):
+    parameters.recalculate()
+    assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + D"
+    assert ActivityParameter.get(name="J", group="G").formula == "F + D * 2"
+    ActivityParameter.update_formula_activity_parameter_name("D", "dingo")
+    assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + dingo"
+    assert ActivityParameter.get(name="J", group="G").formula == "F + D * 2"
+
+def test_activity_parameter_formula_update_activity_include(chain):
+    parameters.recalculate()
+    assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + D"
+    assert ActivityParameter.get(name="J", group="G").formula == "F + D * 2"
+    ActivityParameter.update_formula_activity_parameter_name("D", "dingo", include_order=True)
+    assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + dingo"
+    assert ActivityParameter.get(name="J", group="G").formula == "F + dingo * 2"
 
 @bw2test
 def test_activity_parameter_crossdatabase_triggers():
