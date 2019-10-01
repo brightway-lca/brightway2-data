@@ -296,6 +296,33 @@ def test_project_parameter_is_not_deletable_activity():
     parameters.recalculate()
     assert not ProjectParameter.get(name="foo").is_deletable()
 
+@bw2test
+def test_project_parameter_formula_update():
+    """ Update formulas only where the name of the parameter is an exact match.
+    """
+    ProjectParameter.create(
+        name="foo",
+        amount=3.14
+    )
+    ProjectParameter.create(
+        name="foobar",
+        amount=6.28
+    )
+    ProjectParameter.create(
+        name="bar",
+        amount=1,
+        formula="foo + 2"
+    )
+    ProjectParameter.create(
+        name="baz",
+        amount=1,
+        formula="foobar * 3"
+    )
+    assert ProjectParameter.select().where(ProjectParameter.formula.contains("foo")).count() == 2
+    ProjectParameter.update_formula_parameter_name("foo", "efficiency")
+    assert ProjectParameter.get(name="bar").formula == "efficiency + 2"
+    assert ProjectParameter.get(name="baz").formula == "foobar * 3"
+
 #######################
 ### Database parameters
 #######################
@@ -652,6 +679,77 @@ def test_database_parameter_is_dependent_on():
     parameters.recalculate()
     assert DatabaseParameter.is_dependent_on("foo")
     assert not DatabaseParameter.is_dependent_on("bar")
+
+@bw2test
+def test_database_parameter_formula_update():
+    """ Update formulas of database parameters, only update the formulas
+    where the actual ProjectParameter is referenced.
+    """
+    ProjectParameter.create(
+        name="foo",
+        amount=2
+    )
+    ProjectParameter.create(
+        name="tracks",
+        amount=14
+    )
+    Database("B").register()
+    Database("C").register()
+    DatabaseParameter.create(
+        database="B",
+        name="bar",
+        amount=1,
+        formula="foo + 2"
+    )
+    DatabaseParameter.create(
+        database="C",
+        name="bing",
+        amount=1,
+        formula="foo + 2"
+    )
+    DatabaseParameter.create(
+        database="C",
+        name="foo",
+        amount=8,
+        formula="tracks * 2"
+    )
+    parameters.recalculate()
+    DatabaseParameter.update_formula_project_parameter_name("foo", "baz")
+    assert DatabaseParameter.get(name="bar").formula == "baz + 2"
+    assert DatabaseParameter.get(name="bing").formula == "foo + 2"
+
+@bw2test
+def test_database_parameter_formula_update_internal():
+    """ Update formulas of database parameters, only update the formulas
+    where the actual DatabaseParameter is referenced.
+    """
+    ProjectParameter.create(
+        name="foo",
+        amount=2
+    )
+    Database("B").register()
+    Database("C").register()
+    DatabaseParameter.create(
+        database="B",
+        name="bar",
+        amount=1,
+        formula="foo + 2"
+    )
+    DatabaseParameter.create(
+        database="C",
+        name="bing",
+        amount=1,
+        formula="foo + 2"
+    )
+    DatabaseParameter.create(
+        database="C",
+        name="foo",
+        amount=8,
+    )
+    parameters.recalculate()
+    DatabaseParameter.update_formula_database_parameter_name("foo", "baz")
+    assert DatabaseParameter.get(name="bar").formula == "foo + 2"
+    assert DatabaseParameter.get(name="bing").formula == "baz + 2"
 
 ###########################
 ### Parameterized exchanges
@@ -1362,6 +1460,34 @@ def test_group_dependency_circular():
     GroupDependency.create(group="foo", depends="bar")
     with pytest.raises(IntegrityError):
         GroupDependency.create(group="bar", depends="foo")
+
+@bw2test
+def test_group_dependency_override():
+    """ GroupDependency can be overridden by having a parameter with the same
+    name within the group.
+    """
+    ProjectParameter.create(
+        name="foo",
+        amount=2
+    )
+    Database("B").register()
+    DatabaseParameter.create(
+        database="B",
+        name="bar",
+        amount=1,
+        formula="foo * 5"
+    )
+    parameters.recalculate()
+    assert GroupDependency.select().where(GroupDependency.depends == "project").count() == 1
+    assert DatabaseParameter.get(name="bar").amount == 10
+    DatabaseParameter.create(
+        database="B",
+        name="foo",
+        amount=8,
+    )
+    parameters.recalculate()
+    assert GroupDependency.select().where(GroupDependency.depends == "project").count() == 0
+    assert DatabaseParameter.get(name="bar").amount == 40
 
 ######################
 ### Parameters manager
