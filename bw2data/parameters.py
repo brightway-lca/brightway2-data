@@ -392,15 +392,7 @@ class DatabaseParameter(ParameterBase):
             return []
 
         names, chain = set(), []
-        for name in ProjectParameter.static(only=needed):
-            names.add(name)
-            needed.remove(name)
-        if names:
-            chain.append({'kind': 'project', 'group': 'project', 'names': names}
-            )
-
-        if needed and include_self:
-            names = set()
+        if include_self:
             included = needed.intersection(data)
             for name in included:
                 names.add(name)
@@ -408,6 +400,16 @@ class DatabaseParameter(ParameterBase):
             if names:
                 chain.append(
                     {'kind': 'database', 'group': group, 'names': names}
+                )
+
+        if needed:
+            names = set()
+            for name in ProjectParameter.static(only=needed):
+                names.add(name)
+                needed.remove(name)
+            if names:
+                chain.insert(
+                    0, {'kind': 'project', 'group': 'project', 'names': names}
                 )
 
         if needed:
