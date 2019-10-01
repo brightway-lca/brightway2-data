@@ -26,7 +26,8 @@ import datetime
 
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
-clean = lambda x: re.sub('\W|^(?=\d)','_', x)
+clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)
+replace_name = lambda old, new, formula: re.sub(r"\b{}\b".format(old), new, formula)
 nonempty = lambda dct: {k: v for k, v in dct.items() if v is not None}
 
 """Autoupdate `updated` field in Group when parameters change"""
@@ -112,6 +113,14 @@ class ParameterBase(Model):
                 GroupDependency.group
             ).where(GroupDependency.depends==group)
         ).execute()
+
+    @classmethod
+    def bulk_formula_update(cls, model_list, old, new):
+        if not hasattr(cls, "formula"):
+            raise ValueError("Given table '{}' has no formula column".format(type(cls)))
+        for p in model_list:
+            p.formula = replace_name(old, new, p.formula)
+        cls.bulk_update(model_list, fields=[cls.formula], batch_size=50)
 
 
 @python_2_unicode_compatible
@@ -241,6 +250,17 @@ class ProjectParameter(ParameterBase):
         if ActivityParameter.is_dependent_on(self.name, "project"):
             return False
         return True
+
+    @classmethod
+    def update_formula_parameter_name(cls, old, new):
+        """ Performs an update of the formula of relevant parameters.
+
+        NOTE: Make sure to wrap this in an .atomic() statement!
+        """
+        data = [
+            p for p in cls.select().where(cls.formula.contains(old))
+        ]
+        cls.bulk_formula_update(data, old, new)
 
     @property
     def dict(self):
@@ -460,6 +480,34 @@ class DatabaseParameter(ParameterBase):
                 return True
 
         return False
+
+    @classmethod
+    def update_formula_project_parameter_name(cls, old, new):
+        """ Performs an update of the formula of relevant parameters.
+
+        This method specifically targets project parameters used in database
+        formulas
+        """
+        data = [
+            p for p in (cls.select()
+                        .join(GroupDependency, on=(GroupDependency.group == cls.database))
+                        .where(cls.formula.contains(old)))
+            if not DatabaseParameter.is_dependency_within_group(old, p.database)
+        ]
+        cls.bulk_formula_update(data, old, new)
+
+    @classmethod
+    def update_formula_database_parameter_name(cls, old, new):
+        """ Performs an update of the formula of relevant parameters.
+
+        This method specifically targets database parameters used in database
+        formulas
+        """
+        data = [
+            p for p in cls.select().where(cls.formula.contains(old))
+            if DatabaseParameter.is_dependency_within_group(old, p.database)
+        ]
+        cls.bulk_formula_update(data, old, new)
 
     @property
     def dict(self):
