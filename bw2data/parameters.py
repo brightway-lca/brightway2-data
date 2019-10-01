@@ -225,11 +225,14 @@ class ProjectParameter(ParameterBase):
 
         return [{'kind': 'project', 'group': 'project', 'names': needed}]
 
+    @staticmethod
+    def is_dependency_within_group(name):
+        own_group = next(iter(ProjectParameter.dependency_chain()), {})
+        return True if name in own_group.get("names", set()) else False
+
     def is_deletable(self):
         """Perform a test to see if the current parameter can be deleted."""
-        chain = ProjectParameter.dependency_chain()
-        own_group = next(iter(chain), {})
-        if self.name in own_group.get("names", set()):
+        if ProjectParameter.is_dependency_within_group(self.name):
             return False
         # Test the database parameters
         if DatabaseParameter.is_dependent_on(self.name):
@@ -417,6 +420,14 @@ class DatabaseParameter(ParameterBase):
 
         return chain
 
+    @staticmethod
+    def is_dependency_within_group(name, database):
+        own_group = next(
+            (x for x in DatabaseParameter.dependency_chain(database, include_self=True)
+             if x.get("group") == database), {}
+        )
+        return True if name in own_group.get("names", set()) else False
+
     def save(self, *args, **kwargs):
         """Save this model instance"""
         Group.get_or_create(name=self.database)[0].expire()
@@ -425,15 +436,11 @@ class DatabaseParameter(ParameterBase):
     def is_deletable(self):
         """Perform a test to see if the current parameter can be deleted."""
         # Test if the current parameter is used by other database parameters
-        chain = self.dependency_chain(self.database, include_self=True)
-        own_group = next((x for x in chain if x.get("group") == self.database), {})
-        if self.name in own_group.get("names", set()):
+        if DatabaseParameter.is_dependency_within_group(self.name, self.database):
             return False
-
         # Then test all relevant activity parameters
         if ActivityParameter.is_dependent_on(self.name, self.database):
             return False
-
         return True
 
     @staticmethod
@@ -664,6 +671,14 @@ class ActivityParameter(ParameterBase):
         return chain
 
     @staticmethod
+    def is_dependency_within_group(name, group):
+        own_group = next(
+            (x for x in DatabaseParameter.dependency_chain(group, include_self=True)
+             if x.get("group") == group), {}
+        )
+        return True if name in own_group.get("names", set()) else False
+
+    @staticmethod
     def recalculate(group):
         """Recalculate all values for activity parameters in this group, and update their underlying `Activity` and `Exchange` values."""
         # Start by traversing and updating the list of dependencies
@@ -743,15 +758,11 @@ class ActivityParameter(ParameterBase):
     def is_deletable(self):
         """Perform a test to see if the current parameter can be deleted."""
         # First check own group
-        chain = self.dependency_chain(self.group, include_self=True)
-        own_group = next((x for x in chain if x.get("group") == self.group), {})
-        if self.name in own_group.get("names", set()):
+        if ActivityParameter.is_dependency_within_group(self.name, self.group):
             return False
-
         # Then test other relevant activity groups.
         if ActivityParameter.is_dependent_on(self.name, self.group):
             return False
-
         return True
 
     @staticmethod
