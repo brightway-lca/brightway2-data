@@ -843,6 +843,52 @@ class ActivityParameter(ParameterBase):
         return False
 
     @classmethod
+    def update_formula_project_parameter_name(cls, old, new):
+        """ Performs an update of the formula of relevant parameters.
+
+        This method specifically targets project parameters used in activity
+        formulas
+        """
+
+        data = [
+            p for p in (cls.select()
+                        .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                        .where((GroupDependency.depends == "project") &
+                               (cls.formula.contains(old))))
+            if not ActivityParameter.is_dependency_within_group(old, p.group)
+        ]
+        cls.bulk_formula_update(data, old, new)
+
+    @classmethod
+    def update_formula_database_parameter_name(cls, old, new):
+        """ Performs an update of the formula of relevant parameters.
+
+        This method specifically targets database parameters used in activity
+        formulas
+        """
+        data = [
+            p for p in (cls.select()
+                        .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                        .where((GroupDependency.depends == cls.database) &
+                               (cls.formula.contains(old))))
+            if not ActivityParameter.is_dependency_within_group(old, p.group)
+        ]
+        cls.bulk_formula_update(data, old, new)
+
+    @classmethod
+    def update_formula_activity_parameter_name(cls, old, new, include_order=False):
+        """ Performs an update of the formula of relevant parameters.
+
+        This method specifically targets activity parameters used in activity
+        formulas
+        """
+        data = [
+            p for p in cls.select().where(cls.formula.contains(old))
+            if ActivityParameter.is_dependency_within_group(old, p.group, include_order)
+        ]
+        cls.bulk_formula_update(data, old, new)
+
+    @classmethod
     def create_table(cls):
         super(ActivityParameter, cls).create_table()
         cls._meta.database.execute_sql(CROSSDATASE_UPDATE_TRIGGER)
