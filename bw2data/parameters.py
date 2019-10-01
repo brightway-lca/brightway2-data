@@ -721,7 +721,7 @@ class ActivityParameter(ParameterBase):
     @staticmethod
     def is_dependency_within_group(name, group):
         own_group = next(
-            (x for x in DatabaseParameter.dependency_chain(group, include_self=True)
+            (x for x in ActivityParameter.dependency_chain(group, include_self=True)
              if x.get("group") == group), {}
         )
         return True if name in own_group.get("names", set()) else False
