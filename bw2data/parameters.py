@@ -857,7 +857,13 @@ class ActivityParameter(ParameterBase):
                                (cls.formula.contains(old))))
             if not ActivityParameter.is_dependency_within_group(old, p.group)
         ]
+        groups = set(p.group for p in data)
+        exchanges = [
+            e for e in (ParameterizedExchange.select()
+                        .where(ParameterizedExchange.group << groups))
+        ]
         cls.bulk_formula_update(data, old, new)
+        ParameterizedExchange.bulk_formula_update(exchanges, old, new)
 
     @classmethod
     def update_formula_database_parameter_name(cls, old, new):
@@ -873,7 +879,13 @@ class ActivityParameter(ParameterBase):
                                (cls.formula.contains(old))))
             if not ActivityParameter.is_dependency_within_group(old, p.group)
         ]
+        groups = set(p.group for p in data)
+        exchanges = [
+            e for e in (ParameterizedExchange.select()
+                        .where(ParameterizedExchange.group << groups))
+        ]
         cls.bulk_formula_update(data, old, new)
+        ParameterizedExchange.bulk_formula_update(exchanges, old, new)
 
     @classmethod
     def update_formula_activity_parameter_name(cls, old, new, include_order=False):
@@ -886,7 +898,13 @@ class ActivityParameter(ParameterBase):
             p for p in cls.select().where(cls.formula.contains(old))
             if ActivityParameter.is_dependency_within_group(old, p.group, include_order)
         ]
+        groups = set(p.group for p in data)
+        exchanges = [
+            e for e in (ParameterizedExchange.select()
+                        .where(ParameterizedExchange.group << groups))
+        ]
         cls.bulk_formula_update(data, old, new)
+        ParameterizedExchange.bulk_formula_update(exchanges, old, new)
 
     @classmethod
     def create_table(cls):
@@ -933,6 +951,12 @@ class ParameterizedExchange(Model):
     def recalculate(group):
         """Shortcut for ``ActivityParameter.recalculate_exchanges``."""
         return ActivityParameter.recalculate_exchanges(group)
+
+    @classmethod
+    def bulk_formula_update(cls, model_list, old, new):
+        for p in model_list:
+            p.formula = replace_name(old, new, p.formula)
+        cls.bulk_update(model_list, fields=[cls.formula], batch_size=50)
 
 
 @python_2_unicode_compatible
