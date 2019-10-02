@@ -27,7 +27,6 @@ import datetime
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
 clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)
-replace_name = lambda old, new, formula: re.sub(r"\b{}\b".format(old), new, formula)
 nonempty = lambda dct: {k: v for k, v in dct.items() if v is not None}
 
 """Autoupdate `updated` field in Group when parameters change"""
@@ -113,14 +112,6 @@ class ParameterBase(Model):
                 GroupDependency.group
             ).where(GroupDependency.depends==group)
         ).execute()
-
-    @classmethod
-    def bulk_formula_update(cls, model_list, old, new):
-        if not hasattr(cls, "formula"):
-            raise ValueError("Given table '{}' has no formula column".format(type(cls)))
-        for p in model_list:
-            p.formula = replace_name(old, new, p.formula)
-        cls.bulk_update(model_list, fields=[cls.formula], batch_size=50)
 
 
 @python_2_unicode_compatible
@@ -257,10 +248,11 @@ class ProjectParameter(ParameterBase):
 
         NOTE: Make sure to wrap this in an .atomic() statement!
         """
-        data = [
-            p for p in cls.select().where(cls.formula.contains(old))
-        ]
-        cls.bulk_formula_update(data, old, new)
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in cls.select().where(cls.formula.contains(old))
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         Group.get_or_create(name='project')[0].expire()
 
     @property
@@ -489,13 +481,23 @@ class DatabaseParameter(ParameterBase):
         This method specifically targets project parameters used in database
         formulas
         """
-        data = [
-            p for p in (cls.select()
-                        .join(GroupDependency, on=(GroupDependency.group == cls.database))
-                        .where(cls.formula.contains(old)))
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in (cls.select()
+                      .join(GroupDependency, on=(GroupDependency.group == cls.database))
+                      .where(cls.formula.contains(old)))
             if not DatabaseParameter.is_dependency_within_group(old, p.database)
-        ]
-        cls.bulk_formula_update(data, old, new)
+        )
+        dbs = set(
+            p.database for p in (cls.select(cls.database)
+                                 .join(GroupDependency, on=(GroupDependency.group == cls.database))
+                                 .where(cls.formula.contains(old))
+                                 .distinct())
+            if not DatabaseParameter.is_dependency_within_group(old, p.database)
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        for db in dbs:
+            Group.get_or_create(name=db)[0].expire()
 
     @classmethod
     def update_formula_database_parameter_name(cls, old, new):
@@ -504,13 +506,19 @@ class DatabaseParameter(ParameterBase):
         This method specifically targets database parameters used in database
         formulas
         """
-        data = [
-            p for p in cls.select().where(cls.formula.contains(old))
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in cls.select().where(cls.formula.contains(old))
             if DatabaseParameter.is_dependency_within_group(old, p.database)
-        ]
-        databases = set(p.database for p in data)
-        cls.bulk_formula_update(data, old, new)
-        for db in databases:
+        )
+        dbs = set(
+            p.database for p in (cls.select(cls.database)
+                                 .where(cls.formula.contains(old))
+                                 .distinct())
+            if DatabaseParameter.is_dependency_within_group(old, p.database)
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        for db in dbs:
             Group.get_or_create(name=db)[0].expire()
 
     @property
@@ -853,21 +861,28 @@ class ActivityParameter(ParameterBase):
         This method specifically targets project parameters used in activity
         formulas
         """
-
-        data = [
-            p for p in (cls.select()
-                        .join(GroupDependency, on=(GroupDependency.group == cls.group))
-                        .where((GroupDependency.depends == "project") &
-                               (cls.formula.contains(old))))
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in (cls.select()
+                      .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                      .where((GroupDependency.depends == "project") &
+                             (cls.formula.contains(old))))
             if not ActivityParameter.is_dependency_within_group(old, p.group)
-        ]
-        groups = set(p.group for p in data)
-        exchanges = [
-            e for e in (ParameterizedExchange.select()
-                        .where(ParameterizedExchange.group << groups))
-        ]
-        cls.bulk_formula_update(data, old, new)
-        ParameterizedExchange.bulk_formula_update(exchanges, old, new)
+        )
+        groups = set(
+            p.group for p in (cls.select(cls.group)
+                              .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                              .where((GroupDependency.depends == "project") &
+                                     (cls.formula.contains(old)))
+                              .distinct())
+            if not ActivityParameter.is_dependency_within_group(old, p.group)
+        )
+        exchanges = (
+            alter_parameter_formula(p, old, new)
+            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
         for group in groups:
             Group.get_or_create(name=group)[0].expire()
 
@@ -878,20 +893,30 @@ class ActivityParameter(ParameterBase):
         This method specifically targets database parameters used in activity
         formulas
         """
-        data = [
-            p for p in (cls.select()
-                        .join(GroupDependency, on=(GroupDependency.group == cls.group))
-                        .where((GroupDependency.depends == cls.database) &
-                               (cls.formula.contains(old))))
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in (cls.select()
+                      .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                      .where((GroupDependency.depends == cls.database) &
+                             (cls.formula.contains(old))))
             if not ActivityParameter.is_dependency_within_group(old, p.group)
-        ]
-        groups = set(p.group for p in data)
-        exchanges = [
-            e for e in (ParameterizedExchange.select()
-                        .where(ParameterizedExchange.group << groups))
-        ]
-        cls.bulk_formula_update(data, old, new)
-        ParameterizedExchange.bulk_formula_update(exchanges, old, new)
+        )
+        groups = set(
+            p.group for p in (cls.select(cls.group)
+                              .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                              .where((GroupDependency.depends == cls.database) &
+                                     (cls.formula.contains(old)))
+                              .distinct())
+            if not ActivityParameter.is_dependency_within_group(old, p.group)
+        )
+        exchanges = (
+            alter_parameter_formula(p, old, new)
+            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
+        for group in groups:
+            Group.get_or_create(name=group)[0].expire()
 
     @classmethod
     def update_formula_activity_parameter_name(cls, old, new, include_order=False):
@@ -900,17 +925,23 @@ class ActivityParameter(ParameterBase):
         This method specifically targets activity parameters used in activity
         formulas
         """
-        data = [
-            p for p in cls.select().where(cls.formula.contains(old))
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in cls.select().where(cls.formula.contains(old))
             if ActivityParameter.is_dependency_within_group(old, p.group, include_order)
-        ]
-        groups = set(p.group for p in data)
-        exchanges = [
-            e for e in (ParameterizedExchange.select()
-                        .where(ParameterizedExchange.group << groups))
-        ]
-        cls.bulk_formula_update(data, old, new)
-        ParameterizedExchange.bulk_formula_update(exchanges, old, new)
+        )
+        groups = set(
+            p.group for p in cls.select(cls.group).where(cls.formula.contains(old)).distinct()
+            if ActivityParameter.is_dependency_within_group(old, p.group, include_order)
+        )
+        exchanges = (
+            alter_parameter_formula(p, old, new)
+            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
+        for group in groups:
+            Group.get_or_create(name=group)[0].expire()
 
     @classmethod
     def create_table(cls):
@@ -957,12 +988,6 @@ class ParameterizedExchange(Model):
     def recalculate(group):
         """Shortcut for ``ActivityParameter.recalculate_exchanges``."""
         return ActivityParameter.recalculate_exchanges(group)
-
-    @classmethod
-    def bulk_formula_update(cls, model_list, old, new):
-        for p in model_list:
-            p.formula = replace_name(old, new, p.formula)
-        cls.bulk_update(model_list, fields=[cls.formula], batch_size=50)
 
 
 @python_2_unicode_compatible
@@ -1471,3 +1496,12 @@ def get_new_symbols(data, context=None):
         nf.generic_visit(interpreter.parse(formula))
         found.update(set(nf.names))
     return found.difference(BUILTIN_SYMBOLS)
+
+
+def alter_parameter_formula(parameter, old, new):
+    """ Replace the `old` part with `new` in the formula field and return
+    the parameter itself.
+    """
+    if hasattr(parameter, "formula"):
+        parameter.formula = re.sub(r"\b{}\b".format(old), new, parameter.formula)
+    return parameter
