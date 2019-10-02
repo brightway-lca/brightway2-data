@@ -1335,6 +1335,100 @@ class ParameterManager(object):
             Group.get_or_create(name=group)[0].expire()
             ActivityParameter.recalculate(group)
 
+    def rename_project_parameter(self, parameter, new_name, update_dependencies=False):
+        """ Given a parameter and a new name, safely update the parameter.
+
+        Will raise a TypeError if the given parameter is of the incorrect type.
+        Will raise a ValueError if other parameters depend on the given one
+        and ``update_dependencies`` is False.
+
+        """
+        if not isinstance(parameter, ProjectParameter):
+            raise TypeError("Incorrect parameter type for this method.")
+        if parameter.name == new_name:
+            return
+
+        project = ProjectParameter.is_dependency_within_group(parameter.name)
+        database = DatabaseParameter.is_dependent_on(parameter.name)
+        activity = ActivityParameter.is_dependent_on(parameter.name, "project")
+
+        if not update_dependencies and any([project, database, activity]):
+            raise ValueError(
+                "Parameter '{}' is used in other (downstream) formulas".format(parameter.name)
+            )
+
+        with self.db.atomic():
+            if project:
+                ProjectParameter.update_formula_parameter_name(parameter.name, new_name)
+            if database:
+                DatabaseParameter.update_formula_project_parameter_name(parameter.name, new_name)
+            if activity:
+                ActivityParameter.update_formula_project_parameter_name(parameter.name, new_name)
+            parameter.name = new_name
+            parameter.save()
+            self.recalculate()
+
+    def rename_database_parameter(self, parameter, new_name, update_dependencies=False):
+        """ Given a parameter and a new name, safely update the parameter.
+
+        Will raise a TypeError if the given parameter is of the incorrect type.
+        Will raise a ValueError if other parameters depend on the given one
+        and ``update_dependencies`` is False.
+
+        """
+        if not isinstance(parameter, DatabaseParameter):
+            raise TypeError("Incorrect parameter type for this method.")
+        if parameter.name == new_name:
+            return
+
+        database = DatabaseParameter.is_dependency_within_group(
+            parameter.name, parameter.database
+        )
+        activity = ActivityParameter.is_dependent_on(parameter.name, parameter.database)
+
+        if not update_dependencies and any([database, activity]):
+            raise ValueError(
+                "Parameter '{}' is used in other (downstream) formulas".format(parameter.name)
+            )
+
+        with self.db.atomic():
+            if database:
+                DatabaseParameter.update_formula_database_parameter_name(parameter.name, new_name)
+            if activity:
+                ActivityParameter.update_formula_database_parameter_name(parameter.name, new_name)
+            parameter.name = new_name
+            parameter.save()
+            self.recalculate()
+
+    def rename_activity_parameter(self, parameter, new_name, update_dependencies=False):
+        """ Given a parameter and a new name, safely update the parameter.
+
+        Will raise a TypeError if the given parameter is of the incorrect type.
+        Will raise a ValueError if other parameters depend on the given one
+        and ``update_dependencies`` is False.
+
+        """
+        if not isinstance(parameter, ActivityParameter):
+            raise TypeError("Incorrect parameter type for this method.")
+        if parameter.name == new_name:
+            return
+
+        activity = ActivityParameter.is_dependent_on(parameter.name, parameter.group)
+
+        if not update_dependencies and activity:
+            raise ValueError(
+                "Parameter '{}' is used in other (downstream) formulas".format(parameter.name)
+            )
+
+        with self.db.atomic():
+            if activity:
+                ActivityParameter.update_formula_activity_parameter_name(
+                    parameter.name, new_name, include_order=True
+                )
+            parameter.name = new_name
+            parameter.save()
+            self.recalculate()
+
     def recalculate(self):
         """Recalculate all expired project, database, and activity parameters, as well as exchanges."""
         if ProjectParameter.expired():
