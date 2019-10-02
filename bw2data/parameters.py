@@ -261,6 +261,7 @@ class ProjectParameter(ParameterBase):
             p for p in cls.select().where(cls.formula.contains(old))
         ]
         cls.bulk_formula_update(data, old, new)
+        Group.get_or_create(name='project')[0].expire()
 
     @property
     def dict(self):
@@ -507,7 +508,10 @@ class DatabaseParameter(ParameterBase):
             p for p in cls.select().where(cls.formula.contains(old))
             if DatabaseParameter.is_dependency_within_group(old, p.database)
         ]
+        databases = set(p.database for p in data)
         cls.bulk_formula_update(data, old, new)
+        for db in databases:
+            Group.get_or_create(name=db)[0].expire()
 
     @property
     def dict(self):
@@ -864,6 +868,8 @@ class ActivityParameter(ParameterBase):
         ]
         cls.bulk_formula_update(data, old, new)
         ParameterizedExchange.bulk_formula_update(exchanges, old, new)
+        for group in groups:
+            Group.get_or_create(name=group)[0].expire()
 
     @classmethod
     def update_formula_database_parameter_name(cls, old, new):
