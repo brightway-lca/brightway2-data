@@ -1805,6 +1805,143 @@ def test_parameters_new_activity_parameters_no_overlap():
         parameters.new_activity_parameters(data, "another", overwrite=False)
 
 @bw2test
+def test_parameters_rename_project_parameter():
+    """ Project parameters can be renamed. """
+    param = ProjectParameter.create(
+        name="foo",
+        amount=7,
+    )
+    assert ProjectParameter.select().where(ProjectParameter.name == "foo").count() == 1
+    parameters.rename_project_parameter(param, "foobar")
+    with pytest.raises(ProjectParameter.DoesNotExist):
+        ProjectParameter.get(name="foo")
+    assert ProjectParameter.select().where(ProjectParameter.name == "foobar").count() == 1
+
+@bw2test
+def test_parameters_rename_project_parameter_incorrect_type():
+    Database("B").register()
+    param = DatabaseParameter.create(
+        database="B",
+        name="foo",
+        amount=5,
+    )
+    with pytest.raises(TypeError):
+        parameters.rename_project_parameter(param, "bar")
+
+@bw2test
+def test_parameters_rename_project_parameter_dependencies():
+    """ Updating downstream parameters will update all relevant formulas
+    to use the new name for the parameter.
+    """
+    param = ProjectParameter.create(
+        name="foo",
+        amount=7,
+    )
+    ProjectParameter.create(
+        name="bar",
+        amount=1,
+        formula="foo * 2"
+    )
+    assert ProjectParameter.is_dependency_within_group("foo")
+    parameters.rename_project_parameter(param, "baz", update_dependencies=True)
+    assert ProjectParameter.get(name="bar").formula == "baz * 2"
+
+@bw2test
+def test_parameters_rename_project_parameter_dependencies_fail():
+    """ An exception is raised if rename is attempted without updating
+    downstream if other parameters depend on that parameter.
+    """
+    param = ProjectParameter.create(
+        name="foo",
+        amount=7,
+    )
+    ProjectParameter.create(
+        name="bar",
+        amount=1,
+        formula="foo * 2"
+    )
+    with pytest.raises(ValueError):
+        parameters.rename_project_parameter(param, "baz")
+
+def test_parameters_rename_project_parameter_dependencies_full(chain):
+    """ Updating downstream parameters will update all relevant formulas
+    to use the new name for the parameter.
+
+    Parameter amounts do no change as only the name is altered.
+    """
+    ProjectParameter.create(
+        name="double_bar",
+        amount=12,
+        formula="bar * 2"
+    )
+    DatabaseParameter.create(
+        database="B",
+        name="bing",
+        amount=2,
+        formula="bar ** 5"
+    )
+    parameters.recalculate()
+    assert ProjectParameter.is_dependency_within_group("bar")
+    assert DatabaseParameter.is_dependent_on("bar")
+    assert ActivityParameter.is_dependent_on("bar", "project")
+    assert ProjectParameter.get(name="double_bar").amount == 16
+    assert DatabaseParameter.get(name="bing", database="B").amount == 32768
+    assert ActivityParameter.get(name="F", group="A").amount == 20
+
+    param = ProjectParameter.get(name="bar")
+    parameters.rename_project_parameter(param, "new_bar", update_dependencies=True)
+
+    assert ProjectParameter.get(name="double_bar").formula == "new_bar * 2"
+    assert DatabaseParameter.get(name="bing", database="B").formula == "new_bar ** 5"
+    assert ActivityParameter.get(name="F", group="A").formula == "foo + new_bar + D"
+    assert ProjectParameter.get(name="double_bar").amount == 16
+    assert DatabaseParameter.get(name="bing", database="B").amount == 32768
+    assert ActivityParameter.get(name="F", group="A").amount == 20
+
+@bw2test
+def test_parameters_rename_database_parameter():
+    Database("B").register()
+    param = DatabaseParameter.create(
+        database="B",
+        name="foo",
+        amount=5,
+    )
+    assert DatabaseParameter.select().where(DatabaseParameter.name == "foo").count() == 1
+    parameters.rename_database_parameter(param, "bar")
+    with pytest.raises(DatabaseParameter.DoesNotExist):
+        DatabaseParameter.get(name="foo")
+    assert DatabaseParameter.select().where(DatabaseParameter.name == "bar").count() == 1
+
+def test_parameters_rename_database_parameter_dependencies(chain):
+    DatabaseParameter.create(
+        database="B",
+        name="baz",
+        amount=1,
+        formula="foo + 2"
+    )
+    parameters.recalculate()
+    param = DatabaseParameter.get(name="foo")
+    parameters.rename_database_parameter(param, "foobar", True)
+    assert DatabaseParameter.get(name="baz").formula == "foobar + 2"
+    assert ActivityParameter.get(name="F", group="A").formula == "foobar + bar + D"
+
+def test_parameters_rename_activity_parameter(chain):
+    parameters.recalculate()
+    param = ActivityParameter.get(name="J", group="G")
+    parameters.rename_activity_parameter(param, "John")
+    with pytest.raises(ActivityParameter.DoesNotExist):
+        ActivityParameter.get(name="J", group="G")
+    assert ActivityParameter.select().where(
+        ActivityParameter.name == "John", ActivityParameter.group == "G").count() == 1
+
+def test_parameters_rename_activity_parameter_dependencies(chain):
+    parameters.recalculate()
+    param = ActivityParameter.get(name="D", group="A")
+    parameters.rename_activity_parameter(param, "Dirk", True)
+    assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + Dirk"
+    assert ActivityParameter.get(name="J", group="G").formula == "F + Dirk * 2"
+
+@bw2test
 def test_parameters_add_to_group_empty():
     db = Database("example")
     db.register()
