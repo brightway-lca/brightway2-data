@@ -30,7 +30,7 @@ setup(
         "future",
         "lxml",
         "numpy",
-        "peewee>=3",
+        "peewee>=3.9.4",
         "psutil",
         "pyprind",
         "requests>=1.1.0",
