@@ -174,7 +174,7 @@ class LCIBackend(ProcessedDataStore):
             seed, extended = extended, extend(extended)
         return extended
 
-    def delete(self):
+    def delete(self, **kwargs):
         """Delete data from this instance. For the base class, only clears cached data."""
         if self.name in config.cache:
             del config.cache[self.name]
