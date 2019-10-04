@@ -26,7 +26,7 @@ import datetime
 
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
-clean = lambda x: re.sub('\W|^(?=\d)','_', x)
+clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)
 nonempty = lambda dct: {k: v for k, v in dct.items() if v is not None}
 
 """Autoupdate `updated` field in Group when parameters change"""
@@ -225,11 +225,14 @@ class ProjectParameter(ParameterBase):
 
         return [{'kind': 'project', 'group': 'project', 'names': needed}]
 
+    @staticmethod
+    def is_dependency_within_group(name):
+        own_group = next(iter(ProjectParameter.dependency_chain()), {})
+        return True if name in own_group.get("names", set()) else False
+
     def is_deletable(self):
         """Perform a test to see if the current parameter can be deleted."""
-        chain = ProjectParameter.dependency_chain()
-        own_group = next(iter(chain), {})
-        if self.name in own_group.get("names", set()):
+        if ProjectParameter.is_dependency_within_group(self.name):
             return False
         # Test the database parameters
         if DatabaseParameter.is_dependent_on(self.name):
@@ -238,6 +241,19 @@ class ProjectParameter(ParameterBase):
         if ActivityParameter.is_dependent_on(self.name, "project"):
             return False
         return True
+
+    @classmethod
+    def update_formula_parameter_name(cls, old, new):
+        """ Performs an update of the formula of relevant parameters.
+
+        NOTE: Make sure to wrap this in an .atomic() statement!
+        """
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in cls.select().where(cls.formula.contains(old))
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        Group.get_or_create(name='project')[0].expire()
 
     @property
     def dict(self):
@@ -392,15 +408,7 @@ class DatabaseParameter(ParameterBase):
             return []
 
         names, chain = set(), []
-        for name in ProjectParameter.static(only=needed):
-            names.add(name)
-            needed.remove(name)
-        if names:
-            chain.append({'kind': 'project', 'group': 'project', 'names': names}
-            )
-
-        if needed and include_self:
-            names = set()
+        if include_self:
             included = needed.intersection(data)
             for name in included:
                 names.add(name)
@@ -411,9 +419,27 @@ class DatabaseParameter(ParameterBase):
                 )
 
         if needed:
+            names = set()
+            for name in ProjectParameter.static(only=needed):
+                names.add(name)
+                needed.remove(name)
+            if names:
+                chain.insert(
+                    0, {'kind': 'project', 'group': 'project', 'names': names}
+                )
+
+        if needed:
             raise MissingName("The following variables aren't defined:\n{}".format("|".join(needed)))
 
         return chain
+
+    @staticmethod
+    def is_dependency_within_group(name, database):
+        own_group = next(
+            (x for x in DatabaseParameter.dependency_chain(database, include_self=True)
+             if x.get("group") == database), {}
+        )
+        return True if name in own_group.get("names", set()) else False
 
     def save(self, *args, **kwargs):
         """Save this model instance"""
@@ -423,15 +449,11 @@ class DatabaseParameter(ParameterBase):
     def is_deletable(self):
         """Perform a test to see if the current parameter can be deleted."""
         # Test if the current parameter is used by other database parameters
-        chain = self.dependency_chain(self.database, include_self=True)
-        own_group = next((x for x in chain if x.get("group") == self.database), {})
-        if self.name in own_group.get("names", set()):
+        if DatabaseParameter.is_dependency_within_group(self.name, self.database):
             return False
-
         # Then test all relevant activity parameters
         if ActivityParameter.is_dependent_on(self.name, self.database):
             return False
-
         return True
 
     @staticmethod
@@ -451,6 +473,53 @@ class DatabaseParameter(ParameterBase):
                 return True
 
         return False
+
+    @classmethod
+    def update_formula_project_parameter_name(cls, old, new):
+        """ Performs an update of the formula of relevant parameters.
+
+        This method specifically targets project parameters used in database
+        formulas
+        """
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in (cls.select()
+                      .join(GroupDependency, on=(GroupDependency.group == cls.database))
+                      .where(cls.formula.contains(old)))
+            if not DatabaseParameter.is_dependency_within_group(old, p.database)
+        )
+        dbs = set(
+            p.database for p in (cls.select(cls.database)
+                                 .join(GroupDependency, on=(GroupDependency.group == cls.database))
+                                 .where(cls.formula.contains(old))
+                                 .distinct())
+            if not DatabaseParameter.is_dependency_within_group(old, p.database)
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        for db in dbs:
+            Group.get_or_create(name=db)[0].expire()
+
+    @classmethod
+    def update_formula_database_parameter_name(cls, old, new):
+        """ Performs an update of the formula of relevant parameters.
+
+        This method specifically targets database parameters used in database
+        formulas
+        """
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in cls.select().where(cls.formula.contains(old))
+            if DatabaseParameter.is_dependency_within_group(old, p.database)
+        )
+        dbs = set(
+            p.database for p in (cls.select(cls.database)
+                                 .where(cls.formula.contains(old))
+                                 .distinct())
+            if DatabaseParameter.is_dependency_within_group(old, p.database)
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        for db in dbs:
+            Group.get_or_create(name=db)[0].expire()
 
     @property
     def dict(self):
@@ -662,6 +731,25 @@ class ActivityParameter(ParameterBase):
         return chain
 
     @staticmethod
+    def is_dependency_within_group(name, group, include_order=False):
+        """ Determine if the given parameter `name` is a dependency within
+        the given activity `group`.
+
+        The optional ``include_order`` parameter will include dependencies
+        from groups found in the the ``Group``.`order` field.
+        """
+        chain = ActivityParameter.dependency_chain(group, include_self=True)
+        own_group = next((x for x in chain if x.get("group") == group), {})
+        names = own_group.get("names", set())
+        if include_order:
+            for new_group in Group.get(name=group).order:
+                order_group = next(
+                    (x for x in chain if x.get("group") == new_group), {}
+                )
+                names = names.union(order_group.get("names", set()))
+        return True if name in names else False
+
+    @staticmethod
     def recalculate(group):
         """Recalculate all values for activity parameters in this group, and update their underlying `Activity` and `Exchange` values."""
         # Start by traversing and updating the list of dependencies
@@ -741,15 +829,11 @@ class ActivityParameter(ParameterBase):
     def is_deletable(self):
         """Perform a test to see if the current parameter can be deleted."""
         # First check own group
-        chain = self.dependency_chain(self.group, include_self=True)
-        own_group = next((x for x in chain if x.get("group") == self.group), {})
-        if self.name in own_group.get("names", set()):
+        if ActivityParameter.is_dependency_within_group(self.name, self.group):
             return False
-
         # Then test other relevant activity groups.
         if ActivityParameter.is_dependent_on(self.name, self.group):
             return False
-
         return True
 
     @staticmethod
@@ -769,6 +853,95 @@ class ActivityParameter(ParameterBase):
                 return True
 
         return False
+
+    @classmethod
+    def update_formula_project_parameter_name(cls, old, new):
+        """ Performs an update of the formula of relevant parameters.
+
+        This method specifically targets project parameters used in activity
+        formulas
+        """
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in (cls.select()
+                      .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                      .where((GroupDependency.depends == "project") &
+                             (cls.formula.contains(old))))
+            if not ActivityParameter.is_dependency_within_group(old, p.group)
+        )
+        groups = set(
+            p.group for p in (cls.select(cls.group)
+                              .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                              .where((GroupDependency.depends == "project") &
+                                     (cls.formula.contains(old)))
+                              .distinct())
+            if not ActivityParameter.is_dependency_within_group(old, p.group)
+        )
+        exchanges = (
+            alter_parameter_formula(p, old, new)
+            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
+        for group in groups:
+            Group.get_or_create(name=group)[0].expire()
+
+    @classmethod
+    def update_formula_database_parameter_name(cls, old, new):
+        """ Performs an update of the formula of relevant parameters.
+
+        This method specifically targets database parameters used in activity
+        formulas
+        """
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in (cls.select()
+                      .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                      .where((GroupDependency.depends == cls.database) &
+                             (cls.formula.contains(old))))
+            if not ActivityParameter.is_dependency_within_group(old, p.group)
+        )
+        groups = set(
+            p.group for p in (cls.select(cls.group)
+                              .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                              .where((GroupDependency.depends == cls.database) &
+                                     (cls.formula.contains(old)))
+                              .distinct())
+            if not ActivityParameter.is_dependency_within_group(old, p.group)
+        )
+        exchanges = (
+            alter_parameter_formula(p, old, new)
+            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
+        for group in groups:
+            Group.get_or_create(name=group)[0].expire()
+
+    @classmethod
+    def update_formula_activity_parameter_name(cls, old, new, include_order=False):
+        """ Performs an update of the formula of relevant parameters.
+
+        This method specifically targets activity parameters used in activity
+        formulas
+        """
+        data = (
+            alter_parameter_formula(p, old, new)
+            for p in cls.select().where(cls.formula.contains(old))
+            if ActivityParameter.is_dependency_within_group(old, p.group, include_order)
+        )
+        groups = set(
+            p.group for p in cls.select(cls.group).where(cls.formula.contains(old)).distinct()
+            if ActivityParameter.is_dependency_within_group(old, p.group, include_order)
+        )
+        exchanges = (
+            alter_parameter_formula(p, old, new)
+            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+        )
+        cls.bulk_update(data, fields=[cls.formula], batch_size=50)
+        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
+        for group in groups:
+            Group.get_or_create(name=group)[0].expire()
 
     @classmethod
     def create_table(cls):
@@ -1187,6 +1360,100 @@ class ParameterManager(object):
             Group.get_or_create(name=group)[0].expire()
             ActivityParameter.recalculate(group)
 
+    def rename_project_parameter(self, parameter, new_name, update_dependencies=False):
+        """ Given a parameter and a new name, safely update the parameter.
+
+        Will raise a TypeError if the given parameter is of the incorrect type.
+        Will raise a ValueError if other parameters depend on the given one
+        and ``update_dependencies`` is False.
+
+        """
+        if not isinstance(parameter, ProjectParameter):
+            raise TypeError("Incorrect parameter type for this method.")
+        if parameter.name == new_name:
+            return
+
+        project = ProjectParameter.is_dependency_within_group(parameter.name)
+        database = DatabaseParameter.is_dependent_on(parameter.name)
+        activity = ActivityParameter.is_dependent_on(parameter.name, "project")
+
+        if not update_dependencies and any([project, database, activity]):
+            raise ValueError(
+                "Parameter '{}' is used in other (downstream) formulas".format(parameter.name)
+            )
+
+        with self.db.atomic():
+            if project:
+                ProjectParameter.update_formula_parameter_name(parameter.name, new_name)
+            if database:
+                DatabaseParameter.update_formula_project_parameter_name(parameter.name, new_name)
+            if activity:
+                ActivityParameter.update_formula_project_parameter_name(parameter.name, new_name)
+            parameter.name = new_name
+            parameter.save()
+            self.recalculate()
+
+    def rename_database_parameter(self, parameter, new_name, update_dependencies=False):
+        """ Given a parameter and a new name, safely update the parameter.
+
+        Will raise a TypeError if the given parameter is of the incorrect type.
+        Will raise a ValueError if other parameters depend on the given one
+        and ``update_dependencies`` is False.
+
+        """
+        if not isinstance(parameter, DatabaseParameter):
+            raise TypeError("Incorrect parameter type for this method.")
+        if parameter.name == new_name:
+            return
+
+        database = DatabaseParameter.is_dependency_within_group(
+            parameter.name, parameter.database
+        )
+        activity = ActivityParameter.is_dependent_on(parameter.name, parameter.database)
+
+        if not update_dependencies and any([database, activity]):
+            raise ValueError(
+                "Parameter '{}' is used in other (downstream) formulas".format(parameter.name)
+            )
+
+        with self.db.atomic():
+            if database:
+                DatabaseParameter.update_formula_database_parameter_name(parameter.name, new_name)
+            if activity:
+                ActivityParameter.update_formula_database_parameter_name(parameter.name, new_name)
+            parameter.name = new_name
+            parameter.save()
+            self.recalculate()
+
+    def rename_activity_parameter(self, parameter, new_name, update_dependencies=False):
+        """ Given a parameter and a new name, safely update the parameter.
+
+        Will raise a TypeError if the given parameter is of the incorrect type.
+        Will raise a ValueError if other parameters depend on the given one
+        and ``update_dependencies`` is False.
+
+        """
+        if not isinstance(parameter, ActivityParameter):
+            raise TypeError("Incorrect parameter type for this method.")
+        if parameter.name == new_name:
+            return
+
+        activity = ActivityParameter.is_dependent_on(parameter.name, parameter.group)
+
+        if not update_dependencies and activity:
+            raise ValueError(
+                "Parameter '{}' is used in other (downstream) formulas".format(parameter.name)
+            )
+
+        with self.db.atomic():
+            if activity:
+                ActivityParameter.update_formula_activity_parameter_name(
+                    parameter.name, new_name, include_order=True
+                )
+            parameter.name = new_name
+            parameter.save()
+            self.recalculate()
+
     def recalculate(self):
         """Recalculate all expired project, database, and activity parameters, as well as exchanges."""
         if ProjectParameter.expired():
@@ -1229,3 +1496,12 @@ def get_new_symbols(data, context=None):
         nf.generic_visit(interpreter.parse(formula))
         found.update(set(nf.names))
     return found.difference(BUILTIN_SYMBOLS)
+
+
+def alter_parameter_formula(parameter, old, new):
+    """ Replace the `old` part with `new` in the formula field and return
+    the parameter itself.
+    """
+    if hasattr(parameter, "formula"):
+        parameter.formula = re.sub(r"\b{}\b".format(old), new, parameter.formula)
+    return parameter
