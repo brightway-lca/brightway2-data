@@ -879,12 +879,14 @@ class ActivityParameter(ParameterBase):
         )
         exchanges = (
             alter_parameter_formula(p, old, new)
-            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+            for p in (ParameterizedExchange.select()
+                      .where((ParameterizedExchange.group << groups) &
+                             (ParameterizedExchange.formula.contains(old))))
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
-        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
-        for group in groups:
-            Group.get_or_create(name=group)[0].expire()
+        for param_exc in exchanges:
+            param_exc.save()
+        Group.update(fresh=False).where(Group.name << groups).execute()
 
     @classmethod
     def update_formula_database_parameter_name(cls, old, new):
@@ -911,12 +913,14 @@ class ActivityParameter(ParameterBase):
         )
         exchanges = (
             alter_parameter_formula(p, old, new)
-            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+            for p in (ParameterizedExchange.select()
+                      .where((ParameterizedExchange.group << groups) &
+                             (ParameterizedExchange.formula.contains(old))))
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
-        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
-        for group in groups:
-            Group.get_or_create(name=group)[0].expire()
+        for param_exc in exchanges:
+            param_exc.save()
+        Group.update(fresh=False).where(Group.name << groups).execute()
 
     @classmethod
     def update_formula_activity_parameter_name(cls, old, new, include_order=False):
@@ -939,9 +943,9 @@ class ActivityParameter(ParameterBase):
             for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
-        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
-        for group in groups:
-            Group.get_or_create(name=group)[0].expire()
+        for param_exc in exchanges:
+            param_exc.save()
+        Group.update(fresh=False).where(Group.name << groups).execute()
 
     @classmethod
     def create_table(cls):
@@ -976,6 +980,15 @@ class ParameterizedExchange(Model):
         super(ParameterizedExchange, cls).create_table()
         cls._meta.database.execute_sql(PE_UPDATE_TRIGGER)
         cls._meta.database.execute_sql(PE_INSERT_TRIGGER)
+
+    def save(self, *args, **kwargs):
+        Group.get_or_create(name=self.group)[0].expire()
+        super(ParameterizedExchange, self).save(*args, **kwargs)
+        # Push the changed formula to the Exchange.
+        exc = ExchangeDataset.get_or_none(id=self.exchange)
+        if exc and exc.data.get("formula") != self.formula:
+            exc.data["formula"] = self.formula
+            exc.save()
 
     @staticmethod
     def load(group):
