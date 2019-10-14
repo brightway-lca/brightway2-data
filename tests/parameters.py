@@ -1941,6 +1941,24 @@ def test_parameters_rename_activity_parameter_dependencies(chain):
     assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + Dirk"
     assert ActivityParameter.get(name="J", group="G").formula == "F + Dirk * 2"
 
+def test_parameters_rename_activity_parameter_group_exchange(chain):
+    """ Rename 'D' from group 'A' updates ParameterizedExchange and
+    underlying exchange.
+    """
+    db = Database("B")
+    a = db.new_activity(code="newcode", name="new activity")
+    a.save()
+    a.new_exchange(amount=1, input=a, type="production", formula="D + 2").save()
+    parameters.add_exchanges_to_group("A", a)
+    ActivityParameter.recalculate_exchanges("A")
+
+    param = ActivityParameter.get(name="D", group="A")
+    parameters.rename_activity_parameter(param, "Correct", True)
+    assert ParameterizedExchange.get(group="A").formula == "Correct + 2"
+    exc = next(iter(a.production()))
+    assert exc.amount == 10
+    assert exc.get("formula") == "Correct + 2"
+
 @bw2test
 def test_parameters_add_to_group_empty():
     db = Database("example")
