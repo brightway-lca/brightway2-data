@@ -1438,7 +1438,7 @@ class ParameterManager(object):
         if parameter.name == new_name:
             return
 
-        activity = ActivityParameter.is_dependent_on(parameter.name, parameter.group)
+        activity = ActivityParameter.is_dependency_within_group(parameter.name, parameter.group)
 
         if not update_dependencies and activity:
             raise ValueError(
