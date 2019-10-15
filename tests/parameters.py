@@ -1941,11 +1941,21 @@ def test_parameters_rename_activity_parameter_dependencies(chain):
     assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + Dirk"
     assert ActivityParameter.get(name="J", group="G").formula == "F + Dirk * 2"
 
-def test_parameters_rename_activity_parameter_group_exchange(chain):
+@bw2test
+def test_parameters_rename_activity_parameter_group_exchange():
     """ Rename 'D' from group 'A' updates ParameterizedExchange and
     underlying exchange.
     """
     db = Database("B")
+    db.register()
+    ActivityParameter.create(
+        group="A",
+        database="B",
+        code="C",
+        name="D",
+        formula="2 ** 3",
+        amount=1,
+    )
     a = db.new_activity(code="newcode", name="new activity")
     a.save()
     a.new_exchange(amount=1, input=a, type="production", formula="D + 2").save()
@@ -1955,6 +1965,36 @@ def test_parameters_rename_activity_parameter_group_exchange(chain):
     param = ActivityParameter.get(name="D", group="A")
     parameters.rename_activity_parameter(param, "Correct", True)
     assert ParameterizedExchange.get(group="A").formula == "Correct + 2"
+    exc = next(iter(a.production()))
+    assert exc.amount == 10
+    assert exc.get("formula") == "Correct + 2"
+
+@bw2test
+def test_parameters_rename_activity_parameter_order_exchange():
+    """ Rename 'D' from group 'A' updates ParameterizedExchange and
+    underlying exchange in group 'G'
+    """
+    db = Database("K")
+    db.register()
+    ActivityParameter.create(
+        group="A",
+        database="K",
+        code="C",
+        name="D",
+        formula="2 ** 3",
+        amount=1,
+    )
+    a = db.new_activity(code="newcode", name="new activity")
+    a.save()
+    a.new_exchange(amount=1, input=a, type="production", formula="D + 2").save()
+    Group.create(name="G", order=["A"], fresh=False)
+    parameters.add_exchanges_to_group("G", a)
+    ActivityParameter.recalculate_exchanges("G")
+
+    param = ActivityParameter.get(name="D", group="A")
+    parameters.rename_activity_parameter(param, "Correct", update_dependencies=True)
+
+    assert ParameterizedExchange.get(group="G").formula == "Correct + 2"
     exc = next(iter(a.production()))
     assert exc.amount == 10
     assert exc.get("formula") == "Correct + 2"
