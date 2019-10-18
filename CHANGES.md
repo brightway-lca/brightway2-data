@@ -1,5 +1,9 @@
 # Changelog
 
+### 3.6.1 (2019-10-18)
+
+Merged PR [#19: Fix activityparam rename](https://bitbucket.org/cmutel/brightway2-data/pull-requests/19).
+
 ## 3.6 (2019-10-09)
 
 - Merged multiple pull requests ([#12](https://bitbucket.org/cmutel/brightway2-data/pull-requests/12), [#13](https://bitbucket.org/cmutel/brightway2-data/pull-requests/13), [#14](https://bitbucket.org/cmutel/brightway2-data/pull-requests/14), [#15](https://bitbucket.org/cmutel/brightway2-data/pull-requests/15), [#16](https://bitbucket.org/cmutel/brightway2-data/pull-requests/16), [#17](https://bitbucket.org/cmutel/brightway2-data/pull-requests/17), [#18](https://bitbucket.org/cmutel/brightway2-data/pull-requests/18)) from Daniël de Koning related to improving the handling of parameters, as part of his work on including parameterization in the [Activity browser](https://github.com/LCA-ActivityBrowser/activity-browser).

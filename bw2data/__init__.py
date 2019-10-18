@@ -26,7 +26,7 @@ __all__ = [
     'weightings',
 ]
 
-__version__ = (3, 6)
+__version__ = (3, 6, 1)
 
 
 from .configuration import config
