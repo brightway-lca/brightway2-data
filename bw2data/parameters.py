@@ -23,6 +23,7 @@ import asteval
 import os
 import re
 import datetime
+import itertools
 
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
@@ -869,12 +870,17 @@ class ActivityParameter(ParameterBase):
                              (cls.formula.contains(old))))
             if not ActivityParameter.is_dependency_within_group(old, p.group)
         )
+        group_parameters = itertools.chain(
+            (cls.select(cls.group)
+             .join(GroupDependency, on=(GroupDependency.group == cls.group))
+             .where((GroupDependency.depends == "project") &
+                    (cls.formula.contains(old)))
+             .distinct()),
+            (ParameterizedExchange.select(ParameterizedExchange.group)
+             .where(ParameterizedExchange.formula.contains(old)).distinct())
+        )
         groups = set(
-            p.group for p in (cls.select(cls.group)
-                              .join(GroupDependency, on=(GroupDependency.group == cls.group))
-                              .where((GroupDependency.depends == "project") &
-                                     (cls.formula.contains(old)))
-                              .distinct())
+            p.group for p in group_parameters
             if not ActivityParameter.is_dependency_within_group(old, p.group)
         )
         exchanges = (
@@ -882,9 +888,9 @@ class ActivityParameter(ParameterBase):
             for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
-        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
-        for group in groups:
-            Group.get_or_create(name=group)[0].expire()
+        for param_exc in exchanges:
+            param_exc.save()
+        Group.update(fresh=False).where(Group.name << groups).execute()
 
     @classmethod
     def update_formula_database_parameter_name(cls, old, new):
@@ -901,12 +907,17 @@ class ActivityParameter(ParameterBase):
                              (cls.formula.contains(old))))
             if not ActivityParameter.is_dependency_within_group(old, p.group)
         )
+        group_parameters = itertools.chain(
+            (cls.select(cls.group)
+                .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                .where((GroupDependency.depends == cls.database) &
+                       (cls.formula.contains(old)))
+                .distinct()),
+            (ParameterizedExchange.select(ParameterizedExchange.group)
+             .where(ParameterizedExchange.formula.contains(old)).distinct())
+        )
         groups = set(
-            p.group for p in (cls.select(cls.group)
-                              .join(GroupDependency, on=(GroupDependency.group == cls.group))
-                              .where((GroupDependency.depends == cls.database) &
-                                     (cls.formula.contains(old)))
-                              .distinct())
+            p.group for p in group_parameters
             if not ActivityParameter.is_dependency_within_group(old, p.group)
         )
         exchanges = (
@@ -914,9 +925,9 @@ class ActivityParameter(ParameterBase):
             for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
-        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
-        for group in groups:
-            Group.get_or_create(name=group)[0].expire()
+        for param_exc in exchanges:
+            param_exc.save()
+        Group.update(fresh=False).where(Group.name << groups).execute()
 
     @classmethod
     def update_formula_activity_parameter_name(cls, old, new, include_order=False):
@@ -930,8 +941,13 @@ class ActivityParameter(ParameterBase):
             for p in cls.select().where(cls.formula.contains(old))
             if ActivityParameter.is_dependency_within_group(old, p.group, include_order)
         )
+        group_parameters = itertools.chain(
+            cls.select(cls.group).where(cls.formula.contains(old)).distinct(),
+            (ParameterizedExchange.select(ParameterizedExchange.group)
+             .where(ParameterizedExchange.formula.contains(old)).distinct())
+        )
         groups = set(
-            p.group for p in cls.select(cls.group).where(cls.formula.contains(old)).distinct()
+            p.group for p in group_parameters
             if ActivityParameter.is_dependency_within_group(old, p.group, include_order)
         )
         exchanges = (
@@ -939,9 +955,9 @@ class ActivityParameter(ParameterBase):
             for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
-        ParameterizedExchange.bulk_update(exchanges, fields=[ParameterizedExchange.formula], batch_size=50)
-        for group in groups:
-            Group.get_or_create(name=group)[0].expire()
+        for param_exc in exchanges:
+            param_exc.save()
+        Group.update(fresh=False).where(Group.name << groups).execute()
 
     @classmethod
     def create_table(cls):
@@ -976,6 +992,15 @@ class ParameterizedExchange(Model):
         super(ParameterizedExchange, cls).create_table()
         cls._meta.database.execute_sql(PE_UPDATE_TRIGGER)
         cls._meta.database.execute_sql(PE_INSERT_TRIGGER)
+
+    def save(self, *args, **kwargs):
+        Group.get_or_create(name=self.group)[0].expire()
+        super(ParameterizedExchange, self).save(*args, **kwargs)
+        # Push the changed formula to the Exchange.
+        exc = ExchangeDataset.get_or_none(id=self.exchange)
+        if exc and exc.data.get("formula") != self.formula:
+            exc.data["formula"] = self.formula
+            exc.save()
 
     @staticmethod
     def load(group):
@@ -1438,7 +1463,11 @@ class ParameterManager(object):
         if parameter.name == new_name:
             return
 
-        activity = ActivityParameter.is_dependent_on(parameter.name, parameter.group)
+        activity = any([
+            ActivityParameter.is_dependency_within_group(
+                parameter.name, parameter.group, include_order=True),
+            ActivityParameter.is_dependent_on(parameter.name, parameter.group)
+        ])
 
         if not update_dependencies and activity:
             raise ValueError(
