@@ -182,7 +182,6 @@ def test_delete_project():
 @bw2test
 def test_delete_last_project():
     assert len(projects) == 1
-    current_name = projects.current
     with pytest.raises(ValueError):
         projects.delete_project()
 

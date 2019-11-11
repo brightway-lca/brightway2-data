@@ -20,10 +20,11 @@ from peewee import (
     TextField,
 )
 import asteval
-import os
-import re
 import datetime
 import itertools
+import os
+import re
+import uuid
 
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
@@ -638,7 +639,7 @@ class ActivityParameter(ParameterBase):
         ).count():
             ActivityParameter.create(
                 group=group,
-                name="__dummy_{}__".format(code),
+                name="__dummy_{}__".format(uuid.uuid4().hex),
                 code=code,
                 database=database,
                 amount=0
