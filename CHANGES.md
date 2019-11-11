@@ -1,5 +1,9 @@
 # Changelog
 
+### 3.6.2 (2019-11-11)
+
+* Fixed invalid variable name creation
+
 ### 3.6.1 (2019-10-18)
 
 Merged PR [#19: Fix activityparam rename](https://bitbucket.org/cmutel/brightway2-data/pull-requests/19).
