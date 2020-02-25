@@ -3,6 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from . import config, projects
+from .errors import PickleError
 from .fatomic import open as atomic_open
 from .project import writable_project
 from .utils import python_2_unicode_compatible
@@ -237,7 +238,11 @@ class PickledDict(SerializedDict):
                 protocol=pickle.HIGHEST_PROTOCOL)
 
     def deserialize(self):
-        return self.unpack(pickle.load(open(self.filepath, "rb")))
+        try:
+            return self.unpack(pickle.load(open(self.filepath, "rb")))
+        except ImportError:
+            TEXT = "Pickle deserialization error in file '%s'" % self.filepath
+            raise PickleError(TEXT)
 
 
 class CompoundJSONDict(SerializedDict):

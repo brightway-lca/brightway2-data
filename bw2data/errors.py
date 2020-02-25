@@ -54,3 +54,8 @@ class ReadOnlyProject(BW2Exception):
 class NotFound(BW2Exception):
     """Requested web resource not found"""
     pass
+
+
+class PickleError(BW2Exception):
+    """Pickle file can't be loaded due to updated library file structure"""
+    pass
