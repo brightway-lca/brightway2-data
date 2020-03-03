@@ -17,7 +17,11 @@ from bw2parameters.errors import MissingName
 from peewee import IntegrityError
 import pytest
 import time
+import re
 
+
+# Regex to search for UUID: https://stackoverflow.com/a/18359032
+uuid4hex = re.compile(r"[0-9a-f]{8}[0-9a-f]{4}4[0-9a-f]{3}[89ab][0-9a-f]{3}[0-9a-f]{12}", re.I)
 
 ######################
 ### Project parameters
@@ -1133,7 +1137,7 @@ def test_activity_parameter_dummy():
     ActivityParameter.insert_dummy("A", ("B", "C"))
     assert ActivityParameter.select().count() == 1
     a = ActivityParameter.get()
-    assert a.name == "__dummy_C__"
+    assert a.name.startswith("__dummy_") and uuid4hex.search(a.name)
     assert a.database == "B"
     assert a.amount == 0
 
@@ -1146,8 +1150,10 @@ def test_activity_parameter_multiple_dummies():
     ActivityParameter.insert_dummy("A", ("B", "C"))
     ActivityParameter.insert_dummy("A", ("B", "D"))
     assert ActivityParameter.select().count() == 2
-    expected = ["__dummy_C__", "__dummy_D__"]
-    assert sorted(ap.name for ap in ActivityParameter.select()) == expected
+    assert all(
+        ap.name.startswith("__dummy_") and uuid4hex.search(ap.name)
+        for ap in ActivityParameter.select()
+    )
 
 def test_activity_parameter_static_dependencies(chain):
     expected = {"foo": 5, "bar": 6}
@@ -1256,7 +1262,7 @@ def test_recalculate_exchanges_no_activities_parameters():
 
     assert ActivityParameter.select().count() == 1
     a = ActivityParameter.get()
-    assert a.name == "__dummy_A__"
+    assert a.name.startswith("__dummy_") and uuid4hex.search(a.name)
 
 @bw2test
 def test_activity_parameter_recalculate():
