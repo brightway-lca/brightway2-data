@@ -12,7 +12,6 @@ from functools import wraps
 from peewee import Model, TextField, BlobField
 from threading import ThreadError
 import appdirs
-import collections
 import eight
 import os
 import re
@@ -21,6 +20,10 @@ import sys
 import tempfile
 import warnings
 import wrapt
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 
 
 READ_ONLY_PROJECT = """
@@ -55,7 +58,7 @@ class ProjectDataset(Model):
             return self.name.lower() < other.name.lower()
 
 
-class ProjectManager(collections.Iterable):
+class ProjectManager(Iterable):
     _basic_directories = (
         "backups",
         "intermediate",
