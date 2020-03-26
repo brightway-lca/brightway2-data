@@ -8,13 +8,11 @@ from .filesystem import safe_filename, create_dir
 from .sqlite import PickleField, SubstitutableDatabase
 from .utils import python_2_unicode_compatible
 from fasteners import InterProcessLock
-from functools import wraps
-from peewee import Model, TextField, BlobField
+from peewee import Model, TextField
 from threading import ThreadError
 import appdirs
 import eight
 import os
-import re
 import shutil
 import sys
 import tempfile
@@ -36,6 +34,7 @@ This project is being used by another process and no writes can be made until:
     If you are **sure** that this warning is incorrect, call
     `projects.enable_writes(force=True)` to enable writes.
 """
+
 
 def lockable():
     return hasattr(config, "p") and config.p.get('lockable')
@@ -151,7 +150,7 @@ class ProjectManager(Iterable):
             pass
         elif writable:
             self._lock = InterProcessLock(os.path.join(self.dir, "write-lock"))
-            self.read_only = not self._lock.acquire(timeout = 0.05)
+            self.read_only = not self._lock.acquire(timeout=0.05)
             if self.read_only:
                 warnings.warn(READ_ONLY_PROJECT)
         else:
