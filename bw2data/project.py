@@ -6,7 +6,6 @@ from . import config
 from .errors import ReadOnlyProject
 from .filesystem import safe_filename, create_dir
 from .sqlite import PickleField, SubstitutableDatabase
-from .utils import python_2_unicode_compatible
 from fasteners import InterProcessLock
 from peewee import Model, TextField
 from threading import ThreadError
@@ -40,7 +39,6 @@ def lockable():
     return hasattr(config, "p") and config.p.get('lockable')
 
 
-@python_2_unicode_compatible
 class ProjectDataset(Model):
     data = PickleField()
     name = TextField(index=True, unique=True)

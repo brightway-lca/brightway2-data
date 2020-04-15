@@ -3,7 +3,7 @@ from __future__ import print_function, unicode_literals
 from eight import *
 
 from .data_store import ProcessedDataStore
-from .utils import safe_filename, python_2_unicode_compatible
+from .utils import safe_filename
 import hashlib
 import string
 
@@ -35,7 +35,6 @@ def abbreviate(names, length=8):
     )
 
 
-@python_2_unicode_compatible
 class ImpactAssessmentDataStore(ProcessedDataStore):
     """
 A subclass of ``DataStore`` for impact assessment methods.

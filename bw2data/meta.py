@@ -5,12 +5,10 @@ from eight import *
 from . import config
 from .project import writable_project
 from .serialization import SerializedDict, PickledDict, CompoundJSONDict
-from .utils import python_2_unicode_compatible
 import datetime
 import pprint
 
 
-@python_2_unicode_compatible
 class Mapping(PickledDict):
     """A dictionary that maps object ids, like ``("Ecoinvent 2.2", 42)``, to integers. Needed because parameter arrays have integer ``row`` and ``column`` fields.
 
@@ -72,7 +70,6 @@ class GeoMapping(Mapping):
         return "Mapping from locations to parameter indices."
 
 
-@python_2_unicode_compatible
 class Databases(SerializedDict):
     """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
     filename = "databases.json"
@@ -131,7 +128,6 @@ class Databases(SerializedDict):
         super(Databases, self).__delitem__(name)
 
 
-@python_2_unicode_compatible
 class CalculationSetups(PickledDict):
     """A dictionary for calculation setups.
 
@@ -142,7 +138,7 @@ class CalculationSetups(PickledDict):
     """
     filename = "setups.pickle"
 
-@python_2_unicode_compatible
+
 class DynamicCalculationSetups(PickledDict):
     """A dictionary for Dynamic calculation setups.
 
@@ -154,7 +150,6 @@ class DynamicCalculationSetups(PickledDict):
     filename = "dynamicsetups.pickle"
 
 
-@python_2_unicode_compatible
 class Methods(CompoundJSONDict):
     """A dictionary for method metadata. File data is saved in ``methods.json``."""
     filename = "methods.json"

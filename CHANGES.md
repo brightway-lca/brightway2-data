@@ -1,5 +1,10 @@
 # Changelog
 
+# 4.0.DEV1
+
+* Dropped Python 2 compatibility
+* Use [bw_processing](https://github.com/brightway-lca/bw_processing) to create processed arrays. Processed arrays are directories (because there is a metadata file as well, and possibly multiple array files).
+
 ### 3.6.2 (2019-11-11)
 
 * Fixed invalid variable name creation

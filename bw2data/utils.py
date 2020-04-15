@@ -1,16 +1,9 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from . import config
 from .errors import WebUIError, UnknownObject, NotFound, ValidityError
 from .fatomic import open
-from .project import safe_filename
-from contextlib import contextmanager
-from future.utils import PY2
 from io import StringIO
 import collections
-import datetime
 import itertools
 import os
 import random
@@ -21,7 +14,6 @@ import string
 import urllib
 import webbrowser
 import zipfile
-import sys
 
 
 # Maximum value for unsigned integer stored in 4 bytes
@@ -37,8 +29,6 @@ TYPE_DICTIONARY = {
 }
 
 DOWNLOAD_URL = "https://brightwaylca.org/data/"
-
-numpy_string = lambda x: bytes(x) if sys.version_info < (3, 0) else x
 
 
 def natural_sort(l):
@@ -333,19 +323,3 @@ def get_activity(key):
     except TypeError:
         raise UnknownObject("Key {} cannot be understood as an activity"
                             " or `(database, code)` tuple.")
-
-
-def python_2_unicode_compatible(cls):
-    """
-    Adaptation of function in future library which was causing recursion.
-
-    We check and define __unicode__ only if it doesn't exist already.
-
-    A decorator that defines __unicode__ and __str__ methods under Python
-    2. Under Python 3, this decorator is a no-op.
-
-    """
-    if PY2 and not hasattr(cls, "__unicode__"):
-        cls.__unicode__ = cls.__str__
-        cls.__str__ = lambda self: self.__unicode__().encode('utf-8')
-    return cls

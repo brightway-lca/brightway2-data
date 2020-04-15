@@ -5,14 +5,12 @@ from eight import *
 from . import bw2test, BW2DataTest
 from .fixtures import food, biosphere, get_naughty
 from bw2data import config, projects
-from bw2data.database import DatabaseChooser
 from bw2data.backends.peewee import (
     Activity as PWActivity,
     ActivityDataset,
     Exchange as PWExchange,
     ExchangeDataset,
 )
-from bw2data.backends.utils import convert_backend
 from bw2data.backends.single_file.database import SingleFileDatabase
 from bw2data.errors import (
     InvalidExchange,
@@ -25,18 +23,12 @@ from bw2data.backends.single_file import (
     Activity as SFActivity,
     Exchange as SFExchange,
 )
-from bw2data.errors import NotAllowed, WrongDatabase
-from bw2data.meta import mapping, geomapping, databases, methods
+from bw2data.meta import databases
 from bw2data.serialization import JsonWrapper, JsonSanitizer
-from bw2data.utils import numpy_string, get_activity
 from bw2data.validate import db_validator
-from peewee import DoesNotExist
 import copy
-import datetime
 import numpy as np
 import os
-import pickle
-import pytest
 import warnings
 
 

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
 from eight import *
-from future.utils import python_2_unicode_compatible
 
 from . import databases
 from .errors import InvalidExchange
@@ -14,7 +13,6 @@ except ImportError:
     from collections import MutableMapping
 
 
-@python_2_unicode_compatible
 class ProxyBase(MutableMapping):
     def __init__(self, data, *args, **kwargs):
         self._data = data
@@ -52,7 +50,6 @@ class ProxyBase(MutableMapping):
         return hash(self._dict)
 
 
-@python_2_unicode_compatible
 class ActivityProxyBase(ProxyBase):
     def __str__(self):
         if self.valid():
@@ -123,7 +120,6 @@ class ActivityProxyBase(ProxyBase):
         return lca
 
 
-@python_2_unicode_compatible
 class ExchangeProxyBase(ProxyBase):
     def __str__(self):
         if self.valid():

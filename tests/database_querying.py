@@ -13,7 +13,6 @@ from bw2data.backends.peewee import (
     ExchangeDataset,
 )
 from bw2data.backends.utils import convert_backend
-from bw2data.backends.single_file.database import SingleFileDatabase
 from bw2data.errors import (
     InvalidExchange,
     MissingIntermediateData,
@@ -25,19 +24,7 @@ from bw2data.backends.single_file import (
     Activity as SFActivity,
     Exchange as SFExchange,
 )
-from bw2data.errors import NotAllowed, WrongDatabase
 from bw2data.meta import mapping, geomapping, databases, methods
-from bw2data.serialization import JsonWrapper, JsonSanitizer
-from bw2data.utils import numpy_string, get_activity
-from bw2data.validate import db_validator
-from peewee import DoesNotExist
-import copy
-import datetime
-import numpy as np
-import os
-import pickle
-import pytest
-import warnings
 
 
 class DatabaseQuerysetTest(BW2DataTest):

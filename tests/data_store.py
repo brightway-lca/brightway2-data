@@ -8,7 +8,6 @@ from bw2data import config, projects
 from bw2data.data_store import DataStore, ProcessedDataStore
 from bw2data.errors import UnknownObject
 from bw2data.serialization import SerializedDict
-from bw2data.utils import numpy_string
 from numbers import Number
 from voluptuous import Schema
 import numpy as np
@@ -143,7 +142,7 @@ def test_order_custom_dtype(reset):
     class PDS(ProcessedDataStore):
         _metadata = metadata
         dtype_fields = [
-            (numpy_string('input'), np.uint32),
+            ('input', np.uint32),
         ]
 
         def process_data(self, row):

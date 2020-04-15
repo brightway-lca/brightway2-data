@@ -5,7 +5,6 @@ from eight import *
 from . import databases, projects, config, get_activity
 from .backends.peewee.schema import ExchangeDataset
 from .sqlite import PickleField, SubstitutableDatabase
-from .utils import python_2_unicode_compatible
 from asteval import Interpreter
 from collections import defaultdict
 from bw2parameters import ParameterSet
@@ -116,7 +115,6 @@ class ParameterBase(Model):
         ).execute()
 
 
-@python_2_unicode_compatible
 class ProjectParameter(ParameterBase):
     """Parameter set for a project. Group name is 'project'.
 
@@ -269,7 +267,6 @@ class ProjectParameter(ParameterBase):
         return obj
 
 
-@python_2_unicode_compatible
 class DatabaseParameter(ParameterBase):
     """Parameter set for a database. Group name is the name of the database.
 
@@ -536,7 +533,6 @@ class DatabaseParameter(ParameterBase):
         return obj
 
 
-@python_2_unicode_compatible
 class ActivityParameter(ParameterBase):
     """Parameter set for a group of activities.
 
@@ -982,7 +978,6 @@ class ActivityParameter(ParameterBase):
         return obj
 
 
-@python_2_unicode_compatible
 class ParameterizedExchange(Model):
     group = TextField()
     exchange = IntegerField(unique=True)
@@ -1016,7 +1011,6 @@ class ParameterizedExchange(Model):
         return ActivityParameter.recalculate_exchanges(group)
 
 
-@python_2_unicode_compatible
 class Group(Model):
     name = TextField(unique=True)
     fresh = BooleanField(default=True)
@@ -1046,7 +1040,6 @@ class Group(Model):
         table_name = "group_table"
 
 
-@python_2_unicode_compatible
 class GroupDependency(Model):
     group = TextField()
     depends = TextField()

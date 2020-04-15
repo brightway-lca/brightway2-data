@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from . import config, projects
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
 from .project import writable_project
-from .utils import safe_filename, numpy_string, python_2_unicode_compatible
+from .utils import safe_filename
 import numpy as np
 import os
 import warnings
@@ -16,7 +13,6 @@ except ImportError:
     import pickle
 
 
-@python_2_unicode_compatible
 class DataStore(object):
     """
 Base class for all Brightway2 data stores. Subclasses should define:
@@ -162,14 +158,14 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
     dtype_fields = None
     # Numpy columns names can't be unicode
     base_uncertainty_fields = [
-        (numpy_string('uncertainty_type'), np.uint8),
-        (numpy_string('amount'), np.float32),
-        (numpy_string('loc'), np.float32),
-        (numpy_string('scale'), np.float32),
-        (numpy_string('shape'), np.float32),
-        (numpy_string('minimum'), np.float32),
-        (numpy_string('maximum'), np.float32),
-        (numpy_string('negative'), np.bool),
+        ('uncertainty_type', np.uint8),
+        ('amount', np.float32),
+        ('loc', np.float32),
+        ('scale', np.float32),
+        ('shape', np.float32),
+        ('minimum', np.float32),
+        ('maximum', np.float32),
+        ('negative', np.bool),
     ]
 
     @property
@@ -177,11 +173,11 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         """Returns both the generic ``base_uncertainty_fields`` plus class-specific ``dtype_fields``. ``dtype`` determines the columns of the :ref:`processed array <processing-data>`."""
         return self.dtype_fields + self.base_uncertainty_fields
 
-    def filepath_processed(self):
+    def dirpath_processed(self):
         return os.path.join(
             projects.dir,
             "processed",
-            self.filename + ".npy"
+            self.filename
         )
 
     @writable_project
@@ -246,9 +242,9 @@ Doesn't return anything, but writes a file to disk.
         field_names = sorted([x[0] for x in dtype or self.dtype])
         preferred = ('input', 'output', 'activity', 'geo', 'amount',
                      'uncertainty_type', 'loc', 'scale', 'shape')
-        return ([numpy_string(field)
+        return ([field
                  for field in preferred
-                 if numpy_string(field) in field_names] +
+                 if field in field_names] +
                 [field
                  for field in field_names
                  if str(field) not in preferred])

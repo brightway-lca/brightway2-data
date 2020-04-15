@@ -5,7 +5,7 @@ from eight import *
 from .ia_data_store import ImpactAssessmentDataStore
 from .meta import weightings, mapping, normalizations
 from .project import writable_project
-from .utils import MAX_INT_32, numpy_string
+from .utils import MAX_INT_32
 from .validate import weighting_validator, normalization_validator
 import numpy as np
 
@@ -63,8 +63,8 @@ class Normalization(ImpactAssessmentDataStore):
     _metadata = normalizations
     validator = normalization_validator
     dtype_fields = [
-        (numpy_string('flow'), np.uint32),
-        (numpy_string('index'), np.uint32),
+        ('flow', np.uint32),
+        ('index', np.uint32),
     ]
 
     def add_mappings(self, data):

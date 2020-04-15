@@ -35,7 +35,7 @@ from bw2data.parameters import (
     parameters,
 )
 from bw2data.serialization import JsonWrapper, JsonSanitizer
-from bw2data.utils import numpy_string, get_activity
+from bw2data.utils import get_activity
 from bw2data.validate import db_validator
 from peewee import DoesNotExist
 import copy
@@ -587,7 +587,7 @@ class DatabaseTest(BW2DataTest):
         self.assertEqual(database._metadata, databases)
         self.assertEqual(
             [x[0] for x in database.dtype_fields],
-            [numpy_string(x) for x in ('input', 'output', 'row', 'col', 'type')]
+            ['input', 'output', 'row', 'col', 'type']
         )
 
     def test_find_dependents(self):

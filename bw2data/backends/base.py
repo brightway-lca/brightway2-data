@@ -12,7 +12,7 @@ from .. import (
 from ..data_store import ProcessedDataStore
 from ..errors import UntypedExchange, InvalidExchange, UnknownObject
 from ..query import Query
-from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename, numpy_string
+from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename
 import copy
 import numpy as np
 import os
@@ -83,17 +83,17 @@ class LCIBackend(ProcessedDataStore):
     _metadata = databases
     validator = None
     dtype_fields = [
-        (numpy_string('input'), np.uint32),
-        (numpy_string('output'), np.uint32),
-        (numpy_string('row'), np.uint32),
-        (numpy_string('col'), np.uint32),
-        (numpy_string('type'), np.uint8),
+        ('input', np.uint32),
+        ('output', np.uint32),
+        ('row', np.uint32),
+        ('col', np.uint32),
+        ('type', np.uint8),
     ]
     dtype_fields_geomapping = [
-        (numpy_string('activity'), np.uint32),
-        (numpy_string('geo'), np.uint32),
-        (numpy_string('row'), np.uint32),
-        (numpy_string('col'), np.uint32),
+        ('activity', np.uint32),
+        ('geo', np.uint32),
+        ('row', np.uint32),
+        ('col', np.uint32),
     ]
 
     def copy(self, name):

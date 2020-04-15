@@ -9,7 +9,6 @@ from bw2data.ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS
 from bw2data.meta import mapping, geomapping, weightings, normalizations, methods
 from bw2data.method import Method
 from bw2data.serialization import CompoundJSONDict
-from bw2data.utils import numpy_string
 from bw2data.validate import weighting_validator, normalization_validator, ia_validator
 from bw2data.weighting_normalization import Normalization, Weighting
 import hashlib
@@ -153,7 +152,8 @@ class MethodTest(BW2DataTest):
         self.assertTrue(isinstance(method.metadata, dict))
         self.assertEqual(
             [x[0] for x in method.dtype_fields],
-            [numpy_string(x) for x in ('flow', 'geo', 'row', 'col')])
+            ['flow', 'geo', 'row', 'col']
+        )
 
     def test_validator(self):
         method = Method(("a", "method"))
@@ -208,7 +208,8 @@ class NormalizationTest(BW2DataTest):
         self.assertEqual(norm._metadata, normalizations)
         self.assertEqual(
             [x[0] for x in norm.dtype_fields],
-            [numpy_string(x) for x in ('flow', 'index')])
+            ['flow', 'index']
+        )
 
     def test_add_mappings(self):
         norm = Normalization(("foo",))
