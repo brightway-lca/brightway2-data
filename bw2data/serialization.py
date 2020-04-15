@@ -230,7 +230,7 @@ class PickledDict(SerializedDict):
     def serialize(self):
         with atomic_open(self.filepath, "wb") as f:
             pickle.dump(self.pack(self.data), f,
-                protocol=pickle.HIGHEST_PROTOCOL)
+                protocol=4)
 
     def deserialize(self):
         try:

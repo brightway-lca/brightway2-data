@@ -135,7 +135,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
             self.filename + ".pickle"
         )
         with atomic_open(filepath, "wb") as f:
-            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(data, f, protocol=4)
 
     def validate(self, data):
         """Validate data. Must be called manually."""
@@ -195,7 +195,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
             self.filename + ".pickle"
         )
         with atomic_open(filepath, "wb") as f:
-            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(data, f, protocol=4)
         if process:
             self.process()
 

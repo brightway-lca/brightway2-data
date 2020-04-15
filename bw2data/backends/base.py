@@ -242,7 +242,7 @@ Doesn't return anything, but writes two files to disk.
         ))
 
         with open(self.filepath_geomapping(), "wb") as f:
-            pickle.dump(arr[:count], f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(arr[:count], f, protocol=4)
 
         arr = np.zeros((num_exchanges + len(data), ), dtype=self.dtype)
         count = 0

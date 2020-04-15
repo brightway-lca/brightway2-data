@@ -184,7 +184,7 @@ class SingleFileDatabase(LCIBackend):
             mapping.add({exc['output'] for ds in data.values() for exc in ds.get('exchanges', [])})
 
         with atomic_open(self.filepath_intermediate(), "wb") as f:
-            pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(data, f, protocol=4)
 
         if process:
             self.process()
