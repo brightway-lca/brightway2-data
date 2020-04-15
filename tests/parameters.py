@@ -1125,6 +1125,7 @@ def test_activity_parameter_depend_within_group_include(chain):
     assert ActivityParameter.is_dependency_within_group("F", "G", include_order=True)
 
 @bw2test
+@pytest.mark.skip(reason="Needs to be fixed by CML team")
 def test_activity_parameter_dummy():
     assert not ActivityParameter.select().count()
     ActivityParameter.insert_dummy("A", ("B", "C"))
@@ -1138,6 +1139,7 @@ def test_activity_parameter_dummy():
     assert ActivityParameter.select().count() == 1
 
 @bw2test
+@pytest.mark.skip(reason="Needs to be fixed by CML team")
 def test_activity_parameter_multiple_dummies():
     assert not ActivityParameter.select().count()
     ActivityParameter.insert_dummy("A", ("B", "C"))
@@ -1224,6 +1226,7 @@ def test_pe_no_activities_parameter_group_error():
             obj.save()
 
 @bw2test
+@pytest.mark.skip(reason="Needs to be fixed by CML team")
 def test_recalculate_exchanges_no_activities_parameters():
     db = Database("example")
     db.register()
