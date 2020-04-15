@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 from ... import mapping, geomapping, config, databases
 from ..peewee import SQLiteBackend
-from ..peewee.schema import ActivityDataset, ExchangeDataset
-from ..peewee.utils import dict_as_activitydataset
 from ...utils import MAX_INT_32, TYPE_DICTIONARY
 from ...errors import UnknownObject
 import datetime
-import itertools
 import numpy as np
 
 

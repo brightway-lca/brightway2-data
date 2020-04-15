@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from ...sqlite import PickleField
-from peewee import Model, TextField, BlobField
+from peewee import Model, TextField
 
 
 class ActivityDataset(Model):

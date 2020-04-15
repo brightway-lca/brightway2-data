@@ -1,16 +1,14 @@
 # -*- coding: utf-8 -*-
 from . import sqlite3_lci_db
-from ... import databases, mapping, geomapping, config
+from ... import databases, mapping, geomapping
 from ...errors import ValidityError
 from ...project import writable_project
 from ...proxies import ActivityProxyBase, ExchangeProxyBase
 from ...search import IndexManager
-from ...utils import get_activity
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset, dict_as_exchangedataset
 import copy
 import collections
-import warnings
 import uuid
 
 

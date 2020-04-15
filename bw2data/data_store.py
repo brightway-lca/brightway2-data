@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-from . import config, projects
+from . import projects
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
 from .project import writable_project
 from .utils import safe_filename
 import numpy as np
 import os
-import warnings
 try:
     import cPickle as pickle
 except ImportError:

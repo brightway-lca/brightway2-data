@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from .indices import IndexManager
-from whoosh.collectors import TimeLimitCollector, TimeLimit
+from whoosh.collectors import TimeLimit
 from whoosh.qparser import MultifieldParser
 from whoosh.query import Term, And
 

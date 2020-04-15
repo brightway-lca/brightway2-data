@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from peewee import SqliteDatabase, BlobField, Model, TextField
-import os
+from peewee import SqliteDatabase, BlobField
 try:
     import cPickle as pickle
 except ImportError:

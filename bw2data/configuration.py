@@ -1,11 +1,5 @@
 # -*- coding: utf-8 -*-
-import json
-import os
 import platform
-import sys
-import tempfile
-import warnings
-from .filesystem import check_dir
 
 
 class Config(object):

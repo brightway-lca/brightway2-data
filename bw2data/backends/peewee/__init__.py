@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 from ... import config
-from ...sqlite import PickleField, SubstitutableDatabase
+from ...sqlite import SubstitutableDatabase
 from ...project import projects
-from peewee import SqliteDatabase
 import os
 
 from .schema import ActivityDataset, ExchangeDataset

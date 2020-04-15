@@ -2,11 +2,8 @@
 from . import Database, databases, Method, methods, Weighting, \
     weightings, Normalization, normalizations, preferences, projects
 from .backends.peewee import sqlite3_lci_db
-from .ia_data_store import abbreviate
-from .utils import recursive_str_to_unicode
 import numpy as np
 import os
-import pprint
 import pyprind
 import re
 import shutil

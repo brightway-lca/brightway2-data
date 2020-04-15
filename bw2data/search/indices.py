@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-from .. import config, projects
+from .. import projects
 from .schema import bw2_schema
-from whoosh import index, query
+from whoosh import index
 import os
 import shutil
 

@@ -3,7 +3,6 @@ from . import databases, projects, config, get_activity
 from .backends.peewee.schema import ExchangeDataset
 from .sqlite import PickleField, SubstitutableDatabase
 from asteval import Interpreter
-from collections import defaultdict
 from bw2parameters import ParameterSet
 from bw2parameters.errors import MissingName
 from peewee import (

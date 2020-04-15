@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from ...proxies import ActivityProxyBase, ExchangeProxyBase
-from ...utils import get_activity
 
 
 class Activity(ActivityProxyBase):
@@ -12,7 +11,7 @@ class Activity(ActivityProxyBase):
         raise AttributeError("Activity proxies are read-only.")
 
     def save(self):
-        raise NotImplemented
+        raise NotImplementedError
 
     def exchanges(self):
         return [Exchange(exc, self)
@@ -29,7 +28,7 @@ class Activity(ActivityProxyBase):
                 if exc.get('type') == 'biosphere']
 
     def upstream(self, *args, **kwargs):
-        raise NotImplemented
+        raise NotImplementedError
 
 # -*- coding: utf-8 -*
 

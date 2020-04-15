@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-from . import config
 from .project import writable_project
 from .serialization import SerializedDict, PickledDict, CompoundJSONDict
 import datetime
-import pprint
 
 
 class Mapping(PickledDict):
