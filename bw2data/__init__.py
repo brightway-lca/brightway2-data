@@ -74,14 +74,3 @@ from .parameters import parameters
 projects.set_current("default")
 
 Updates.check_status()
-
-import sys
-import warnings
-
-
-if sys.version_info < (3, 0):
-    def warning_message(message, *args, **kwargs):
-        # All our strings our unicode, but Py2 warning doesn't like unicode
-        return b"Warning: " + str(message).encode("utf-8", "ignore") + b"\n"
-
-    warnings.formatwarning = warning_message

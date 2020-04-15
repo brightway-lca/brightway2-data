@@ -1,8 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
-import eight
 import json
 import os
 import platform
@@ -10,9 +6,6 @@ import sys
 import tempfile
 import warnings
 from .filesystem import check_dir
-
-# os.getenv returns unicode in Py2
-eight.wrap_os_environ_io()
 
 
 class Config(object):

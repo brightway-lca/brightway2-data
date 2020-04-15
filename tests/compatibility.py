@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-from future.utils import PY2
 from bw2data.tests import BW2DataTest, bw2test
 from bw2data import *
 from .fixtures import food, biosphere
@@ -15,8 +14,6 @@ def test_repr_str_unicode():
         assert repr(obj)
         assert str(obj)
         print(obj)
-        if PY2:
-            assert unicode(obj)
 
 
 @bw2test
