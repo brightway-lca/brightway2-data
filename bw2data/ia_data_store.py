@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from .data_store import ProcessedDataStore
-from .utils import safe_filename
+from .filesystem import safe_filename
 import hashlib
 import string
 
@@ -8,7 +8,7 @@ import string
 def abbreviate(names, length=8):
     """Take a tuple or list, and construct a string, doing the following:
 
-    First, apply :func:`.utils.safe_filename` to each element in ``names``.
+    First, apply :func:`.filesystem.safe_filename` to each element in ``names``.
 
     Next, take the following, in order:
         * The first word of the first element in names, lower-cased, where word is defined as everything up to the first empty space character.

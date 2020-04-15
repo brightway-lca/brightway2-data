@@ -3,7 +3,7 @@ from . import projects
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
 from .project import writable_project
-from .utils import safe_filename
+from .filesystem import safe_filename
 import numpy as np
 import os
 try:
@@ -49,7 +49,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
 
     @property
     def filename(self):
-        """Remove filesystem-unsafe characters and perform unicode normalization on ``self.name`` using :func:`.utils.safe_filename`."""
+        """Remove filesystem-unsafe characters and perform unicode normalization on ``self.name`` using :func:`.filesystem.safe_filename`."""
         return safe_filename(self.name)
 
     @property
@@ -172,11 +172,11 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         """Returns both the generic ``base_uncertainty_fields`` plus class-specific ``dtype_fields``. ``dtype`` determines the columns of the :ref:`processed array <processing-data>`."""
         return self.dtype_fields + self.base_uncertainty_fields
 
-    def dirpath_processed(self):
+    def filepath_processed(self):
         return os.path.join(
             projects.dir,
             "processed",
-            self.filename
+            self.filename + ".npy"
         )
 
     @writable_project

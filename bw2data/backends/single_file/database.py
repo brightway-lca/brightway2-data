@@ -3,7 +3,8 @@ from ... import databases, config, mapping, geomapping, projects, preferences
 from ...errors import MissingIntermediateData
 from ...fatomic import open as atomic_open
 from ...project import writable_project
-from ...utils import natural_sort, safe_filename
+from ...utils import natural_sort
+from ...filesystem import safe_filename
 from ...validate import db_validator
 from .proxies import Activity
 from ..base import LCIBackend

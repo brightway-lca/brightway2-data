@@ -10,7 +10,8 @@ from ..data_store import ProcessedDataStore
 from ..errors import UntypedExchange, InvalidExchange, UnknownObject
 from ..query import Query
 from bw_processing import MAX_SIGNED_32BIT_INT
-from ..utils import TYPE_DICTIONARY, safe_filename
+from ..filesystem import safe_filename
+from ..utils import TYPE_DICTIONARY
 import copy
 import numpy as np
 import os

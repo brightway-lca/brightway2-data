@@ -9,7 +9,6 @@ from threading import ThreadError
 import appdirs
 import os
 import shutil
-import sys
 import tempfile
 import warnings
 import wrapt
@@ -111,7 +110,7 @@ class ProjectManager(Iterable):
                 create_dir(logs_dir)
                 return envvar, logs_dir
 
-        LABEL = "Brightway2" if sys.version_info < (3, 0) else "Brightway3"
+        LABEL = "Brightway3"
         data_dir = appdirs.user_data_dir(LABEL, "pylca")
         logs_dir = appdirs.user_log_dir(LABEL, "pylca")
         return data_dir, logs_dir

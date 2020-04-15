@@ -6,13 +6,13 @@ from bw2data.backends.peewee import Activity as PWActivity
 from bw2data.backends.single_file import Activity as SFActivity
 from bw2data.database import Database
 from bw2data.errors import ValidityError
+from bw2data.filesystem import safe_filename
 from bw2data.utils import (
     combine_methods,
     get_activity,
     merge_databases,
     natural_sort,
     random_string,
-    safe_filename,
     uncertainify,
 )
 import numpy as np

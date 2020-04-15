@@ -145,6 +145,7 @@ Returns the modified data.
                 })
     return data
 
+
 def recursive_str_to_unicode(data, encoding="utf8"):
     """Convert the strings inside a (possibly nested) python data structure to unicode strings using `encoding`."""
     # Adapted from
