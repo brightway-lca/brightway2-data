@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from .ia_data_store import ImpactAssessmentDataStore
 from .meta import weightings, mapping, normalizations
 from .project import writable_project

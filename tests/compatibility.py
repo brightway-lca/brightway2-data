@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from bw2data.tests import BW2DataTest, bw2test
 from bw2data import *
 from .fixtures import food, biosphere

@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from ... import mapping, geomapping, config, databases
 from ..peewee import SQLiteBackend
 from ..peewee.schema import ActivityDataset, ExchangeDataset

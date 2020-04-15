@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from .data_store import ProcessedDataStore
 from .utils import safe_filename
 import hashlib

@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from . import mapping, methods, geomapping, config
 from .utils import MAX_INT_32
 from .validate import ia_validator

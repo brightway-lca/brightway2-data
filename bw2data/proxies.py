@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from . import databases
 from .errors import InvalidExchange
 from .utils import get_activity

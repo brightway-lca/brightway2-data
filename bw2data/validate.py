@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from voluptuous import Schema, Required, Invalid, Any, All, Length, Optional
 from numbers import Number
 

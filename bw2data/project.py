@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from . import config
 from .errors import ReadOnlyProject
 from .filesystem import safe_filename, create_dir
@@ -10,7 +7,6 @@ from fasteners import InterProcessLock
 from peewee import Model, TextField
 from threading import ThreadError
 import appdirs
-import eight
 import os
 import shutil
 import sys
@@ -102,7 +98,6 @@ class ProjectManager(Iterable):
     ### Internal functions for managing projects
 
     def _get_base_directories(self):
-        eight.wrap_os_environ_io()
         envvar = os.getenv("BRIGHTWAY2_DIR")
         if envvar:
             if not os.path.isdir(envvar):
@@ -196,7 +191,6 @@ class ProjectManager(Iterable):
         Returns output directory path.
 
         """
-        eight.wrap_os_environ_io()
         ep, pp = os.getenv('BRIGHTWAY2_OUTPUT_DIR'), config.p.get('output_dir')
         if ep and os.path.isdir(ep):
             return ep

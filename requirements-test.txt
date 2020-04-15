@@ -2,9 +2,7 @@ appdirs
 bw2io
 bw2parameters
 docopt
-eight
 fasteners
-future
 lxml
 numpy
 peewee>=3

@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from ... import databases, config, mapping, geomapping, projects, preferences
 from ...errors import MissingIntermediateData
 from ...fatomic import open as atomic_open

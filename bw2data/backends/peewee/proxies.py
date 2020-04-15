@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from . import sqlite3_lci_db
 from ... import databases, mapping, geomapping, config
 from ...errors import ValidityError
@@ -11,7 +8,6 @@ from ...search import IndexManager
 from ...utils import get_activity
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset, dict_as_exchangedataset
-from future.utils import implements_iterator
 import copy
 import collections
 import warnings

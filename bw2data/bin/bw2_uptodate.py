@@ -14,9 +14,6 @@ Options:
   --version     Show version.
 
 """
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from docopt import docopt
 import sys
 import warnings

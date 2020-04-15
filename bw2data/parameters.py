@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from . import databases, projects, config, get_activity
 from .backends.peewee.schema import ExchangeDataset
 from .sqlite import PickleField, SubstitutableDatabase

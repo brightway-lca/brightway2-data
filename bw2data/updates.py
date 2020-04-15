@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, unicode_literals
-from eight import *
-
 from . import Database, databases, Method, methods, Weighting, \
     weightings, Normalization, normalizations, preferences, projects
 from .backends.peewee import sqlite3_lci_db

@@ -16,7 +16,7 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
 
 setup(
     name='bw2data',
-    version="3.6.2",
+    version="4.0.DEV1",
     packages=packages,
     python_requires='>=3.5',
     author="Chris Mutel",
@@ -27,7 +27,6 @@ setup(
         "bw2parameters",
         "docopt",
         "fasteners",
-        "future",
         "lxml",
         "numpy",
         "peewee>=3.9.4",
