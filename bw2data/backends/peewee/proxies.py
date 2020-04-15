@@ -12,7 +12,7 @@ import collections
 import uuid
 
 
-class Exchanges(collections.Iterable):
+class Exchanges(collections.abc.Iterable):
     """Iterator for exchanges with some additional methods.
 
     This is not a generator; ``next()`` is not supported. Everything time you start to iterate over the object you get a new list starting from the beginning. However, to get a single item you can do ``next(iter(foo))``.

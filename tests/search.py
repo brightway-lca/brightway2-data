@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import bw2test
+from bw2data import databases
 from bw2data.search import *
 from bw2data.backends.peewee import *
 
@@ -175,7 +176,7 @@ def test_delete_database():
     db.make_searchable()
     with Searcher(db.filename) as s:
         assert s.search('lollipop', proxy=False)
-    db.delete()
+    del databases['foo']
     with Searcher(db.filename) as s:
         assert not s.search('lollipop', proxy=False)
 
