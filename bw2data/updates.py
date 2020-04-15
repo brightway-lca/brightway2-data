@@ -94,6 +94,11 @@ class Updates(object):
             'automatic': True,
             'explanation': "",
         },
+        # "4.0 new processed format": {
+        #     'method': 'expire_all_processed_data_40',
+        #     'automatic': True,
+        #     'explanation': "New use of 'bw_processing' requires all database be reprocessed"
+        # }
     }
 
     @classmethod
@@ -200,3 +205,7 @@ class Updates(object):
                 pickle.load(open(fp, "rb")),
                 allow_pickle=False
             )
+
+    @classmethod
+    def expire_all_processed_data_40(cls):
+        pass
