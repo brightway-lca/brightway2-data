@@ -4,7 +4,8 @@ from ... import mapping, geomapping, config, databases, preferences
 from ...errors import UntypedExchange, InvalidExchange, UnknownObject, WrongDatabase
 from ...project import writable_project
 from ...search import IndexManager, Searcher
-from ...utils import MAX_INT_32, TYPE_DICTIONARY
+from bw_processing import MAX_SIGNED_32BIT_INT
+from ...utils import TYPE_DICTIONARY
 from ..base import LCIBackend
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset
@@ -391,7 +392,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
             arr[index] = (
                 mapping[(self.name, row['code'])],
                 geomapping[retupleize(row['location']) or config.global_location],
-                MAX_INT_32, MAX_INT_32,
+                MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT,
                 0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
             )
 
@@ -450,8 +451,8 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
                 arr[index] = (
                     mapping[(input_database, input_code)],
                     mapping[(output_database, output_code)],
-                    MAX_INT_32,
-                    MAX_INT_32,
+                    MAX_SIGNED_32BIT_INT,
+                    MAX_SIGNED_32BIT_INT,
                     TYPE_DICTIONARY[data["type"]],
                     data.get("uncertainty type", 0),
                     data["amount"],
@@ -480,7 +481,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
         for index, key in zip(itertools.count(index), missing_production_keys):
             arr[index] = (
                 mapping[key], mapping[key],
-                MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY["production"],
+                MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT, TYPE_DICTIONARY["production"],
                 0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
             )
 

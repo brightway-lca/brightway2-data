@@ -9,7 +9,8 @@ from .. import (
 from ..data_store import ProcessedDataStore
 from ..errors import UntypedExchange, InvalidExchange, UnknownObject
 from ..query import Query
-from ..utils import MAX_INT_32, TYPE_DICTIONARY, safe_filename
+from bw_processing import MAX_SIGNED_32BIT_INT
+from ..utils import TYPE_DICTIONARY, safe_filename
 import copy
 import numpy as np
 import os
@@ -230,7 +231,7 @@ Doesn't return anything, but writes two files to disk.
                 arr[count] = (
                     mapping[key],
                     geomapping[data[key].get("location", gl) or gl],
-                    MAX_INT_32, MAX_INT_32,
+                    MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT,
                     0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
                 )
                 count += 1
@@ -264,8 +265,8 @@ Doesn't return anything, but writes two files to disk.
                     arr[count] = (
                         mapping[exc["input"]],
                         mapping[key],
-                        MAX_INT_32,
-                        MAX_INT_32,
+                        MAX_SIGNED_32BIT_INT,
+                        MAX_SIGNED_32BIT_INT,
                         TYPE_DICTIONARY[exc["type"]],
                         exc.get("uncertainty type", 0),
                         exc["amount"],
@@ -290,7 +291,7 @@ Doesn't return anything, but writes two files to disk.
                 # Add amount produced for each process (default 1)
                 arr[count] = (
                     mapping[key], mapping[key],
-                    MAX_INT_32, MAX_INT_32, TYPE_DICTIONARY["production"],
+                    MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT, TYPE_DICTIONARY["production"],
                     0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
                 )
                 count += 1

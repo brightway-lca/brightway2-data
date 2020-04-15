@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 from ... import mapping, geomapping, config, databases
 from ..peewee import SQLiteBackend
-from ...utils import MAX_INT_32, TYPE_DICTIONARY
+from bw_processing import MAX_SIGNED_32BIT_INT
+from ...utils import TYPE_DICTIONARY
 from ...errors import UnknownObject
 import datetime
 import numpy as np
@@ -42,7 +43,7 @@ class IOTableBackend(SQLiteBackend):
             arr[index] = (
                 mapping[row['key']],
                 geomapping[row['location'] or config.global_location],
-                MAX_INT_32, MAX_INT_32,
+                MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT,
                 0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
             )
 
@@ -86,7 +87,7 @@ class IOTableBackend(SQLiteBackend):
                 arr[index] = (
                     mapping[inpt],
                     mapping[outpt],
-                    MAX_INT_32, MAX_INT_32,
+                    MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT,
                     TYPE_DICTIONARY[row_type],
                     unc_type, amount, loc,
                     scale, shape, minimum, maximum, amount < 0
@@ -108,7 +109,7 @@ class IOTableBackend(SQLiteBackend):
 
                 arr[index + index2] = (
                     mapping[obj], mapping[obj],
-                    MAX_INT_32, MAX_INT_32,
+                    MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT,
                     TYPE_DICTIONARY['production'],
                     0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
                 )
@@ -119,7 +120,7 @@ class IOTableBackend(SQLiteBackend):
 
         # Trim arr
         print("Trimming array")
-        arr = arr[np.where(arr["row"] == MAX_INT_32)]
+        arr = arr[np.where(arr["row"] == MAX_SIGNED_32BIT_INT)]
 
         print("Writing array")
         np.save(self.filepath_processed(), arr, allow_pickle=False)

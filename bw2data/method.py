@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import mapping, methods, geomapping, config
-from .utils import MAX_INT_32
+from bw_processing import MAX_SIGNED_32BIT_INT
 from .validate import ia_validator
 from .ia_data_store import ImpactAssessmentDataStore
 import numpy as np
@@ -51,8 +51,8 @@ class Method(ImpactAssessmentDataStore):
             mapping[row[0]],
             geomapping[row[2]] if len(row) == 3 \
                 else geomapping[config.global_location],
-            MAX_INT_32,
-            MAX_INT_32,
+            MAX_SIGNED_32BIT_INT,
+            MAX_SIGNED_32BIT_INT,
             ), row[1]
 
     def write(self, data, process=True):

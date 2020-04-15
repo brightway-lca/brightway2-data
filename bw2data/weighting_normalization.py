@@ -2,7 +2,7 @@
 from .ia_data_store import ImpactAssessmentDataStore
 from .meta import weightings, mapping, normalizations
 from .project import writable_project
-from .utils import MAX_INT_32
+from bw_processing import MAX_SIGNED_32BIT_INT
 from .validate import weighting_validator, normalization_validator
 import numpy as np
 
@@ -72,5 +72,5 @@ class Normalization(ImpactAssessmentDataStore):
         """Return values that match ``dtype_fields``, as well as number or uncertainty dictionary"""
         return (
             mapping[row[0]],
-            MAX_INT_32,
+            MAX_SIGNED_32BIT_INT,
             ), row[1]

@@ -16,9 +16,6 @@ import webbrowser
 import zipfile
 
 
-# Maximum value for unsigned integer stored in 4 bytes
-MAX_INT_32 = 4294967295
-
 # Type of technosphere/biosphere exchanges used in processed Databases
 TYPE_DICTIONARY = {
     "unknown": -1,

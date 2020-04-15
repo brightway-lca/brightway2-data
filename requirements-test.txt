@@ -1,6 +1,7 @@
 appdirs
 bw2io
 bw2parameters
+bw_processing
 docopt
 fasteners
 lxml
