@@ -20,7 +20,7 @@ uncertainty_dict = {
     Optional("scale"): Number,
     Optional("shape"): Number,
     Optional("minimum"): Number,
-    Optional("maximum"): Number
+    Optional("maximum"): Number,
 }
 
 exchange = {
@@ -35,7 +35,7 @@ lci_dataset = {
     Optional("unit"): str,
     Optional("name"): str,
     Optional("type"): str,
-    Optional("exchanges"): [exchange]
+    Optional("exchanges"): [exchange],
 }
 
 db_validator = Schema({valid_tuple: lci_dataset}, extra=True)
@@ -46,16 +46,15 @@ db_validator = Schema({valid_tuple: lci_dataset}, extra=True)
 
 maybe_uncertainty = Any(Number, uncertainty_dict)
 
-ia_validator = Schema([Any(
-    [valid_tuple, maybe_uncertainty],         # site-generic
-    [valid_tuple, maybe_uncertainty, object]  # regionalized
-)])
+ia_validator = Schema(
+    [
+        Any(
+            [valid_tuple, maybe_uncertainty],  # site-generic
+            [valid_tuple, maybe_uncertainty, object],  # regionalized
+        )
+    ]
+)
 
-weighting_validator = Schema(All(
-    [uncertainty_dict],
-    Length(min=1, max=1)
-))
+weighting_validator = Schema(All([uncertainty_dict], Length(min=1, max=1)))
 
-normalization_validator = Schema([
-    [valid_tuple, maybe_uncertainty]
-])
+normalization_validator = Schema([[valid_tuple, maybe_uncertainty]])

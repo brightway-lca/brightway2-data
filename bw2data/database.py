@@ -33,7 +33,7 @@ def DatabaseChooser(name, backend=None):
 
     # Backwards compatibility
     if backend == "default":
-        databases[name]['backend'] = 'singlefile'
+        databases[name]["backend"] = "singlefile"
         databases.flush()
         return SingleFileDatabase(name)
     elif backend == "sqlite":
@@ -49,6 +49,7 @@ def DatabaseChooser(name, backend=None):
         return config.backends[backend](name)
     else:
         raise ValueError("Backend {} not found".format(backend))
+
 
 # Backwards compatibility
 Database = DatabaseChooser

@@ -2,20 +2,19 @@
 from ...serialization import JsonWrapper
 from ...filesystem import safe_filename
 from .mapping import get_mapping
-import os
+from collections.abc import MutableMapping
 import json
-try:
-    from collections.abc import MutableMapping
-except ImportError:
-    from collections import MutableMapping
+import os
 
 
 class frozendict(dict):
     """A dictionary that can be created but not modified.
 
     From http://code.activestate.com/recipes/414283-frozen-dictionaries/"""
+
     def _blocked_attribute(obj):
         raise AttributeError("A frozendict cannot be modified")
+
     _blocked_attribute = property(_blocked_attribute)
 
     __delitem__ = __setitem__ = clear = _blocked_attribute
@@ -67,7 +66,7 @@ class SynchronousJSONDict(MutableMapping):
     def _save_file(self, key, data):
         """Save data ``data`` to file for key ``key``."""
         # Use json instead of anyjson because need indent for version control
-        with open(self.filepath(key), "w", encoding='utf-8') as f:
+        with open(self.filepath(key), "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
     def _load_file(self, key):
@@ -84,10 +83,10 @@ class SynchronousJSONDict(MutableMapping):
 
     def from_json(self, data):
         """Change exchange `inputs` from lists to tuples (as there is no distinction in JSON, but Python only allows tuples as dictionary keys)."""
-        for exc in data.get(u"exchanges", []):
-            exc[u"input"] = tuple(exc[u"input"])
-        if u"key" in data:
-            data[u"key"] = tuple(data[u"key"])
+        for exc in data.get("exchanges", []):
+            exc["input"] = tuple(exc["input"])
+        if "key" in data:
+            data["key"] = tuple(data["key"])
         return data
 
     def __getitem__(self, key):
@@ -103,7 +102,7 @@ class SynchronousJSONDict(MutableMapping):
     def __setitem__(self, key, value):
         assert isinstance(value, dict), "Can only store `dict`s as values"
         value = dict(value)  # Unfreeze if necessary
-        value[u"key"] = key
+        value["key"] = key
         self.cache[key] = value
         self._save_file(key, value)
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from ... import mapping, geomapping, config, databases
 from ..peewee import SQLiteBackend
-from bw_processing import MAX_SIGNED_32BIT_INT
+from bw_processing import MAX_SIGNED_32BIT_INT, create_calculation_package
 from ...utils import TYPE_DICTIONARY
 from ...errors import UnknownObject
 import datetime
@@ -12,6 +12,7 @@ class IOTableBackend(SQLiteBackend):
     """IO tables have too much data to store each value in a database; instead, we only store the processed data in NumPy arrays.
 
     Activities will not seem to have any activities."""
+
     backend = "iotable"
 
     def write(self, products, exchanges, includes_production=False, **kwargs):
@@ -33,18 +34,29 @@ class IOTableBackend(SQLiteBackend):
 
         # Create geomapping array
         arr = np.zeros(
-            (num_products, ),
-            dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields
+            (num_products,),
+            dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields,
         )
 
         print("Writing geomapping")
-        for index, row in enumerate(sorted(products.values(),
-                                           key=lambda x: x.get('key'))):
+        create_calculation_package(name=self.name + " geomapping",)
+
+        for index, row in enumerate(
+            sorted(products.values(), key=lambda x: x.get("key"))
+        ):
             arr[index] = (
-                mapping[row['key']],
-                geomapping[row['location'] or config.global_location],
-                MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT,
-                0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
+                mapping[row["key"]],
+                geomapping[row["location"] or config.global_location],
+                MAX_SIGNED_32BIT_INT,
+                MAX_SIGNED_32BIT_INT,
+                0,
+                1,
+                np.NaN,
+                np.NaN,
+                np.NaN,
+                np.NaN,
+                np.NaN,
+                False,
             )
 
         np.save(self.filepath_geomapping(), arr, allow_pickle=False)
@@ -57,16 +69,16 @@ class IOTableBackend(SQLiteBackend):
 
         for index, row in enumerate(exchanges):
             if isinstance(row, dict):
-                inpt = row['input']
-                outpt = row['output']
-                row_type = row['type']
-                unc_type = row.get('uncertainty type', 0)
-                amount = row['amount']
-                loc = row.get('loc', row['amount'])
-                scale = row.get('scale', np.NaN)
-                shape = row.get('shape', np.NaN)
-                minimum = row.get('minimum', np.NaN)
-                maximum = row.get('maximum', np.NaN)
+                inpt = row["input"]
+                outpt = row["output"]
+                row_type = row["type"]
+                unc_type = row.get("uncertainty type", 0)
+                amount = row["amount"]
+                loc = row.get("loc", row["amount"])
+                scale = row.get("scale", np.NaN)
+                shape = row.get("shape", np.NaN)
+                minimum = row.get("minimum", np.NaN)
+                maximum = row.get("maximum", np.NaN)
             else:
                 inpt, outpt, row_type, amount = row
                 loc, unc_type = amount, 0
@@ -76,10 +88,7 @@ class IOTableBackend(SQLiteBackend):
                 print("On exchange number {}".format(index))
             if index and not index % step:
                 # Add another `step` rows
-                arr = np.hstack((
-                    arr,
-                    np.zeros((step,), dtype=self.dtype)
-                ))
+                arr = np.hstack((arr, np.zeros((step,), dtype=self.dtype)))
 
             dependents.add(inpt[0])
 
@@ -87,35 +96,50 @@ class IOTableBackend(SQLiteBackend):
                 arr[index] = (
                     mapping[inpt],
                     mapping[outpt],
-                    MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT,
+                    MAX_SIGNED_32BIT_INT,
+                    MAX_SIGNED_32BIT_INT,
                     TYPE_DICTIONARY[row_type],
-                    unc_type, amount, loc,
-                    scale, shape, minimum, maximum, amount < 0
+                    unc_type,
+                    amount,
+                    loc,
+                    scale,
+                    shape,
+                    minimum,
+                    maximum,
+                    amount < 0,
                 )
             except KeyError:
-                raise UnknownObject(("Exchange between {} and {} is invalid "
-                    "- one of these objects is unknown (i.e. doesn't exist "
-                    "as a process dataset)"
+                raise UnknownObject(
+                    (
+                        "Exchange between {} and {} is invalid "
+                        "- one of these objects is unknown (i.e. doesn't exist "
+                        "as a process dataset)"
                     ).format(inpt, outpt)
                 )
 
         if not includes_production:
             for index2, obj in enumerate(products):
                 if index and not index % step:
-                    arr = np.hstack((
-                        arr,
-                        np.zeros((step,), dtype=self.dtype)
-                    ))
+                    arr = np.hstack((arr, np.zeros((step,), dtype=self.dtype)))
 
                 arr[index + index2] = (
-                    mapping[obj], mapping[obj],
-                    MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT,
-                    TYPE_DICTIONARY['production'],
-                    0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
+                    mapping[obj],
+                    mapping[obj],
+                    MAX_SIGNED_32BIT_INT,
+                    MAX_SIGNED_32BIT_INT,
+                    TYPE_DICTIONARY["production"],
+                    0,
+                    1,
+                    1,
+                    np.NaN,
+                    np.NaN,
+                    np.NaN,
+                    np.NaN,
+                    False,
                 )
 
-        databases[self.name]['depends'] = sorted(dependents.difference({self.name}))
-        databases[self.name]['processed'] = datetime.datetime.now().isoformat()
+        databases[self.name]["depends"] = sorted(dependents.difference({self.name}))
+        databases[self.name]["processed"] = datetime.datetime.now().isoformat()
         databases.flush()
 
         # Trim arr

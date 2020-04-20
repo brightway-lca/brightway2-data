@@ -14,14 +14,11 @@ class JSONDatabase(LCIBackend):
 
     Use this backend by setting ``"backend":"json"`` in the database metadata. This is done automatically if you call ``.register()`` from this class.
     """
-    backend = u"json"
+
+    backend = "json"
 
     def filepath_intermediate(self):
-        return os.path.join(
-            projects.dir,
-            u"intermediate",
-            self.filename
-        )
+        return projects.dir / "intermediate" / self.filename
 
     def load(self, as_dict=False, *args, **kwargs):
         """Instantiate :class:`.SynchronousJSONDict` for this database."""
@@ -31,8 +28,7 @@ class JSONDatabase(LCIBackend):
             try:
                 dct = config.cache[self.name]
             except KeyError:
-                dct = SynchronousJSONDict(self.filepath_intermediate(),
-                                          self.name)
+                dct = SynchronousJSONDict(self.filepath_intermediate(), self.name)
                 config.cache[self.name] = dct
         else:
             dct = SynchronousJSONDict(self.filepath_intermediate(), self.name)
@@ -73,15 +69,30 @@ class JSONDatabase(LCIBackend):
         databases.flush()
 
         mapping.add(data.keys())
-        geomapping.add({x[u"location"] for x in data.values() if
-                       x.get(u"location", False)})
+        geomapping.add(
+            {x["location"] for x in data.values() if x.get("location", False)}
+        )
 
-        if preferences.get('allow incomplete imports'):
-            mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})
-            mapping.add({exc['output'] for ds in data.values() for exc in ds.get('exchanges', [])})
+        if preferences.get("allow incomplete imports"):
+            mapping.add(
+                {
+                    exc["input"]
+                    for ds in data.values()
+                    for exc in ds.get("exchanges", [])
+                }
+            )
+            mapping.add(
+                {
+                    exc["output"]
+                    for ds in data.values()
+                    for exc in ds.get("exchanges", [])
+                }
+            )
 
-        if isinstance(data, SynchronousJSONDict) and \
-                data.dirpath == self.filepath_intermediate():
+        if (
+            isinstance(data, SynchronousJSONDict)
+            and data.dirpath == self.filepath_intermediate()
+        ):
             # SynchronousJSONDict automatically syncs changes; no-op
             pass
         else:

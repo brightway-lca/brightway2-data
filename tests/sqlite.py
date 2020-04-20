@@ -10,18 +10,14 @@ def test_switch_project_correctly_switches_database_objects():
     database = DatabaseChooser("testy")
     data = {
         ("testy", "A"): {},
-        ("testy", "C"): {'type': 'biosphere'},
-        ("testy", "B"): {'exchanges': [
-            {'input': ("testy", "A"),
-             'amount': 1,
-             'type': 'technosphere'},
-            {'input': ("testy", "B"),
-             'amount': 1,
-             'type': 'production'},
-            {'input': ("testy", "C"),
-             'amount': 1,
-             'type': 'biosphere'},
-        ]},
+        ("testy", "C"): {"type": "biosphere"},
+        ("testy", "B"): {
+            "exchanges": [
+                {"input": ("testy", "A"), "amount": 1, "type": "technosphere"},
+                {"input": ("testy", "B"), "amount": 1, "type": "production"},
+                {"input": ("testy", "C"), "amount": 1, "type": "biosphere"},
+            ]
+        },
     }
     database.write(data)
 

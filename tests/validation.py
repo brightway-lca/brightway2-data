@@ -26,14 +26,14 @@ class ValidationTestCase(unittest.TestCase):
         with self.assertRaises(Invalid):
             schema({})
         with self.assertRaises(Invalid):
-            schema({'loc': 0})
+            schema({"loc": 0})
         with self.assertRaises(Invalid):
-            schema({'amount': 0, 'foo': 'bar'})
-        self.assertTrue(schema({'amount': 0}))
+            schema({"amount": 0, "foo": "bar"})
+        self.assertTrue(schema({"amount": 0}))
 
     def test_maybe_uncertainty(self):
         schema = Schema(maybe_uncertainty)
-        self.assertTrue(schema({'amount': 0}))
+        self.assertTrue(schema({"amount": 0}))
         self.assertTrue(schema(4))
         self.assertTrue(schema(4.2))
 
@@ -42,62 +42,44 @@ class ValidationTestCase(unittest.TestCase):
         with self.assertRaises(Invalid):
             schema({})
         with self.assertRaises(Invalid):
-            schema({'amount': 1})
+            schema({"amount": 1})
         with self.assertRaises(Invalid):
-            schema({'input': ('a', 1), 'type': 'foo'})
-        self.assertTrue(schema({'amount': 1, 'input': ('a', '1'), 'type': 'foo'}))
+            schema({"input": ("a", 1), "type": "foo"})
+        self.assertTrue(schema({"amount": 1, "input": ("a", "1"), "type": "foo"}))
 
     def test_db_validator(self):
         self.assertTrue(db_validator({("a", "1"): {}}))
-        self.assertTrue(db_validator({
-            ("a", "1"): {
-                'type': 'foo',
-                'exchanges': [],
+        self.assertTrue(db_validator({("a", "1"): {"type": "foo", "exchanges": [],}}))
+        self.assertTrue(db_validator({("a", "1"): {"name": "foo", "exchanges": [],}}))
+        self.assertTrue(db_validator({("a", "1"): {"name": "foo", "type": "bar",}}))
+        self.assertTrue(
+            db_validator({("a", "1"): {"name": "foo", "type": "bar", "exchanges": [],}})
+        )
+        self.assertTrue(
+            db_validator(
+                {
+                    ("a", "1"): {
+                        "name": "foo",
+                        "type": "bar",
+                        "exchanges": [],
+                        "night": "day",
+                    }
                 }
-        }))
-        self.assertTrue(db_validator({
-            ("a", "1"): {
-                'name': 'foo',
-                'exchanges': [],
-                }
-        }))
-        self.assertTrue(db_validator({
-            ("a", "1"): {
-                'name': 'foo',
-                'type': 'bar',
-                }
-        }))
-        self.assertTrue(db_validator({
-            ("a", "1"): {
-                'name': 'foo',
-                'type': 'bar',
-                'exchanges': [],
-                }
-        }))
-        self.assertTrue(db_validator({
-            ("a", "1"): {
-                'name': 'foo',
-                'type': 'bar',
-                'exchanges': [],
-                'night': 'day',
-                }
-        }))
+            )
+        )
 
     def test_ia_validator(self):
-        self.assertTrue(ia_validator([[("a", "1"), 2.]]))
-        self.assertTrue(ia_validator([[("a", "1"), 2., "CH"]]))
-        self.assertTrue(ia_validator([
-            [("a", "1"), 2., "CH"],
-            [("a", "1"), 2.],
-        ]))
+        self.assertTrue(ia_validator([[("a", "1"), 2.0]]))
+        self.assertTrue(ia_validator([[("a", "1"), 2.0, "CH"]]))
+        self.assertTrue(ia_validator([[("a", "1"), 2.0, "CH"], [("a", "1"), 2.0],]))
 
     def test_weighting_too_long(self):
         with self.assertRaises(Invalid):
-            weighting_validator([{'amount': 0}, {'amount', 0}])
+            weighting_validator([{"amount": 0}, {"amount", 0}])
 
     def test_weighting_too_short(self):
         with self.assertRaises(Invalid):
             weighting_validator([])
 
     def test_weighting(self):
-        self.assertTrue(weighting_validator([{'amount': 0}]))
+        self.assertTrue(weighting_validator([{"amount": 0}]))

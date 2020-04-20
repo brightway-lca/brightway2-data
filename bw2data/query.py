@@ -42,6 +42,7 @@ class Dictionaries(object):
         search_results = Query(filter_1, filter_2)(my_joined_dataset)
 
     """
+
     def __init__(self, *args):
         self.dicts = args
 
@@ -58,22 +59,22 @@ class Result(object):
         * *result* (dict): The filtered dataset.
 
     """
+
     def __init__(self, result):
         self.result = result
         if not isinstance(result, dict):
-            raise ValueError(u"Must pass dictionary")
+            raise ValueError("Must pass dictionary")
 
     def __str__(self):
         return "Query result with %i entries" % len(self.result)
 
     def __repr__(self):
         if not self.result:
-            return u"Query result:\n\tNo query results found."
+            return "Query result:\n\tNo query results found."
         data = list(self.result.items())[:20]
-        return (u"Query result: (total %i)\n" % len(self.result) + \
-            u"\n".join([u"%s: %s" % (k, v.get("name", "Unknown"))
-                        for k, v in data])
-            )
+        return "Query result: (total %i)\n" % len(self.result) + "\n".join(
+            ["%s: %s" % (k, v.get("name", "Unknown")) for k, v in data]
+        )
 
     def sort(self, field, reverse=False):
         """Sort the filtered dataset. Operates in place; does not return anything.
@@ -83,8 +84,13 @@ class Result(object):
             * *reverse* (bool, optional): Reverse normal sorting order.
 
         """
-        self.result = collections.OrderedDict(sorted(self.result.items(),
-            key=lambda t: t[1].get(field, None), reverse=reverse))
+        self.result = collections.OrderedDict(
+            sorted(
+                self.result.items(),
+                key=lambda t: t[1].get(field, None),
+                reverse=reverse,
+            )
+        )
 
     # Generic dictionary methods
     def __len__(self):
@@ -118,6 +124,7 @@ class Query(object):
         * *filters* (filters): One or more ``Filter`` objects.
 
     """
+
     def __init__(self, *filters):
         self.filters = list(filters)
 
@@ -164,6 +171,7 @@ class Filter(object):
         A ``Result`` object which wraps a new data dictionary.
 
     """
+
     def __init__(self, key, function, value):
         self.key = key
         self.function = function
@@ -174,15 +182,20 @@ class Filter(object):
             raise ValueError("No valid function found")
 
     def __call__(self, data):
-        return dict(((k, v) for k, v in data.items() if try_op(
-            self.function, v.get(self.key, None), self.value)))
+        return dict(
+            (
+                (k, v)
+                for k, v in data.items()
+                if try_op(self.function, v.get(self.key, None), self.value)
+            )
+        )
 
 
 def NF(value):
     """Shortcut for a name filter"""
-    return Filter(u"name", u"has", value)
+    return Filter("name", "has", value)
 
 
 def PF(value):
     """Shortcut for a reference product filter"""
-    return Filter(u"reference product", u"has", value)
+    return Filter("reference product", "has", value)

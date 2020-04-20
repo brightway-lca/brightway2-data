@@ -14,9 +14,14 @@ for dirpath, dirnames, filenames in os.walk('bw2data'):
             pkg = pkg.replace(os.path.altsep, '.')
         packages.append(pkg)
 
+v_temp = {}
+with open("bw2data/version.py") as fp:
+    exec(fp.read(), v_temp)
+version = ".".join((str(x) for x in v_temp["version"]))
+
 setup(
     name='bw2data',
-    version="4.0.DEV1",
+    version=version,
     packages=packages,
     python_requires='>=3.5',
     author="Chris Mutel",
@@ -25,6 +30,7 @@ setup(
     install_requires=[
         "appdirs",
         "bw2parameters",
+        "bw_processing",
         "docopt",
         "fasteners",
         "lxml",

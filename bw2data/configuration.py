@@ -4,6 +4,7 @@ import platform
 
 class Config(object):
     """A singleton that stores configuration settings"""
+
     version = 3
     backends = {}
     cache = {}
@@ -24,5 +25,6 @@ class Config(object):
 
         Default name is ``GLO``; change this by changing ``config.p["global_location"]``."""
         return self.p.get("global_location", "GLO")
+
 
 config = Config()

@@ -4,25 +4,26 @@ from ... import mapping, geomapping, config, databases, preferences
 from ...errors import UntypedExchange, InvalidExchange, UnknownObject, WrongDatabase
 from ...project import writable_project
 from ...search import IndexManager, Searcher
-from bw_processing import MAX_SIGNED_32BIT_INT
-from ...utils import TYPE_DICTIONARY
+from ...utils import as_uncertainty_dict
 from ..base import LCIBackend
+from ..utils import check_exchange
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset
-from .utils import dict_as_activitydataset, dict_as_exchangedataset
+from .utils import (
+    dict_as_activitydataset,
+    dict_as_exchangedataset,
+    retupleize_geo_strings,
+)
+from bw_processing import create_calculation_package, clean_datapackage_name
 from peewee import fn, DoesNotExist
-import itertools
 import datetime
-import numpy as np
+import itertools
+import pickle
 import pprint
 import pyprind
 import random
 import sqlite3
 import warnings
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 
 
 # AD = ActivityDataset
@@ -30,7 +31,7 @@ except ImportError:
 # in_a = AD.alias()
 # qs = AD.select().where(AD.key == (out_a.select(in_a.key).join(ED, on=(ED.output == out_a.key)).join(in_a, on=(ED.input_ == in_a.key)).where((ED.type_ == 'technosphere') & (in_a.product == out_a.product)))
 
-_VALID_KEYS = {'location', 'name', 'product', 'type'}
+_VALID_KEYS = {"location", "name", "product", "type"}
 
 
 class SQLiteBackend(LCIBackend):
@@ -55,15 +56,14 @@ class SQLiteBackend(LCIBackend):
         return self._get_queryset().count()
 
     def __contains__(self, obj):
-        return self._get_queryset(filters={'code': obj[1]}).count() > 0
+        return self._get_queryset(filters={"code": obj[1]}).count() > 0
 
     @property
     def _searchable(self):
-        return databases.get(self.name, {}).get('searchable', False)
+        return databases.get(self.name, {}).get("searchable", False)
 
     def _get_queryset(self, random=False, filters=True):
-        qs = ActivityDataset.select().where(
-            ActivityDataset.database == self.name)
+        qs = ActivityDataset.select().where(ActivityDataset.database == self.name)
         if filters:
             if isinstance(filters, dict):
                 for key, value in filters.items():
@@ -86,12 +86,13 @@ class SQLiteBackend(LCIBackend):
         if not filters:
             self._filters = {}
         else:
-            print("Filters will effect all database queries"
-                  " until unset (`.filters = None`)")
+            print(
+                "Filters will effect all database queries"
+                " until unset (`.filters = None`)"
+            )
             assert isinstance(filters, dict), "Filter must be a dictionary"
             for key in filters:
-                assert key in _VALID_KEYS, \
-                    "Filter key {} is invalid".format(key)
+                assert key in _VALID_KEYS, "Filter key {} is invalid".format(key)
                 self._filters = filters
         return self
 
@@ -102,8 +103,7 @@ class SQLiteBackend(LCIBackend):
         if not field:
             self._order_by = None
         else:
-            assert field in _VALID_KEYS, \
-                "order_by field {} is invalid".format(field)
+            assert field in _VALID_KEYS, "order_by field {} is invalid".format(field)
             self._order_by = field
         return self
 
@@ -116,19 +116,20 @@ class SQLiteBackend(LCIBackend):
         """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
             if true_random:
-                return Activity(self._get_queryset(random=True, filters=filters
-                                ).get())
+                return Activity(self._get_queryset(random=True, filters=filters).get())
             else:
-                return Activity(self._get_queryset(filters=filters
-                                ).offset(random.randint(0, len(self))).get())
+                return Activity(
+                    self._get_queryset(filters=filters)
+                    .offset(random.randint(0, len(self)))
+                    .get()
+                )
         except DoesNotExist:
             warnings.warn("This database is empty")
             return None
 
     def get(self, code):
         return Activity(
-            self._get_queryset(filters=False).where(
-                ActivityDataset.code == code).get()
+            self._get_queryset(filters=False).where(ActivityDataset.code == code).get()
         )
 
     ### Data management
@@ -144,17 +145,23 @@ class SQLiteBackend(LCIBackend):
 
     def _add_indices(self):
         with sqlite3_lci_db.transaction():
-            sqlite3_lci_db.execute_sql('CREATE UNIQUE INDEX IF NOT EXISTS "activitydataset_key" ON "activitydataset" ("database", "code")')
-            sqlite3_lci_db.execute_sql('CREATE INDEX IF NOT EXISTS "exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")')
-            sqlite3_lci_db.execute_sql('CREATE INDEX IF NOT EXISTS "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")')
+            sqlite3_lci_db.execute_sql(
+                'CREATE UNIQUE INDEX IF NOT EXISTS "activitydataset_key" ON "activitydataset" ("database", "code")'
+            )
+            sqlite3_lci_db.execute_sql(
+                'CREATE INDEX IF NOT EXISTS "exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")'
+            )
+            sqlite3_lci_db.execute_sql(
+                'CREATE INDEX IF NOT EXISTS "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")'
+            )
 
     def _efficient_write_dataset(self, index, key, ds, exchanges, activities):
-        for exchange in ds.get('exchanges', []):
-            if 'input' not in exchange or 'amount' not in exchange:
+        for exchange in ds.get("exchanges", []):
+            if "input" not in exchange or "amount" not in exchange:
                 raise InvalidExchange
-            if 'type' not in exchange:
+            if "type" not in exchange:
                 raise UntypedExchange
-            exchange['output'] = key
+            exchange["output"] = key
             exchanges.append(dict_as_exchangedataset(exchange))
 
             # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
@@ -195,7 +202,7 @@ class SQLiteBackend(LCIBackend):
                 self.pbar = pyprind.ProgBar(
                     len(data),
                     title="Writing activities to SQLite3 database:",
-                    monitor=True
+                    monitor=True,
                 )
 
             for index, (key, ds) in enumerate(data.items()):
@@ -237,22 +244,34 @@ class SQLiteBackend(LCIBackend):
             self.register()
         wrong_database = {key[0] for key in data}.difference({self.name})
         if wrong_database:
-            raise WrongDatabase("Can't write activities in databases {} to database {}".format(
-                                wrong_database, self.name))
+            raise WrongDatabase(
+                "Can't write activities in databases {} to database {}".format(
+                    wrong_database, self.name
+                )
+            )
 
-
-        databases[self.name]['number'] = len(data)
+        databases[self.name]["number"] = len(data)
         databases.set_modified(self.name)
         mapping.add(data.keys())
 
-        if preferences.get('allow incomplete imports'):
-            mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})
-            mapping.add({exc.get('output') for ds in data.values()
-                                           for exc in ds.get('exchanges', [])
-                                           if exc.get('output')})
+        if preferences.get("allow incomplete imports"):
+            mapping.add(
+                {
+                    exc["input"]
+                    for ds in data.values()
+                    for exc in ds.get("exchanges", [])
+                }
+            )
+            mapping.add(
+                {
+                    exc.get("output")
+                    for ds in data.values()
+                    for exc in ds.get("exchanges", [])
+                    if exc.get("output")
+                }
+            )
 
-        geomapping.add({x["location"] for x in data.values() if
-                       x.get("location")})
+        geomapping.add({x["location"] for x in data.values() if x.get("location")})
         if data:
             try:
                 self._efficient_write_many_data(data)
@@ -268,20 +287,21 @@ class SQLiteBackend(LCIBackend):
 
     def load(self, *args, **kwargs):
         # Should not be used, in general; relatively slow
-        activities = [obj['data'] for obj in
-            self._get_queryset().dicts()
-        ]
+        activities = [obj["data"] for obj in self._get_queryset().dicts()]
 
-        activities = {(o['database'], o['code']): o for o in activities}
+        activities = {(o["database"], o["code"]): o for o in activities}
         for o in activities.values():
-            o['exchanges'] = []
+            o["exchanges"] = []
 
-        exchange_qs = (ExchangeDataset.select(ExchangeDataset.data)
-            .where(ExchangeDataset.output_database == self.name).dicts())
+        exchange_qs = (
+            ExchangeDataset.select(ExchangeDataset.data)
+            .where(ExchangeDataset.output_database == self.name)
+            .dicts()
+        )
 
         for exc in exchange_qs:
             try:
-                activities[exc['data']['output']]['exchanges'].append(exc['data'])
+                activities[exc["data"]["output"]]["exchanges"].append(exc["data"])
             except KeyError:
                 # This exchange not in the reduced set of activities returned
                 # by _get_queryset
@@ -290,9 +310,9 @@ class SQLiteBackend(LCIBackend):
 
     def new_activity(self, code, **kwargs):
         obj = Activity()
-        obj['database'] = self.name
-        obj['code'] = str(code)
-        obj['location'] = config.global_location
+        obj["database"] = self.name
+        obj["code"] = str(code)
+        obj["location"] = config.global_location
         obj.update(kwargs)
         return obj
 
@@ -303,14 +323,14 @@ class SQLiteBackend(LCIBackend):
         if self._searchable and not reset:
             print("This database is already searchable")
             return
-        databases[self.name]['searchable'] = True
+        databases[self.name]["searchable"] = True
         databases.flush()
         IndexManager(self.filename).delete_database()
         IndexManager(self.filename).add_datasets(self)
 
     @writable_project
     def make_unsearchable(self):
-        databases[self.name]['searchable'] = False
+        databases[self.name]["searchable"] = False
         databases.flush()
         IndexManager(self.filename).delete_database()
 
@@ -327,170 +347,192 @@ class SQLiteBackend(LCIBackend):
 
         vacuum_needed = len(self) > 500
 
-        ActivityDataset.delete().where(ActivityDataset.database== self.name).execute()
-        ExchangeDataset.delete().where(ExchangeDataset.output_database== self.name).execute()
+        ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
+        ExchangeDataset.delete().where(
+            ExchangeDataset.output_database == self.name
+        ).execute()
         IndexManager(self.filename).delete_database()
 
         if not keep_params:
-            from ...parameters import DatabaseParameter, ActivityParameter, ParameterizedExchange
-            groups = tuple({
-                o[0] for o in ActivityParameter.select(
-                ActivityParameter.group).where(
-                ActivityParameter.database == self.name).tuples()
-            })
+            from ...parameters import (
+                DatabaseParameter,
+                ActivityParameter,
+                ParameterizedExchange,
+            )
+
+            groups = tuple(
+                {
+                    o[0]
+                    for o in ActivityParameter.select(ActivityParameter.group)
+                    .where(ActivityParameter.database == self.name)
+                    .tuples()
+                }
+            )
             ParameterizedExchange.delete().where(
-                ParameterizedExchange.group << groups).execute()
-            ActivityParameter.delete().where(ActivityParameter.database == self.name).execute()
-            DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
+                ParameterizedExchange.group << groups
+            ).execute()
+            ActivityParameter.delete().where(
+                ActivityParameter.database == self.name
+            ).execute()
+            DatabaseParameter.delete().where(
+                DatabaseParameter.database == self.name
+            ).execute()
 
         if vacuum_needed:
             sqlite3_lci_db.vacuum()
 
-    def process(self):
-        """
-Process inventory documents to NumPy structured arrays.
+    def exchange_data_iterator(self, sql, dependents, flip=False):
+        """Iterate over exchanges and format for ``bw_processing`` arrays.
 
-Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
+        ``dependents`` is a set of dependent database names.
+
+        ``flip`` means flip the numeric sign; see ``bw_processing`` docs.
+
+        Uses raw sqlite3 to retrieve data for ~2x speed boost."""
+        connection = sqlite3.connect(sqlite3_lci_db._filepath)
+        cursor = connection.cursor()
+        for row in cursor.execute(sql, (self.name,)):
+            data, input_database, input_code, output_database, output_code = row
+            # Modify ``dependents`` in place
+            if input_database != output_database:
+                dependents.add(input_database)
+            data = pickle.loads(bytes(data))
+            check_exchange(data)
+            try:
+                yield {
+                    **as_uncertainty_dict(data),
+                    "row": mapping[(input_database, input_code)],
+                    "col": mapping[(output_database, output_code)],
+                    "flip": flip,
+                }
+            except KeyError:
+                raise UnknownObject(
+                    (
+                        "Exchange between {} and {} is invalid "
+                        "- one of these objects is unknown (i.e. doesn't exist "
+                        "as a process dataset)"
+                    ).format(
+                        (input_database, input_code), (output_database, output_code)
+                    )
+                )
+
+    def process(self):
+        """Create structured arrays for the technosphere and biosphere matrices.
+
+        Uses ``bw_processing`` for array creation and metadata serialization.
+
+        Also creates a ``geomapping`` array, linking activities to locations. Used for regionalized calculations.
+
+        Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         """
         # Get number of exchanges and processes to set
         # initial Numpy array size (still have to include)
         # implicit production exchanges
+        resources = []
+        dependents = set()
 
-        num_exchanges = ExchangeDataset.select().where(ExchangeDataset.output_database == self.name).count()
-        num_processes = ActivityDataset.select().where(
-            ActivityDataset.database == self.name,
-            ActivityDataset.type == "process"
-        ).count()
+        # Create geomapping array, from dataset interger ids to locations
+        inv_mapping_qs = ActivityDataset.select(
+            ActivityDataset.location, ActivityDataset.code
+        ).where(
+            ActivityDataset.database == self.name, ActivityDataset.type == "process"
+        )
+        resources.append(
+            {
+                "name": clean_datapackage_name(
+                    self.name + " inventory geomapping matrix"
+                ),
+                "matrix": "inv_mapping_matrix",
+                "path": "inv_geomapping_matrix.npy",
+                "data": (
+                    {
+                        "row": mapping[(self.name, row["code"])],
+                        "col": geomapping[
+                            retupleize_geo_strings(row["location"])
+                            or config.global_location
+                        ],
+                        "amount": 1,
+                    }
+                    for row in inv_mapping_qs.dicts()
+                ),
+                "nrows": inv_mapping_qs.count(),
+            }
+        )
 
-        # Create geomapping array, from dataset keys to locations
-
-        arr = np.zeros((num_processes, ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
-
-        def retupleize(value):
-            if not value:
-                return value
-            elif "(" not in value:
-                return value
-            try:
-                # Is this a dirty, dirty hack, or inspiration?
-                # Location is retrieved as a string from the database
-                # The alternative is to retrieve and process the
-                # entire activity dataset...
-                return eval(value)
-            except NameError:
-                return value
-
-        for index, row in enumerate(ActivityDataset.select(
-                ActivityDataset.location,
-                ActivityDataset.code
-                ).where(
-                ActivityDataset.database == self.name,
-                ActivityDataset.type == "process"
-                ).order_by(ActivityDataset.code).dicts()):
-
-            arr[index] = (
-                mapping[(self.name, row['code'])],
-                geomapping[retupleize(row['location']) or config.global_location],
-                MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT,
-                0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
-            )
-
-        arr.sort(order=self.dtype_field_order(
-            self.dtype_fields_geomapping + self.base_uncertainty_fields
-        ))
-        np.save(self.filepath_geomapping(), arr, allow_pickle=False)
+        BIOSPHERE_SQL = """SELECT data, input_database, input_code, output_database, output_code
+                FROM exchangedataset
+                WHERE output_database = ?
+                AND type = 'biosphere'
+        """
+        resources.append(
+            {
+                "name": clean_datapackage_name(self.name + " biosphere matrix"),
+                "matrix": "biosphere_matrix",
+                "path": "biosphere_matrix.npy",
+                "data": self.exchange_data_iterator(BIOSPHERE_SQL, dependents),
+            }
+        )
 
         # Figure out when the production exchanges are implicit
-
-        missing_production_keys = [
-            (self.name, x[0])
+        implicit_production = (
+            {"row": mapping[(self.name, x[0])], "amount": 1}
             # Get all codes
-            for x in ActivityDataset.select(ActivityDataset.code).where(
+            for x in ActivityDataset.select(ActivityDataset.code)
+            .where(
                 # Get correct database name
                 ActivityDataset.database == self.name,
                 # Only consider `process` type activities
                 ActivityDataset.type << ("process", None),
                 # But exclude activities that already have production exchanges
-                ~(ActivityDataset.code << ExchangeDataset.select(
-                            # Get codes to exclude
-                            ExchangeDataset.output_code).where(
-                                ExchangeDataset.output_database == self.name,
-                                ExchangeDataset.type == 'production'
-                            )
-                )
-            ).tuples()
-        ]
-
-        arr = np.zeros((num_exchanges + len(missing_production_keys), ), dtype=self.dtype)
-
-        # Using raw sqlite3 to retrieve data for ~2x speed boost
-        connection = sqlite3.connect(sqlite3_lci_db._filepath)
-        cursor = connection.cursor()
-        SQL = "SELECT data, input_database, input_code, output_database, output_code FROM exchangedataset WHERE output_database = ?"
-
-        dependents = set()
-        found_exchanges = False
-
-        for index, row in enumerate(cursor.execute(SQL, (self.name,))):
-            data, input_database, input_code, output_database, output_code = row
-            data = pickle.loads(bytes(data))
-
-            if "type" not in data:
-                raise UntypedExchange
-            if "amount" not in data or "input" not in data:
-                raise InvalidExchange
-            if np.isnan(data['amount']) or np.isinf(data['amount']):
-                raise ValueError("Invalid amount in exchange {}".format(data))
-
-            found_exchanges = True
-
-            dependents.add(input_database)
-
-            try:
-                arr[index] = (
-                    mapping[(input_database, input_code)],
-                    mapping[(output_database, output_code)],
-                    MAX_SIGNED_32BIT_INT,
-                    MAX_SIGNED_32BIT_INT,
-                    TYPE_DICTIONARY[data["type"]],
-                    data.get("uncertainty type", 0),
-                    data["amount"],
-                    data["amount"] \
-                        if data.get("uncertainty type", 0) in (0,1) \
-                        else data.get("loc", np.NaN),
-                    data.get("scale", np.NaN),
-                    data.get("shape", np.NaN),
-                    data.get("minimum", np.NaN),
-                    data.get("maximum", np.NaN),
-                    data["amount"] < 0
-                )
-            except KeyError:
-                raise UnknownObject(("Exchange between {} and {} is invalid "
-                    "- one of these objects is unknown (i.e. doesn't exist "
-                    "as a process dataset)"
-                    ).format(
-                        (input_database, input_code),
-                        (output_database, output_code)
+                ~(
+                    ActivityDataset.code
+                    << ExchangeDataset.select(
+                        # Get codes to exclude
+                        ExchangeDataset.output_code
+                    ).where(
+                        ExchangeDataset.output_database == self.name,
+                        ExchangeDataset.type << ("production", "generic production"),
                     )
-                )
-
-        # If exchanges were found, start inserting rows at len(exchanges) + 1
-        index = index + 1 if found_exchanges else 0
-
-        for index, key in zip(itertools.count(index), missing_production_keys):
-            arr[index] = (
-                mapping[key], mapping[key],
-                MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT, TYPE_DICTIONARY["production"],
-                0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
+                ),
             )
+            .tuples()
+        )
 
-        databases[self.name]['depends'] = sorted(dependents.difference({self.name}))
-        databases[self.name]['processed'] = datetime.datetime.now().isoformat()
-        databases.flush()
+        TECHNOSPHERE_POSITIVE_SQL = """SELECT data, input_database, input_code, output_database, output_code
+                FROM exchangedataset
+                WHERE output_database = ?
+                AND type IN ('production', 'substitution', 'generic production')
+        """
+        TECHNOSPHERE_NEGATIVE_SQL = """SELECT data, input_database, input_code, output_database, output_code
+                FROM exchangedataset
+                WHERE output_database = ?
+                AND type IN ('technosphere', 'generic consumption')
+        """
 
-        arr.sort(order=self.dtype_field_order())
-        np.save(self.filepath_processed(), arr, allow_pickle=False)
+        resources.append(
+            {
+                "name": clean_datapackage_name(self.name + " technosphere matrix"),
+                "matrix": "technosphere_matrix",
+                "path": "technosphere_matrix.npy",
+                "data": itertools.chain(
+                    self.exchange_data_iterator(TECHNOSPHERE_NEGATIVE_SQL, dependents),
+                    self.exchange_data_iterator(TECHNOSPHERE_POSITIVE_SQL, dependents),
+                    implicit_production,
+                ),
+            }
+        )
+
+        create_calculation_package(
+            name=self.filename_processed(),
+            resources=resources,
+            path=self.dirpath_processed(),
+            compress=True,
+        )
+
+        self.metadata["depends"] = sorted(dependents)
+        self.metadata["processed"] = datetime.datetime.now().isoformat()
+        self._metadata.flush()
 
     def search(self, string, **kwargs):
         """Search this database for ``string``.
@@ -532,6 +574,7 @@ Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
     def graph_technosphere(self, filename=None, **kwargs):
         from bw2analyzer.matrix_grapher import SparseMatrixGrapher
         from bw2calc import LCA
+
         lca = LCA({self.random(): 1})
         lca.lci()
 

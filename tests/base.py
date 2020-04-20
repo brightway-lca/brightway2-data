@@ -10,4 +10,4 @@ def test_bw2test_decorator():
     assert len(geomapping) == 1
     assert "GLO" in geomapping
     assert len(projects) == 1
-    assert [x.name for x in projects] == ['default']
+    assert [x.name for x in projects] == ["default"]

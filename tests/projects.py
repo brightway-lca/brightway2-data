@@ -10,21 +10,15 @@ from bw2data import (
     projects,
 )
 from bw2data.errors import ReadOnlyProject
-from future.utils import PY2
-from peewee import DoesNotExist
-import eight
+from pathlib import Path
 import os
 import pytest
 import tempfile
 
-eight.wrap_os_environ_io()
 
 ###
 ### Basic setup
 ###
-
-no_py27 = pytest.mark.skipif(PY2,
-                             reason="Can't decode env variables in tests becase sys.stdin.encoding is None")
 
 
 @bw2test
@@ -33,7 +27,7 @@ def test_project_directories():
     for dirname in projects._basic_directories:
         assert os.path.isdir(os.path.join(projects.dir, dirname))
 
-@no_py27
+
 @bw2test
 def test_from_env_var():
     dirpath = tempfile.mkdtemp()
@@ -43,56 +37,63 @@ def test_from_env_var():
     assert os.path.isdir(logs)
     del os.environ["BRIGHTWAY2_DIR"]
 
-@no_py27
+
 @bw2test
 def test_invalid_env_var():
-    os.environ['BRIGHTWAY2_DIR'] = "nothing special"
+    os.environ["BRIGHTWAY2_DIR"] = "nothing special"
     with pytest.raises(OSError):
         projects._get_base_directories()
-    del os.environ['BRIGHTWAY2_DIR']
+    del os.environ["BRIGHTWAY2_DIR"]
 
-@no_py27
+
 @bw2test
 def test_invalid_output_env_dir():
-    os.environ['BRIGHTWAY2_OUTPUT_DIR'] = "nothing special"
-    assert projects.dir in projects.output_dir
-    del os.environ['BRIGHTWAY2_OUTPUT_DIR']
+    os.environ["BRIGHTWAY2_OUTPUT_DIR"] = "nothing special"
+    print(projects.dir)
+    assert str(projects.dir) in str(projects.output_dir)
+    del os.environ["BRIGHTWAY2_OUTPUT_DIR"]
 
-@no_py27
+
 @bw2test
 def test_output_env_dir():
-    assert os.getcwd() != projects.output_dir
-    os.environ['BRIGHTWAY2_OUTPUT_DIR'] = os.getcwd()
-    assert os.getcwd() == projects.output_dir
-    del os.environ['BRIGHTWAY2_OUTPUT_DIR']
+    assert Path(os.getcwd()) != projects.output_dir
+    os.environ["BRIGHTWAY2_OUTPUT_DIR"] = os.getcwd()
+    assert Path(os.getcwd()) == projects.output_dir
+    del os.environ["BRIGHTWAY2_OUTPUT_DIR"]
+
 
 @bw2test
 def test_output_dir_from_preferences():
-    assert os.getcwd() != projects.output_dir
-    preferences['output_dir'] = os.getcwd()
-    assert preferences['output_dir'] == projects.output_dir
+    assert Path(os.getcwd()) != projects.output_dir
+    preferences["output_dir"] = os.getcwd()
+    assert Path(preferences["output_dir"]) == projects.output_dir
+
 
 @bw2test
 def test_invalid_output_dir_from_preferences():
-    preferences['output_dir'] ="nope"
-    assert projects.dir in projects.output_dir
-    del preferences['output_dir']
+    preferences["output_dir"] = "nope"
+    assert str(projects.dir) in str(projects.output_dir)
+    del preferences["output_dir"]
+
 
 @bw2test
 def test_directories():
     assert os.path.isdir(projects.dir)
     assert os.path.isdir(projects.logs_dir)
 
+
 @bw2test
 def test_default_project_created():
-    assert [x.name for x in projects] == ['default']
+    assert [x.name for x in projects] == ["default"]
+
 
 @bw2test
 def test_repeatedly_set_name_same_value():
     projects.set_current("foo")
     projects.set_current("foo")
     projects.set_current("foo")
-    assert sorted([x.name for x in projects]) == ['default', 'foo']
+    assert sorted([x.name for x in projects]) == ["default", "foo"]
+
 
 @pytest.mark.skipif(config._windows, reason="Windows doesn't allow fun")
 @bw2test
@@ -126,9 +127,11 @@ def test_funny_project_names():
     if error_found:
         raise ValueError("Oops")
 
+
 @bw2test
 def test_report():
     assert projects.report
+
 
 @bw2test
 def test_request_directory():
@@ -148,6 +151,7 @@ def test_delete_current_project_with_name():
     assert projects.current != "foo"
     assert "foo" not in projects
 
+
 @bw2test
 def test_delete_project_remove_directory():
     projects.set_current("foo")
@@ -156,7 +160,8 @@ def test_delete_project_remove_directory():
     projects.delete_project("foo", delete_dir=True)
     assert not os.path.isdir(foo_dir)
     assert "foo" not in projects
-    assert projects.current == 'bar'
+    assert projects.current == "bar"
+
 
 @bw2test
 def test_delete_project_keep_directory():
@@ -166,7 +171,8 @@ def test_delete_project_keep_directory():
     projects.delete_project("foo")
     assert os.path.isdir(foo_dir)
     assert "foo" not in projects
-    assert projects.current == 'bar'
+    assert projects.current == "bar"
+
 
 @bw2test
 def test_delete_project():
@@ -174,13 +180,15 @@ def test_delete_project():
     projects.set_current("bar")
     projects.delete_project("foo")
     assert "foo" not in projects
-    assert projects.current == 'bar'
+    assert projects.current == "bar"
+
 
 @bw2test
 def test_delete_last_project():
     assert len(projects) == 1
     with pytest.raises(ValueError):
         projects.delete_project()
+
 
 @bw2test
 def test_delete_current_project_no_name():
@@ -194,11 +202,13 @@ def test_delete_current_project_no_name():
 ### Set project
 ###
 
+
 @bw2test
 def test_error_outdated_set_project():
     assert projects.current
     with pytest.raises(AttributeError):
-        projects.current = 'Foo'
+        projects.current = "Foo"
+
 
 @bw2test
 def test_set_project_creates_new_project():
@@ -206,38 +216,44 @@ def test_set_project_creates_new_project():
     projects.set_current("foo")
     assert len(projects) == other_num + 1
 
+
 @bw2test
 def test_set_project():
     projects.set_current("foo")
     assert projects.current == "foo"
 
+
 @bw2test
 def test_set_project_default_writable():
     pass
+
 
 @bw2test
 def test_set_project_writable_even_if_writable_false():
     pass
 
+
 @bw2test
 def test_set_readonly_project():
     projects.set_current("foo")
     assert not projects.read_only
-    config.p['lockable'] = True
+    config.p["lockable"] = True
     projects.set_current("foo", writable=False)
     assert projects.read_only
+
 
 @bw2test
 def test_set_readonly_project_first_time():
     projects.set_current("foo", writable=False)
     assert not projects.read_only
 
+
 @bw2test
 def test_set_current_reset_metadata():
-    databases['foo'] = 'bar'
-    assert 'foo' in databases
-    projects.set_current('foo')
-    assert 'foo' not in databases
+    databases["foo"] = "bar"
+    assert "foo" in databases
+    projects.set_current("foo")
+    assert "foo" not in databases
 
 
 ###
@@ -250,17 +266,20 @@ def test_representation():
     assert repr(projects)
     assert str(projects)
 
+
 @bw2test
 def test_contains():
     assert "default" in projects
     projects.set_current("foo")
     assert "foo" in projects
 
+
 @bw2test
 def test_len():
     assert len(projects) == 1
     projects.set_current("foo")
     assert len(projects) == 2
+
 
 @bw2test
 def test_iterating_over_projects_no_error():
@@ -269,6 +288,7 @@ def test_iterating_over_projects_no_error():
     projects.set_current("baz")
     for x in projects:
         projects.set_current(x.name)
+
 
 @bw2test
 def test_iterating_over_projects_no_error():
@@ -279,29 +299,32 @@ def test_iterating_over_projects_no_error():
 ### Read-only constraints
 ###
 
+
 @bw2test
 def test_create_lock_file():
     projects.set_current("foo")
-    config.p['lockable'] = True
+    config.p["lockable"] = True
     projects.set_current("foo", writable=False)
     assert not os.path.isfile(os.path.join(projects.dir, "write-lock"))
     projects.set_current("bar")
     assert not os.path.isfile(os.path.join(projects.dir, "write-lock"))
-    config.p['lockable'] = True
+    config.p["lockable"] = True
     projects.set_current("bar")
     assert os.path.isfile(os.path.join(projects.dir, "write-lock"))
 
+
 @bw2test
 def test_lockable_config_missing():
-    assert 'lockable' not in config.p
+    assert "lockable" not in config.p
+
 
 @bw2test
 def test_read_only_cant_write():
     projects.set_current("foo")
-    config.p['lockable'] = True
+    config.p["lockable"] = True
     projects.set_current("foo", writable=False)
     with pytest.raises(ReadOnlyProject):
-        databases['foo'] = 'bar'
+        databases["foo"] = "bar"
 
 
 ###
@@ -311,15 +334,17 @@ def test_read_only_cant_write():
 
 @bw2test
 def test_copy_project():
-    databases['foo'] = 'bar'
-    projects.copy_project('another one', False)
-    assert 'another one' in projects
-    projects.set_current('another one')
-    assert databases['foo'] == 'bar'
+    databases["foo"] = "bar"
+    projects.copy_project("another one", False)
+    assert "another one" in projects
+    projects.set_current("another one")
+    assert databases["foo"] == "bar"
+
 
 @bw2test
 def test_copy_project_switch_current():
-    projects.copy_project('another one')
-    assert projects.current == 'another one'
+    projects.copy_project("another one")
+    assert projects.current == "another one"
+
 
 # TODO: purge delete directories

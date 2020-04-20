@@ -17,6 +17,7 @@ Options:
 from docopt import docopt
 import sys
 import warnings
+
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     from bw2data import config, Updates
@@ -45,10 +46,8 @@ class UpdaterInterface(object):
             for update in updates_needed:
                 print(Updates.explain(update))
             if confirm:
-                confirmation = input(
-                    "\nType 'y'to confirm, anything else to cancel: "
-                )
-                if confirmation.strip() != 'y':
+                confirmation = input("\nType 'y'to confirm, anything else to cancel: ")
+                if confirmation.strip() != "y":
                     print("\n*** Upgrade canceled ***\n")
                     sys.exit(0)
 
@@ -59,9 +58,9 @@ class UpdaterInterface(object):
 
 
 def main():
-    args = docopt(__doc__, version='Brightway2 up to date 0.1')
+    args = docopt(__doc__, version="Brightway2 up to date 0.1")
     updater_interface = UpdaterInterface()
-    if args['--list'] or args['-l']:
+    if args["--list"] or args["-l"]:
         updater_interface.list()
     else:
         updater_interface.update()

@@ -5,9 +5,17 @@ from .fixtures import food, biosphere
 
 @bw2test
 def test_repr_str_unicode():
-    objects = (mapping, geomapping, databases, methods,
-               normalizations, weightings, Database("foo"), DataStore("foo"),
-               projects)
+    objects = (
+        mapping,
+        geomapping,
+        databases,
+        methods,
+        normalizations,
+        weightings,
+        Database("foo"),
+        DataStore("foo"),
+        projects,
+    )
     for obj in objects:
         assert repr(obj)
         assert str(obj)
@@ -20,4 +28,5 @@ def test_registered_database_repr():
     d.write(biosphere)
     assert repr(d)
     assert str(d)
+    # Make sure can be printed - not for debugging
     print(d)

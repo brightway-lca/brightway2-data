@@ -3,6 +3,7 @@ from . import config
 from .errors import WebUIError, UnknownObject, NotFound, ValidityError
 from .fatomic import open
 from io import StringIO
+from pathlib import Path
 import collections
 import itertools
 import os
@@ -12,6 +13,7 @@ import requests
 import stats_arrays as sa
 import string
 import urllib
+import warnings
 import webbrowser
 import zipfile
 
@@ -28,11 +30,15 @@ TYPE_DICTIONARY = {
 DOWNLOAD_URL = "https://brightwaylca.org/data/"
 
 
+def maybe_path(x):
+    return Path(x) if x else x
+
+
 def natural_sort(l):
     """Sort the given list in the way that humans expect, e.g. 9 before 10."""
     # http://nedbatchelder.com/blog/200712/human_sorting.html#comments
     convert = lambda text: int(text) if text.isdigit() else text.lower()
-    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    alphanum_key = lambda key: [convert(c) for c in re.split("([0-9]+)", key)]
     return sorted(l, key=alphanum_key)
 
 
@@ -46,8 +52,9 @@ def random_string(length=8):
         A string (not unicode)
 
     """
-    return ''.join(random.choice(string.ascii_letters + string.digits
-                                 ) for i in range(length))
+    return "".join(
+        random.choice(string.ascii_letters + string.digits) for i in range(length)
+    )
 
 
 def combine_methods(name, *ms):
@@ -61,15 +68,16 @@ def combine_methods(name, *ms):
 
     """
     from . import Method, methods
+
     data = {}
     units = set([methods[tuple(x)]["unit"] for x in ms])
     for m in ms:
         for key, cf, geo in Method(m).load():
             data[(key, geo)] = data.get((key, geo), 0) + cf
     meta = {
-        "description": "Combination of the following methods: " +
-        ", ".join([str(x) for x in ms]),
-        "unit": list(units)[0] if len(units) == 1 else "Unknown"
+        "description": "Combination of the following methods: "
+        + ", ".join([str(x) for x in ms]),
+        "unit": list(units)[0] if len(units) == 1 else "Unknown",
     }
     data = [(key, cf, geo) for (key, geo), cf in data.items()]
     method = Method(name)
@@ -80,11 +88,26 @@ def combine_methods(name, *ms):
 
 def clean_exchanges(data):
     """Make sure all exchange inputs are tuples, not lists."""
+
     def tupleize(value):
-        for exc in value.get('exchanges', []):
-            exc['input'] = tuple(exc['input'])
+        for exc in value.get("exchanges", []):
+            exc["input"] = tuple(exc["input"])
         return value
+
     return {key: tupleize(value) for key, value in data.items()}
+
+
+def as_uncertainty_dict(value):
+    """Given either a number or a ``stats_arrays`` uncertainty dict, return an uncertainty dict"""
+    if isinstance(value, dict):
+        return value
+    try:
+        return {"amount": float(value)}
+    except:
+        raise TypeError(
+            "Value must be either an uncertainty dict. or number"
+            " (got %s: %s)" % (type(value), value)
+        )
 
 
 def uncertainify(data, distribution=None, bounds_factor=0.1, sd_factor=0.1):
@@ -107,42 +130,54 @@ If using the uniform distribution, then the bounds are ``[(1 - bounds_factor) * 
 
 Returns the modified data.
     """
-    assert distribution in {None, sa.UniformUncertainty, sa.NormalUncertainty}, \
-        u"``uncertainify`` only supports normal and uniform distributions"
-    assert bounds_factor is None or bounds_factor * 1. > 0, \
-        "bounds_factor must be a positive number"
-    assert sd_factor * 1. > 0, "sd_factor must be a positive number"
+    assert distribution in {
+        None,
+        sa.UniformUncertainty,
+        sa.NormalUncertainty,
+    }, "``uncertainify`` only supports normal and uniform distributions"
+    assert (
+        bounds_factor is None or bounds_factor * 1.0 > 0
+    ), "bounds_factor must be a positive number"
+    assert sd_factor * 1.0 > 0, "sd_factor must be a positive number"
 
     for key, value in data.items():
-        for exchange in value.get(u'exchanges', []):
-            if (exchange.get(u'type') == u'production') or \
-                    (exchange.get(u'uncertainty type',
-                                  sa.UndefinedUncertainty.id) \
-                    != sa.UndefinedUncertainty.id):
+        for exchange in value.get("exchanges", []):
+            if (exchange.get("type") == "production") or (
+                exchange.get("uncertainty type", sa.UndefinedUncertainty.id)
+                != sa.UndefinedUncertainty.id
+            ):
                 continue
-            if exchange[u"amount"] == 0:
+            if exchange["amount"] == 0:
                 continue
 
             if bounds_factor is not None:
-                exchange.update({
-                    u"minimum": (1 - bounds_factor) * exchange['amount'],
-                    u"maximum": (1 + bounds_factor) * exchange['amount'],
-                })
-                if exchange[u"amount"] < 0:
-                    exchange[u"minimum"], exchange[u"maximum"] = exchange[u"maximum"], exchange[u"minimum"]
+                exchange.update(
+                    {
+                        "minimum": (1 - bounds_factor) * exchange["amount"],
+                        "maximum": (1 + bounds_factor) * exchange["amount"],
+                    }
+                )
+                if exchange["amount"] < 0:
+                    exchange["minimum"], exchange["maximum"] = (
+                        exchange["maximum"],
+                        exchange["minimum"],
+                    )
 
             if distribution == sa.NormalUncertainty:
-                exchange.update({
-                    u"uncertainty type": sa.NormalUncertainty.id,
-                    u"loc": exchange[u'amount'],
-                    u"scale": abs(sd_factor * exchange[u'amount']),
-                })
+                exchange.update(
+                    {
+                        "uncertainty type": sa.NormalUncertainty.id,
+                        "loc": exchange["amount"],
+                        "scale": abs(sd_factor * exchange["amount"]),
+                    }
+                )
             else:
-                assert bounds_factor is not None, \
-                    "must specify bounds_factor for uniform distribution"
-                exchange.update({
-                    u"uncertainty type": sa.UniformUncertainty.id,
-                })
+                assert (
+                    bounds_factor is not None
+                ), "must specify bounds_factor for uniform distribution"
+                exchange.update(
+                    {"uncertainty type": sa.UniformUncertainty.id,}
+                )
     return data
 
 
@@ -155,17 +190,13 @@ def recursive_str_to_unicode(data, encoding="utf8"):
     elif isinstance(data, bytes):
         return str(data, encoding)  # Faster than str.encode
     elif isinstance(data, collections.Mapping):
-        return dict(map(
-            recursive_str_to_unicode,
-            data.items(),
-            itertools.repeat(encoding)
-        ))
+        return dict(
+            map(recursive_str_to_unicode, data.items(), itertools.repeat(encoding))
+        )
     elif isinstance(data, collections.Iterable):
-        return type(data)(map(
-            recursive_str_to_unicode,
-            data,
-            itertools.repeat(encoding)
-        ))
+        return type(data)(
+            map(recursive_str_to_unicode, data, itertools.repeat(encoding))
+        )
     else:
         return data
 
@@ -184,8 +215,12 @@ def merge_databases(parent_db, other):
 
     Doesn't return anything."""
     from .database import Database
-    from .backends.peewee import (ActivityDataset, ExchangeDataset,
-        SQLiteBackend, sqlite3_lci_db)
+    from .backends.peewee import (
+        ActivityDataset,
+        ExchangeDataset,
+        SQLiteBackend,
+        sqlite3_lci_db,
+    )
     from . import databases, mapping
 
     assert parent_db in databases
@@ -197,24 +232,34 @@ def merge_databases(parent_db, other):
     if not isinstance(first, SQLiteBackend) or not isinstance(second, SQLiteBackend):
         raise ValidityError("Both databases must be `SQLiteBackend`")
 
-    first_codes = {obj.code for obj in
-                   ActivityDataset.select().where(ActivityDataset.database == parent_db)}
-    second_codes = {obj.code for obj in
-                    ActivityDataset.select().where(ActivityDataset.database == other)}
+    first_codes = {
+        obj.code
+        for obj in ActivityDataset.select().where(ActivityDataset.database == parent_db)
+    }
+    second_codes = {
+        obj.code
+        for obj in ActivityDataset.select().where(ActivityDataset.database == other)
+    }
     if first_codes.intersection(second_codes):
         raise ValidityError("Duplicate codes - can't merge databases")
 
-    qs = ActivityDataset.select(ActivityDataset.code).where(
-        ActivityDataset.database == other).tuples()
+    qs = (
+        ActivityDataset.select(ActivityDataset.code)
+        .where(ActivityDataset.database == other)
+        .tuples()
+    )
     mapping.add(((parent_db, o[0]) for o in qs))
 
-    with sqlite3_lci_db.atomic() as transaction:
-        ActivityDataset.update(database = parent_db).where(
-            ActivityDataset.database == other).execute()
-        ExchangeDataset.update(input_database = parent_db
-            ).where(ExchangeDataset.input_database == other).execute()
-        ExchangeDataset.update(output_database = parent_db
-            ).where(ExchangeDataset.output_database == other).execute()
+    with sqlite3_lci_db.atomic():
+        ActivityDataset.update(database=parent_db).where(
+            ActivityDataset.database == other
+        ).execute()
+        ExchangeDataset.update(input_database=parent_db).where(
+            ExchangeDataset.input_database == other
+        ).execute()
+        ExchangeDataset.update(output_database=parent_db).where(
+            ExchangeDataset.output_database == other
+        ).execute()
 
     Database(parent_db).process()
     del databases[other]
@@ -237,15 +282,16 @@ def download_file(filename, directory="downloads", url=None):
 
     """
     from . import projects
+
     assert isinstance(directory, str), "`directory` must be a string"
     dirpath = projects.request_directory(directory)
-    filepath = os.path.join(dirpath, filename)
+    filepath = dirpath / filename
     download_path = (url if url is not None else DOWNLOAD_URL) + filename
     request = requests.get(download_path, stream=True)
     if request.status_code != 200:
-        raise NotFound("URL {} returns status code {}.".format(
-                download_path, request.status_code
-        ))
+        raise NotFound(
+            "URL {} returns status code {}.".format(download_path, request.status_code)
+        )
     download = request.raw
     chunk = 128 * 1024
     with open(filepath, "wb") as f:
@@ -259,24 +305,24 @@ def download_file(filename, directory="downloads", url=None):
 
 def web_ui_accessible():
     """Test if ``bw2-web`` is running and accessible. Returns ``True`` or ``False``."""
-    base_url = config.p.get('web_ui_address', "http://127.0.0.1:5000") + "/ping"
+    base_url = config.p.get("web_ui_address", "http://127.0.0.1:5000") + "/ping"
     try:
         response = requests.get(base_url)
     except requests.ConnectionError:
         return False
-    return response.text == u"pong"
+    return response.text == "pong"
 
 
 def open_activity_in_webbrowser(activity):
     """Open a dataset document in the Brightway2 web UI. Requires ``bw2-web`` to be running.
 
     ``activity`` is a dataset key, e.g. ``("foo", "bar")``."""
-    base_url = config.p.get('web_ui_address', "http://127.0.0.1:5000")
+    base_url = config.p.get("web_ui_address", "http://127.0.0.1:5000")
     if not web_ui_accessible():
         raise WebUIError("Can't find bw2-web UI (tried %s)" % base_url)
-    url = base_url + u"/view/%s/%s" % (
+    url = base_url + "/view/%s/%s" % (
         urllib.quote(activity[0]),
-        urllib.quote(activity[1])
+        urllib.quote(activity[1]),
     )
     webbrowser.open_new_tab(url)
     return url
@@ -290,9 +336,11 @@ def set_data_dir(dirpath, permanent=True):
     Creates ``dirpath`` if needed. Also creates basic directories, and resets metadata.
 
     """
-    warnings.warn("`set_data_dir` is deprecated; use `projects.set_current('my "
-                  "project name')` for a new project space.",
-                  DeprecationWarning)
+    warnings.warn(
+        "`set_data_dir` is deprecated; use `projects.set_current('my "
+        "project name')` for a new project space.",
+        DeprecationWarning,
+    )
 
 
 def create_in_memory_zipfile_from_directory(path):
@@ -301,10 +349,7 @@ def create_in_memory_zipfile_from_directory(path):
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     zf = zipfile.ZipFile(memory_obj, "a", zipfile.ZIP_DEFLATED, False)
     for filename in files:
-        zf.writestr(
-            filename,
-            open(os.path.join(path, filename)).read()
-        )
+        zf.writestr(filename, open(os.path.join(path, filename)).read())
     # Mark the files as having been created on Windows so that
     # Unix permissions are not inferred as 0000
     for zfile in zf.filelist:
@@ -316,8 +361,10 @@ def create_in_memory_zipfile_from_directory(path):
 
 def get_activity(key):
     from .database import Database
+
     try:
         return Database(key[0]).get(key[1])
     except TypeError:
-        raise UnknownObject("Key {} cannot be understood as an activity"
-                            " or `(database, code)` tuple.")
+        raise UnknownObject(
+            "Key {} cannot be understood as an activity" " or `(database, code)` tuple."
+        )

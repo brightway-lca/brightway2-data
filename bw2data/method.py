@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 from . import mapping, methods, geomapping, config
-from bw_processing import MAX_SIGNED_32BIT_INT
-from .validate import ia_validator
 from .ia_data_store import ImpactAssessmentDataStore
-import numpy as np
+from .utils import as_uncertainty_dict
+from .validate import ia_validator
 
 
 class Method(ImpactAssessmentDataStore):
@@ -33,32 +32,33 @@ class Method(ImpactAssessmentDataStore):
         * *name* (tuple): Name of impact assessment method to manage.
 
     """
+
     _metadata = methods
     validator = ia_validator
-    dtype_fields = [
-            ('flow', np.uint32),
-            ('geo', np.uint32),
-            ('row', np.uint32),
-            ('col', np.uint32),
-    ]
+    matrix = "characterization_matrix"
 
     def add_mappings(self, data):
         mapping.add({x[0] for x in data})
         geomapping.add({x[2] for x in data if len(x) == 3})
 
-    def process_data(self, row):
-        return (
-            mapping[row[0]],
-            geomapping[row[2]] if len(row) == 3 \
-                else geomapping[config.global_location],
-            MAX_SIGNED_32BIT_INT,
-            MAX_SIGNED_32BIT_INT,
-            ), row[1]
+    def process_row(self, row):
+        """Given ``(flow, amount, maybe location)``, return a dictionary for array insertion."""
+        return {
+            **as_uncertainty_dict(row[1]),
+            "row": mapping[row[0]],
+            "col": (
+                geomapping[row[2]]
+                if len(row) == 3
+                else geomapping[config.global_location]
+            ),
+        }
 
     def write(self, data, process=True):
         """Serialize intermediate data to disk.
 
         Sets the metadata key ``num_cfs`` automatically."""
-        self.metadata[u"num_cfs"] = len(data)
+        if self.name not in self._metadata:
+            self.register()
+        self.metadata["num_cfs"] = len(data)
         self._metadata.flush()
         super(Method, self).write(data)

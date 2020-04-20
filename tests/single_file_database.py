@@ -55,21 +55,21 @@ class SingleFileDatabaseTest(BW2DataTest):
 
     def test_get(self):
         d = self.create_biosphere()
-        activity = d.get('1')
+        activity = d.get("1")
         self.assertTrue(isinstance(activity, SFActivity))
-        self.assertEqual(activity['name'], 'an emission')
+        self.assertEqual(activity["name"], "an emission")
 
     def test_get_random(self):
         d = self.create_biosphere()
         activity = next(iter(d))
         self.assertTrue(isinstance(activity, SFActivity))
-        self.assertTrue(activity['name'] in ('an emission', 'another emission'))
+        self.assertTrue(activity["name"] in ("an emission", "another emission"))
 
     def test_get_random(self):
         d = self.create_biosphere()
         activity = d.random()
         self.assertTrue(isinstance(activity, SFActivity))
-        self.assertTrue(activity['name'] in ('an emission', 'another emission'))
+        self.assertTrue(activity["name"] in ("an emission", "another emission"))
 
     def test_revert(self):
         self.create_biosphere()
@@ -99,13 +99,9 @@ class SingleFileDatabaseTest(BW2DataTest):
 
     def test_versions(self):
         d = self.create_biosphere()
-        self.assertEqual(
-            [x[0] for x in d.versions()], [1]
-        )
+        self.assertEqual([x[0] for x in d.versions()], [1])
         d.write(biosphere)
-        self.assertEqual(
-            [x[0] for x in d.versions()], [1, 2]
-        )
+        self.assertEqual([x[0] for x in d.versions()], [1, 2])
 
     def test_wrong_version(self):
         d = self.create_biosphere()
@@ -120,7 +116,7 @@ class SingleFileDatabaseTest(BW2DataTest):
     def test_register(self):
         database = SingleFileDatabase("testy")
         database.register()
-        self.assertEqual(databases['testy']['version'], 0)
+        self.assertEqual(databases["testy"]["version"], 0)
 
     def test_load(self):
         self.create_biosphere()
@@ -165,14 +161,12 @@ class SingleFileDatabaseTest(BW2DataTest):
         database.register()
         data = {
             ("testy", "A"): {},
-            ("testy", "B"): {'exchanges': [
-                {'input': ("testy", "A"),
-                 'amount': np.nan,
-                 'type': 'technosphere'},
-                {'input': ("testy", "C"),
-                 'amount': 1,
-                 'type': 'technosphere'},
-            ]},
+            ("testy", "B"): {
+                "exchanges": [
+                    {"input": ("testy", "A"), "amount": np.nan, "type": "technosphere"},
+                    {"input": ("testy", "C"), "amount": 1, "type": "technosphere"},
+                ]
+            },
         }
         with self.assertRaises(ValueError):
             database.write(data)
@@ -182,6 +176,6 @@ class SingleFileDatabaseTest(BW2DataTest):
         d.write(biosphere)
         fp = d.filepath_intermediate()
         self.assertTrue("biosphere" in databases)
-        del databases['biosphere']
+        del databases["biosphere"]
         self.assertFalse("biosphere" in databases)
         self.assertTrue(os.path.exists(fp))

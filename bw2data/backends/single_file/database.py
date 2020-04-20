@@ -10,10 +10,7 @@ from .proxies import Activity
 from ..base import LCIBackend
 import datetime
 import os
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+import pickle
 
 
 class SingleFileDatabase(LCIBackend):
@@ -26,6 +23,7 @@ class SingleFileDatabase(LCIBackend):
         *name* (str): Name of the database to manage.
 
     """
+
     validator = db_validator
     backend = "singlefile"
 
@@ -49,16 +47,13 @@ class SingleFileDatabase(LCIBackend):
             Filename (not path)
 
         """
-        return "%s.%i" % (
-            safe_filename(self.name),
-            version or self.version
-        )
+        return "%s.%i" % (safe_filename(self.name), version or self.version)
 
     def filepath_intermediate(self, version=None):
-        return os.path.join(
-            projects.dir,
-            "intermediate",
-            self.filename_for_version(version) + ".pickle"
+        return (
+            projects.dir
+            / "intermediate"
+            / (self.filename_for_version(version) + ".pickle")
         )
 
     def load(self, version=None, **kwargs):
@@ -81,14 +76,15 @@ class SingleFileDatabase(LCIBackend):
         self.register()
 
         try:
-            if (version is None
+            if (
+                version is None
                 and config.p.get("use_cache", False)
-                and self.name in config.cache):
+                and self.name in config.cache
+            ):
                 return config.cache[self.name]
             else:
                 data = pickle.load(open(self.filepath_intermediate(version), "rb"))
-                if (version is None
-                    and config.p.get("use_cache", False)):
+                if version is None and config.p.get("use_cache", False):
                     config.cache[self.name] = data
                 return data
         except (OSError, IOError):
@@ -108,7 +104,7 @@ class SingleFileDatabase(LCIBackend):
         Databases must be registered before data can be written.
 
         """
-        kwargs.update(version=kwargs.get('version', None) or 0)
+        kwargs.update(version=kwargs.get("version", None) or 0)
         super(SingleFileDatabase, self).register(**kwargs)
 
     def revert(self, version):
@@ -122,9 +118,8 @@ class SingleFileDatabase(LCIBackend):
         """
         assert version in [x[0] for x in self.versions()], "Version not found"
         self.backup()
-        databases[self.name][u"version"] = version
-        if (config.p.get(u"use_cache", False)
-            and self.name in config.cache):
+        databases[self.name]["version"] = version
+        if config.p.get("use_cache", False) and self.name in config.cache:
             config.cache[self.name] = self.load(version)
         self.process(version)
 
@@ -145,13 +140,24 @@ class SingleFileDatabase(LCIBackend):
             List of (version, datetime created) tuples.
 
         """
-        directory = os.path.join(projects.dir, "intermediate")
-        files = natural_sort(filter(
-            lambda x: ".".join(x.split(".")[:-2]) == safe_filename(self.name),
-            os.listdir(directory)))
-        return sorted([(int(name.split(".")[-2]),
-            datetime.datetime.fromtimestamp(os.stat(os.path.join(
-            projects.dir, directory, name)).st_mtime)) for name in files])
+        directory = projects.dir / "intermediate"
+        files = natural_sort(
+            filter(
+                lambda x: ".".join(x.split(".")[:-2]) == safe_filename(self.name),
+                os.listdir(directory),
+            )
+        )
+        return sorted(
+            [
+                (
+                    int(name.split(".")[-2]),
+                    datetime.datetime.fromtimestamp(
+                        os.stat(projects.dir / directory / name).st_mtime
+                    ),
+                )
+                for name in files
+            ]
+        )
 
     @writable_project
     def write(self, data, process=True):
@@ -166,22 +172,34 @@ class SingleFileDatabase(LCIBackend):
         # Need to use iterator to reduce memory usage
         itr = data.items()
         for key, obj in itr:
-            obj['database'] = key[0]
-            obj['code'] = key[1]
+            obj["database"] = key[0]
+            obj["code"] = key[1]
 
-        if (config.p.get(u"use_cache", False)
-            and self.name in config.cache):
+        if config.p.get("use_cache", False) and self.name in config.cache:
             config.cache[self.name] = data
 
         databases.increment_version(self.name, len(data))
 
         mapping.add(data.keys())
-        geomapping.add({x["location"] for x in data.values() if
-                       x.get("location", False)})
+        geomapping.add(
+            {x["location"] for x in data.values() if x.get("location", False)}
+        )
 
-        if preferences.get('allow incomplete imports'):
-            mapping.add({exc['input'] for ds in data.values() for exc in ds.get('exchanges', [])})
-            mapping.add({exc['output'] for ds in data.values() for exc in ds.get('exchanges', [])})
+        if preferences.get("allow incomplete imports"):
+            mapping.add(
+                {
+                    exc["input"]
+                    for ds in data.values()
+                    for exc in ds.get("exchanges", [])
+                }
+            )
+            mapping.add(
+                {
+                    exc["output"]
+                    for ds in data.values()
+                    for exc in ds.get("exchanges", [])
+                }
+            )
 
         with atomic_open(self.filepath_intermediate(), "wb") as f:
             pickle.dump(data, f, protocol=4)

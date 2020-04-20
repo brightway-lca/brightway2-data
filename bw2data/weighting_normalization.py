@@ -2,9 +2,8 @@
 from .ia_data_store import ImpactAssessmentDataStore
 from .meta import weightings, mapping, normalizations
 from .project import writable_project
-from bw_processing import MAX_SIGNED_32BIT_INT
+from .utils import as_uncertainty_dict
 from .validate import weighting_validator, normalization_validator
-import numpy as np
 
 
 class Weighting(ImpactAssessmentDataStore):
@@ -21,23 +20,23 @@ class Weighting(ImpactAssessmentDataStore):
             ))
 
     """
+
     _metadata = weightings
     validator = weighting_validator
-    dtype_fields = []
+    matrix = "weighting_matrix"
 
     @writable_project
     def write(self, data):
         """Because of DataStore assumptions, need a one-element list"""
+        if self.name not in self._metadata:
+            self.register()
         if not isinstance(data, list) or not len(data) == 1:
             raise ValueError("Weighting data must be one-element list")
         super(Weighting, self).write(data)
 
-    def process_data(self, row):
+    def process_row(self, row):
         """Return an empty tuple (as ``dtype_fields`` is empty), and the weighting uncertainty dictionary."""
-        return (
-            (), # don't know much,
-            row # but I know I love you
-        )
+        return {**as_uncertainty_dict(row), "row": 0}
 
 
 class Normalization(ImpactAssessmentDataStore):
@@ -57,20 +56,18 @@ class Normalization(ImpactAssessmentDataStore):
         * ``maybe_uncertainty`` is either a number or an uncertainty dictionary
 
     """
+
     _metadata = normalizations
     validator = normalization_validator
-    dtype_fields = [
-        ('flow', np.uint32),
-        ('index', np.uint32),
-    ]
+    matrix = "normalization_matrix"
 
     def add_mappings(self, data):
         """Add each normalization flow (should be biosphere flows) to global mapping"""
         mapping.add({obj[0] for obj in data})
 
-    def process_data(self, row):
-        """Return values that match ``dtype_fields``, as well as number or uncertainty dictionary"""
-        return (
-            mapping[row[0]],
-            MAX_SIGNED_32BIT_INT,
-            ), row[1]
+    def process_row(self, row):
+        """Given ``(flow key, amount)``, return a dictionary for array insertion."""
+        return {
+            **as_uncertainty_dict(row[1]),
+            "row": mapping[row[0]],
+        }

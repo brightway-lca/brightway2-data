@@ -23,13 +23,10 @@ def abbreviate(names, length=8):
     """
     safe_names = [safe_filename(x, False) for x in names]
     abbrev = lambda x: x if x[0] in string.digits else x[0].lower()
-    name = " ".join(safe_names).split(" ")[0].lower() + \
-        "".join([abbrev(x) for x in " ".join(safe_names).split(" ")[1:]])
-    return name + "." + str(
-        hashlib.md5(
-            ("-".join(names)).encode('utf-8')
-        ).hexdigest()
+    name = " ".join(safe_names).split(" ")[0].lower() + "".join(
+        [abbrev(x) for x in " ".join(safe_names).split(" ")[1:]]
     )
+    return name + "." + str(hashlib.md5(("-".join(names)).encode("utf-8")).hexdigest())
 
 
 class ImpactAssessmentDataStore(ProcessedDataStore):
@@ -44,11 +41,9 @@ Args:
     * *name* (tuple): Name of the IA object to manage. Must be a tuple of unicode strings.
 
     """
+
     def __str__(self):
-        return "Brightway2 %s: %s" % (
-            self.__class__.__name__,
-            ": ".join(self.name)
-        )
+        return "Brightway2 %s: %s" % (self.__class__.__name__, ": ".join(self.name))
 
     def get_abbreviation(self):
         """Retrieve the abbreviation of the method identifier from the metadata store. See class documentation."""
@@ -84,7 +79,7 @@ Args:
         Takes any number of keyword arguments.
 
         """
-        kwargs['abbreviation'] = abbreviate(self.name)
+        kwargs["abbreviation"] = abbreviate(self.name)
         super(ImpactAssessmentDataStore, self).register(**kwargs)
 
     @property

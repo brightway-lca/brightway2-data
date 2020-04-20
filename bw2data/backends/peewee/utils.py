@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from ...method import Method
 from ...meta import methods
+from ...method import Method
 
 
 def dict_as_activitydataset(ds):
@@ -18,11 +18,11 @@ def dict_as_activitydataset(ds):
 def dict_as_exchangedataset(ds):
     return {
         "data": ds,
-        "input_database": ds['input'][0],
-        "input_code": ds['input'][1],
-        "output_database": ds['output'][0],
-        "output_code": ds['output'][1],
-        "type": ds['type']
+        "input_database": ds["input"][0],
+        "input_code": ds["input"][1],
+        "output_database": ds["output"][0],
+        "output_code": ds["output"][1],
+        "type": ds["type"],
     }
 
 
@@ -56,3 +56,24 @@ def replace_cfs(old_key, new_key):
             Method(name).write(data)
             altered_methods.append(name)
     return altered_methods
+
+
+def retupleize_geo_strings(value):
+    """Transform data from SQLite representation to Python objects.
+
+    We are using a SQLite3 cursor, which means that the Peewee data conversion code is not called. So ``('foo', 'bar')`` is stored as a string, not a tuple. This code tries to do this conversion correctly.
+
+    TODO: Adapt what Peewee does in this case?"""
+    if not value:
+        return value
+    elif "(" not in value:
+        return value
+    try:
+        # Is this a dirty, dirty hack, or inspiration?
+        # Location is retrieved as a string from the database
+        # The alternative is to retrieve and process the
+        # entire activity dataset...
+        return eval(value)
+    except NameError:
+        # Not everything with a parentheses is a tuple.
+        return value

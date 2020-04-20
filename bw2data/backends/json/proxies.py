@@ -15,18 +15,24 @@ class Activity(ActivityProxyBase):
         raise NotImplementedError
 
     def exchanges(self, raw=False):
-        return [exc if raw else Exchange(exc, self)
-                for exc in self._data.get(u'exchanges', [])]
+        return [
+            exc if raw else Exchange(exc, self)
+            for exc in self._data.get("exchanges", [])
+        ]
 
     def technosphere(self, raw=False):
-        return [exc if raw else Exchange(exc, self)
-                for exc in self._data.get(u'exchanges', [])
-                if exc.get('type') == 'technosphere']
+        return [
+            exc if raw else Exchange(exc, self)
+            for exc in self._data.get("exchanges", [])
+            if exc.get("type") == "technosphere"
+        ]
 
     def biosphere(self, raw=False):
-        return [exc if raw else Exchange(exc, self)
-                for exc in self._data.get(u'exchanges', [])
-                if exc.get('type') == 'biosphere']
+        return [
+            exc if raw else Exchange(exc, self)
+            for exc in self._data.get("exchanges", [])
+            if exc.get("type") == "biosphere"
+        ]
 
     def upstream(self, *args, **kwargs):
         raise NotImplementedError

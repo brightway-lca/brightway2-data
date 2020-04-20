@@ -2,14 +2,10 @@
 from . import projects
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
-from .project import writable_project
 from .filesystem import safe_filename
-import numpy as np
-import os
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+from .project import writable_project
+from bw_processing import create_calculation_package, clean_datapackage_name
+import pickle
 
 
 class DataStore(object):
@@ -20,9 +16,10 @@ Base class for all Brightway2 data stores. Subclasses should define:
     * **validator**: A data validator. Optional. See bw2data.validate.
 
     """
+
     validator = None
     _metadata = None
-    _intermediate_dir = u'intermediate'
+    _intermediate_dir = "intermediate"
 
     def __init__(self, name):
         self.name = name
@@ -58,6 +55,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
 
     def register(self, **kwargs):
         """Register an object with the metadata store. Takes any number of keyword arguments."""
+
         @writable_project
         def _register(kwargs):
             self._metadata[self.name] = kwargs
@@ -80,11 +78,9 @@ Base class for all Brightway2 data stores. Subclasses should define:
         if not self.registered:
             raise UnknownObject("This object is not registered and has no data")
         try:
-            return pickle.load(open(os.path.join(
-                projects.dir,
-                "intermediate",
-                self.filename + ".pickle"
-            ), "rb"))
+            return pickle.load(
+                open(projects.dir / "intermediate" / (self.filename + ".pickle"), "rb",)
+            )
         except OSError:
             raise MissingIntermediateData("Can't load intermediate data")
 
@@ -116,6 +112,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
         """
         try:
             from bw2io import BW2Package
+
             return BW2Package.export_obj(self)
         except ImportError:
             print("bw2io not installed")
@@ -129,11 +126,7 @@ Base class for all Brightway2 data stores. Subclasses should define:
 
         """
         self.register()
-        filepath = os.path.join(
-            projects.dir,
-            self._intermediate_dir,
-            self.filename + ".pickle"
-        )
+        filepath = projects.dir / self._intermediate_dir / (self.filename + ".pickle")
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=4)
 
@@ -145,39 +138,22 @@ Base class for all Brightway2 data stores. Subclasses should define:
 
 class ProcessedDataStore(DataStore):
     """
-Brightway2 data stores that can be processed to NumPy arrays. In addition to ``metadata`` and (optionally) ``validator``, subclasses should define:
+Brightway2 data stores that can be processed to NumPy arrays.
 
-    * **dtype_fields**: A list of fields to construct a NumPy structured array, e.g. ``[('foo', np.int), ('bar', np.float)]``. Fields names **must** be bytestrings, not unicode (i.e. ``b"foo"`` instead of ``"foo"``). Uncertainty fields (``base_uncertainty_fields``) are added automatically.
-
-In order to use ``dtype_fields``, subclasses should override the method ``process_data``. This function takes rows of data, and returns the correct values for the custom dtype fields (as a tuple), **and** the ``amount`` field with its associated uncertainty. This second part is a little flexible - if there is no uncertainty, a number can be returned; otherwise, an uncertainty dictionary should be returned.
-
-Subclasses should also override ``add_mappings``. This method takes the entire dataset, and loads objects to :ref:`mapping` or :ref:`geomapping` as needed.
+In addition to ``metadata`` and (optionally) ``validator``, subclasses should override ``add_mappings``. This method takes the entire dataset, and loads objects to :ref:`mapping` or :ref:`geomapping` as needed.
 
     """
-    dtype_fields = None
-    # Numpy columns names can't be unicode
-    base_uncertainty_fields = [
-        ('uncertainty_type', np.uint8),
-        ('amount', np.float32),
-        ('loc', np.float32),
-        ('scale', np.float32),
-        ('shape', np.float32),
-        ('minimum', np.float32),
-        ('maximum', np.float32),
-        ('negative', np.bool),
-    ]
 
-    @property
-    def dtype(self):
-        """Returns both the generic ``base_uncertainty_fields`` plus class-specific ``dtype_fields``. ``dtype`` determines the columns of the :ref:`processed array <processing-data>`."""
-        return self.dtype_fields + self.base_uncertainty_fields
+    matrix = "unknown"
+
+    def dirpath_processed(self):
+        return projects.dir / "processed"
+
+    def filename_processed(self):
+        return clean_datapackage_name(self.filename + ".zip")
 
     def filepath_processed(self):
-        return os.path.join(
-            projects.dir,
-            "processed",
-            self.filename + ".npy"
-        )
+        return self.dirpath_processed() / self.filename_processed()
 
     @writable_project
     def write(self, data, process=True):
@@ -189,21 +165,19 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         """
         self.register()
         self.add_mappings(data)
-        filepath = os.path.join(
-            projects.dir,
-            self._intermediate_dir,
-            self.filename + ".pickle"
-        )
+        filepath = projects.dir / self._intermediate_dir / (self.filename + ".pickle")
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=4)
         if process:
             self.process()
 
-    def process_data(self, row):
-        """Translate data into correct order"""
+    def process_row(self, row):
+        """Translate data into a dictionary suitable for array inputs.
+
+        See `bw_processing documentation <https://github.com/brightway-lca/bw_processing>`__."""
         raise NotImplementedError
 
-    def process(self):
+    def process(self, format_function=None):
         """
 Process intermediate data from a Python dictionary to a `stats_arrays <https://pypi.python.org/pypi/stats_arrays/>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
 
@@ -215,50 +189,20 @@ Doesn't return anything, but writes a file to disk.
 
         """
         data = self.load()
-        arr = np.zeros((len(data),), dtype=self.dtype)
-
-        for index, row in enumerate(data):
-            values, number = self.process_data(row)
-            uncertainties = self.as_uncertainty_dict(number)
-            assert len(values) == len(self.dtype_fields)
-            assert u'amount' in uncertainties, "Must provide at least `amount` field in `uncertainties`"
-            arr[index] = values + (
-                uncertainties.get("uncertainty type", 0),
-                uncertainties["amount"],
-                uncertainties["amount"] \
-                    if uncertainties.get("uncertainty type", 0) in (0, 1) \
-                    else uncertainties.get("loc", np.NaN),
-                uncertainties.get("scale", np.NaN),
-                uncertainties.get("shape", np.NaN),
-                uncertainties.get("minimum", np.NaN),
-                uncertainties.get("maximum", np.NaN),
-                uncertainties.get("amount") < 0,
-            )
-        arr.sort(order=self.dtype_field_order())
-        np.save(self.filepath_processed(), arr, allow_pickle=False)
-
-    def dtype_field_order(self, dtype=None):
-        field_names = sorted([x[0] for x in dtype or self.dtype])
-        preferred = ('input', 'output', 'activity', 'geo', 'amount',
-                     'uncertainty_type', 'loc', 'scale', 'shape')
-        return ([field
-                 for field in preferred
-                 if field in field_names] +
-                [field
-                 for field in field_names
-                 if str(field) not in preferred])
-
-    def as_uncertainty_dict(self, value):
-        """Convert floats to ``stats_arrays`` uncertainty dict, if necessary"""
-        if isinstance(value, dict):
-            return value
-        try:
-            return {'amount': float(value)}
-        except:
-            raise TypeError(
-                "Value must be either an uncertainty dict. or number"
-                " (got %s: %s)" % (type(value), value)
-            )
+        create_calculation_package(
+            name=self.filename_processed(),
+            resources=[
+                {
+                    "name": clean_datapackage_name(str(self.name) + " matrix data"),
+                    "matrix": self.matrix,
+                    "path": self.matrix + ".npy",
+                    "data": (self.process_row(row) for row in data),
+                    "nrows": len(data),
+                    "format_function": format_function,
+                }
+            ],
+            path=self.dirpath_processed(),
+        )
 
     def add_mappings(self, data):
         """Add objects to ``mapping`` or ``geomapping``, if necessary.

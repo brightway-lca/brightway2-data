@@ -1,25 +1,21 @@
 # -*- coding: utf-8 -*-
-from . import config, projects
+from . import projects
 from .errors import PickleError
 from .fatomic import open as atomic_open
 from .project import writable_project
+from .utils import maybe_path
+from collections.abc import MutableMapping
 from time import time
 import bz2
 import os
+import pickle
 import random
-try:
-    from collections.abc import MutableMapping
-except ImportError:
-    from collections import MutableMapping
+
 try:
     import anyjson
 except ImportError:
     anyjson = None
     import json
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 
 
 class JsonWrapper(object):
@@ -35,22 +31,18 @@ class JsonWrapper(object):
     def dump_bz2(self, data, filepath):
         with atomic_open(filepath, "wb") as f:
             with bz2.BZ2File(f.name, "wb") as b:
-                b.write(
-                    (JsonWrapper.dumps(data)).encode('utf-8')
-                )
+                b.write((JsonWrapper.dumps(data)).encode("utf-8"))
 
     @classmethod
     def load(self, file):
         if anyjson:
-            return anyjson.deserialize(open(file, encoding='utf-8').read())
+            return anyjson.deserialize(open(file, encoding="utf-8").read())
         else:
-            return json.load(open(file, encoding='utf-8'))
+            return json.load(open(file, encoding="utf-8"))
 
     @classmethod
     def load_bz2(self, filepath):
-        return JsonWrapper.loads(
-            (bz2.BZ2File(filepath).read()).decode('utf-8')
-            )
+        return JsonWrapper.loads((bz2.BZ2File(filepath).read()).decode("utf-8"))
 
     @classmethod
     def dumps(self, data):
@@ -71,15 +63,12 @@ class JsonSanitizer(object):
     @classmethod
     def sanitize(cls, data):
         if isinstance(data, tuple):
-            return {
-                '__tuple__': True,
-                'data': [cls.sanitize(x) for x in data]
-            }
+            return {"__tuple__": True, "data": [cls.sanitize(x) for x in data]}
         elif isinstance(data, dict):
             return {
-                '__dict__': True,
-                'keys': [cls.sanitize(x) for x in data.keys()],
-                'values': [cls.sanitize(x) for x in data.values()]
+                "__dict__": True,
+                "keys": [cls.sanitize(x) for x in data.keys()],
+                "values": [cls.sanitize(x) for x in data.values()],
             }
         elif isinstance(data, list):
             return [cls.sanitize(x) for x in data]
@@ -90,12 +79,14 @@ class JsonSanitizer(object):
     def load(cls, data):
         if isinstance(data, dict):
             if "__tuple__" in data:
-                return tuple([cls.load(x) for x in data['data']])
+                return tuple([cls.load(x) for x in data["data"]])
             elif "__dict__" in data:
-                return dict(zip(
-                    [cls.load(x) for x in data['keys']],
-                    [cls.load(x) for x in data['values']]
-                ))
+                return dict(
+                    zip(
+                        [cls.load(x) for x in data["keys"]],
+                        [cls.load(x) for x in data["values"]],
+                    )
+                )
             else:
                 raise ValueError
         elif isinstance(data, list):
@@ -108,13 +99,13 @@ class SerializedDict(MutableMapping):
     """Base class for dictionary that can be `serialized <http://en.wikipedia.org/wiki/Serialization>`_ to or unserialized from disk. Uses JSON as its storage format. Has most of the methods of a dictionary.
 
     Upon instantiation, the serialized dictionary is read from disk."""
+
     def __init__(self, dirpath=None):
         if not getattr(self, "filename"):
-            raise NotImplemented("SerializedDict must be subclassed, and the filename must be set.")
-        self.filepath = os.path.join(
-            dirpath or projects.dir,
-            self.filename
-        )
+            raise NotImplementedError(
+                "SerializedDict must be subclassed, and the filename must be set."
+            )
+        self.filepath = (maybe_path(dirpath) or projects.dir) / self.filename
         self.load()
 
     def load(self):
@@ -152,18 +143,19 @@ class SerializedDict(MutableMapping):
         if not len(self):
             return "{} dictionary with 0 objects".format(self.__class__.__name__)
         elif len(self) > 20:
-            return ("{} dictionary with {} objects, including:"
-                    "{}\nUse `list(this object)` to get the complete list."
+            return (
+                "{} dictionary with {} objects, including:"
+                "{}\nUse `list(this object)` to get the complete list."
             ).format(
                 self.__class__.__name__,
                 len(self),
-                "".join(["\n\t{}".format(x) for x in sorted(self.data)[:10]])
+                "".join(["\n\t{}".format(x) for x in sorted(self.data)[:10]]),
             )
         else:
             return ("{} dictionary with {} object(s):{}").format(
                 self.__class__.__name__,
                 len(self),
-                "".join(["\n\t{}".format(x) for x in sorted(self.data)])
+                "".join(["\n\t{}".format(x) for x in sorted(self.data)]),
             )
 
     __repr__ = lambda x: str(x)
@@ -219,18 +211,19 @@ class SerializedDict(MutableMapping):
 
     def backup(self):
         """Write a backup version of the data to the ``backups`` directory."""
-        filepath = os.path.join(projects.dir, "backups",
-            self.filename + ".%s.backup" % int(time()))
+        filepath = os.path.join(
+            projects.dir, "backups", self.filename + ".%s.backup" % int(time())
+        )
         self.serialize(filepath)
 
 
 class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
+
     @writable_project
     def serialize(self):
         with atomic_open(self.filepath, "wb") as f:
-            pickle.dump(self.pack(self.data), f,
-                protocol=4)
+            pickle.dump(self.pack(self.data), f, protocol=4)
 
     def deserialize(self):
         try:
@@ -242,6 +235,7 @@ class PickledDict(SerializedDict):
 
 class CompoundJSONDict(SerializedDict):
     """Subclass of ``SerializedDict`` that allows tuples as dictionary keys (not allowed in JSON)."""
+
     def pack(self, data):
         """Transform the dictionary to a list because JSON can't handle lists as keys"""
         return [(k, v) for k, v in data.items()]

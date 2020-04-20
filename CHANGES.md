@@ -2,8 +2,21 @@
 
 # 4.0.DEV1
 
-* Dropped Python 2 compatibility
-* Use [bw_processing](https://github.com/brightway-lca/bw_processing) to create processed arrays. Processed arrays are directories (because there is a metadata file as well, and possibly multiple array files).
+## Breaking changes
+
+### Python 2 compatibility removed
+
+Removing the Python 2 compatibility layer allows for much cleaner and more compact code, and the use of some components from the in-development Brightway version 3 libraries.
+
+### All internal paths are now `pathlib.Path` objects
+
+This allows for cleaner and more consistent code. Includes things like `projects.dir`.
+
+## Background changes
+
+### Use of `bw_processing`
+
+We now use [bw_processing](https://github.com/brightway-lca/bw_processing) to create processed arrays. Processed arrays are compressed directories (because there is a metadata file as well, and possibly multiple array files). All databases, methods, etc. will need to be reprocessed, but this happens automatically via a data migration.
 
 ### 3.6.2 (2019-11-11)
 

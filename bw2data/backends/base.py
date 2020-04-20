@@ -7,20 +7,15 @@ from .. import (
     projects,
 )
 from ..data_store import ProcessedDataStore
-from ..errors import UntypedExchange, InvalidExchange, UnknownObject
+from ..errors import UnknownObject
 from ..query import Query
-from bw_processing import MAX_SIGNED_32BIT_INT
-from ..filesystem import safe_filename
-from ..utils import TYPE_DICTIONARY
+from ..utils import as_uncertainty_dict
+from .utils import check_exchange
+from bw_processing import clean_datapackage_name, create_calculation_package
 import copy
-import numpy as np
-import os
+import datetime
 import random
 import warnings
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
 
 
 class LCIBackend(ProcessedDataStore):
@@ -79,21 +74,9 @@ class LCIBackend(ProcessedDataStore):
         *name* (unicode string): Name of the database to manage.
 
     """
+
     _metadata = databases
     validator = None
-    dtype_fields = [
-        ('input', np.uint32),
-        ('output', np.uint32),
-        ('row', np.uint32),
-        ('col', np.uint32),
-        ('type', np.uint8),
-    ]
-    dtype_fields_geomapping = [
-        ('activity', np.uint32),
-        ('geo', np.uint32),
-        ('row', np.uint32),
-        ('col', np.uint32),
-    ]
 
     def copy(self, name):
         """Make a copy of the database.
@@ -109,26 +92,13 @@ class LCIBackend(ProcessedDataStore):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             new_database = self.__class__(name)
-            new_database.register(
-                format="Brightway2 copy",
-            )
+            new_database.register(format="Brightway2 copy",)
 
         new_database.write(data)
         return new_database
 
-    @property
-    def filename(self):
-        return safe_filename(self.name)
-
     def filepath_intermediate(self):
         raise NotImplementedError
-
-    def filepath_geomapping(self):
-        return os.path.join(
-            projects.dir,
-            "processed",
-            self.filename + ".geomapping.npy"
-        )
 
     def find_dependents(self, data=None, ignore=None):
         """Get sorted list of direct dependent databases (databases linked from exchanges).
@@ -146,13 +116,13 @@ class LCIBackend(ProcessedDataStore):
             data = self.load()
             ignore.add(self.name)
         dependents = {
-            exc.get('input')[0]
+            exc.get("input")[0]
             for ds in data.values()
-            for exc in ds.get('exchanges', [])
-            if ds.get('type', 'process') == 'process'
-            and exc.get('type') != "unknown"
-            and exc.get('input', [None])[0] is not None
-            and exc.get('input', [None])[0] not in ignore
+            for exc in ds.get("exchanges", [])
+            if ds.get("type", "process") == "process"
+            and exc.get("type") != "unknown"
+            and exc.get("input", [None])[0] is not None
+            and exc.get("input", [None])[0] not in ignore
         }
         return sorted(dependents)
 
@@ -163,10 +133,11 @@ class LCIBackend(ProcessedDataStore):
             A set of database names
 
         """
+
         def extend(seeds):
-            return set.union(seeds,
-                             set.union(*[set(databases[obj]['depends'])
-                                         for obj in seeds]))
+            return set.union(
+                seeds, set.union(*[set(databases[obj]["depends"]) for obj in seeds])
+            )
 
         seed, extended = {self.name}, extend({self.name})
         while extended != seed:
@@ -201,6 +172,38 @@ class LCIBackend(ProcessedDataStore):
         """
         raise NotImplementedError
 
+    def exchange_generator(self, data, kinds, add_production=True):
+        """Yield exchanges, and also missing implicit production exchanges"""
+        for key, obj in data.items():
+            # Skip unknown types, e.g. 'product'. Strong assumption.
+            if obj.get("type", "process") != "process":
+                continue
+
+            production_found = False
+            for exc in obj.get("exchanges", []):
+                if exc["type"] in ("production", "generic production"):
+                    production_found = True
+                if exc["type"] not in kinds:
+                    continue
+                check_exchange(exc)
+                try:
+                    yield {
+                        **as_uncertainty_dict(exc),
+                        "row": mapping[exc["input"]],
+                        "col": mapping[key],
+                        "flip": exc["type"] in ("technosphere", "generic consumption"),
+                    }
+                except KeyError:
+                    raise UnknownObject(
+                        (
+                            "Exchange between {} and {} is invalid "
+                            "- one of these objects is unknown (i.e. doesn't exist as a process dataset)"
+                        ).format(exc["input"], key)
+                    )
+
+            if not production_found and add_production:
+                yield {"row": mapping[key], "amount": 1}
+
     def process(self, *args, **kwargs):
         """
 Process inventory documents.
@@ -216,96 +219,64 @@ Doesn't return anything, but writes two files to disk.
 
         """
         data = self.load(as_dict=True, *args, **kwargs)
-        num_exchanges = sum([
-            len(obj.get("exchanges", []))
-            for obj in data.values()
-            if obj.get("type", "process") == "process"
-        ])
+        resources = []
 
-        gl = config.global_location
-
-        # Create geomapping array
-        count = 0
-        arr = np.zeros((len(data), ), dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields)
-        for key in sorted(data.keys(), key=lambda x: x[1]):
-            if data[key].get('type', 'process') == 'process':
-                arr[count] = (
-                    mapping[key],
-                    geomapping[data[key].get("location", gl) or gl],
-                    MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT,
-                    0, 1, np.NaN, np.NaN, np.NaN, np.NaN, np.NaN, False
-                )
-                count += 1
-
-        arr.sort(order=self.dtype_field_order(
-            self.dtype_fields_geomapping + self.base_uncertainty_fields
-        ))
-
-        with open(self.filepath_geomapping(), "wb") as f:
-            pickle.dump(arr[:count], f, protocol=4)
-
-        arr = np.zeros((num_exchanges + len(data), ), dtype=self.dtype)
-        count = 0
-
-        for key in data:
-            production_found = False
-            if data[key].get('type', 'process') != "process":
-                continue
-            for exc in data[key].get("exchanges", []):
-
-                if "amount" not in exc or "input" not in exc:
-                    raise InvalidExchange
-                if "type" not in exc:
-                    raise UntypedExchange
-                if np.isnan(exc['amount']) or np.isinf(exc['amount']):
-                    raise ValueError("Invalid amount in exchange {}".format(data))
-
-                if exc['type'] == 'production':
-                    production_found = True
-                try:
-                    arr[count] = (
-                        mapping[exc["input"]],
-                        mapping[key],
-                        MAX_SIGNED_32BIT_INT,
-                        MAX_SIGNED_32BIT_INT,
-                        TYPE_DICTIONARY[exc["type"]],
-                        exc.get("uncertainty type", 0),
-                        exc["amount"],
-                        exc["amount"] \
-                            if exc.get("uncertainty type", 0) in (0,1) \
-                            else exc.get("loc", np.NaN),
-                        exc.get("scale", np.NaN),
-                        exc.get("shape", np.NaN),
-                        exc.get("minimum", np.NaN),
-                        exc.get("maximum", np.NaN),
-                        exc["amount"] < 0
-                    )
-
-                except KeyError:
-                    raise UnknownObject(("Exchange between {} and {} is invalid "
-                        "- {} is unknown (i.e. doesn't exist as a process dataset)"
-                        ).format(exc["input"], key, exc["input"])
-                    )
-
-                count += 1
-            if not production_found:
-                # Add amount produced for each process (default 1)
-                arr[count] = (
-                    mapping[key], mapping[key],
-                    MAX_SIGNED_32BIT_INT, MAX_SIGNED_32BIT_INT, TYPE_DICTIONARY["production"],
-                    0, 1, 1, np.NaN, np.NaN, np.NaN, np.NaN, False
-                )
-                count += 1
+        resources.append(
+            {
+                "name": clean_datapackage_name(
+                    self.name + " inventory geomapping matrix"
+                ),
+                "matrix": "inv_mapping_matrix",
+                "path": "inv_geomapping_matrix.npy",
+                "data": (
+                    {
+                        "row": mapping[key],
+                        "col": geomapping[
+                            data[key].get("location") or config.global_location
+                        ],
+                        "amount": 1,
+                    }
+                    for key in data
+                ),
+                "nrows": len(data),
+            }
+        )
+        resources.append(
+            {
+                "name": clean_datapackage_name(self.name + " technosphere matrix"),
+                "matrix": "technosphere_matrix",
+                "path": "technosphere_matrix.npy",
+                "data": self.exchange_generator(
+                    data,
+                    (
+                        "technosphere",
+                        "generic consumption",
+                        "production",
+                        "substitution",
+                        "generic production",
+                    ),
+                ),
+            }
+        )
+        resources.append(
+            {
+                "name": clean_datapackage_name(self.name + " biosphere matrix"),
+                "matrix": "biosphere_matrix",
+                "path": "biosphere_matrix.npy",
+                "data": self.exchange_generator(data, ("biosphere",), False),
+            }
+        )
+        create_calculation_package(
+            name=self.filename_processed(),
+            resources=resources,
+            path=self.dirpath_processed(),
+            compress=True,
+        )
 
         # Automatically set 'depends'
-        self.metadata['depends'] = self.find_dependents()
+        self.metadata["depends"] = self.find_dependents()
+        self.metadata["processed"] = datetime.datetime.now().isoformat()
         self._metadata.flush()
-
-        # The array is too big, because it can include a default production
-        # amount for each activity. Trim to actual size.
-        arr = arr[:count]
-        arr.sort(order=self.dtype_field_order())
-        np.save(self.filepath_processed(), arr, allow_pickle=False)
 
     def query(self, *queries):
         """Search through the database."""
@@ -335,8 +306,8 @@ Doesn't return anything, but writes two files to disk.
             * *format* (str, optional): Format that the database was converted from, e.g. "Ecospold"
 
         """
-        if 'depends' not in kwargs:
-            kwargs['depends'] = []
+        if "depends" not in kwargs:
+            kwargs["depends"] = []
         kwargs["backend"] = self.backend
         super(LCIBackend, self).register(**kwargs)
 
@@ -391,14 +362,19 @@ Doesn't return anything, but writes two files to disk.
             The modified data
 
         """
+
         def relabel_exchanges(obj, new_name):
-            for e in obj.get('exchanges', []):
+            for e in obj.get("exchanges", []):
                 if e["input"] in data:
                     e["input"] = (new_name, e["input"][1])
             return obj
 
-        return dict([((new_name, k[1]), relabel_exchanges(v, new_name)) \
-            for k, v in data.items()])
+        return dict(
+            [
+                ((new_name, k[1]), relabel_exchanges(v, new_name))
+                for k, v in data.items()
+            ]
+        )
 
     def rename(self, name):
         """Rename a database. Modifies exchanges to link to new name. Deregisters old database.

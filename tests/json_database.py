@@ -65,19 +65,19 @@
 
 #     def test_register_creates_directory(self):
 #         self.assertFalse(os.path.exists(os.path.join(
-#             projects.dir, u"intermediate", u"foo"
+#             projects.dir, "intermediate", "foo"
 #         )))
 #         JSONDatabase("foo").register()
-#         print(os.listdir(os.path.join(projects.dir, u"intermediate")))
+#         print(os.listdir(os.path.join(projects.dir, "intermediate")))
 #         self.assertTrue(os.path.exists(os.path.join(
 #             projects.dir,
-#             u"intermediate",
-#             u"foo.acbd18db4cc2f85cedef654fccc4a4d8"
+#             "intermediate",
+#             "foo.acbd18db4cc2f85cedef654fccc4a4d8"
 #         )))
 #         self.assertTrue(os.path.isdir(os.path.join(
 #             projects.dir,
-#             u"intermediate",
-#             u"foo.acbd18db4cc2f85cedef654fccc4a4d8"
+#             "intermediate",
+#             "foo.acbd18db4cc2f85cedef654fccc4a4d8"
 #         )))
 
 #     def test_write_sets_number_metadata(self):
@@ -117,14 +117,14 @@
 #         shutil.rmtree(self.fp)
 
 #     def test_write_on_modification(self):
-#         self.js[(u"futball", u"brazil")] = {u"foot": u"ball"}
+#         self.js[("futball", "brazil")] = {"foot": "ball"}
 #         self.assertIn(
-#             u"brazil.6e5fa4d9c48ca921c0a2ce1e64c9ae6f.json",
+#             "brazil.6e5fa4d9c48ca921c0a2ce1e64c9ae6f.json",
 #             os.listdir(self.fp)
 #         )
 #         with open(os.path.join(
 #                 self.fp,
-#                 u"brazil.6e5fa4d9c48ca921c0a2ce1e64c9ae6f.json"
+#                 "brazil.6e5fa4d9c48ca921c0a2ce1e64c9ae6f.json"
 #                 )) as f:
 #             data = json.load(f)
 #             print(data)

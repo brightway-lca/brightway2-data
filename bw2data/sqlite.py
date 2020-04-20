@@ -1,16 +1,11 @@
 # -*- coding: utf-8 -*-
 from peewee import SqliteDatabase, BlobField
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
+import pickle
 
 
 class PickleField(BlobField):
     def db_value(self, value):
-        return super(PickleField, self).db_value(
-            pickle.dumps(value, protocol=4)
-        )
+        return super(PickleField, self).db_value(pickle.dumps(value, protocol=4))
 
     def python_value(self, value):
         return pickle.loads(bytes(value))
@@ -50,4 +45,4 @@ class SubstitutableDatabase(object):
 
     def vacuum(self):
         print("Vacuuming database ")
-        self.execute_sql('VACUUM;')
+        self.execute_sql("VACUUM;")

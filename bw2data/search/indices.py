@@ -26,13 +26,13 @@ class IndexManager(object):
     def _format_dataset(self, ds):
         fl = lambda o: o[1].lower() if isinstance(o, tuple) else o.lower()
         return dict(
-            name=ds.get(u"name", u"").lower(),
-            comment=ds.get(u"comment", u"").lower(),
-            product=ds.get(u"reference product", u"").lower(),
-            categories=u", ".join(ds.get(u"categories", [])).lower(),
-            location=fl(ds.get(u"location", u"")),
-            database=ds[u"database"],
-            code=ds['code']
+            name=ds.get("name", "").lower(),
+            comment=ds.get("comment", "").lower(),
+            product=ds.get("reference product", "").lower(),
+            categories=u", ".join(ds.get("categories", [])).lower(),
+            location=fl(ds.get("location", "")),
+            database=ds["database"],
+            code=ds["code"],
         )
 
     def add_dataset(self, ds):
@@ -51,7 +51,7 @@ class IndexManager(object):
 
     def delete_dataset(self, ds):
         index = self.get()
-        index.delete_by_term("code", ds['code'])
+        index.delete_by_term("code", ds["code"])
 
     def delete_database(self):
         shutil.rmtree(self.path)

@@ -4,7 +4,7 @@ import os
 import re
 import unicodedata
 
-re_slugify = re.compile(r'[^\w\s-]', re.UNICODE)
+re_slugify = re.compile(r"[^\w\s-]", re.UNICODE)
 
 
 def safe_filename(string, add_hash=True):
@@ -14,19 +14,14 @@ def safe_filename(string, add_hash=True):
 
     From http://stackoverflow.com/questions/295135/turn-a-string-into-a-valid-filename-in-python"""
     safe = re.sub(
-        r'[-\s]+',
-        '-',
-        str(
-            re_slugify.sub(
-                '',
-                unicodedata.normalize('NFKD', str(string))
-            ).strip()
-        )
+        r"[-\s]+",
+        "-",
+        str(re_slugify.sub("", unicodedata.normalize("NFKD", str(string))).strip()),
     )
     if add_hash:
         if isinstance(string, str):
             string = string.encode("utf8")
-        return safe + u"." + hashlib.md5(string).hexdigest()
+        return safe + "." + hashlib.md5(string).hexdigest()
     else:
         return safe
 
@@ -45,7 +40,7 @@ def check_dir(directory):
 def md5(filepath, blocksize=65536):
     """Generate MD5 hash for file at `filepath`"""
     hasher = hashlib.md5()
-    fo = open(filepath, 'rb')
+    fo = open(filepath, "rb")
     buf = fo.read(blocksize)
     while len(buf) > 0:
         hasher.update(buf)

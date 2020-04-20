@@ -3,7 +3,10 @@ from . import config
 from .errors import ReadOnlyProject
 from .filesystem import safe_filename, create_dir
 from .sqlite import PickleField, SubstitutableDatabase
+from .utils import maybe_path
 from fasteners import InterProcessLock
+from collections.abc import Iterable
+from pathlib import Path
 from peewee import Model, TextField
 from threading import ThreadError
 import appdirs
@@ -12,10 +15,6 @@ import shutil
 import tempfile
 import warnings
 import wrapt
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 
 
 READ_ONLY_PROJECT = """
@@ -31,7 +30,7 @@ This project is being used by another process and no writes can be made until:
 
 
 def lockable():
-    return hasattr(config, "p") and config.p.get('lockable')
+    return hasattr(config, "p") and config.p.get("lockable")
 
 
 class ProjectDataset(Model):
@@ -64,8 +63,7 @@ class ProjectManager(Iterable):
         self._base_data_dir, self._base_logs_dir = self._get_base_directories()
         self._create_base_directories()
         self.db = SubstitutableDatabase(
-            os.path.join(self._base_data_dir, "projects.db"),
-            [ProjectDataset]
+            self._base_data_dir / "projects.db", [ProjectDataset]
         )
         self.set_current("default", update=False)
 
@@ -81,38 +79,50 @@ class ProjectManager(Iterable):
 
     def __repr__(self):
         if len(self) > 20:
-            return ("Brightway2 projects manager with {} objects, including:"
-                    "{}\nUse `sorted(projects)` to get full list, "
-                    "`projects.report()` to get\n\ta report on all projects.").format(
+            return (
+                "Brightway2 projects manager with {} objects, including:"
+                "{}\nUse `sorted(projects)` to get full list, "
+                "`projects.report()` to get\n\ta report on all projects."
+            ).format(
                 len(self),
-                "".join(["\n\t{}".format(x) for x in sorted([x.name for x in self])[:10]])
+                "".join(
+                    ["\n\t{}".format(x) for x in sorted([x.name for x in self])[:10]]
+                ),
             )
         else:
-            return ("Brightway2 projects manager with {} objects:{}"
-                    "\nUse `projects.report()` to get a report on all projects.").format(
+            return (
+                "Brightway2 projects manager with {} objects:{}"
+                "\nUse `projects.report()` to get a report on all projects."
+            ).format(
                 len(self),
-                "".join(["\n\t{}".format(x) for x in sorted([x.name for x in self])])
+                "".join(["\n\t{}".format(x) for x in sorted([x.name for x in self])]),
             )
 
     ### Internal functions for managing projects
 
     def _get_base_directories(self):
-        envvar = os.getenv("BRIGHTWAY2_DIR")
+        envvar = maybe_path(os.getenv("BRIGHTWAY2_DIR"))
         if envvar:
-            if not os.path.isdir(envvar):
-                raise OSError(("BRIGHTWAY2_DIR variable is {}, but this is not"
-                               " a valid directory").format(envvar))
+            if not envvar.is_dir():
+                raise OSError(
+                    (
+                        "BRIGHTWAY2_DIR variable is {}, but this is not"
+                        " a valid directory"
+                    ).format(envvar)
+                )
             else:
-                print("Using environment variable BRIGHTWAY2_DIR for data "
-                      "directory:\n{}".format(envvar))
-                envvar = os.path.abspath(envvar)
-                logs_dir = os.path.join(envvar, "logs")
+                print(
+                    "Using environment variable BRIGHTWAY2_DIR for data "
+                    "directory:\n{}".format(envvar)
+                )
+                envvar = envvar.absolute()
+                logs_dir = envvar / "logs"
                 create_dir(logs_dir)
                 return envvar, logs_dir
 
         LABEL = "Brightway3"
-        data_dir = appdirs.user_data_dir(LABEL, "pylca")
-        logs_dir = appdirs.user_log_dir(LABEL, "pylca")
+        data_dir = Path(appdirs.user_data_dir(LABEL, "pylca"))
+        logs_dir = Path(appdirs.user_log_dir(LABEL, "pylca"))
         return data_dir, logs_dir
 
     def _create_base_directories(self):
@@ -141,7 +151,7 @@ class ProjectManager(Iterable):
         if not lockable():
             pass
         elif writable:
-            self._lock = InterProcessLock(os.path.join(self.dir, "write-lock"))
+            self._lock = InterProcessLock(self.dir / "write-lock")
             self.read_only = not self._lock.acquire(timeout=0.05)
             if self.read_only:
                 warnings.warn(READ_ONLY_PROJECT)
@@ -154,6 +164,7 @@ class ProjectManager(Iterable):
     def _do_automatic_updates(self):
         """Run any available automatic updates"""
         from .updates import Updates
+
         for update_name in Updates.check_automatic_updates():
             print("Applying automatic update: {}".format(update_name))
             Updates.do_update(update_name)
@@ -164,22 +175,16 @@ class ProjectManager(Iterable):
 
     def _reset_sqlite3_databases(self):
         for relative_path, substitutable_db in config.sqlite3_databases:
-            substitutable_db.change_path(os.path.join(self.dir, relative_path))
+            substitutable_db.change_path(self.dir / relative_path)
 
     ### Public API
     @property
     def dir(self):
-        return os.path.join(
-            self._base_data_dir,
-            safe_filename(self.current)
-        )
+        return self._base_data_dir / safe_filename(self.current)
 
     @property
     def logs_dir(self):
-        return os.path.join(
-            self._base_logs_dir,
-            safe_filename(self.current)
-        )
+        return self._base_logs_dir / safe_filename(self.current)
 
     @property
     def output_dir(self):
@@ -190,41 +195,39 @@ class ProjectManager(Iterable):
         Returns output directory path.
 
         """
-        ep, pp = os.getenv('BRIGHTWAY2_OUTPUT_DIR'), config.p.get('output_dir')
-        if ep and os.path.isdir(ep):
+        ep, pp = (
+            maybe_path(os.getenv("BRIGHTWAY2_OUTPUT_DIR")),
+            maybe_path(config.p.get("output_dir")),
+        )
+        if ep and ep.is_dir():
             return ep
-        elif pp and os.path.isdir(pp):
+        elif pp and pp.is_dir():
             return pp
         else:
-            return self.request_directory('output')
+            return self.request_directory("output")
 
     def create_project(self, name=None, **kwargs):
         name = name or self.current
-        if not ProjectDataset.select().where(
-                ProjectDataset.name == name).count():
-            ProjectDataset.create(
-                data=kwargs,
-                name=name
-            )
+        if not ProjectDataset.select().where(ProjectDataset.name == name).count():
+            ProjectDataset.create(data=kwargs, name=name)
         create_dir(self.dir)
         for dir_name in self._basic_directories:
-            create_dir(os.path.join(self.dir, dir_name))
+            create_dir(self.dir / dir_name)
         create_dir(self.logs_dir)
 
     def copy_project(self, new_name, switch=True):
         """Copy current project to a new project named ``new_name``. If ``switch``, switch to new project."""
         if new_name in self:
             raise ValueError("Project {} already exists".format(new_name))
-        fp = os.path.join(self._base_data_dir, safe_filename(new_name))
-        if os.path.exists(fp):
+        fp = self._base_data_dir / safe_filename(new_name)
+        if fp.exists():
             raise ValueError("Project directory already exists")
-        project_data = ProjectDataset.select(ProjectDataset.name == self.current).get().data
+        project_data = (
+            ProjectDataset.select(ProjectDataset.name == self.current).get().data
+        )
         ProjectDataset.create(data=project_data, name=new_name)
         shutil.copytree(self.dir, fp, ignore=lambda x, y: ["write-lock"])
-        create_dir(os.path.join(
-            self._base_logs_dir,
-            safe_filename(new_name)
-        ))
+        create_dir(self._base_logs_dir / safe_filename(new_name))
         if switch:
             self.set_current(new_name)
 
@@ -232,9 +235,9 @@ class ProjectManager(Iterable):
         """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
 
         Returns ``False`` if directory can't be created."""
-        fp = os.path.join(self.dir, str(name))
+        fp = self.dir / str(name)
         create_dir(fp)
-        if not os.path.isdir(fp):
+        if not fp.is_dir():
             return False
         return fp
 
@@ -245,10 +248,10 @@ class ProjectManager(Iterable):
         if not self._is_temp_dir:
             self._orig_base_data_dir = self._base_data_dir
             self._orig_base_logs_dir = self._base_logs_dir
-        temp_dir = tempfile.mkdtemp()
-        self._base_data_dir = os.path.join(temp_dir, "data")
-        self._base_logs_dir = os.path.join(temp_dir, "logs")
-        self.db.change_path(':memory:')
+        temp_dir = Path(tempfile.mkdtemp())
+        self._base_data_dir = temp_dir / "data"
+        self._base_logs_dir = temp_dir / "logs"
+        self.db.change_path(":memory:")
         self.set_current("default", update=False)
         self._is_temp_dir = True
         return temp_dir
@@ -263,7 +266,7 @@ class ProjectManager(Iterable):
         del self._orig_base_data_dir
         self._base_logs_dir = self._orig_base_logs_dir
         del self._orig_base_logs_dir
-        self.db.change_path(os.path.join(self._base_data_dir, "projects.db"))
+        self.db.change_path(self._base_data_dir / "projects.db")
         self.set_current("default", update=False)
         self._is_temp_dir = False
 
@@ -285,11 +288,8 @@ class ProjectManager(Iterable):
         ProjectDataset.delete().where(ProjectDataset.name == victim).execute()
 
         if delete_dir:
-            dir_path = os.path.join(
-                self._base_data_dir,
-                safe_filename(victim)
-            )
-            assert os.path.isdir(dir_path), "Can't find project directory"
+            dir_path = self._base_data_dir / safe_filename(victim)
+            assert dir_path.is_dir(), "Can't find project directory"
             shutil.rmtree(dir_path)
 
         if name is None or name == self.current:
@@ -304,10 +304,11 @@ class ProjectManager(Iterable):
 
         Returns number of directories deleted."""
         registered = {safe_filename(obj.name) for obj in self}
-        bad_directories = [os.path.join(self._base_data_dir, dirname)
-                           for dirname in os.listdir(self._base_data_dir)
-                           if os.path.isdir(os.path.join(self._base_data_dir, dirname))
-                           and dirname not in registered]
+        bad_directories = [
+            self._base_data_dir / dirname
+            for dirname in os.listdir(self._base_data_dir)
+            if (self._base_data_dir / dirname).is_dir() and dirname not in registered
+        ]
 
         for fp in bad_directories:
             shutil.rmtree(fp)
@@ -319,6 +320,7 @@ class ProjectManager(Iterable):
 
         Returns tuples of ``(project name, number of databases, size of all databases (GB))``."""
         from . import databases
+
         _current = self.current
         data = []
 
@@ -327,9 +329,9 @@ class ProjectManager(Iterable):
 
             Does not follow symbolic links"""
             return sum(
-                sum(os.path.getsize(os.path.join(root, name))
-                for name in files
-            ) for root, dirs, files in os.walk(dirpath))
+                sum(os.path.getsize(root / name) for name in files)
+                for root, dirs, files in os.walk(dirpath)
+            )
 
         names = sorted([x.name for x in self])
         for obj in names:

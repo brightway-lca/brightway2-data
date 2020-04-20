@@ -14,21 +14,25 @@ class Activity(ActivityProxyBase):
         raise NotImplementedError
 
     def exchanges(self):
-        return [Exchange(exc, self)
-                for exc in self._data.get(u'exchanges', [])]
+        return [Exchange(exc, self) for exc in self._data.get("exchanges", [])]
 
     def technosphere(self):
-        return [Exchange(exc, self)
-                for exc in self._data.get(u'exchanges', [])
-                if exc.get('type') == 'technosphere']
+        return [
+            Exchange(exc, self)
+            for exc in self._data.get("exchanges", [])
+            if exc.get("type") == "technosphere"
+        ]
 
     def biosphere(self):
-        return [Exchange(exc, self)
-                for exc in self._data.get(u'exchanges', [])
-                if exc.get('type') == 'biosphere']
+        return [
+            Exchange(exc, self)
+            for exc in self._data.get("exchanges", [])
+            if exc.get("type") == "biosphere"
+        ]
 
     def upstream(self, *args, **kwargs):
         raise NotImplementedError
+
 
 # -*- coding: utf-8 -*
 
@@ -55,6 +59,7 @@ Properties:
 * ``unit``
 
     """
+
     def __setitem__(self, key, value):
         raise AttributeError("Exchange proxies are read-only.")
 
