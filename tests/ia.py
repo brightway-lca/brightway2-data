@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from bw2data.tests import bw2test
-from bw2data import projects
 from bw2data.database import DatabaseChooser as Database
 from bw2data.ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS
 from bw2data.meta import mapping, geomapping, weightings, normalizations, methods
@@ -10,11 +9,7 @@ from bw2data.validate import weighting_validator, normalization_validator, ia_va
 from bw2data.weighting_normalization import Normalization, Weighting
 from bw_processing import load_package
 import hashlib
-import numpy as np
-import os
 import pytest
-
-# gm = load_package(database.filepath_processed())["inv_geomapping_matrix.npy"]
 
 
 class Metadata(CompoundJSONDict):

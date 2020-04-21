@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-from . import bw2test
-from .fixtures import food as food_data, biosphere
-from bw2data import config, projects
+from bw2data.tests import bw2test
+from bw2data import projects
 from bw2data.data_store import DataStore, ProcessedDataStore
 from bw2data.errors import UnknownObject
 from bw2data.serialization import SerializedDict

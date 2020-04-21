@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import BW2DataTest
+from bw2data.tests import BW2DataTest
 from bw2data import Updates, config
 import random
 

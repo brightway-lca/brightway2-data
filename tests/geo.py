@@ -12,7 +12,6 @@ from bw2data.tests import bw2test
 from bw_processing import load_package
 import copy
 import numpy as np
-import os
 import pytest
 
 

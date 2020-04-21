@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-from . import bw2test, BW2DataTest
-from .fixtures import food, biosphere, get_naughty
-from bw2data import config, projects
+from bw2data.tests import BW2DataTest
+from .fixtures import food, biosphere
+from bw2data import config
 from bw2data.backends.peewee import (
     Activity as PWActivity,
     ActivityDataset,

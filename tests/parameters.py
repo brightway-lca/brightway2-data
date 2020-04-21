@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-from . import bw2test
-from bw2data import parameters, projects, Database, get_activity
+from bw2data.tests import bw2test
+from bw2data import parameters, Database, get_activity
 from bw2data.parameters import (
     ActivityParameter,
     DatabaseParameter,

@@ -1,4 +1,4 @@
-from . import bw2test
+from bw2data.tests import bw2test
 from bw2data import projects
 from bw2data.backends.peewee import sqlite3_lci_db as db
 from bw2data.database import DatabaseChooser

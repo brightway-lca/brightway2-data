@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import bw2test
+from bw2data.tests import bw2test
 from bw2data import databases
 from bw2data.search import *
 from bw2data.backends.peewee import *

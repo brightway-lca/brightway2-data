@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-from . import bw2test, BW2DataTest
+from bw2data.tests import bw2test
 from .fixtures import food as food_data, biosphere, get_naughty
-from bw2data import projects
 from bw2data.database import DatabaseChooser
 from bw2data.backends.peewee import (
     Activity as PWActivity,
@@ -33,7 +32,6 @@ from bw_processing import load_package
 import copy
 import datetime
 import numpy as np
-import os
 import pytest
 import warnings
 
