@@ -1,5 +1,5 @@
-from . import bw2test
 from bw2data import databases, methods, mapping, geomapping, projects
+from bw2data.tests import bw2test
 
 
 @bw2test

@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-from . import bw2test
-from bw2data.database import DatabaseChooser
 from bw2data.backends.peewee import ActivityDataset, ExchangeDataset
+from bw2data.database import DatabaseChooser
 from bw2data.errors import ValidityError
 from bw2data.parameters import (
     ActivityParameter,
     ParameterizedExchange,
     parameters,
 )
+from bw2data.tests import bw2test
 from bw2data.utils import get_activity
 from peewee import DoesNotExist
 import pytest
