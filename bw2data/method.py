@@ -62,3 +62,9 @@ class Method(ImpactAssessmentDataStore):
         self.metadata["num_cfs"] = len(data)
         self._metadata.flush()
         super(Method, self).write(data)
+
+    def process(self, format_function=None, resource_metadata=None):
+        if resource_metadata is None:
+            resource_metadata = {}
+        resource_metadata["global_location"] = geomapping[config.global_location]
+        super().process(format_function, resource_metadata)

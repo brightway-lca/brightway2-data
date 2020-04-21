@@ -177,7 +177,7 @@ In addition to ``metadata`` and (optionally) ``validator``, subclasses should ov
         See `bw_processing documentation <https://github.com/brightway-lca/bw_processing>`__."""
         raise NotImplementedError
 
-    def process(self, format_function=None):
+    def process(self, format_function=None, resource_metadata=None):
         """
 Process intermediate data from a Python dictionary to a `stats_arrays <https://pypi.python.org/pypi/stats_arrays/>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
 
@@ -193,6 +193,7 @@ Doesn't return anything, but writes a file to disk.
             name=self.filename_processed(),
             resources=[
                 {
+                    **(resource_metadata or {}),
                     "name": clean_datapackage_name(str(self.name) + " matrix data"),
                     "matrix": self.matrix,
                     "path": self.matrix + ".npy",
