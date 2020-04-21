@@ -2,9 +2,8 @@
 from . import projects
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
-from .filesystem import safe_filename
 from .project import writable_project
-from bw_processing import create_calculation_package, clean_datapackage_name
+from bw_processing import create_calculation_package, clean_datapackage_name, safe_filename
 import pickle
 
 

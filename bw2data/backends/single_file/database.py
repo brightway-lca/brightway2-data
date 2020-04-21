@@ -4,10 +4,10 @@ from ...errors import MissingIntermediateData
 from ...fatomic import open as atomic_open
 from ...project import writable_project
 from ...utils import natural_sort
-from ...filesystem import safe_filename
 from ...validate import db_validator
-from .proxies import Activity
 from ..base import LCIBackend
+from .proxies import Activity
+from bw_processing import safe_filename
 import datetime
 import os
 import pickle

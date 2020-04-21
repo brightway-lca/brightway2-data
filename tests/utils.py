@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-from bw2data.tests import BW2DataTest, bw2test
 from .fixtures import biosphere
 from bw2data import Database, Method, methods, databases, mapping
 from bw2data.backends.peewee import Activity as PWActivity
 from bw2data.backends.single_file import Activity as SFActivity
 from bw2data.errors import ValidityError
-from bw2data.filesystem import safe_filename
+from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
     as_uncertainty_dict,
     combine_methods,
@@ -16,7 +15,6 @@ from bw2data.utils import (
     uncertainify,
 )
 from bw_processing import load_package
-import numpy as np
 import pytest
 import stats_arrays as sa
 
@@ -48,9 +46,6 @@ class UtilsTest(BW2DataTest):
             [(("biosphere", 1), 1, "GLO"), (("biosphere", 2), 12, "GLO")],
         )
         self.assertEqual(methods[["test method 3"]]["unit"], "p")
-
-    def test_safe_filename_unicode_input(self):
-        self.assertTrue(safe_filename("Søren Kierkegaard"))
 
 
 class UncertainifyTestCase(BW2DataTest):

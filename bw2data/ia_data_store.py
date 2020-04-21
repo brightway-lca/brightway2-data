@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from .data_store import ProcessedDataStore
-from .filesystem import safe_filename
+from bw_processing import safe_filename
 import hashlib
 import string
 

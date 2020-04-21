@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from ...serialization import JsonWrapper
-from ...filesystem import safe_filename
 from .mapping import get_mapping
+from bw_processing import safe_filename
 from collections.abc import MutableMapping
 import json
 import os

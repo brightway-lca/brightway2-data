@@ -18,6 +18,10 @@ This allows for cleaner and more consistent code. Includes things like `projects
 
 We now use [bw_processing](https://github.com/brightway-lca/bw_processing) to create processed arrays. Processed arrays are compressed directories (because there is a metadata file as well, and possibly multiple array files). All databases, methods, etc. will need to be reprocessed, but this happens automatically via a data migration.
 
+## Smaller changes
+
+* `bw2data.utils.safe_filename` was moved to `bw_processing`
+
 ### 3.6.2 (2019-11-11)
 
 * Fixed invalid variable name creation

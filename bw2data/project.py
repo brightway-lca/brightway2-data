@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 from . import config
 from .errors import ReadOnlyProject
-from .filesystem import safe_filename, create_dir
+from .filesystem import create_dir
 from .sqlite import PickleField, SubstitutableDatabase
 from .utils import maybe_path
+from bw_processing import safe_filename
 from fasteners import InterProcessLock
 from collections.abc import Iterable
 from pathlib import Path
