@@ -126,7 +126,7 @@ def test_method_processed_array_global_location(reset):
     method = Method(("a", "method"))
     method.write([[("foo", "bar"), 42]])
     package = load_package(method.filepath_processed())
-    assert isinstance(package['datapackage']['resources'][0]['global_location'], int)
+    assert isinstance(package['datapackage']['resources'][0]['global_index'], int)
 
 
 def test_method_base_class(reset):

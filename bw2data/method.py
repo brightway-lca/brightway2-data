@@ -66,5 +66,5 @@ class Method(ImpactAssessmentDataStore):
     def process(self, format_function=None, resource_metadata=None):
         if resource_metadata is None:
             resource_metadata = {}
-        resource_metadata["global_location"] = geomapping[config.global_location]
+        resource_metadata["global_index"] = geomapping[config.global_location]
         super().process(format_function, resource_metadata)
