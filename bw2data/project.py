@@ -121,7 +121,7 @@ class ProjectManager(Iterable):
                 create_dir(logs_dir)
                 return envvar, logs_dir
 
-        LABEL = "Brightway2"
+        LABEL = "Brightway3"
         data_dir = Path(appdirs.user_data_dir(LABEL, "pylca"))
         logs_dir = Path(appdirs.user_log_dir(LABEL, "pylca"))
         return data_dir, logs_dir
