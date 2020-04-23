@@ -18,6 +18,7 @@ __all__ = [
     "normalizations",
     "parameters",
     "preferences",
+    "prepare_lca_inputs",
     "ProcessedDataStore",
     "projects",
     "Searcher",
@@ -68,6 +69,7 @@ from .method import Method
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
 from .backends import convert_backend
+from .compat import prepare_lca_inputs
 
 # Don't confuse nose tests
 from .updates import Updates
