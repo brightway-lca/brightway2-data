@@ -11,6 +11,14 @@ from . import (
 )
 
 
+def unpack(dct):
+    for obj in dct:
+        if hasattr(obj, "key"):
+            yield obj.key
+        else:
+            yield obj
+
+
 def prepare_lca_inputs(
     demand=None, method=None, weighting=None, normalization=None, remapping=True
 ):
@@ -23,7 +31,7 @@ def prepare_lca_inputs(
             for obj in set.union(
                 *[
                     Database(db_label).find_graph_dependents()
-                    for db_label, _ in demand
+                    for db_label, _ in unpack(demand)
                 ]
             )
         ])
