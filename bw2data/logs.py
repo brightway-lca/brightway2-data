@@ -5,7 +5,6 @@ from logging.handlers import RotatingFileHandler
 import codecs
 import datetime
 import logging
-import os
 import requests
 import uuid
 
@@ -26,7 +25,7 @@ class FakeLog(object):
 
 
 def get_logger(name, level=logging.INFO):
-    filename = "%s-%s.log" % (
+    filename = "{}-{}.log".format(
         name,
         datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"),
     )
@@ -44,7 +43,7 @@ def get_logger(name, level=logging.INFO):
 
 def get_io_logger(name):
     """Build a logger that records only relevent data for display later as HTML."""
-    filepath = projects.logs_dir / "%s.%s.log" % (name, random_string(6))
+    filepath = projects.logs_dir / "{}.{}.log".format(name, random_string(6))
     handler = logging.StreamHandler(codecs.open(filepath, "w", "utf-8"))
     logger = logging.getLogger(name)
     logger.propagate = False
@@ -55,7 +54,7 @@ def get_io_logger(name):
 
 
 def get_verbose_logger(name, level=logging.WARNING):
-    filename = "%s-%s.log" % (
+    filename = "{}-{}.log".format(
         name,
         datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"),
     )
