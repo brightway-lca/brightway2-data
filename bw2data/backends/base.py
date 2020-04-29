@@ -223,6 +223,8 @@ Args:
 Doesn't return anything, but writes two files to disk.
 
         """
+        self.metadata["processed"] = datetime.datetime.now().isoformat()
+
         data = self.load(as_dict=True, *args, **kwargs)
         resources = []
 
@@ -280,7 +282,7 @@ Doesn't return anything, but writes two files to disk.
 
         # Automatically set 'depends'
         self.metadata["depends"] = self.find_dependents()
-        self.metadata["processed"] = datetime.datetime.now().isoformat()
+        self.metadata["dirty"] = False
         self._metadata.flush()
 
     def query(self, *queries):
