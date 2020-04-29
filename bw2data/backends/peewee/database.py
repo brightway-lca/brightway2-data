@@ -426,6 +426,9 @@ class SQLiteBackend(LCIBackend):
         Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         """
+        # Try to avoid race conditions - but no guarantee
+        self.metadata["processed"] = datetime.datetime.now().isoformat()
+
         # Get number of exchanges and processes to set
         # initial Numpy array size (still have to include)
         # implicit production exchanges
@@ -531,7 +534,7 @@ class SQLiteBackend(LCIBackend):
         )
 
         self.metadata["depends"] = sorted(dependents)
-        self.metadata["processed"] = datetime.datetime.now().isoformat()
+        self.metadata["dirty"] = False
         self._metadata.flush()
 
     def search(self, string, **kwargs):
