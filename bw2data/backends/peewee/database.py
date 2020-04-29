@@ -519,7 +519,7 @@ class SQLiteBackend(LCIBackend):
                 "matrix": "technosphere_matrix",
                 "path": "technosphere_matrix.npy",
                 "data": itertools.chain(
-                    self.exchange_data_iterator(TECHNOSPHERE_NEGATIVE_SQL, dependents),
+                    self.exchange_data_iterator(TECHNOSPHERE_NEGATIVE_SQL, dependents, flip=True),
                     self.exchange_data_iterator(TECHNOSPHERE_POSITIVE_SQL, dependents),
                     implicit_production,
                 ),
