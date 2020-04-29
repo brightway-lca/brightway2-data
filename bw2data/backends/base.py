@@ -100,6 +100,11 @@ class LCIBackend(ProcessedDataStore):
     def filepath_intermediate(self):
         raise NotImplementedError
 
+    def filepath_processed(self):
+        if self.metadata.get("dirty"):
+            self.process()
+        return self.dirpath_processed() / self.filename_processed()
+
     def find_dependents(self, data=None, ignore=None):
         """Get sorted list of direct dependent databases (databases linked from exchanges).
 
