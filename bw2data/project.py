@@ -181,11 +181,11 @@ class ProjectManager(Iterable):
     ### Public API
     @property
     def dir(self):
-        return self._base_data_dir / safe_filename(self.current, full=True)
+        return Path(self._base_data_dir) / safe_filename(self.current)
 
     @property
     def logs_dir(self):
-        return self._base_logs_dir / safe_filename(self.current)
+        return Path(self._base_logs_dir) / safe_filename(self.current)
 
     @property
     def output_dir(self):
