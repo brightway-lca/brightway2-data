@@ -189,11 +189,11 @@ def recursive_str_to_unicode(data, encoding="utf8"):
         return data
     elif isinstance(data, bytes):
         return str(data, encoding)  # Faster than str.encode
-    elif isinstance(data, collections.Mapping):
+    elif isinstance(data, collections.abc.Mapping):
         return dict(
             map(recursive_str_to_unicode, data.items(), itertools.repeat(encoding))
         )
-    elif isinstance(data, collections.Iterable):
+    elif isinstance(data, collections.abc.Iterable):
         return type(data)(
             map(recursive_str_to_unicode, data, itertools.repeat(encoding))
         )
