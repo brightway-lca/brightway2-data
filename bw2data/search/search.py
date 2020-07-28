@@ -40,6 +40,7 @@ class Searcher(object):
             "comment",
             "product",
             "categories",
+            "synonyms",
             "location",
         ]
 
@@ -48,6 +49,7 @@ class Searcher(object):
             "comment": 1,
             "product": 3,
             "categories": 2,
+            "synonyms": 3,
             "location": 3,
         }
 
