@@ -37,6 +37,7 @@ def test_search_dataset():
                 "location": "",
                 "code": "bar",
                 "categories": "",
+                "synonyms": "",
             }
         ]
 
@@ -62,6 +63,7 @@ def test_search_geocollection_location():
                 "location": "here",
                 "code": "bar",
                 "categories": "",
+                "synonyms": "",
             }
         ]
 
@@ -83,6 +85,7 @@ def test_update_dataset():
                 "location": "",
                 "code": "bar",
                 "categories": "",
+                "synonyms": "",
             }
         ]
 
@@ -242,6 +245,7 @@ def test_search_faceting():
                 "location": "fr",
                 "code": "bar",
                 "categories": "",
+                "synonyms": "",
             }
         ],
         "ch": [
@@ -253,6 +257,7 @@ def test_search_faceting():
                 "location": "ch",
                 "code": "bar",
                 "categories": "",
+                "synonyms": "",
             }
         ],
     }
@@ -327,3 +332,25 @@ def test_case_sensitivity_mask():
     db.write(ds)
     assert len(db.search("lollipop")) == 2
     assert len(db.search("lollipop", mask={"product": "ZEbra"})) == 1
+
+
+@bw2test
+def test_synonym_search():
+    im = IndexManager("foo")
+    im.add_dataset({"database": "foo", "code": "bar", "name": "polytetrafluoroethylene", "synonyms":["PTFE", "Teflon"]})
+    with Searcher("foo") as s:
+        assert s.search("Teflon", proxy=False) == [
+            {
+                "comment": "",
+                "product": "",
+                "name": "polytetrafluoroethylene",
+                "database": "foo",
+                "location": "",
+                "code": "bar",
+                "categories": "",
+                "synonyms": "ptfe, teflon",
+            }
+        ]
+
+if __name__ == "__main__":
+    test_synonym_search()
