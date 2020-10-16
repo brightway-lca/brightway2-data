@@ -8,7 +8,7 @@ from bw_processing import safe_filename
 from fasteners import InterProcessLock
 from collections.abc import Iterable
 from pathlib import Path
-from peewee import Model, TextField
+from peewee import Model, TextField, BooleanField
 from threading import ThreadError
 import appdirs
 import os
@@ -37,6 +37,7 @@ def lockable():
 class ProjectDataset(Model):
     data = PickleField()
     name = TextField(index=True, unique=True)
+    full_hash = BooleanField(default=True)
 
     def __str__(self):
         return "Project: {}".format(self.name)
@@ -66,6 +67,14 @@ class ProjectManager(Iterable):
         self.db = SubstitutableDatabase(
             self._base_data_dir / "projects.db", [ProjectDataset]
         )
+
+        columns = {o.name for o in self.db._database.get_columns("projectdataset")}
+        if "full_hash" not in columns:
+            from playhouse.migrate import SqliteMigrator, migrate
+
+            migrator = SqliteMigrator(self.db._database)
+            full_hash = BooleanField(default=True)
+            migrate(migrator.add_column("projectdataset", "full_hash", full_hash),)
         self.set_current("default", update=False)
 
     def __iter__(self):
@@ -149,6 +158,8 @@ class ProjectManager(Iterable):
         self._reset_meta()
         self._reset_sqlite3_databases()
 
+        self._project_dataset = ProjectDataset.get(name=name)
+
         if not lockable():
             pass
         elif writable:
@@ -181,11 +192,15 @@ class ProjectManager(Iterable):
     ### Public API
     @property
     def dir(self):
-        return Path(self._base_data_dir) / safe_filename(self.current)
+        return Path(self._base_data_dir) / safe_filename(
+            self.current, full=self._project_dataset.full_hash
+        )
 
     @property
     def logs_dir(self):
-        return Path(self._base_logs_dir) / safe_filename(self.current)
+        return Path(self._base_logs_dir) / safe_filename(
+            self.current, full=self._project_dataset.full_hash
+        )
 
     @property
     def output_dir(self):
@@ -210,7 +225,8 @@ class ProjectManager(Iterable):
     def create_project(self, name=None, **kwargs):
         name = name or self.current
         if not ProjectDataset.select().where(ProjectDataset.name == name).count():
-            ProjectDataset.create(data=kwargs, name=name)
+            ProjectDataset.create(data=kwargs, name=name, full_hash=False)
+        self._project_dataset = ProjectDataset.get(name=name)
         create_dir(self.dir)
         for dir_name in self._basic_directories:
             create_dir(self.dir / dir_name)
@@ -340,6 +356,44 @@ class ProjectManager(Iterable):
             data.append((obj, len(databases), get_dir_size(projects.dir) / 1e9))
         self.set_current(_current)
         return data
+
+    def use_short_hash(self):
+        if not self._project_dataset.full_hash:
+            return
+        try:
+            old_dir, old_logs_dir = self.dir, self.logs_dir
+            self._project_dataset.full_hash = False
+            if self.dir.exists():
+                raise OSError("Target directory {} already exists".format(self.dir))
+            if self.logs_dir.exists():
+                raise OSError(
+                    "Target directory {} already exists".format(self.logs_dir)
+                )
+            old_dir.rename(self.dir)
+            old_logs_dir.rename(self.logs_dir)
+            self._project_dataset.save()
+        except Exception as ex:
+            self._project_dataset.full_hash = True
+            raise ex
+
+    def use_full_hash(self):
+        if self._project_dataset.full_hash:
+            return
+        try:
+            old_dir, old_logs_dir = self.dir, self.logs_dir
+            self._project_dataset.full_hash = True
+            if self.dir.exists():
+                raise OSError("Target directory {} already exists".format(self.dir))
+            if self.logs_dir.exists():
+                raise OSError(
+                    "Target directory {} already exists".format(self.logs_dir)
+                )
+            old_dir.rename(self.dir)
+            old_logs_dir.rename(self.logs_dir)
+            self._project_dataset.save()
+        except Exception as ex:
+            self._project_dataset.full_hash = False
+            raise ex
 
 
 projects = ProjectManager()
