@@ -20,32 +20,41 @@ def unpack(dct):
 
 
 def prepare_lca_inputs(
-    demand=None, method=None, weighting=None, normalization=None, demands=None, remapping=True
+    demand=None,
+    method=None,
+    weighting=None,
+    normalization=None,
+    demands=None,
+    remapping=True,
 ):
     """Prepare LCA input arguments in Brightway 3 style."""
     databases.clean()
     data_objs = []
     if demands:
-        data_objs.extend([
-            Database(obj).filepath_processed()
-            for obj in set.union(
-                *[
-                    Database(db_label).find_graph_dependents()
-                    for dct in demands
-                    for db_label, _ in unpack(dct)
-                ]
-            )
-        ])
+        data_objs.extend(
+            [
+                Database(obj).filepath_processed()
+                for obj in set.union(
+                    *[
+                        Database(db_label).find_graph_dependents()
+                        for dct in demands
+                        for db_label, _ in unpack(dct)
+                    ]
+                )
+            ]
+        )
     elif demand:
-        data_objs.extend([
-            Database(obj).filepath_processed()
-            for obj in set.union(
-                *[
-                    Database(db_label).find_graph_dependents()
-                    for db_label, _ in unpack(demand)
-                ]
-            )
-        ])
+        data_objs.extend(
+            [
+                Database(obj).filepath_processed()
+                for obj in set.union(
+                    *[
+                        Database(db_label).find_graph_dependents()
+                        for db_label, _ in unpack(demand)
+                    ]
+                )
+            ]
+        )
     if method:
         assert method in methods
         data_objs.append(Method(method).filepath_processed())
@@ -67,10 +76,7 @@ def prepare_lca_inputs(
         remapping = {}
 
     if demands:
-        indexed_demand = [
-            {mapping[k]: v for k, v in dct.items()}
-            for dct in demands
-        ]
+        indexed_demand = [{mapping[k]: v for k, v in dct.items()} for dct in demands]
     elif demand:
         indexed_demand = {mapping[k]: v for k, v in demand.items()}
     else:

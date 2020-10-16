@@ -26,8 +26,7 @@ class FakeLog(object):
 
 def get_logger(name, level=logging.INFO):
     filename = "{}-{}.log".format(
-        name,
-        datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"),
+        name, datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"),
     )
     handler = RotatingFileHandler(
         projects.logs_dir / filename, maxBytes=1e6, encoding="utf-8", backupCount=10,
@@ -55,8 +54,7 @@ def get_io_logger(name):
 
 def get_verbose_logger(name, level=logging.WARNING):
     filename = "{}-{}.log".format(
-        name,
-        datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"),
+        name, datetime.datetime.now().strftime("%d-%B-%Y-%I-%M%p"),
     )
     handler = RotatingFileHandler(
         projects.logs_dir / filename, maxBytes=50000, encoding="utf-8", backupCount=5,
