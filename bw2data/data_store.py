@@ -3,7 +3,7 @@ from . import projects
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open
 from .project import writable_project
-from bw_processing import create_calculation_package, clean_datapackage_name, safe_filename
+from bw_processing import create_datapackage, clean_datapackage_name, safe_filename
 import pickle
 
 
@@ -176,7 +176,7 @@ In addition to ``metadata`` and (optionally) ``validator``, subclasses should ov
         See `bw_processing documentation <https://github.com/brightway-lca/bw_processing>`__."""
         raise NotImplementedError
 
-    def process(self, format_function=None, resource_metadata=None):
+    def process(self, **extra_metadata):
         """
 Process intermediate data from a Python dictionary to a `stats_arrays <https://pypi.python.org/pypi/stats_arrays/>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
 
@@ -188,21 +188,20 @@ Doesn't return anything, but writes a file to disk.
 
         """
         data = self.load()
-        create_calculation_package(
+        dp = create_datapackage(
+            dirpath=self.dirpath_processed(),
             name=self.filename_processed(),
-            resources=[
-                {
-                    **(resource_metadata or {}),
-                    "name": clean_datapackage_name(str(self.name) + " matrix data"),
-                    "matrix": self.matrix,
-                    "path": self.matrix + ".npy",
-                    "data": (self.process_row(row) for row in data),
-                    "nrows": len(data),
-                    "format_function": format_function,
-                }
-            ],
-            path=self.dirpath_processed(),
+            compress=True,
+            overwrite=True,
         )
+        dp.add_persistent_vector_from_iterator(
+            matrix_label=self.matrix,
+            name=clean_datapackage_name(str(self.name) + " matrix data"),
+            dict_iterator=(self.process_row(row) for row in data),
+            nrows=len(data),
+            **extra_metadata
+        )
+        dp.finalize_serialization()
 
     def add_mappings(self, data):
         """Add objects to ``mapping`` or ``geomapping``, if necessary.

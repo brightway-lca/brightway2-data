@@ -48,7 +48,7 @@ class Method(ImpactAssessmentDataStore):
             "row": mapping[row[0]],
             "col": (
                 geomapping[row[2]]
-                if len(row) == 3
+                if len(row) >= 3
                 else geomapping[config.global_location]
             ),
         }
@@ -63,8 +63,6 @@ class Method(ImpactAssessmentDataStore):
         self._metadata.flush()
         super(Method, self).write(data)
 
-    def process(self, format_function=None, resource_metadata=None):
-        if resource_metadata is None:
-            resource_metadata = {}
-        resource_metadata["global_index"] = geomapping[config.global_location]
-        super().process(format_function, resource_metadata)
+    def process(self, **extra_metadata):
+        extra_metadata["global_index"] = geomapping[config.global_location]
+        super().process(**extra_metadata)
