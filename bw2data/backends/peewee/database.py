@@ -14,7 +14,7 @@ from .utils import (
     dict_as_exchangedataset,
     retupleize_geo_strings,
 )
-from bw_processing import create_calculation_package, clean_datapackage_name
+from bw_processing import clean_datapackage_name, create_datapackage, safe_filename
 from peewee import fn, DoesNotExist
 import datetime
 import itertools
@@ -432,7 +432,6 @@ class SQLiteBackend(LCIBackend):
         # Get number of exchanges and processes to set
         # initial Numpy array size (still have to include)
         # implicit production exchanges
-        resources = []
         dependents = set()
 
         # Create geomapping array, from dataset interger ids to locations
@@ -441,26 +440,29 @@ class SQLiteBackend(LCIBackend):
         ).where(
             ActivityDataset.database == self.name, ActivityDataset.type == "process"
         )
-        resources.append(
-            {
-                "name": clean_datapackage_name(
-                    self.name + " inventory geomapping matrix"
-                ),
-                "matrix": "inv_mapping_matrix",
-                "path": "inv_geomapping_matrix.npy",
-                "data": (
-                    {
-                        "row": mapping[(self.name, row["code"])],
-                        "col": geomapping[
-                            retupleize_geo_strings(row["location"])
-                            or config.global_location
-                        ],
-                        "amount": 1,
-                    }
-                    for row in inv_mapping_qs.dicts()
-                ),
-                "nrows": inv_mapping_qs.count(),
-            }
+
+        dp = create_datapackage(
+            dirpath=self.dirpath_processed(),
+            name=self.filename_processed(),
+            compress=True,
+            overwrite=True,
+            duplicates="sum",
+        )
+        dp.add_persistent_vector_from_iterator(
+            nrows=inv_mapping_qs.count(),
+            dict_iterator=(
+                {
+                    "row": mapping[(self.name, row["code"])],
+                    "col": geomapping[
+                        retupleize_geo_strings(row["location"])
+                        or config.global_location
+                    ],
+                    "amount": 1,
+                }
+                for row in inv_mapping_qs.dicts()
+            ),
+            matrix_label="inv_geomapping_matrix",
+            name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
         )
 
         BIOSPHERE_SQL = """SELECT data, input_database, input_code, output_database, output_code
@@ -468,13 +470,10 @@ class SQLiteBackend(LCIBackend):
                 WHERE output_database = ?
                 AND type = 'biosphere'
         """
-        resources.append(
-            {
-                "name": clean_datapackage_name(self.name + " biosphere matrix"),
-                "matrix": "biosphere_matrix",
-                "path": "biosphere_matrix.npy",
-                "data": self.exchange_data_iterator(BIOSPHERE_SQL, dependents),
-            }
+        dp.add_persistent_vector_from_iterator(
+            dict_iterator=self.exchange_data_iterator(BIOSPHERE_SQL, dependents),
+            matrix_label="biosphere_matrix",
+            name=clean_datapackage_name(self.name + " biosphere matrix"),
         )
 
         # Figure out when the production exchanges are implicit
@@ -513,25 +512,18 @@ class SQLiteBackend(LCIBackend):
                 AND type IN ('technosphere', 'generic consumption')
         """
 
-        resources.append(
-            {
-                "name": clean_datapackage_name(self.name + " technosphere matrix"),
-                "matrix": "technosphere_matrix",
-                "path": "technosphere_matrix.npy",
-                "data": itertools.chain(
-                    self.exchange_data_iterator(TECHNOSPHERE_NEGATIVE_SQL, dependents, flip=True),
-                    self.exchange_data_iterator(TECHNOSPHERE_POSITIVE_SQL, dependents),
-                    implicit_production,
+        dp.add_persistent_vector_from_iterator(
+            dict_iterator=itertools.chain(
+                self.exchange_data_iterator(
+                    TECHNOSPHERE_NEGATIVE_SQL, dependents, flip=True
                 ),
-            }
+                self.exchange_data_iterator(TECHNOSPHERE_POSITIVE_SQL, dependents),
+                implicit_production,
+            ),
+            matrix_label="technosphere_matrix",
+            name=clean_datapackage_name(self.name + " technosphere matrix"),
         )
-
-        create_calculation_package(
-            name=self.filename_processed(),
-            resources=resources,
-            path=self.dirpath_processed(),
-            compress=True,
-        )
+        dp.finalize_serialization()
 
         self.metadata["depends"] = sorted(dependents)
         self.metadata["dirty"] = False

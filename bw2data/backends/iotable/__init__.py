@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from ... import mapping, geomapping, config, databases
 from ..peewee import SQLiteBackend
-from bw_processing import MAX_SIGNED_32BIT_INT, create_calculation_package
+from bw_processing import create_datapackage, clean_datapackage_name
 from ...utils import TYPE_DICTIONARY
 from ...errors import UnknownObject
 import datetime
@@ -38,28 +38,30 @@ class IOTableBackend(SQLiteBackend):
             dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields,
         )
 
-        print("Writing geomapping")
-        create_calculation_package(name=self.name + " geomapping",)
+        dp = create_datapackage(
+            dirpath=self.dirpath_processed(),
+            name=self.filename_processed(),
+            compress=False,
+        )
+        dp.add_structured_array(
+            iterable_data_source=dictionary_wrapper(
+                (
+                    {
+                        "row": mapping[row["key"]],
+                        "col": geomapping[row["location"] or config.global_location],
+                        "amount": 1,
+                    }
+                    for index, row in enumerate(
+                        sorted(products.values(), key=lambda x: x.get("key"))
+                    )
+                )
+            ),
+            matrix_label="inv_geomapping_matrix",
+            name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
+            nrows=num_products,
+        )
 
-        for index, row in enumerate(
-            sorted(products.values(), key=lambda x: x.get("key"))
-        ):
-            arr[index] = (
-                mapping[row["key"]],
-                geomapping[row["location"] or config.global_location],
-                MAX_SIGNED_32BIT_INT,
-                MAX_SIGNED_32BIT_INT,
-                0,
-                1,
-                np.NaN,
-                np.NaN,
-                np.NaN,
-                np.NaN,
-                np.NaN,
-                False,
-            )
-
-        np.save(self.filepath_geomapping(), arr, allow_pickle=False)
+        dp.finalize()
 
         dependents = set()
 

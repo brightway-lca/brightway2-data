@@ -11,7 +11,7 @@ from ..errors import UnknownObject
 from ..query import Query
 from ..utils import as_uncertainty_dict
 from .utils import check_exchange
-from bw_processing import clean_datapackage_name, create_calculation_package
+from bw_processing import clean_datapackage_name, create_datapackage
 import copy
 import datetime
 import random
@@ -226,16 +226,15 @@ Doesn't return anything, but writes two files to disk.
         self.metadata["processed"] = datetime.datetime.now().isoformat()
 
         data = self.load(as_dict=True, *args, **kwargs)
-        resources = []
 
-        resources.append(
-            {
-                "name": clean_datapackage_name(
-                    self.name + " inventory geomapping matrix"
-                ),
-                "matrix": "inv_mapping_matrix",
-                "path": "inv_geomapping_matrix.npy",
-                "data": (
+        dp = create_datapackage(
+            dirpath=self.dirpath_processed(),
+            name=self.filename_processed(),
+            compress=True,
+        )
+        dp.add_structured_array(
+            iterable_data_source=dictionary_wrapper(
+                (
                     {
                         "row": mapping[key],
                         "col": geomapping[
@@ -244,16 +243,15 @@ Doesn't return anything, but writes two files to disk.
                         "amount": 1,
                     }
                     for key in data
-                ),
-                "nrows": len(data),
-            }
+                )
+            ),
+            matrix_label="inv_geomapping_matrix",
+            name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
+            nrows=len(data),
         )
-        resources.append(
-            {
-                "name": clean_datapackage_name(self.name + " technosphere matrix"),
-                "matrix": "technosphere_matrix",
-                "path": "technosphere_matrix.npy",
-                "data": self.exchange_generator(
+        dp.add_structured_array(
+            iterable_data_source=dictionary_wrapper(
+                self.exchange_generator(
                     data,
                     (
                         "technosphere",
@@ -262,23 +260,19 @@ Doesn't return anything, but writes two files to disk.
                         "substitution",
                         "generic production",
                     ),
-                ),
-            }
+                )
+            ),
+            matrix_label="technosphere_matrix",
+            name=clean_datapackage_name(self.name + " technosphere matrix"),
         )
-        resources.append(
-            {
-                "name": clean_datapackage_name(self.name + " biosphere matrix"),
-                "matrix": "biosphere_matrix",
-                "path": "biosphere_matrix.npy",
-                "data": self.exchange_generator(data, ("biosphere",), False),
-            }
+        dp.add_structured_array(
+            iterable_data_source=dictionary_wrapper(
+                self.exchange_generator(data, ("biosphere",), False)
+            ),
+            matrix_label="biosphere_matrix",
+            name=clean_datapackage_name(self.name + " biosphere matrix"),
         )
-        create_calculation_package(
-            name=self.filename_processed(),
-            resources=resources,
-            path=self.dirpath_processed(),
-            compress=True,
-        )
+        dp.finalize()
 
         # Automatically set 'depends'
         self.metadata["depends"] = self.find_dependents()
