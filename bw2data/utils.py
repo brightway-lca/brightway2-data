@@ -2,7 +2,6 @@
 from . import config
 from .errors import WebUIError, UnknownObject, NotFound, ValidityError
 from .fatomic import open
-from .project import ProjectDataset, SubstitutableDatabase
 from io import StringIO
 from pathlib import Path
 import collections
@@ -343,11 +342,12 @@ def set_data_dir(dirpath, permanent=True):
         DeprecationWarning,
     )
 
-    
+
 def switch_data_directory(dirpath):
+    from .projects import ProjectDataset, SubstitutableDatabase
     if dirpath == bw.projects._base_data_dir:
         print('dirpath already loaded')
-        return 
+        return
     try:
         assert os.path.isdir(dirpath)
         bw.projects._base_data_dir = dirpath
@@ -364,8 +364,8 @@ def switch_data_directory(dirpath):
 
     except AssertionError:
         print('Could not access directory specified "dirpath"')
-    
-    
+
+
 def create_in_memory_zipfile_from_directory(path):
     # Based on http://stackoverflow.com/questions/2463770/python-in-memory-zip-library
     memory_obj = StringIO()
@@ -391,4 +391,4 @@ def get_activity(key):
         raise UnknownObject(
             "Key {} cannot be understood as an activity" " or `(database, code)` tuple."
         )
-       
+
