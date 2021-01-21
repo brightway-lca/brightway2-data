@@ -2,7 +2,6 @@
 from . import config
 from .errors import WebUIError, UnknownObject, NotFound, ValidityError
 from .fatomic import open
-from .project import ProjectDataset, SubstitutableDatabase
 from io import StringIO
 from pathlib import Path
 import collections
@@ -345,6 +344,9 @@ def set_data_dir(dirpath, permanent=True):
 
     
 def switch_data_directory(dirpath):
+    # import must happen here to prevent circular import project.py -> utils.py -> project.py
+    from .project import ProjectDataset, SubstitutableDatabase
+
     if dirpath == bw.projects._base_data_dir:
         print('dirpath already loaded')
         return 
