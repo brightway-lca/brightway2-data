@@ -14,10 +14,12 @@ from .utils import (
     dict_as_exchangedataset,
     retupleize_geo_strings,
 )
-from bw_processing import clean_datapackage_name, create_datapackage, safe_filename
+from bw_processing import clean_datapackage_name, create_datapackage
+from fs.zipfs import ZipFS
 from peewee import fn, DoesNotExist
 import datetime
 import itertools
+import pandas
 import pickle
 import pprint
 import pyprind
@@ -25,13 +27,19 @@ import random
 import sqlite3
 import warnings
 
-
 # AD = ActivityDataset
 # out_a = AD.alias()
 # in_a = AD.alias()
 # qs = AD.select().where(AD.key == (out_a.select(in_a.key).join(ED, on=(ED.output == out_a.key)).join(in_a, on=(ED.input_ == in_a.key)).where((ED.type_ == 'technosphere') & (in_a.product == out_a.product)))
 
 _VALID_KEYS = {"location", "name", "product", "type"}
+
+
+def get_csv_data_dict(ds):
+    fields = {"name", "reference product", "unit", "location"}
+    dd = {field: ds.get(field) for field in fields}
+    dd["id"] = mapping[ds]
+    return dd
 
 
 class SQLiteBackend(LCIBackend):
@@ -416,7 +424,7 @@ class SQLiteBackend(LCIBackend):
                     )
                 )
 
-    def process(self):
+    def process(self, csv=False):
         """Create structured arrays for the technosphere and biosphere matrices.
 
         Uses ``bw_processing`` for array creation and metadata serialization.
@@ -442,11 +450,12 @@ class SQLiteBackend(LCIBackend):
         )
 
         dp = create_datapackage(
-            dirpath=self.dirpath_processed(),
-            name=self.filename_processed(),
-            compress=True,
-            overwrite=True,
-            duplicates="sum",
+            fs=ZipFS(
+                str(self.filepath_processed()), write=True
+            ),
+            name=clean_datapackage_name(self.name),
+            sum_intra_duplicates=True,
+            sum_inter_duplicates=False,
         )
         dp.add_persistent_vector_from_iterator(
             matrix="inv_geomapping_matrix",
@@ -523,6 +532,20 @@ class SQLiteBackend(LCIBackend):
                 implicit_production,
             ),
         )
+        if csv:
+            df = pandas.DataFrame([get_csv_data_dict(ds) for ds in self])
+            dp.add_csv_metadata(
+                dataframe=df,
+                valid_for=[
+                    (
+                        clean_datapackage_name(self.name + " technosphere matrix"),
+                        "cols",
+                    ),
+                    (clean_datapackage_name(self.name + " biosphere matrix"), "cols"),
+                ],
+                name=clean_datapackage_name(self.name + " activity metadata"),
+            )
+
         dp.finalize_serialization()
 
         self.metadata["depends"] = sorted(dependents)
