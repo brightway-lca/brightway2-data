@@ -195,7 +195,7 @@ Doesn't return anything, but writes a file to disk.
             overwrite=True,
         )
         dp.add_persistent_vector_from_iterator(
-            matrix_label=self.matrix,
+            matrix=self.matrix,
             name=clean_datapackage_name(str(self.name) + " matrix data"),
             dict_iterator=(self.process_row(row) for row in data),
             nrows=len(data),

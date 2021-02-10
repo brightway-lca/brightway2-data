@@ -449,7 +449,8 @@ class SQLiteBackend(LCIBackend):
             duplicates="sum",
         )
         dp.add_persistent_vector_from_iterator(
-            nrows=inv_mapping_qs.count(),
+            matrix="inv_geomapping_matrix",
+            name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
             dict_iterator=(
                 {
                     "row": mapping[(self.name, row["code"])],
@@ -461,8 +462,7 @@ class SQLiteBackend(LCIBackend):
                 }
                 for row in inv_mapping_qs.dicts()
             ),
-            matrix_label="inv_geomapping_matrix",
-            name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
+            nrows=inv_mapping_qs.count(),
         )
 
         BIOSPHERE_SQL = """SELECT data, input_database, input_code, output_database, output_code
@@ -471,9 +471,9 @@ class SQLiteBackend(LCIBackend):
                 AND type = 'biosphere'
         """
         dp.add_persistent_vector_from_iterator(
-            dict_iterator=self.exchange_data_iterator(BIOSPHERE_SQL, dependents),
-            matrix_label="biosphere_matrix",
+            matrix="biosphere_matrix",
             name=clean_datapackage_name(self.name + " biosphere matrix"),
+            dict_iterator=self.exchange_data_iterator(BIOSPHERE_SQL, dependents),
         )
 
         # Figure out when the production exchanges are implicit
@@ -513,6 +513,8 @@ class SQLiteBackend(LCIBackend):
         """
 
         dp.add_persistent_vector_from_iterator(
+            matrix="technosphere_matrix",
+            name=clean_datapackage_name(self.name + " technosphere matrix"),
             dict_iterator=itertools.chain(
                 self.exchange_data_iterator(
                     TECHNOSPHERE_NEGATIVE_SQL, dependents, flip=True
@@ -520,8 +522,6 @@ class SQLiteBackend(LCIBackend):
                 self.exchange_data_iterator(TECHNOSPHERE_POSITIVE_SQL, dependents),
                 implicit_production,
             ),
-            matrix_label="technosphere_matrix",
-            name=clean_datapackage_name(self.name + " technosphere matrix"),
         )
         dp.finalize_serialization()
 
