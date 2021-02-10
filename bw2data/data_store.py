@@ -5,6 +5,7 @@ from .fatomic import open as atomic_open
 from .project import writable_project
 from bw_processing import create_datapackage, clean_datapackage_name, safe_filename
 import pickle
+from fs.zipfs import ZipFS
 
 
 class DataStore(object):
@@ -189,10 +190,10 @@ Doesn't return anything, but writes a file to disk.
         """
         data = self.load()
         dp = create_datapackage(
-            dirpath=self.dirpath_processed(),
+            fs=ZipFS(str(self.filepath_processed()), write=True),
             name=self.filename_processed(),
-            compress=True,
-            overwrite=True,
+            sum_intra_duplicates=True,
+            sum_inter_duplicates=False,
         )
         dp.add_persistent_vector_from_iterator(
             matrix=self.matrix,
