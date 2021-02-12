@@ -9,6 +9,7 @@ from . import (
     methods,
     Method,
 )
+from fs.zipfs import ZipFS
 
 
 def unpack(dct):
@@ -33,7 +34,7 @@ def prepare_lca_inputs(
     if demands:
         data_objs.extend(
             [
-                Database(obj).filepath_processed()
+                ZipFS(Database(obj).filepath_processed())
                 for obj in set.union(
                     *[
                         Database(db_label).find_graph_dependents()
@@ -46,7 +47,7 @@ def prepare_lca_inputs(
     elif demand:
         data_objs.extend(
             [
-                Database(obj).filepath_processed()
+                ZipFS(Database(obj).filepath_processed())
                 for obj in set.union(
                     *[
                         Database(db_label).find_graph_dependents()
@@ -57,13 +58,13 @@ def prepare_lca_inputs(
         )
     if method:
         assert method in methods
-        data_objs.append(Method(method).filepath_processed())
+        data_objs.append(ZipFS(Method(method).filepath_processed()))
     if weighting:
         assert weighting in weightings
-        data_objs.append(Weighting(weighting).filepath_processed())
+        data_objs.append(ZipFS(Weighting(weighting).filepath_processed()))
     if normalization:
         assert normalization in normalizations
-        data_objs.append(Normalization(normalization).filepath_processed())
+        data_objs.append(ZipFS(Normalization(normalization).filepath_processed()))
 
     if remapping:
         reversed_mapping = {v: k for k, v in mapping.items()}
