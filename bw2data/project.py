@@ -79,7 +79,7 @@ class ProjectManager(Iterable):
             print(MIGRATION_WARNING.format(src_filepath, backup_filepath))
 
             ADD_FULL_HASH_COLUMN = """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
-            cls._meta.database.execute_sql(ADD_FULL_HASH_COLUMN)
+            self.db.execute_sql(ADD_FULL_HASH_COLUMN)
 
             # We don't do this, as the column added doesn't have a default
             # value, meaning that one would get error from using the
