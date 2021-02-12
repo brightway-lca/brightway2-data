@@ -70,11 +70,25 @@ class ProjectManager(Iterable):
 
         columns = {o.name for o in self.db._database.get_columns("projectdataset")}
         if "full_hash" not in columns:
-            from playhouse.migrate import SqliteMigrator, migrate
+            src_filepath = self._base_data_dir / "projects.db"
+            backup_filepath = self._base_data_dir / "projects.backup.db"
+            shutil.copy(src_filepath, backup_filepath)
 
-            migrator = SqliteMigrator(self.db._database)
-            full_hash = BooleanField(default=True)
-            migrate(migrator.add_column("projectdataset", "full_hash", full_hash),)
+            MIGRATION_WARNING = """Adding a column to the projects database. A backup copy of this database '{}' was made at '{}'; if you have problems, file an issue, and restore the backup data to use the stable version of Brightway2."""
+
+            print(MIGRATION_WARNING.format(src_filepath, backup_filepath))
+
+            ADD_FULL_HASH_COLUMN = """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
+            cls._meta.database.execute_sql(ADD_FULL_HASH_COLUMN)
+
+            # We don't do this, as the column added doesn't have a default
+            # value, meaning that one would get error from using the
+            # development branch alongside the stable branch.
+
+            # from playhouse.migrate import SqliteMigrator, migrate
+            # migrator = SqliteMigrator(self.db._database)
+            # full_hash = BooleanField(default=True)
+            # migrate(migrator.add_column("projectdataset", "full_hash", full_hash),)
         self.set_current("default", update=False)
 
     def __iter__(self):
@@ -225,7 +239,7 @@ class ProjectManager(Iterable):
     def create_project(self, name=None, **kwargs):
         name = name or self.current
         if not ProjectDataset.select().where(ProjectDataset.name == name).count():
-            ProjectDataset.create(data=kwargs, name=name, full_hash=False)
+            ProjectDataset.create(data=kwargs, name=name, full_hash=kwargs.get("full_hash", False))
         self._project_dataset = ProjectDataset.get(name=name)
         create_dir(self.dir)
         for dir_name in self._basic_directories:
