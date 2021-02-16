@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import databases, config
 from .backends.peewee import SQLiteBackend
 from .backends.iotable import IOTableBackend

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import databases, projects, config, get_activity
 from .backends.peewee.schema import ExchangeDataset
 from .sqlite import PickleField, SubstitutableDatabase

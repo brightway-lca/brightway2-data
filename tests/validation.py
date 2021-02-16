@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from voluptuous import Invalid
 import unittest
 from bw2data.validate import *

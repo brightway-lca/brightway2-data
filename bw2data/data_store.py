@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import projects
 from .errors import UnknownObject, MissingIntermediateData
 from .fatomic import open as atomic_open

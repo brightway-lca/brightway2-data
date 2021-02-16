@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from .fixtures import food, biosphere
 from bw2data import (
     config,

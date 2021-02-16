@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from bw2data.tests import bw2test
 from bw2data.database import DatabaseChooser as Database
 from bw2data.ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS

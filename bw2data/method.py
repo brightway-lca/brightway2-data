@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import methods, geomapping, config
 from .ia_data_store import ImpactAssessmentDataStore
 from .utils import as_uncertainty_dict

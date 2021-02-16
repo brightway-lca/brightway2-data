@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import databases
 from .errors import InvalidExchange
 from .utils import get_activity

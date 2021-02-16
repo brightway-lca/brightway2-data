@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from .data_store import ProcessedDataStore
 from bw_processing import safe_filename
 import hashlib

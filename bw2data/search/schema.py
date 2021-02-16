@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from whoosh.fields import TEXT, ID, Schema
 
 bw2_schema = Schema(

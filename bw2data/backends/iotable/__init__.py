@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from ... import mapping, geomapping, config, databases
 from ..peewee import SQLiteBackend
 from bw_processing import create_datapackage, clean_datapackage_name

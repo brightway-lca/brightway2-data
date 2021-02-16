@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import config, projects
 from .utils import random_string, create_in_memory_zipfile_from_directory
 from logging.handlers import RotatingFileHandler

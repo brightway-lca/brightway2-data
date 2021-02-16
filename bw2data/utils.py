@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import config
 from .errors import WebUIError, UnknownObject, NotFound, ValidityError
 from .fatomic import open

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from voluptuous import Schema, Required, Invalid, Any, All, Length, Optional
 from numbers import Number
 

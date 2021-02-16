@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from .indices import IndexManager
 from whoosh.qparser import MultifieldParser
 from whoosh.query import Term, And

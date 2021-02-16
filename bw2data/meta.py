@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from .project import writable_project
 from .serialization import SerializedDict, PickledDict, CompoundJSONDict
 import datetime

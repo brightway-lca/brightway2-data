@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import projects
 from .errors import PickleError
 from .fatomic import open as atomic_open

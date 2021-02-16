@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from .. import config
 from ..errors import UntypedExchange, InvalidExchange
 from ..meta import databases

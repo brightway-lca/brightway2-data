@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from .fixtures import biosphere
 from bw2data import Database, Method, methods, databases, mapping
 from bw2data.backends.peewee import Activity as PWActivity

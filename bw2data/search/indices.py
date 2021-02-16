@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from .. import projects
 from .schema import bw2_schema
 from whoosh import index

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from .ia_data_store import ImpactAssessmentDataStore
 from .meta import weightings, mapping, normalizations
 from .project import writable_project

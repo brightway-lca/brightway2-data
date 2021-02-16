@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from bw2data.tests import bw2test
 from .fixtures import food as food_data, biosphere, get_naughty
 from bw2data.database import DatabaseChooser

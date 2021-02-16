@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from . import config, databases, methods, mapping, geomapping
 from .project import projects
 from .parameters import parameters
