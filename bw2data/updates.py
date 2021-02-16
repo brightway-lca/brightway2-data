@@ -104,7 +104,7 @@ class Updates(object):
         # "4.0 new processed format": {
         #     'method': 'expire_all_processed_data_40',
         #     'automatic': True,
-        #     'explanation': "New use of 'bw_processing' requires all database be reprocessed"
+        #     'explanation': "bw2data 4.0 release requires all database be reprocessed"
         # }
     }
 
@@ -167,29 +167,7 @@ class Updates(object):
     @classmethod
     def reprocess_all_1_0(cls):
         """1.0: Reprocess all to make sure default 'loc' value inserted when not specified."""
-        objects = [
-            (methods, Method, "LCIA methods"),
-            (weightings, Weighting, "LCIA weightings"),
-            (normalizations, Normalization, "LCIA normalizations"),
-            (databases, Database, "LCI databases"),
-        ]
-
-        for (meta, klass, name) in objects:
-            if meta.list:
-                print("Updating all %s" % name)
-
-                pbar = pyprind.ProgBar(
-                    len(meta), title="Brightway2 {} objects:".format(name), monitor=True
-                )
-
-                for index, key in enumerate(meta):
-                    obj = klass(key)
-                    obj.process()
-                    # Free memory
-                    obj = None
-
-                    pbar.update()
-                print(pbar)
+        cls._reprocess_all()
 
     @classmethod
     def schema_change_20_compound_keys(cls):
@@ -222,4 +200,30 @@ class Updates(object):
 
     @classmethod
     def expire_all_processed_data_40(cls):
-        pass
+        cls._reprocess_all()
+
+    @classmethod
+    def _reprocess_all(cls):
+        objects = [
+            (methods, Method, "LCIA methods"),
+            (weightings, Weighting, "LCIA weightings"),
+            (normalizations, Normalization, "LCIA normalizations"),
+            (databases, Database, "LCI databases"),
+        ]
+
+        for (meta, klass, name) in objects:
+            if meta.list:
+                print("Updating all %s" % name)
+
+                pbar = pyprind.ProgBar(
+                    len(meta), title="Brightway2 {} objects:".format(name), monitor=True
+                )
+
+                for index, key in enumerate(meta):
+                    obj = klass(key)
+                    obj.process()
+                    # Free memory
+                    obj = None
+
+                    pbar.update()
+                print(pbar)

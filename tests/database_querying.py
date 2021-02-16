@@ -16,10 +16,6 @@ from bw2data.errors import (
     UntypedExchange,
     ValidityError,
 )
-from bw2data.backends.single_file import (
-    Activity as SFActivity,
-    Exchange as SFExchange,
-)
 from bw2data.meta import mapping, geomapping, databases, methods
 
 
@@ -194,23 +190,3 @@ class DatabaseQuerysetTest(BW2DataTest):
                 },
             }
         )
-        database = convert_backend("a database", "singlefile")
-        self.assertEqual(databases["a database"]["backend"], "singlefile")
-        self.assertEqual(databases["a database"]["version"], 1)
-        expected = {
-            ("a database", "foo"): {
-                "code": "foo",
-                "database": "a database",
-                "exchanges": [
-                    {
-                        "input": ("a database", "foo"),
-                        "output": ("a database", "foo"),
-                        "amount": 1,
-                        "type": "production",
-                    }
-                ],
-                "location": "bar",
-                "name": "baz",
-            },
-        }
-        self.assertEqual(database.load(), expected)

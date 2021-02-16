@@ -2,7 +2,6 @@
 from .fixtures import biosphere
 from bw2data import Database, Method, methods, databases, mapping
 from bw2data.backends.peewee import Activity as PWActivity
-from bw2data.backends.single_file import Activity as SFActivity
 from bw2data.errors import ValidityError
 from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
@@ -14,7 +13,7 @@ from bw2data.utils import (
     random_string,
     uncertainify,
 )
-from bw_processing import load_package
+# from bw_processing import load_package
 import pytest
 import stats_arrays as sa
 
@@ -165,26 +164,6 @@ class UncertainifyTestCase(BW2DataTest):
         self.assertTrue(isinstance(get_activity(("a database", "foo")), PWActivity))
         self.assertTrue(isinstance(Database.get(("a database", "foo")), PWActivity))
 
-    def test_get_activity_singlefile(self):
-        database = Database("a database", "singlefile")
-        database.write(
-            {
-                ("a database", "foo"): {
-                    "exchanges": [
-                        {
-                            "input": ("a database", "foo"),
-                            "amount": 1,
-                            "type": "production",
-                        }
-                    ],
-                    "location": "bar",
-                    "name": "baz",
-                },
-            }
-        )
-        self.assertTrue(isinstance(get_activity(("a database", "foo")), SFActivity))
-        self.assertTrue(isinstance(Database.get(("a database", "foo")), SFActivity))
-
 
 def test_as_uncertainty_dict():
     assert as_uncertainty_dict({}) == {}
@@ -229,7 +208,7 @@ def test_merge_databases_nonunique_activity_codes():
 
 @bw2test
 def test_merge_databases_wrong_backend():
-    first = Database("a database", "singlefile")
+    first = Database("a database", "iotable")
     first.write(
         {
             ("a database", "foo"): {
@@ -283,44 +262,44 @@ def test_merge_databases_nonexistent():
         merge_databases("another database", "a database")
 
 
-@bw2test
-def test_merge_databases():
-    first = Database("a database")
-    first.write(
-        {
-            ("a database", "foo"): {
-                "exchanges": [
-                    {"input": ("a database", "foo"), "amount": 1, "type": "production",}
-                ],
-                "location": "bar",
-                "name": "baz",
-            },
-        }
-    )
-    second = Database("another database")
-    second.write(
-        {
-            ("another database", "bar"): {
-                "exchanges": [
-                    {
-                        "input": ("another database", "bar"),
-                        "amount": 1,
-                        "type": "production",
-                    }
-                ],
-                "location": "bar",
-                "name": "baz",
-            },
-        }
-    )
-    merge_databases("a database", "another database")
-    merged = Database("a database")
-    assert len(merged) == 2
-    assert "another database" not in databases
-    assert ("a database", "bar") in mapping
-    print(merged.filepath_processed())
-    package = load_package(merged.filepath_processed())
-    print(package.keys())
-    array = package["technosphere_matrix.npy"]
-    assert mapping[("a database", "bar")] in {x["col_value"] for x in array}
-    assert mapping[("a database", "foo")] in {x["col_value"] for x in array}
+# @bw2test
+# def test_merge_databases():
+#     first = Database("a database")
+#     first.write(
+#         {
+#             ("a database", "foo"): {
+#                 "exchanges": [
+#                     {"input": ("a database", "foo"), "amount": 1, "type": "production",}
+#                 ],
+#                 "location": "bar",
+#                 "name": "baz",
+#             },
+#         }
+#     )
+#     second = Database("another database")
+#     second.write(
+#         {
+#             ("another database", "bar"): {
+#                 "exchanges": [
+#                     {
+#                         "input": ("another database", "bar"),
+#                         "amount": 1,
+#                         "type": "production",
+#                     }
+#                 ],
+#                 "location": "bar",
+#                 "name": "baz",
+#             },
+#         }
+#     )
+#     merge_databases("a database", "another database")
+#     merged = Database("a database")
+#     assert len(merged) == 2
+#     assert "another database" not in databases
+#     assert ("a database", "bar") in mapping
+#     print(merged.filepath_processed())
+#     package = load_package(merged.filepath_processed())
+#     print(package.keys())
+#     array = package["technosphere_matrix.npy"]
+#     assert mapping[("a database", "bar")] in {x["col_value"] for x in array}
+#     assert mapping[("a database", "foo")] in {x["col_value"] for x in array}

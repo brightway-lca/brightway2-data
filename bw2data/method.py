@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import mapping, methods, geomapping, config
+from . import methods, geomapping, config
 from .ia_data_store import ImpactAssessmentDataStore
 from .utils import as_uncertainty_dict
 from .validate import ia_validator
