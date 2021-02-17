@@ -77,7 +77,7 @@ jobs:
 
   - script: |
       call activate bw2
-      conda install --yes --quiet -c defaults -c conda-forge -c cmutel -c haasad --name bw2 python=%PYTHON_VERSION% bw_processing pytest peewee brightway2 bw_processing pytest pytest-azurepipelines pytest-cov win32 pip
+      conda install --yes --quiet -c defaults -c conda-forge -c cmutel -c haasad --name bw2 python=%PYTHON_VERSION% bw_processing pytest peewee brightway2 bw_processing pytest pytest-azurepipelines pytest-cov pywin32 pip
       pip install pytest-antilru https://github.com/brightway-lca/bw_processing/archive/master.zip
     displayName: Install Anaconda packages
 
