@@ -620,20 +620,13 @@ class SQLiteBackend(ProcessedDataStore):
         connection = sqlite3.connect(sqlite3_lci_db._filepath)
         cursor = connection.cursor()
         for row in cursor.execute(sql, (self.name,)):
-            data, input_database, input_code, output_database, output_code = row
+            data, row, col, input_database, input_code, output_database, output_code = row
             # Modify ``dependents`` in place
             if input_database != output_database:
                 dependents.add(input_database)
             data = pickle.loads(bytes(data))
             check_exchange(data)
-            try:
-                yield {
-                    **as_uncertainty_dict(data),
-                    "row": get_id((input_database, input_code)),
-                    "col": get_id((output_database, output_code)),
-                    "flip": flip,
-                }
-            except KeyError:
+            if row is None or col is None:
                 raise UnknownObject(
                     (
                         "Exchange between {} and {} is invalid "
@@ -643,6 +636,12 @@ class SQLiteBackend(ProcessedDataStore):
                         (input_database, input_code), (output_database, output_code)
                     )
                 )
+            yield {
+                **as_uncertainty_dict(data),
+                "row": row,
+                "col": col,
+                "flip": flip,
+            }
 
     def process(self, csv=False):
         """Create structured arrays for the technosphere and biosphere matrices.
@@ -664,7 +663,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         # Create geomapping array, from dataset interger ids to locations
         inv_mapping_qs = ActivityDataset.select(
-            ActivityDataset.location, ActivityDataset.code
+            ActivityDataset.id, ActivityDataset.location
         ).where(
             ActivityDataset.database == self.name, ActivityDataset.type == "process"
         )
@@ -680,22 +679,24 @@ class SQLiteBackend(ProcessedDataStore):
             name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
             dict_iterator=(
                 {
-                    "row": get_id((self.name, row["code"])),
+                    "row": row[0],
                     "col": geomapping[
-                        retupleize_geo_strings(row["location"])
+                        retupleize_geo_strings(row[1])
                         or config.global_location
                     ],
                     "amount": 1,
                 }
-                for row in inv_mapping_qs.dicts()
+                for row in inv_mapping_qs.tuples()
             ),
             nrows=inv_mapping_qs.count(),
         )
 
-        BIOSPHERE_SQL = """SELECT data, input_database, input_code, output_database, output_code
-                FROM exchangedataset
-                WHERE output_database = ?
-                AND type = 'biosphere'
+        BIOSPHERE_SQL = """SELECT e.data, a.id, b.id, e.input_database, e.input_code, e.output_database, e.output_code
+                FROM exchangedataset as e
+                LEFT JOIN activitydataset as a ON a.code == e.input_code AND a.database == e.input_database
+                LEFT JOIN activitydataset as b ON b.code == e.output_code AND b.database == e.output_database
+                WHERE e.output_database = ?
+                AND e.type = 'biosphere'
         """
         dp.add_persistent_vector_from_iterator(
             matrix="biosphere_matrix",
@@ -728,16 +729,19 @@ class SQLiteBackend(ProcessedDataStore):
             .tuples()
         )
 
-        TECHNOSPHERE_POSITIVE_SQL = """SELECT data, input_database, input_code, output_database, output_code
-                FROM exchangedataset
-                WHERE output_database = ?
-                AND type IN ('production', 'substitution', 'generic production')
+        TECHNOSPHERE_POSITIVE_SQL = """SELECT e.data, a.id, b.id, e.input_database, e.input_code, e.output_database, e.output_code
+                FROM exchangedataset as e
+                LEFT JOIN activitydataset as a ON a.code == e.input_code AND a.database == e.input_database
+                LEFT JOIN activitydataset as b ON b.code == e.output_code AND b.database == e.output_database
+                WHERE e.output_database = ?
+                AND e.type IN ('production', 'substitution', 'generic production')
         """
-        TECHNOSPHERE_NEGATIVE_SQL = """SELECT data, input_database, input_code, output_database, output_code
-                FROM exchangedataset
-                WHERE output_database = ?
-                AND type IN ('technosphere', 'generic consumption')
-        """
+        TECHNOSPHERE_NEGATIVE_SQL = """SELECT e.data, a.id, b.id, e.input_database, e.input_code, e.output_database, e.output_code
+                FROM exchangedataset as e
+                LEFT JOIN activitydataset as a ON a.code == e.input_code AND a.database == e.input_database
+                LEFT JOIN activitydataset as b ON b.code == e.output_code AND b.database == e.output_database
+                WHERE e.output_database = ?
+                AND e.type IN ('technosphere', 'generic consumption')"""
 
         dp.add_persistent_vector_from_iterator(
             matrix="technosphere_matrix",
