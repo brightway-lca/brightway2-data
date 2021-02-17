@@ -331,7 +331,7 @@ def test_read_only_cant_write():
 @bw2test
 def test_copy_project():
     ds = ProjectDataset.get(ProjectDataset.name == projects.current)
-    ds.data['this'] = 'that'
+    ds.data["this"] = "that"
     ds.save()
 
     databases["foo"] = "bar"
@@ -339,7 +339,7 @@ def test_copy_project():
     assert "another one" in projects
 
     ds = ProjectDataset.get(ProjectDataset.name == "another one")
-    assert ds.data['this'] == 'that'
+    assert ds.data["this"] == "that"
 
     projects.set_current("another one")
     assert databases["foo"] == "bar"

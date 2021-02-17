@@ -33,6 +33,8 @@ def get_id(key):
         return key
     else:
         try:
-            return ActivityDataset.get(ActivityDataset.database == key[0], ActivityDataset.code == key[1]).id
+            return ActivityDataset.get(
+                ActivityDataset.database == key[0], ActivityDataset.code == key[1]
+            ).id
         except DoesNotExist:
             raise UnknownObject

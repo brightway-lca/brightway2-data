@@ -60,7 +60,7 @@ def test_database_process_adds_correct_geo(add_biosphere):
     database.write(food)
 
     package = load_datapackage(ZipFS(database.filepath_processed()))
-    data = package.get_resource('food_inventory_geomapping_matrix.indices')[0]
+    data = package.get_resource("food_inventory_geomapping_matrix.indices")[0]
 
     assert geomapping["CA"] in data["col"].tolist()
     assert geomapping["CH"] in data["col"].tolist()
@@ -74,7 +74,7 @@ def test_database_process_adds_default_geo(add_biosphere):
     database.write(new_food)
 
     package = load_datapackage(ZipFS(database.filepath_processed()))
-    data = package.get_resource('food_inventory_geomapping_matrix.indices')[0]
+    data = package.get_resource("food_inventory_geomapping_matrix.indices")[0]
 
     assert np.allclose(data["col"], geomapping[config.global_location])
 

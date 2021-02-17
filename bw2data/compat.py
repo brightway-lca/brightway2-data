@@ -18,14 +18,18 @@ class Mapping:
     Used only for backwards compatibility; preferred methodd is now to look up the ids of activities directly in the SQlite database."""
 
     def add(self, keys):
-        raise DeprecationWarning("This method is no longer necessary, and does nothing.")
+        raise DeprecationWarning(
+            "This method is no longer necessary, and does nothing."
+        )
         return
 
     def __getitem__(self, key):
         return get_id(key)
 
     def delete(self, keys):
-        raise DeprecationWarning("This method is no longer necessary, and does nothing.")
+        raise DeprecationWarning(
+            "This method is no longer necessary, and does nothing."
+        )
         return
 
     def __str__(self):
@@ -64,35 +68,29 @@ def prepare_lca_inputs(
 
     if demands:
         database_names = set.union(
-                    *[
-                        Database(db_label).find_graph_dependents()
-                        for dct in demands
-                        for db_label, _ in unpack(dct)
-                    ]
-                )
+            *[
+                Database(db_label).find_graph_dependents()
+                for dct in demands
+                for db_label, _ in unpack(dct)
+            ]
+        )
     elif demand:
         database_names = set.union(
-                    *[
-                        Database(db_label).find_graph_dependents()
-                        for db_label, _ in unpack(demand)
-                    ]
-                )
+            *[
+                Database(db_label).find_graph_dependents()
+                for db_label, _ in unpack(demand)
+            ]
+        )
     else:
         raise ValueError("Need some form of demand for LCA calculation")
 
     if demands:
         data_objs.extend(
-            [
-                ZipFS(Database(obj).filepath_processed())
-                for obj in database_names
-            ]
+            [ZipFS(Database(obj).filepath_processed()) for obj in database_names]
         )
     elif demand:
         data_objs.extend(
-            [
-                ZipFS(Database(obj).filepath_processed())
-                for obj in database_names
-            ]
+            [ZipFS(Database(obj).filepath_processed()) for obj in database_names]
         )
     if method:
         assert method in methods
@@ -105,7 +103,12 @@ def prepare_lca_inputs(
         data_objs.append(ZipFS(Normalization(normalization).filepath_processed()))
 
     if remapping:
-        reversed_mapping = {i: (d, c) for d, c, i in AD.select(AD.database, AD.code, AD.id).where(AD.database << database_names).tuples()}
+        reversed_mapping = {
+            i: (d, c)
+            for d, c, i in AD.select(AD.database, AD.code, AD.id)
+            .where(AD.database << database_names)
+            .tuples()
+        }
         remapping_dicts = {
             "activity": reversed_mapping,
             "product": reversed_mapping,

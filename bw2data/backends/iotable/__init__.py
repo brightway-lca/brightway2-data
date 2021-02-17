@@ -37,11 +37,11 @@ class IOTableBackend(SQLiteBackend):
                 try:
                     dependents.addd(row[0][0])
                     yield {
-                        'row': get_id(row[0]),
-                        'col': get_id(row[1]),
-                        'flip': flip,
-                        'amount': row[2],
-                        'uncertainty_type': 0,
+                        "row": get_id(row[0]),
+                        "col": get_id(row[1]),
+                        "flip": flip,
+                        "amount": row[2],
+                        "uncertainty_type": 0,
                     }
                 except UnknownObject:
                     raise UnknownObject(
@@ -53,9 +53,7 @@ class IOTableBackend(SQLiteBackend):
                     )
 
         dp = create_datapackage(
-            fs=ZipFS(
-                str(self.filepath_processed()), write=True
-            ),
+            fs=ZipFS(str(self.filepath_processed()), write=True),
             name=clean_datapackage_name(self.name),
             sum_intra_duplicates=True,
             sum_inter_duplicates=False,
@@ -67,9 +65,7 @@ class IOTableBackend(SQLiteBackend):
                     "col": geomapping[value["location"] or config.global_location],
                     "amount": 1,
                 }
-                for index, (key, value) in enumerate(
-                    sorted(products.items())
-                )
+                for index, (key, value) in enumerate(sorted(products.items()))
             ),
             matrix="inv_geomapping_matrix",
             name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
@@ -85,14 +81,14 @@ class IOTableBackend(SQLiteBackend):
             name=clean_datapackage_name(self.name + " technosphere matrix"),
             dict_iterator=itertools.chain(
                 as_iterator(tech_exchanges, dependents, flip=True),
-                as_iterator(prod_exchanges, dependents, flip=False)
-            )
+                as_iterator(prod_exchanges, dependents, flip=False),
+            ),
         )
 
         dp.add_persistent_vector_from_iterator(
             matrix="biosphere_matrix",
             name=clean_datapackage_name(self.name + " biosphere matrix"),
-            dict_iterator=as_iterator(bio_exchanges, dependents, flip=True)
+            dict_iterator=as_iterator(bio_exchanges, dependents, flip=True),
         )
 
         databases[self.name]["depends"] = sorted(dependents.difference({self.name}))

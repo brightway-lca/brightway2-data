@@ -12,6 +12,7 @@ from bw2data.utils import (
     random_string,
     uncertainify,
 )
+
 # from bw_processing import load_package
 import pytest
 import stats_arrays as sa
@@ -217,7 +218,9 @@ def test_merge_databases_wrong_backend():
                 "name": "baz",
             },
         },
-        [], [], []
+        [],
+        [],
+        [],
     )
     second = Database("another database")
     second.write(

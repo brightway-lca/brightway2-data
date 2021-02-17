@@ -197,9 +197,7 @@ def test_comment_term():
 @bw2test
 def test_categories_term():
     im = IndexManager("foo")
-    im.add_dataset(
-        {"database": "foo", "code": "bar", "categories": ("lollipop",)}
-    )
+    im.add_dataset({"database": "foo", "code": "bar", "categories": ("lollipop",)})
     with Searcher("foo") as s:
         assert s.search("lollipop", proxy=False)
 

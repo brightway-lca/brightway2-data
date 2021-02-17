@@ -422,12 +422,12 @@ def test_processed_array():
     )
     package = load_datapackage(ZipFS(database.filepath_processed()))
     print(package.resources)
-    array = package.get_resource('a_database_technosphere_matrix.data')[0]
+    array = package.get_resource("a_database_technosphere_matrix.data")[0]
 
     assert array.shape == (1,)
     assert array[0] == 42
 
-    array = package.get_resource('a_database_technosphere_matrix.distributions')[0]
+    array = package.get_resource("a_database_technosphere_matrix.distributions")[0]
     assert array.shape == (1,)
     assert array[0]["uncertainty_type"] == 7
 
@@ -484,30 +484,15 @@ def test_find_dependents():
 def test_set_dependents():
     foo = DatabaseChooser("foo")
     foo.write(
-        {
-            ("foo", "bar"): {
-                "exchanges": [],
-                "type": "process",
-            },
-        }
+        {("foo", "bar"): {"exchanges": [], "type": "process",},}
     )
     baz = DatabaseChooser("baz")
     baz.write(
-        {
-            ("baz", "w00t"): {
-                "exchanges": [],
-                "type": "process",
-            },
-        }
+        {("baz", "w00t"): {"exchanges": [], "type": "process",},}
     )
     biosphere = DatabaseChooser("biosphere")
     biosphere.write(
-        {
-            ("biosphere", "bar"): {
-                "exchanges": [],
-                "type": "process",
-            },
-        }
+        {("biosphere", "bar"): {"exchanges": [], "type": "process",},}
     )
     database = DatabaseChooser("a database")
     database.register()
@@ -624,12 +609,7 @@ def test_sqlite_processed_array_order():
             (lookup["B"], lookup["B"], 1),
         ]
     )
-    b = sorted(
-        [
-            (lookup["C"], lookup["B"], 2),
-            (lookup["C"], lookup["B"], 3),
-        ]
-    )
+    b = sorted([(lookup["C"], lookup["B"], 2), (lookup["C"], lookup["B"], 3),])
 
     package = load_datapackage(ZipFS(database.filepath_processed()))
 
@@ -639,8 +619,8 @@ def test_sqlite_processed_array_order():
 
     array = package.get_resource("testy_technosphere_matrix.indices")[0]
     assert array.shape == (6,)
-    assert np.allclose(array['row'], [x[0] for x in t])
-    assert np.allclose(array['col'], [x[1] for x in t])
+    assert np.allclose(array["row"], [x[0] for x in t])
+    assert np.allclose(array["col"], [x[1] for x in t])
 
     array = package.get_resource("testy_biosphere_matrix.data")[0]
     assert array.shape == (2,)
@@ -648,8 +628,8 @@ def test_sqlite_processed_array_order():
 
     array = package.get_resource("testy_biosphere_matrix.indices")[0]
     assert array.shape == (2,)
-    assert np.allclose(array['row'], [x[0] for x in b])
-    assert np.allclose(array['col'], [x[1] for x in b])
+    assert np.allclose(array["row"], [x[0] for x in b])
+    assert np.allclose(array["col"], [x[1] for x in b])
 
 
 @bw2test

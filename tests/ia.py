@@ -119,12 +119,12 @@ def test_method_processed_array(reset):
     method = Method(("a", "method"))
     method.write([[("foo", "bar"), 42]])
     package = load_datapackage(ZipFS(method.filepath_processed()))
-    data = package.get_resource('a_method_matrix_data.data')[0]
+    data = package.get_resource("a_method_matrix_data.data")[0]
     assert np.allclose(data, [42])
 
-    indices = package.get_resource('a_method_matrix_data.indices')[0]
-    assert np.allclose(indices['row'], get_id(("foo", "bar")))
-    assert np.allclose(indices['col'], geomapping[config.global_location])
+    indices = package.get_resource("a_method_matrix_data.indices")[0]
+    assert np.allclose(indices["row"], get_id(("foo", "bar")))
+    assert np.allclose(indices["col"], geomapping[config.global_location])
 
 
 def test_method_base_class(reset):
@@ -163,12 +163,12 @@ def test_weighting_process(reset):
     package = load_datapackage(ZipFS(weighting.filepath_processed()))
     print(package.resources)
 
-    data = package.get_resource('foo_matrix_data.data')[0]
+    data = package.get_resource("foo_matrix_data.data")[0]
     assert np.allclose(data, [42])
 
-    indices = package.get_resource('foo_matrix_data.indices')[0]
-    assert np.allclose(indices['row'], 0)
-    assert np.allclose(indices['col'], 0)
+    indices = package.get_resource("foo_matrix_data.indices")[0]
+    assert np.allclose(indices["row"], 0)
+    assert np.allclose(indices["col"], 0)
 
 
 def test_weighting_base_class(reset):
@@ -198,9 +198,9 @@ def test_normalization_process_row(reset):
     norm.write([[("foo", "bar"), 42]])
     package = load_datapackage(ZipFS(norm.filepath_processed()))
 
-    data = package.get_resource('foo_matrix_data.data')[0]
+    data = package.get_resource("foo_matrix_data.data")[0]
     assert np.allclose(data, [42])
 
-    indices = package.get_resource('foo_matrix_data.indices')[0]
-    assert np.allclose(indices['row'], get_id(("foo", "bar")))
-    assert np.allclose(indices['col'], get_id(("foo", "bar")))
+    indices = package.get_resource("foo_matrix_data.indices")[0]
+    assert np.allclose(indices["row"], get_id(("foo", "bar")))
+    assert np.allclose(indices["col"], get_id(("foo", "bar")))

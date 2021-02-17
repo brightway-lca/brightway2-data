@@ -3,6 +3,7 @@ from bw2data import projects
 from bw2data.data_store import DataStore, ProcessedDataStore
 from bw2data.errors import UnknownObject
 from bw2data.serialization import SerializedDict
+
 # from bw_processing import load_package, COMMON_DTYPE
 from numbers import Number
 from voluptuous import Schema

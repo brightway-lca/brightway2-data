@@ -8,7 +8,13 @@ from ..search import IndexManager, Searcher
 from ..utils import as_uncertainty_dict
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
-from .utils import check_exchange, get_csv_data_dict, dict_as_activitydataset, dict_as_exchangedataset, retupleize_geo_strings
+from .utils import (
+    check_exchange,
+    get_csv_data_dict,
+    dict_as_activitydataset,
+    dict_as_exchangedataset,
+    retupleize_geo_strings,
+)
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
 from peewee import fn, DoesNotExist
@@ -361,11 +367,15 @@ class SQLiteBackend(ProcessedDataStore):
     def get(self, code):
         if isinstance(code, int):
             return Activity(
-                self._get_queryset(filters=False).where(ActivityDataset.id == code).get()
+                self._get_queryset(filters=False)
+                .where(ActivityDataset.id == code)
+                .get()
             )
         else:
             return Activity(
-                self._get_queryset(filters=False).where(ActivityDataset.code == code).get()
+                self._get_queryset(filters=False)
+                .where(ActivityDataset.code == code)
+                .get()
             )
 
     ### Data management
@@ -660,9 +670,7 @@ class SQLiteBackend(ProcessedDataStore):
         )
 
         dp = create_datapackage(
-            fs=ZipFS(
-                str(self.filepath_processed()), write=True
-            ),
+            fs=ZipFS(str(self.filepath_processed()), write=True),
             name=clean_datapackage_name(self.name),
             sum_intra_duplicates=True,
             sum_inter_duplicates=False,

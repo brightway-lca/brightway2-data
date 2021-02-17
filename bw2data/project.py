@@ -241,7 +241,9 @@ class ProjectManager(Iterable):
         try:
             self.dataset = ProjectDataset.get(ProjectDataset.name == name)
         except DoesNotExist:
-            self.dataset = ProjectDataset.create(data=kwargs, name=name, full_hash=kwargs.get("full_hash", False))
+            self.dataset = ProjectDataset.create(
+                data=kwargs, name=name, full_hash=kwargs.get("full_hash", False)
+            )
         create_dir(self.dir)
         for dir_name in self._basic_directories:
             create_dir(self.dir / dir_name)
@@ -255,7 +257,9 @@ class ProjectManager(Iterable):
         if fp.exists():
             raise ValueError("Project directory already exists")
         project_data = ProjectDataset.get(ProjectDataset.name == self.current).data
-        ProjectDataset.create(data=project_data, name=new_name, full_hash=self.dataset.full_hash)
+        ProjectDataset.create(
+            data=project_data, name=new_name, full_hash=self.dataset.full_hash
+        )
         shutil.copytree(self.dir, fp, ignore=lambda x, y: ["write-lock"])
         create_dir(self._base_logs_dir / safe_filename(new_name))
         if switch:

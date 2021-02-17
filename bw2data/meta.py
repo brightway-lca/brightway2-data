@@ -55,6 +55,7 @@ class GeoMapping(PickledDict):
 
 class Databases(SerializedDict):
     """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
+
     filename = "databases.json"
 
     @writable_project

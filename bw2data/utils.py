@@ -338,8 +338,9 @@ def set_data_dir(dirpath, permanent=True):
 
 def switch_data_directory(dirpath):
     from .projects import ProjectDataset, SubstitutableDatabase
+
     if dirpath == bw.projects._base_data_dir:
-        print('dirpath already loaded')
+        print("dirpath already loaded")
         return
     try:
         assert os.path.isdir(dirpath)
@@ -350,10 +351,9 @@ def switch_data_directory(dirpath):
             os.mkdir(bw.projects._base_logs_dir)
         # load new brightway directory
         bw.projects.db = SubstitutableDatabase(
-            os.path.join(bw.projects._base_data_dir, "projects.db"),
-            [ProjectDataset]
+            os.path.join(bw.projects._base_data_dir, "projects.db"), [ProjectDataset]
         )
-        print('Loaded brightway2 data directory: {}'.format(bw.projects._base_data_dir))
+        print("Loaded brightway2 data directory: {}".format(bw.projects._base_data_dir))
 
     except AssertionError:
         print('Could not access directory specified "dirpath"')
