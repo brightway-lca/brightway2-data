@@ -1,10 +1,10 @@
-from ... import mapping, geomapping, config, databases
-from ..peewee import SQLiteBackend
-from bw_processing import create_datapackage, clean_datapackage_name
-from ...utils import TYPE_DICTIONARY
+from .. import SQLiteBackend, get_id
+from ... import geomapping, config, databases
 from ...errors import UnknownObject
+from bw_processing import create_datapackage, clean_datapackage_name
+from fs.zipfs import ZipFS
 import datetime
-import numpy as np
+import itertools
 
 
 class IOTableBackend(SQLiteBackend):
@@ -14,7 +14,7 @@ class IOTableBackend(SQLiteBackend):
 
     backend = "iotable"
 
-    def write(self, products, exchanges, includes_production=False, **kwargs):
+    def write(self, products, prod_exchanges, tech_exchanges, bio_exchanges, **kwargs):
         """
 
         Write IO data to disk in two different formats.
@@ -24,131 +24,80 @@ class IOTableBackend(SQLiteBackend):
 
         ``products`` is a dictionary of product datasets in the normal format.
 
-        ``exchanges`` is a list of exchanges with the format ``(input code, output code, type, value)``.
+        ``tech_exchanges`` and ``bio_exchanges`` are lists  of exchanges with the format ``(input code, output code, type, value)``.
 
         """
         super(IOTableBackend, self).write(products, process=False)
         print("Starting IO table write")
-        num_products = len(products)
 
-        # Create geomapping array
-        arr = np.zeros(
-            (num_products,),
-            dtype=self.dtype_fields_geomapping + self.base_uncertainty_fields,
-        )
+        def as_iterator(exchanges, dependents, flip=False, step=1000000):
+            for index, row in enumerate(exchanges):
+                if index and not index % step:
+                    print("On exchange number {}".format(index))
+                try:
+                    dependents.addd(row[0][0])
+                    yield {
+                        'row': get_id(row[0]),
+                        'col': get_id(row[1]),
+                        'flip': flip,
+                        'amount': row[2],
+                        'uncertainty_type': 0,
+                    }
+                except UnknownObject:
+                    raise UnknownObject(
+                        (
+                            "Exchange between {} and {} is invalid "
+                            "- one of these objects is unknown (i.e. doesn't exist "
+                            "as a process dataset)"
+                        ).format(row[0], row[1])
+                    )
 
         dp = create_datapackage(
-            dirpath=self.dirpath_processed(),
-            name=self.filename_processed(),
-            compress=False,
+            fs=ZipFS(
+                str(self.filepath_processed()), write=True
+            ),
+            name=clean_datapackage_name(self.name),
+            sum_intra_duplicates=True,
+            sum_inter_duplicates=False,
         )
-        dp.add_structured_array(
-            iterable_data_source=dictionary_wrapper(
-                (
-                    {
-                        "row": mapping[row["key"]],
-                        "col": geomapping[row["location"] or config.global_location],
-                        "amount": 1,
-                    }
-                    for index, row in enumerate(
-                        sorted(products.values(), key=lambda x: x.get("key"))
-                    )
+        dp.add_persistent_vector_from_iterator(
+            dict_iterator=(
+                {
+                    "row": get_id(key),
+                    "col": geomapping[value["location"] or config.global_location],
+                    "amount": 1,
+                }
+                for index, (key, value) in enumerate(
+                    sorted(products.items())
                 )
             ),
-            matrix_label="inv_geomapping_matrix",
+            matrix="inv_geomapping_matrix",
             name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
-            nrows=num_products,
+            nrows=len(products),
         )
-
-        dp.finalize()
 
         dependents = set()
 
-        print("Creating array - this will take a while...")
-        step = 5000000
-        arr = np.zeros((step,), dtype=self.dtype)
+        print("Creating arrays - this will take a while...")
 
-        for index, row in enumerate(exchanges):
-            if isinstance(row, dict):
-                inpt = row["input"]
-                outpt = row["output"]
-                row_type = row["type"]
-                unc_type = row.get("uncertainty type", 0)
-                amount = row["amount"]
-                loc = row.get("loc", row["amount"])
-                scale = row.get("scale", np.NaN)
-                shape = row.get("shape", np.NaN)
-                minimum = row.get("minimum", np.NaN)
-                maximum = row.get("maximum", np.NaN)
-            else:
-                inpt, outpt, row_type, amount = row
-                loc, unc_type = amount, 0
-                scale = shape = minimum = maximum = np.NaN
+        dp.add_persistent_vector_from_iterator(
+            matrix="technosphere_matrix",
+            name=clean_datapackage_name(self.name + " technosphere matrix"),
+            dict_iterator=itertools.chain(
+                as_iterator(tech_exchanges, dependents, flip=True),
+                as_iterator(prod_exchanges, dependents, flip=False)
+            )
+        )
 
-            if index and not index % 1000000:
-                print("On exchange number {}".format(index))
-            if index and not index % step:
-                # Add another `step` rows
-                arr = np.hstack((arr, np.zeros((step,), dtype=self.dtype)))
-
-            dependents.add(inpt[0])
-
-            try:
-                arr[index] = (
-                    mapping[inpt],
-                    mapping[outpt],
-                    MAX_SIGNED_32BIT_INT,
-                    MAX_SIGNED_32BIT_INT,
-                    TYPE_DICTIONARY[row_type],
-                    unc_type,
-                    amount,
-                    loc,
-                    scale,
-                    shape,
-                    minimum,
-                    maximum,
-                    amount < 0,
-                )
-            except KeyError:
-                raise UnknownObject(
-                    (
-                        "Exchange between {} and {} is invalid "
-                        "- one of these objects is unknown (i.e. doesn't exist "
-                        "as a process dataset)"
-                    ).format(inpt, outpt)
-                )
-
-        if not includes_production:
-            for index2, obj in enumerate(products):
-                if index and not index % step:
-                    arr = np.hstack((arr, np.zeros((step,), dtype=self.dtype)))
-
-                arr[index + index2] = (
-                    mapping[obj],
-                    mapping[obj],
-                    MAX_SIGNED_32BIT_INT,
-                    MAX_SIGNED_32BIT_INT,
-                    TYPE_DICTIONARY["production"],
-                    0,
-                    1,
-                    1,
-                    np.NaN,
-                    np.NaN,
-                    np.NaN,
-                    np.NaN,
-                    False,
-                )
+        dp.add_persistent_vector_from_iterator(
+            matrix="biosphere_matrix",
+            name=clean_datapackage_name(self.name + " biosphere matrix"),
+            dict_iterator=as_iterator(bio_exchanges, dependents, flip=True)
+        )
 
         databases[self.name]["depends"] = sorted(dependents.difference({self.name}))
         databases[self.name]["processed"] = datetime.datetime.now().isoformat()
         databases.flush()
-
-        # Trim arr
-        print("Trimming array")
-        arr = arr[np.where(arr["row"] == MAX_SIGNED_32BIT_INT)]
-
-        print("Writing array")
-        np.save(self.filepath_processed(), arr, allow_pickle=False)
 
     def process(self):
         """No-op; no intermediate data to process"""

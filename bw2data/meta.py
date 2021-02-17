@@ -3,14 +3,20 @@ from .serialization import SerializedDict, PickledDict, CompoundJSONDict
 import datetime
 
 
-class Mapping(PickledDict):
-    """A dictionary that maps object ids, like ``("Ecoinvent 2.2", 42)``, to integers. Needed because parameter arrays have integer ``row`` and ``column`` fields.
+class GeoMapping(PickledDict):
+    """A dictionary that maps location codes to integers. Needed because parameter arrays have integer ``geo`` fields.
 
-    File data is saved in ``mapping.pickle``.
+    File data is stored in ``geomapping.pickle``.
 
     This dictionary does not support setting items directly; instead, use the ``add`` method to add multiple keys."""
 
-    filename = "mapping.pickle"
+    filename = "geomapping.pickle"
+
+    def __init__(self, *args, **kwargs):
+        super(GeoMapping, self).__init__(*args, **kwargs)
+        # At a minimum, "GLO" should always be present
+        if "GLO" not in self:
+            self.add(["GLO"])
 
     @writable_project
     def add(self, keys):
@@ -47,28 +53,8 @@ class Mapping(PickledDict):
         return len(self.data)
 
 
-class GeoMapping(Mapping):
-    """A dictionary that maps location codes to integers. Needed because parameter arrays have integer ``geo`` fields.
-
-    File data is stored in ``geomapping.pickle``.
-
-    This dictionary does not support setting items directly; instead, use the ``add`` method to add multiple keys."""
-
-    filename = "geomapping.pickle"
-
-    def __init__(self, *args, **kwargs):
-        super(GeoMapping, self).__init__(*args, **kwargs)
-        # At a minimum, "GLO" should always be present
-        if "GLO" not in self:
-            self.add(["GLO"])
-
-    def __str__(self):
-        return "Mapping from locations to parameter indices."
-
-
 class Databases(SerializedDict):
     """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
-
     filename = "databases.json"
 
     @writable_project
@@ -183,7 +169,6 @@ class Preferences(PickledDict):
 
 databases = Databases()
 geomapping = GeoMapping()
-mapping = Mapping()
 methods = Methods()
 normalizations = NormalizationMeta()
 preferences = Preferences()

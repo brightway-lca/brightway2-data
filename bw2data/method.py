@@ -2,6 +2,7 @@ from . import methods, geomapping, config
 from .ia_data_store import ImpactAssessmentDataStore
 from .utils import as_uncertainty_dict
 from .validate import ia_validator
+from .backends.schema import get_id
 
 
 class Method(ImpactAssessmentDataStore):
@@ -36,15 +37,14 @@ class Method(ImpactAssessmentDataStore):
     validator = ia_validator
     matrix = "characterization_matrix"
 
-    def add_mappings(self, data):
-        mapping.add({x[0] for x in data})
+    def add_geomappings(self, data):
         geomapping.add({x[2] for x in data if len(x) == 3})
 
     def process_row(self, row):
         """Given ``(flow, amount, maybe location)``, return a dictionary for array insertion."""
         return {
             **as_uncertainty_dict(row[1]),
-            "row": mapping[row[0]],
+            "row": get_id(row[0]),
             "col": (
                 geomapping[row[2]]
                 if len(row) >= 3

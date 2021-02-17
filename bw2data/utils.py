@@ -3,6 +3,7 @@ from .errors import WebUIError, UnknownObject, NotFound, ValidityError
 from .fatomic import open
 from io import StringIO
 from pathlib import Path
+from peewee import DoesNotExist
 import collections
 import itertools
 import os
@@ -214,13 +215,13 @@ def merge_databases(parent_db, other):
 
     Doesn't return anything."""
     from .database import Database
-    from .backends.peewee import (
+    from .backends import (
         ActivityDataset,
         ExchangeDataset,
         SQLiteBackend,
         sqlite3_lci_db,
     )
-    from . import databases, mapping
+    from . import databases
 
     assert parent_db in databases
     assert other in databases
@@ -228,7 +229,7 @@ def merge_databases(parent_db, other):
     first = Database(parent_db)
     second = Database(other)
 
-    if not isinstance(first, SQLiteBackend) or not isinstance(second, SQLiteBackend):
+    if type(first) != SQLiteBackend or type(second) != SQLiteBackend:
         raise ValidityError("Both databases must be `SQLiteBackend`")
 
     first_codes = {
@@ -241,13 +242,6 @@ def merge_databases(parent_db, other):
     }
     if first_codes.intersection(second_codes):
         raise ValidityError("Duplicate codes - can't merge databases")
-
-    qs = (
-        ActivityDataset.select(ActivityDataset.code)
-        .where(ActivityDataset.database == other)
-        .tuples()
-    )
-    mapping.add(((parent_db, o[0]) for o in qs))
 
     with sqlite3_lci_db.atomic():
         ActivityDataset.update(database=parent_db).where(
@@ -383,6 +377,13 @@ def create_in_memory_zipfile_from_directory(path):
 
 def get_activity(key):
     from .database import Database
+    from .backends import ActivityDataset as AD, Activity
+
+    if isinstance(key, int):
+        try:
+            return Activity(AD.get(AD.id == key))
+        except DoesNotExist:
+            raise UnknownObject
 
     try:
         return Database(key[0]).get(key[1])
@@ -390,4 +391,3 @@ def get_activity(key):
         raise UnknownObject(
             "Key {} cannot be understood as an activity" " or `(database, code)` tuple."
         )
-

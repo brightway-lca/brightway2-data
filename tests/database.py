@@ -1,37 +1,31 @@
-from bw2data.tests import bw2test
 from .fixtures import food as food_data, biosphere, get_naughty
+from bw2data import get_id, geomapping
+from bw2data.tests import bw2test
 from bw2data.database import DatabaseChooser
-from bw2data.backends.peewee import (
+from bw2data.backends import (
     Activity as PWActivity,
-    ActivityDataset,
-    Exchange as PWExchange,
-    ExchangeDataset,
     sqlite3_lci_db,
 )
 from bw2data.errors import (
     InvalidExchange,
-    MissingIntermediateData,
     UnknownObject,
     UntypedExchange,
-    ValidityError,
 )
 from bw2data.errors import WrongDatabase
-from bw2data.meta import mapping, geomapping, databases
+from bw2data.meta import databases
 from bw2data.parameters import (
     ActivityParameter,
     DatabaseParameter,
     ParameterizedExchange,
     parameters,
 )
-# from bw_processing import load_package
+from bw_processing import load_datapackage
+from fs.zipfs import ZipFS
 import copy
 import datetime
 import numpy as np
 import pytest
 import warnings
-
-
-# package = load_package(method.filepath_processed())
 
 
 @pytest.fixture
@@ -206,58 +200,6 @@ def test_write_sets_databases_number_attribute():
 
 
 ### Processed arrays
-
-
-# @bw2test
-# def test_sqlite_processed_array_order():
-#     database = DatabaseChooser("testy")
-#     data = {
-#         ("testy", "C"): {},
-#         ("testy", "A"): {"type": "biosphere"},
-#         ("testy", "B"): {
-#             "exchanges": [
-#                 {"input": ("testy", "A"), "amount": 1, "type": "technosphere"},
-#                 {"input": ("testy", "A"), "amount": 2, "type": "technosphere"},
-#                 {"input": ("testy", "C"), "amount": 2, "type": "biosphere"},
-#                 {"input": ("testy", "C"), "amount": 3, "type": "biosphere"},
-#                 {"input": ("testy", "B"), "amount": 4, "type": "production"},
-#                 {"input": ("testy", "B"), "amount": 1, "type": "production"},
-#             ]
-#         },
-#     }
-#     database.write(data)
-#     lookup = {k: mapping[("testy", k)] for k in "ABC"}
-#     expected = sorted(
-#         [
-#             (lookup["B"], lookup["B"], 1),
-#             (lookup["B"], lookup["B"], 4),
-#             (lookup["C"], lookup["C"], 1),
-#             (lookup["A"], lookup["B"], 1),
-#             (lookup["A"], lookup["B"], 2),
-#         ]
-#     )
-#     package = load_package(database.filepath_processed())
-#     array = package["technosphere_matrix.npy"]
-#     assert array.shape == (5,)
-#     result = [
-#         (array["row_value"][x], array["col_value"][x], array["amount"][x])
-#         for x in range(5)
-#     ]
-#     assert expected == result
-#     array = package["biosphere_matrix.npy"]
-#     assert array.shape == (2,)
-
-
-@bw2test
-def test_process_adds_to_mappings():
-    database = DatabaseChooser("testy")
-    database_data = {
-        ("testy", "A"): {"location": "CH"},
-        ("testy", "B"): {"location": "DE"},
-    }
-    database.write(database_data)
-    assert ("testy", "A") in mapping and ("testy", "B") in mapping
-    assert "CH" in geomapping and "DE" in geomapping
 
 
 @bw2test
@@ -441,48 +383,53 @@ def test_process_checks_process_type():
     assert database.process() is None
 
 
-# @bw2test
-# def test_geomapping_array_includes_only_processes():
-#     database = DatabaseChooser("a database")
-#     database.write(
-#         {
-#             ("a database", "foo"): {
-#                 "exchanges": [],
-#                 "type": "process",
-#                 "location": "bar",
-#             },
-#             ("a database", "baz"): {"exchanges": [], "type": "emission"},
-#         }
-#     )
-#     package = load_package(database.filepath_processed())
-#     array = package["inv_geomapping_matrix.npy"]
-#     assert array.shape == (1,)
-#     assert array[0]["col_value"] == geomapping["bar"]
+@bw2test
+def test_geomapping_array_includes_only_processes():
+    database = DatabaseChooser("a database")
+    database.write(
+        {
+            ("a database", "foo"): {
+                "exchanges": [],
+                "type": "process",
+                "location": "bar",
+            },
+            ("a database", "baz"): {"exchanges": [], "type": "emission"},
+        }
+    )
+    package = load_datapackage(ZipFS(database.filepath_processed()))
+    array = package.get_resource("a_database_inventory_geomapping_matrix.indices")[0]
+    assert array.shape == (1,)
+    assert array[0]["col"] == geomapping["bar"]
 
 
-# @bw2test
-# def test_processed_array():
-#     database = DatabaseChooser("a database")
-#     database.write(
-#         {
-#             ("a database", "2"): {
-#                 "type": "process",
-#                 "exchanges": [
-#                     {
-#                         "input": ("a database", "2"),
-#                         "amount": 42,
-#                         "uncertainty_type": 7,
-#                         "type": "production",
-#                     }
-#                 ],
-#             }
-#         }
-#     )
-#     package = load_package(database.filepath_processed())
-#     array = package["technosphere_matrix.npy"]
-#     assert array.shape == (1,)
-#     assert array[0]["uncertainty_type"] == 7
-#     assert array[0]["amount"] == 42
+@bw2test
+def test_processed_array():
+    database = DatabaseChooser("a database")
+    database.write(
+        {
+            ("a database", "2"): {
+                "type": "process",
+                "exchanges": [
+                    {
+                        "input": ("a database", "2"),
+                        "amount": 42,
+                        "uncertainty_type": 7,
+                        "type": "production",
+                    }
+                ],
+            }
+        }
+    )
+    package = load_datapackage(ZipFS(database.filepath_processed()))
+    print(package.resources)
+    array = package.get_resource('a_database_technosphere_matrix.data')[0]
+
+    assert array.shape == (1,)
+    assert array[0] == 42
+
+    array = package.get_resource('a_database_technosphere_matrix.distributions')[0]
+    assert array.shape == (1,)
+    assert array[0]["uncertainty_type"] == 7
 
 
 @bw2test
@@ -535,11 +482,36 @@ def test_find_dependents():
 
 @bw2test
 def test_set_dependents():
+    foo = DatabaseChooser("foo")
+    foo.write(
+        {
+            ("foo", "bar"): {
+                "exchanges": [],
+                "type": "process",
+            },
+        }
+    )
+    baz = DatabaseChooser("baz")
+    baz.write(
+        {
+            ("baz", "w00t"): {
+                "exchanges": [],
+                "type": "process",
+            },
+        }
+    )
+    biosphere = DatabaseChooser("biosphere")
+    biosphere.write(
+        {
+            ("biosphere", "bar"): {
+                "exchanges": [],
+                "type": "process",
+            },
+        }
+    )
     database = DatabaseChooser("a database")
     database.register()
     assert databases["a database"]["depends"] == []
-    keys = [("biosphere", "bar"), ("baz", "w00t"), ("foo", "bar")]
-    mapping.add(keys)
     database.write(
         {
             ("a database", "foo"): {
@@ -561,14 +533,15 @@ def test_set_dependents():
     assert databases["a database"]["depends"] == ["baz", "biosphere", "foo"]
 
 
-# @bw2test
-# def test_process_without_exchanges_still_in_processed_array():
-#     database = DatabaseChooser("a database")
-#     database.write({("a database", "foo"): {}})
-#     package = load_package(database.filepath_processed())
-#     array = package["technosphere_matrix.npy"]
-#     assert array["amount"][0] == 1
-#     assert array.shape == (1,)
+@bw2test
+def test_process_without_exchanges_still_in_processed_array():
+    database = DatabaseChooser("a database")
+    database.write({("a database", "foo"): {}})
+
+    package = load_datapackage(ZipFS(database.filepath_processed()))
+    array = package.get_resource("a_database_technosphere_matrix.data")[0]
+    assert array[0] == 1
+    assert array.shape == (1,)
 
 
 @bw2test
@@ -594,55 +567,113 @@ def test_new_activity():
     assert act["this"] == "that"
 
 
-# @bw2test
-# def test_can_split_processes_products():
-#     database = DatabaseChooser("a database")
-#     database.write(
-#         {
-#             ("a database", "product"): {"type": "product"},
-#             ("a database", "foo"): {
-#                 "exchanges": [
-#                     {
-#                         "input": ("a database", "product"),
-#                         "output": ("a database", "product"),
-#                         "type": "production",
-#                         "amount": 1,
-#                     }
-#                 ],
-#                 "type": "process",
-#             },
-#         }
-#     )
-#     assert ("a database", "product") in mapping
-#     package = load_package(database.filepath_processed())
-#     array = package["technosphere_matrix.npy"]
-#     assert array.shape == (1,)
-#     assert array["col_value"][0] == mapping[("a database", "foo")]
-#     assert array["row_value"][0] == mapping[("a database", "product")]
+@bw2test
+def test_can_split_processes_products():
+    database = DatabaseChooser("a database")
+    database.write(
+        {
+            ("a database", "product"): {"type": "product"},
+            ("a database", "foo"): {
+                "exchanges": [
+                    {
+                        "input": ("a database", "product"),
+                        "output": ("a database", "product"),
+                        "type": "production",
+                        "amount": 1,
+                    }
+                ],
+                "type": "process",
+            },
+        }
+    )
+    package = load_datapackage(ZipFS(database.filepath_processed()))
+    array = package.get_resource("a_database_technosphere_matrix.indices")[0]
+    assert array.shape == (1,)
+    assert array["col"][0] == get_id(("a database", "foo"))
+    assert array["row"][0] == get_id(("a database", "product"))
 
 
-# @bw2test
-# def test_loc_value_if_no_uncertainty():
-#     database = DatabaseChooser("a database")
-#     database.write(
-#         {
-#             ("a database", "2"): {
-#                 "type": "process",
-#                 "exchanges": [
-#                     {
-#                         "input": ("a database", "2"),
-#                         "amount": 42.0,
-#                         "type": "technosphere",
-#                     }
-#                 ],
-#             }
-#         }
-#     )
-#     package = load_package(database.filepath_processed())
-#     array = package["technosphere_matrix.npy"]
-#     assert array.shape == (2,)
-#     assert array["loc"][1] == 42.0
-#     assert array["loc"][0] == 1.0
+@bw2test
+def test_sqlite_processed_array_order():
+    database = DatabaseChooser("testy")
+    data = {
+        ("testy", "C"): {},
+        ("testy", "A"): {},
+        ("testy", "B"): {
+            "exchanges": [
+                {"input": ("testy", "A"), "amount": 1, "type": "technosphere"},
+                {"input": ("testy", "A"), "amount": 2, "type": "technosphere"},
+                {"input": ("testy", "C"), "amount": 2, "type": "biosphere"},
+                {"input": ("testy", "C"), "amount": 3, "type": "biosphere"},
+                {"input": ("testy", "B"), "amount": 4, "type": "production"},
+                {"input": ("testy", "B"), "amount": 1, "type": "production"},
+            ]
+        },
+    }
+    database.write(data)
+    lookup = {k: get_id(("testy", k)) for k in "ABC"}
+    t = sorted(
+        [
+            (lookup["A"], lookup["B"], 1),
+            (lookup["A"], lookup["B"], 2),
+            # Implicit production
+            (lookup["C"], lookup["C"], 1),
+            (lookup["A"], lookup["A"], 1),
+            # Explicit production
+            (lookup["B"], lookup["B"], 4),
+            (lookup["B"], lookup["B"], 1),
+        ]
+    )
+    b = sorted(
+        [
+            (lookup["C"], lookup["B"], 2),
+            (lookup["C"], lookup["B"], 3),
+        ]
+    )
+
+    package = load_datapackage(ZipFS(database.filepath_processed()))
+
+    array = package.get_resource("testy_technosphere_matrix.data")[0]
+    assert array.shape == (6,)
+    assert np.allclose(array, [x[2] for x in t])
+
+    array = package.get_resource("testy_technosphere_matrix.indices")[0]
+    assert array.shape == (6,)
+    assert np.allclose(array['row'], [x[0] for x in t])
+    assert np.allclose(array['col'], [x[1] for x in t])
+
+    array = package.get_resource("testy_biosphere_matrix.data")[0]
+    assert array.shape == (2,)
+    assert np.allclose(array, [x[2] for x in b])
+
+    array = package.get_resource("testy_biosphere_matrix.indices")[0]
+    assert array.shape == (2,)
+    assert np.allclose(array['row'], [x[0] for x in b])
+    assert np.allclose(array['col'], [x[1] for x in b])
+
+
+@bw2test
+def test_no_distributions_if_no_uncertainty():
+    database = DatabaseChooser("a database")
+    database.write(
+        {
+            ("a database", "2"): {
+                "type": "process",
+                "exchanges": [
+                    {
+                        "input": ("a database", "2"),
+                        "amount": 42.0,
+                        "type": "technosphere",
+                    }
+                ],
+            }
+        }
+    )
+
+    package = load_datapackage(ZipFS(database.filepath_processed()))
+    print(package.resources)
+    with pytest.raises(KeyError):
+        package.get_resource("a_database_technosphere_matrix.distributions")
 
 
 @bw2test

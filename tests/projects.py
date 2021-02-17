@@ -8,6 +8,7 @@ from bw2data import (
     preferences,
     projects,
 )
+from bw2data.project import ProjectDataset
 from bw2data.errors import ReadOnlyProject
 from pathlib import Path
 import os
@@ -48,7 +49,6 @@ def test_invalid_env_var():
 @bw2test
 def test_invalid_output_env_dir():
     os.environ["BRIGHTWAY2_OUTPUT_DIR"] = "nothing special"
-    print(projects.dir)
     assert str(projects.dir) in str(projects.output_dir)
     del os.environ["BRIGHTWAY2_OUTPUT_DIR"]
 
@@ -83,7 +83,7 @@ def test_directories():
 
 @bw2test
 def test_default_project_created():
-    assert [x.name for x in projects] == ["default"]
+    assert "default" in projects
 
 
 @bw2test
@@ -91,7 +91,8 @@ def test_repeatedly_set_name_same_value():
     projects.set_current("foo")
     projects.set_current("foo")
     projects.set_current("foo")
-    assert sorted([x.name for x in projects]) == ["default", "foo"]
+    assert len(projects) == 3
+    assert "foo" in projects
 
 
 @pytest.mark.skipif(config._windows, reason="Windows doesn't allow fun")
@@ -184,8 +185,9 @@ def test_delete_project():
 
 @bw2test
 def test_delete_last_project():
-    assert len(projects) == 1
+    assert len(projects) == 2
     with pytest.raises(ValueError):
+        projects.delete_project()
         projects.delete_project()
 
 
@@ -275,9 +277,9 @@ def test_contains():
 
 @bw2test
 def test_len():
-    assert len(projects) == 1
-    projects.set_current("foo")
     assert len(projects) == 2
+    projects.set_current("foo")
+    assert len(projects) == 3
 
 
 @bw2test
@@ -287,11 +289,6 @@ def test_iterating_over_projects_no_error():
     projects.set_current("baz")
     for x in projects:
         projects.set_current(x.name)
-
-
-@bw2test
-def test_iterating_over_projects_no_error():
-    projects.set_current("foo")
 
 
 ###
@@ -333,9 +330,17 @@ def test_read_only_cant_write():
 
 @bw2test
 def test_copy_project():
+    ds = ProjectDataset.get(ProjectDataset.name == projects.current)
+    ds.data['this'] = 'that'
+    ds.save()
+
     databases["foo"] = "bar"
     projects.copy_project("another one", False)
     assert "another one" in projects
+
+    ds = ProjectDataset.get(ProjectDataset.name == "another one")
+    assert ds.data['this'] == 'that'
+
     projects.set_current("another one")
     assert databases["foo"] == "bar"
 

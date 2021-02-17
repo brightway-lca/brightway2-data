@@ -139,7 +139,7 @@ class ProcessedDataStore(DataStore):
     """
 Brightway2 data stores that can be processed to NumPy arrays.
 
-In addition to ``metadata`` and (optionally) ``validator``, subclasses should override ``add_mappings``. This method takes the entire dataset, and loads objects to :ref:`mapping` or :ref:`geomapping` as needed.
+In addition to ``metadata`` and (optionally) ``validator``, subclasses should override ``add_geomappings``. This method takes the entire dataset, and loads objects to :ref:`geomapping` as needed.
 
     """
 
@@ -163,7 +163,7 @@ In addition to ``metadata`` and (optionally) ``validator``, subclasses should ov
 
         """
         self.register()
-        self.add_mappings(data)
+        self.add_geomappings(data)
         filepath = projects.dir / self._intermediate_dir / (self.filename + ".pickle")
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=4)
@@ -203,8 +203,8 @@ Doesn't return anything, but writes a file to disk.
         )
         dp.finalize_serialization()
 
-    def add_mappings(self, data):
-        """Add objects to ``mapping`` or ``geomapping``, if necessary.
+    def add_geomappings(self, data):
+        """Add objects to ``geomapping``, if necessary.
 
         Args:
             * *data* (object): The data

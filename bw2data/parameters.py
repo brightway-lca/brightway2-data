@@ -1,5 +1,5 @@
 from . import databases, projects, config, get_activity
-from .backends.peewee.schema import ExchangeDataset
+from .backends.schema import ExchangeDataset
 from .sqlite import PickleField, SubstitutableDatabase
 from asteval import Interpreter
 from bw2parameters import ParameterSet

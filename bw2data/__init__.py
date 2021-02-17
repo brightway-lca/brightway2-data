@@ -7,6 +7,7 @@ __all__ = [
     "databases",
     "DataStore",
     "get_activity",
+    "get_id",
     "geomapping",
     "IndexManager",
     "JsonWrapper",
@@ -36,7 +37,6 @@ from .meta import (
     calculation_setups,
     databases,
     geomapping,
-    mapping,
     methods,
     normalizations,
     preferences,
@@ -50,7 +50,6 @@ config.metadata.extend(
         calculation_setups,
         databases,
         geomapping,
-        mapping,
         methods,
         normalizations,
         preferences,
@@ -62,18 +61,18 @@ config.metadata.extend(
 config.p = preferences
 
 from .serialization import JsonWrapper
-from .database import DatabaseChooser as Database, get_activity
+from .database import DatabaseChooser as Database
+from .utils import get_activity
 from .data_store import DataStore, ProcessedDataStore
 from .method import Method
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
-from .backends import convert_backend
-from .compat import prepare_lca_inputs
+from .backends import convert_backend, get_id
+from .compat import prepare_lca_inputs, Mapping
 
-# Don't confuse nose tests
+mapping = Mapping()
+
 from .updates import Updates
 from .parameters import parameters
-
-projects.set_current("default")
 
 Updates.check_status()

@@ -1,7 +1,7 @@
 from bw2data.tests import bw2test
 from bw2data import databases
-from bw2data.search import *
-from bw2data.backends.peewee import *
+from bw2data.search import Searcher, IndexManager
+from bw2data.backends import SQLiteBackend
 
 
 @bw2test
@@ -110,7 +110,6 @@ def test_add_datasets():
 @bw2test
 def test_add_database():
     db = SQLiteBackend("foo")
-    im = IndexManager(db.filename)
     ds = {("foo", "bar"): {"database": "foo", "code": "bar", "name": "lollipop"}}
     db.write(ds)
     with Searcher(db.filename) as s:
@@ -123,7 +122,6 @@ def test_add_database():
 @bw2test
 def test_add_searchable_database():
     db = SQLiteBackend("foo")
-    im = IndexManager(db.filename)
     ds = {("foo", "bar"): {"database": "foo", "code": "bar", "name": "lollipop"}}
     db.write(ds)
     with Searcher(db.filename) as s:
@@ -133,7 +131,6 @@ def test_add_searchable_database():
 @bw2test
 def test_modify_database():
     db = SQLiteBackend("foo")
-    im = IndexManager(db.filename)
     ds = {("foo", "bar"): {"database": "foo", "code": "bar", "name": "lollipop"}}
     db.write(ds)
     with Searcher(db.filename) as s:
@@ -148,7 +145,6 @@ def test_modify_database():
 @bw2test
 def test_delete_database():
     db = SQLiteBackend("foo")
-    im = IndexManager(db.filename)
     ds = {("foo", "bar"): {"database": "foo", "code": "bar", "name": "lollipop"}}
     db.write(ds)
     with Searcher(db.filename) as s:
@@ -202,7 +198,7 @@ def test_comment_term():
 def test_categories_term():
     im = IndexManager("foo")
     im.add_dataset(
-        {"database": "foo", "code": "bar", "categories": ("lollipop",),}
+        {"database": "foo", "code": "bar", "categories": ("lollipop",)}
     )
     with Searcher("foo") as s:
         assert s.search("lollipop", proxy=False)
@@ -213,7 +209,7 @@ def test_limit():
     im = IndexManager("foo")
     im.add_datasets(
         [
-            {"database": "foo", "code": "bar", "name": "lollipop {}".format(x),}
+            {"database": "foo", "code": "bar", "name": "lollipop {}".format(x)}
             for x in range(50)
         ]
     )
@@ -225,8 +221,8 @@ def test_limit():
 def test_search_faceting():
     im = IndexManager("foo")
     ds = [
-        {"database": "foo", "code": "bar", "name": "lollipop", "location": "CH",},
-        {"database": "foo", "code": "bar", "name": "ice lollipop", "location": "FR",},
+        {"database": "foo", "code": "bar", "name": "lollipop", "location": "CH"},
+        {"database": "foo", "code": "bar", "name": "ice lollipop", "location": "FR"},
     ]
     im.add_datasets(ds)
     with Searcher("foo") as s:

@@ -1,13 +1,17 @@
-from bw2data.tests import bw2test
-from bw2data.database import DatabaseChooser as Database
+from bw2data.backends.schema import ActivityDataset as AD
+from bw2data.database import DatabaseChooser
 from bw2data.ia_data_store import abbreviate, ImpactAssessmentDataStore as IADS
-from bw2data.meta import mapping, geomapping, weightings, normalizations, methods
+from bw2data.meta import geomapping, weightings, normalizations, methods, databases
 from bw2data.method import Method
 from bw2data.serialization import CompoundJSONDict
+from bw2data.tests import bw2test
 from bw2data.validate import weighting_validator, normalization_validator, ia_validator
 from bw2data.weighting_normalization import Normalization, Weighting
-# from bw_processing import load_package
+from bw2data import get_id, config
+from bw_processing import load_datapackage
+from fs.zipfs import ZipFS
 import hashlib
+import numpy as np
 import pytest
 
 
@@ -81,27 +85,22 @@ def test_register_adds_abbreviation(reset):
     assert list(metadata[name].keys()) == ["abbreviation"]
 
 
-def test_method_write_adds_to_mapping(reset):
-    Database("testy").register()
-    method_data = [
-        [("testy", "A"), 1],
-        [("testy", "B"), 1],
-    ]
-    method = Method(("a", "method"))
-    method.register()
-    method.write(method_data)
-    assert ("testy", "A") in mapping
-    assert ("testy", "B") in mapping
-    method_data = [
-        [("testy", "A"), 1, "CH"],
-        [("testy", "B"), 1, "DE"],
-    ]
-    method.write(method_data)
-    assert "CH" in geomapping
-    assert "DE" in geomapping
-
-
 def test_method_write_adds_num_cfs_to_metadata(reset):
+    assert not len(databases)
+    assert not len(methods)
+    assert not AD.select().count()
+
+    database = DatabaseChooser("testy")
+    data = {
+        ("testy", "A"): {},
+        ("testy", "B"): {
+            "exchanges": [
+                {"input": ("testy", "A"), "amount": 1, "type": "technosphere"},
+            ]
+        },
+    }
+    database.write(data)
+
     method_data = [
         [("testy", "A"), 1],
         [("testy", "B"), 1],
@@ -110,22 +109,22 @@ def test_method_write_adds_num_cfs_to_metadata(reset):
     method = Method(name)
     method.register()
     method.write(method_data)
-    methods[name]["num_cfs"] == 2
+    assert methods[name]["num_cfs"] == 2
 
 
-# def test_method_processed_array(reset):
-#     method = Method(("a", "method"))
-#     method.write([[("foo", "bar"), 42]])
-#     package = load_package(method.filepath_processed())
-#     array = package["characterization_matrix.npy"]
-#     assert array[0]["amount"] == 42
+def test_method_processed_array(reset):
+    database = DatabaseChooser("foo")
+    database.write({("foo", "bar"): {}})
 
+    method = Method(("a", "method"))
+    method.write([[("foo", "bar"), 42]])
+    package = load_datapackage(ZipFS(method.filepath_processed()))
+    data = package.get_resource('a_method_matrix_data.data')[0]
+    assert np.allclose(data, [42])
 
-# def test_method_processed_array_global_location(reset):
-#     method = Method(("a", "method"))
-#     method.write([[("foo", "bar"), 42]])
-#     package = load_package(method.filepath_processed())
-#     assert isinstance(package['datapackage']['resources'][0]['global_index'], int)
+    indices = package.get_resource('a_method_matrix_data.indices')[0]
+    assert np.allclose(indices['row'], get_id(("foo", "bar")))
+    assert np.allclose(indices['col'], geomapping[config.global_location])
 
 
 def test_method_base_class(reset):
@@ -158,12 +157,18 @@ def test_weighting_write_invalid_data(reset):
         w.write([2, 4])
 
 
-# def test_weighting_process(reset):
-#     weighting = Weighting(("foo",))
-#     weighting.write([42])
-#     package = load_package(weighting.filepath_processed())
-#     array = package["weighting_matrix.npy"]
-#     assert array[0]["amount"] == 42
+def test_weighting_process(reset):
+    weighting = Weighting(("foo",))
+    weighting.write([42])
+    package = load_datapackage(ZipFS(weighting.filepath_processed()))
+    print(package.resources)
+
+    data = package.get_resource('foo_matrix_data.data')[0]
+    assert np.allclose(data, [42])
+
+    indices = package.get_resource('foo_matrix_data.indices')[0]
+    assert np.allclose(indices['row'], 0)
+    assert np.allclose(indices['col'], 0)
 
 
 def test_weighting_base_class(reset):
@@ -185,16 +190,17 @@ def test_base_normalization_class(reset):
     assert norm._metadata == normalizations
 
 
-def test_add_normalization_mappings(reset):
+def test_normalization_process_row(reset):
+    database = DatabaseChooser("foo")
+    database.write({("foo", "bar"): {}})
+
     norm = Normalization(("foo",))
     norm.write([[("foo", "bar"), 42]])
-    assert ("foo", "bar") in mapping
+    package = load_datapackage(ZipFS(norm.filepath_processed()))
 
+    data = package.get_resource('foo_matrix_data.data')[0]
+    assert np.allclose(data, [42])
 
-# def test_normalization_process_row(reset):
-#     norm = Normalization(("foo",))
-#     norm.write([[("foo", "bar"), 42]])
-#     package = load_package(norm.filepath_processed())
-#     array = package["normalization_matrix.npy"]
-#     assert array[0]["amount"] == 42
-#     assert array[0]["row_value"] == mapping[("foo", "bar")]
+    indices = package.get_resource('foo_matrix_data.indices')[0]
+    assert np.allclose(indices['row'], get_id(("foo", "bar")))
+    assert np.allclose(indices['col'], get_id(("foo", "bar")))

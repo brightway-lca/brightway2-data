@@ -1,9 +1,11 @@
-from . import config, databases, methods, mapping, geomapping
-from .project import projects
+from . import config, databases, methods, geomapping
 from .parameters import parameters
-import shutil
-import unittest
+from .project import projects
 import atexit
+import random
+import shutil
+import string
+import unittest
 import wrapt
 
 
@@ -23,7 +25,6 @@ class BW2DataTest(unittest.TestCase):
     def test_setup_clean(self):
         self.assertEqual(list(databases), [])
         self.assertEqual(list(methods), [])
-        self.assertEqual(len(mapping), 0)
         self.assertEqual(len(geomapping), 1)  # GLO
         self.assertTrue("GLO" in geomapping)
         self.assertEqual(len(projects), 1)  # Default project
@@ -37,5 +38,6 @@ def bw2test(wrapped, instance, args, kwargs):
     config.is_test = True
     config.cache = {}
     tempdir = projects._use_temp_directory()
+    projects.set_current("".join(random.choices(string.ascii_lowercase, k=18)))
     atexit.register(shutil.rmtree, tempdir)
     return wrapped(*args, **kwargs)

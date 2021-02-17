@@ -3,12 +3,13 @@ from bw2data import (
     config,
     Database,
     geomapping,
-    mapping,
+    get_id,
     Method,
     projects,
 )
 from bw2data.tests import bw2test
-# from bw_processing import load_package
+from bw_processing import load_datapackage
+from fs.zipfs import ZipFS
 import copy
 import numpy as np
 import pytest
@@ -40,34 +41,42 @@ def test_glo_always_present():
     assert config.global_location in geomapping
 
 
-# def test_method_process_adds_correct_geo(add_method):
-#     method = Method(("test method",))
-#     package = load_package(method.filepath_processed())
-#     mapped = {
-#         row["row_value"]: row["col_value"]
-#         for row in package["characterization_matrix.npy"]
-#     }
-#     assert geomapping["foo"] == mapped[mapping[("biosphere", 1)]]
-#     assert geomapping["bar"] == mapped[mapping[("biosphere", 2)]]
-#     assert package["characterization_matrix.npy"].shape == (2,)
+def test_method_process_adds_correct_geo(add_method):
+    method = Method(("test method",))
+    package = load_datapackage(ZipFS(method.filepath_processed()))
+    print(package.resources)
+
+    mapped = {
+        row["row"]: row["col"]
+        for row in package.get_resource("test_method_matrix_data.indices")[0]
+    }
+    assert geomapping["foo"] == mapped[get_id(("biosphere", 1))]
+    assert geomapping["bar"] == mapped[get_id(("biosphere", 2))]
+    assert package.get_resource("test_method_matrix_data.data")[0].shape == (2,)
 
 
-# def test_database_process_adds_correct_geo(add_biosphere):
-#     database = Database("food")
-#     database.write(food)
-#     gm = load_package(database.filepath_processed())["inv_geomapping_matrix.npy"]
-#     assert geomapping["CA"] in gm["col_value"].tolist()
-#     assert geomapping["CH"] in gm["col_value"].tolist()
+def test_database_process_adds_correct_geo(add_biosphere):
+    database = Database("food")
+    database.write(food)
+
+    package = load_datapackage(ZipFS(database.filepath_processed()))
+    data = package.get_resource('food_inventory_geomapping_matrix.indices')[0]
+
+    assert geomapping["CA"] in data["col"].tolist()
+    assert geomapping["CH"] in data["col"].tolist()
 
 
-# def test_database_process_adds_default_geo(add_biosphere):
-#     database = Database("food")
-#     new_food = copy.deepcopy(food)
-#     for v in new_food.values():
-#         del v["location"]
-#     database.write(new_food)
-#     gm = load_package(database.filepath_processed())["inv_geomapping_matrix.npy"]
-#     assert np.allclose(gm["col_value"], geomapping["GLO"] * np.ones(gm.shape))
+def test_database_process_adds_default_geo(add_biosphere):
+    database = Database("food")
+    new_food = copy.deepcopy(food)
+    for v in new_food.values():
+        del v["location"]
+    database.write(new_food)
+
+    package = load_datapackage(ZipFS(database.filepath_processed()))
+    data = package.get_resource('food_inventory_geomapping_matrix.indices')[0]
+
+    assert np.allclose(data["col"], geomapping[config.global_location])
 
 
 def test_method_write_adds_to_geomapping(add_method):

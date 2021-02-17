@@ -1,6 +1,6 @@
 from .fixtures import biosphere
-from bw2data import Database, Method, methods, databases, mapping
-from bw2data.backends.peewee import Activity as PWActivity
+from bw2data import Database, Method, methods
+from bw2data.backends import Activity as PWActivity
 from bw2data.errors import ValidityError
 from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
@@ -161,7 +161,6 @@ class UncertainifyTestCase(BW2DataTest):
             }
         )
         self.assertTrue(isinstance(get_activity(("a database", "foo")), PWActivity))
-        self.assertTrue(isinstance(Database.get(("a database", "foo")), PWActivity))
 
 
 def test_as_uncertainty_dict():
@@ -217,7 +216,8 @@ def test_merge_databases_wrong_backend():
                 "location": "bar",
                 "name": "baz",
             },
-        }
+        },
+        [], [], []
     )
     second = Database("another database")
     second.write(

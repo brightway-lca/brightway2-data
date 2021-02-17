@@ -29,7 +29,7 @@ class Searcher(object):
         filter=None,
         mask=None,
     ):
-        from ..database import get_activity
+        from .. import get_activity
 
         lowercase = lambda x: x.lower() if hasattr(x, "lower") else x
         string = lowercase(string)

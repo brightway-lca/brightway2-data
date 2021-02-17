@@ -7,7 +7,7 @@ from bw_processing import safe_filename
 from fasteners import InterProcessLock
 from collections.abc import Iterable
 from pathlib import Path
-from peewee import Model, TextField, BooleanField
+from peewee import Model, TextField, BooleanField, DoesNotExist
 from threading import ThreadError
 import appdirs
 import os
@@ -168,10 +168,11 @@ class ProjectManager(Iterable):
         # for new metadata stores
         self.read_only = False
         self.create_project(name)
+        self.dataset = ProjectDataset.get(ProjectDataset.name == self._project_name)
         self._reset_meta()
         self._reset_sqlite3_databases()
 
-        self._project_dataset = ProjectDataset.get(name=name)
+        self.dataset = ProjectDataset.get(name=name)
 
         if not lockable():
             pass
@@ -206,13 +207,13 @@ class ProjectManager(Iterable):
     @property
     def dir(self):
         return Path(self._base_data_dir) / safe_filename(
-            self.current, full=self._project_dataset.full_hash
+            self.current, full=self.dataset.full_hash
         )
 
     @property
     def logs_dir(self):
         return Path(self._base_logs_dir) / safe_filename(
-            self.current, full=self._project_dataset.full_hash
+            self.current, full=self.dataset.full_hash
         )
 
     @property
@@ -237,9 +238,10 @@ class ProjectManager(Iterable):
 
     def create_project(self, name=None, **kwargs):
         name = name or self.current
-        if not ProjectDataset.select().where(ProjectDataset.name == name).count():
-            ProjectDataset.create(data=kwargs, name=name, full_hash=kwargs.get("full_hash", False))
-        self._project_dataset = ProjectDataset.get(name=name)
+        try:
+            self.dataset = ProjectDataset.get(ProjectDataset.name == name)
+        except DoesNotExist:
+            self.dataset = ProjectDataset.create(data=kwargs, name=name, full_hash=kwargs.get("full_hash", False))
         create_dir(self.dir)
         for dir_name in self._basic_directories:
             create_dir(self.dir / dir_name)
@@ -249,13 +251,11 @@ class ProjectManager(Iterable):
         """Copy current project to a new project named ``new_name``. If ``switch``, switch to new project."""
         if new_name in self:
             raise ValueError("Project {} already exists".format(new_name))
-        fp = self._base_data_dir / safe_filename(new_name)
+        fp = self._base_data_dir / safe_filename(new_name, full=self.dataset.full_hash)
         if fp.exists():
             raise ValueError("Project directory already exists")
-        project_data = (
-            ProjectDataset.select(ProjectDataset.name == self.current).get().data
-        )
-        ProjectDataset.create(data=project_data, name=new_name)
+        project_data = ProjectDataset.get(ProjectDataset.name == self.current).data
+        ProjectDataset.create(data=project_data, name=new_name, full_hash=self.dataset.full_hash)
         shutil.copytree(self.dir, fp, ignore=lambda x, y: ["write-lock"])
         create_dir(self._base_logs_dir / safe_filename(new_name))
         if switch:
@@ -313,8 +313,10 @@ class ProjectManager(Iterable):
         victim = name or self.current
         if victim not in self:
             raise ValueError("{} is not a project".format(victim))
+
         if len(self) == 1:
             raise ValueError("Can't delete only remaining project")
+
         ProjectDataset.delete().where(ProjectDataset.name == victim).execute()
 
         if delete_dir:
@@ -371,11 +373,11 @@ class ProjectManager(Iterable):
         return data
 
     def use_short_hash(self):
-        if not self._project_dataset.full_hash:
+        if not self.dataset.full_hash:
             return
         try:
             old_dir, old_logs_dir = self.dir, self.logs_dir
-            self._project_dataset.full_hash = False
+            self.dataset.full_hash = False
             if self.dir.exists():
                 raise OSError("Target directory {} already exists".format(self.dir))
             if self.logs_dir.exists():
@@ -384,17 +386,17 @@ class ProjectManager(Iterable):
                 )
             old_dir.rename(self.dir)
             old_logs_dir.rename(self.logs_dir)
-            self._project_dataset.save()
+            self.dataset.save()
         except Exception as ex:
-            self._project_dataset.full_hash = True
+            self.dataset.full_hash = True
             raise ex
 
     def use_full_hash(self):
-        if self._project_dataset.full_hash:
+        if self.dataset.full_hash:
             return
         try:
             old_dir, old_logs_dir = self.dir, self.logs_dir
-            self._project_dataset.full_hash = True
+            self.dataset.full_hash = True
             if self.dir.exists():
                 raise OSError("Target directory {} already exists".format(self.dir))
             if self.logs_dir.exists():
@@ -403,9 +405,9 @@ class ProjectManager(Iterable):
                 )
             old_dir.rename(self.dir)
             old_logs_dir.rename(self.logs_dir)
-            self._project_dataset.save()
+            self.dataset.save()
         except Exception as ex:
-            self._project_dataset.full_hash = False
+            self.dataset.full_hash = False
             raise ex
 
 

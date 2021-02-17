@@ -1,7 +1,7 @@
-from bw2data.tests import bw2test, BW2DataTest
+from bw2data.tests import BW2DataTest
 from bw2data import projects
 from bw2data.database import DatabaseChooser
-from bw2data.backends.peewee import (
+from bw2data.backends import (
     Activity as PWActivity,
     ActivityDataset,
     Exchange as PWExchange,
@@ -15,7 +15,7 @@ from bw2data.errors import (
     UntypedExchange,
     ValidityError,
 )
-from bw2data.meta import mapping, geomapping, databases, methods
+from bw2data.meta import geomapping, databases, methods
 
 
 class DatabaseQuerysetTest(BW2DataTest):
@@ -50,8 +50,6 @@ class DatabaseQuerysetTest(BW2DataTest):
         self.assertEqual(len(databases), 1)
         self.assertTrue("Order!" in databases)
         self.assertEqual(list(methods), [])
-        self.assertEqual(len(mapping), 4)
-        self.assertTrue(("Order!", "fourth") in mapping)
         self.assertEqual(len(geomapping), 5)  # GLO
         self.assertTrue("GLO" in geomapping)
         self.assertTrue("carolina" in geomapping)

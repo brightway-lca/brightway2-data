@@ -1,4 +1,4 @@
-from bw2data.backends.peewee import ActivityDataset, ExchangeDataset
+from bw2data.backends import ActivityDataset, ExchangeDataset
 from bw2data.database import DatabaseChooser
 from bw2data.errors import ValidityError
 from bw2data.parameters import (

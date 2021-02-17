@@ -1,6 +1,5 @@
 from bw2data.tests import bw2test
 from bw2data import (
-    mapping,
     geomapping,
     databases,
     methods,
@@ -86,10 +85,9 @@ def activity_and_method():
 def test_setup_clean(activity):
     assert len(databases) == 1
     assert list(methods) == []
-    assert len(mapping) == 4
     assert len(geomapping) == 1  # GLO
     assert "GLO" in geomapping
-    assert len(projects) == 1  # Default project
+    assert len(projects) == 2  # Default project
     assert "default" in projects
 
 

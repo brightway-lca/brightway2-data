@@ -10,7 +10,7 @@ from . import (
     preferences,
     projects,
 )
-from .backends.peewee import sqlite3_lci_db
+from .backends import sqlite3_lci_db
 import numpy as np
 import os
 import pyprind

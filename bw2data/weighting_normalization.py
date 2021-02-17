@@ -1,5 +1,6 @@
+from .backends.schema import get_id
 from .ia_data_store import ImpactAssessmentDataStore
-from .meta import weightings, mapping, normalizations
+from .meta import weightings, normalizations
 from .project import writable_project
 from .utils import as_uncertainty_dict
 from .validate import weighting_validator, normalization_validator
@@ -60,13 +61,9 @@ class Normalization(ImpactAssessmentDataStore):
     validator = normalization_validator
     matrix = "normalization_matrix"
 
-    def add_mappings(self, data):
-        """Add each normalization flow (should be biosphere flows) to global mapping"""
-        mapping.add({obj[0] for obj in data})
-
     def process_row(self, row):
         """Given ``(flow key, amount)``, return a dictionary for array insertion."""
         return {
             **as_uncertainty_dict(row[1]),
-            "row": mapping[row[0]],
+            "row": get_id(row[0]),
         }

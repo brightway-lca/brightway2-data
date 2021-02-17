@@ -1,10 +1,9 @@
-# -*- coding: utf-8 -*-
 from . import sqlite3_lci_db
-from ... import databases, mapping, geomapping
-from ...errors import ValidityError
-from ...project import writable_project
-from ...proxies import ActivityProxyBase, ExchangeProxyBase
-from ...search import IndexManager
+from .. import databases, geomapping
+from ..errors import ValidityError
+from ..project import writable_project
+from ..proxies import ActivityProxyBase, ExchangeProxyBase
+from ..search import IndexManager
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset, dict_as_exchangedataset
 from collections.abc import Iterable
@@ -91,9 +90,16 @@ class Activity(ActivityProxyBase):
             self._data = self._document.data
             self._data["code"] = self._document.code
             self._data["database"] = self._document.database
+            self._data["id"] = self._document.id
+
+    @property
+    def id(self):
+        return self._document.id
 
     def __setitem__(self, key, value):
-        if key == "code" and "code" in self._data:
+        if key == "id":
+            raise ValueError("`id` is read-only")
+        elif key == "code" and "code" in self._data:
             self._change_code(value)
             print(
                 "Successfully switched activity dataset to new code `{}`".format(value)
@@ -110,8 +116,8 @@ class Activity(ActivityProxyBase):
 
     @writable_project
     def delete(self):
-        from ... import Database
-        from ...parameters import ActivityParameter, ParameterizedExchange
+        from .. import Database
+        from ..parameters import ActivityParameter, ParameterizedExchange
 
         try:
             ap = ActivityParameter.get(database=self[0], code=self[1])
@@ -130,7 +136,7 @@ class Activity(ActivityProxyBase):
 
     @writable_project
     def save(self):
-        from ... import Database
+        from .. import Database
 
         if not self.valid():
             raise ValidityError(
@@ -141,11 +147,10 @@ class Activity(ActivityProxyBase):
         databases.set_dirty(self["database"])
 
         for key, value in dict_as_activitydataset(self._data).items():
-            setattr(self._document, key, value)
+            if key != "id":
+                setattr(self._document, key, value)
         self._document.save()
 
-        if self.key not in mapping:
-            mapping.add([self.key])
         if self.get("location") and self["location"] not in geomapping:
             geomapping.add([self["location"]])
 
@@ -183,7 +188,7 @@ class Activity(ActivityProxyBase):
             ).execute()
 
         if databases[self["database"]].get("searchable"):
-            from ... import Database
+            from .. import Database
 
             IndexManager(Database(self["database"]).filename).delete_dataset(self)
             self._data["code"] = new_code
@@ -213,7 +218,7 @@ class Activity(ActivityProxyBase):
             ).execute()
 
         if databases[self["database"]].get("searchable"):
-            from ... import Database
+            from .. import Database
 
             IndexManager(Database(self["database"]).filename).delete_dataset(self)
             self._data["database"] = new_database
@@ -265,7 +270,8 @@ class Activity(ActivityProxyBase):
         """
         activity = Activity()
         for key, value in self.items():
-            activity[key] = value
+            if key != "id":
+                activity[key] = value
         for k, v in kwargs.items():
             activity._data[k] = v
         activity._data["code"] = str(code or uuid.uuid4().hex)
@@ -319,7 +325,7 @@ class Exchange(ExchangeProxyBase):
 
     @writable_project
     def delete(self):
-        from ...parameters import ParameterizedExchange
+        from ..parameters import ParameterizedExchange
 
         ParameterizedExchange.delete().where(
             ParameterizedExchange.exchange == self._document.id

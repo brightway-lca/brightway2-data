@@ -1,5 +1,3 @@
-
-
 class BW2Exception(Exception):
     """Base class for exceptions in Brightway2"""
 

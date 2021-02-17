@@ -6,7 +6,6 @@ from .fixtures import food, biosphere
 @bw2test
 def test_repr_str_unicode():
     objects = (
-        mapping,
         geomapping,
         databases,
         methods,

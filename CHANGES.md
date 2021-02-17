@@ -12,15 +12,70 @@ Removing the Python 2 compatibility layer allows for much cleaner and more compa
 
 This allows for cleaner and more consistent code. Includes things like `projects.dir`.
 
-## Background changes
+### `SingleFile` and `JSON` backends removed
+
+These backends were implemented many years ago, and most of the current code already assumes the SQLite backend.
+
+### SQLite backend code refactored
+
+The `peewee` directory is removed, and most of the code now lives in `bw2data.backends`. `LCIBackend` is removed, and now `SQLiteBackend` directly subclasses `ProcessedDataStore`.
+
+## Other changes
 
 ### Use of `bw_processing`
 
 We now use [bw_processing](https://github.com/brightway-lca/bw_processing) to create processed arrays. Processed arrays are compressed directories (because there is a metadata file as well, and possibly multiple array files). All databases, methods, etc. will need to be reprocessed, but this happens automatically via a data migration.
 
+`bw_processing` has a completely different API, and LCA objects no longer have a single set of parameters (like `tech_params`) for each matrix - instead, they have data resources, which offer more flexibility, but also more complexity. See the `bw_processing`, `matrix_utils`, and `bw2calc` documentation.
+
+### Database IDs for activities preferred
+
+Using integer IDs is the preferred way to identify activities and products in Brightway 3. You can now easily get the integer id of an activity:
+
+```python
+
+>>> a = bw2data.Database("something").random()
+
+>>> a.id
+19014
+
+```
+
+And use the integer ID in the `get` functions:
+
+```python
+
+>>> bw2data.get_activity(19014)
+'treatment of aluminium in car shredder residue, municipal incineration' (kilogram, RoW, None)
+
+>>> bw2data.Database("something").get(19014)
+'treatment of aluminium in car shredder residue, municipal incineration' (kilogram, RoW, None)
+
+```
+
+You can also call `get_id` on activity keys:
+
+```python
+
+>>> bw2data.get_id(a)
+19014
+
+>>> bw2data.get_id(a.key)
+19014
+
+```
+
+### `mapping` no longer used, though compatibility layer added
+
+You can still import `mapping`, but this will just look up the IDs from the SQLite database. There is no longer a separate file.
+
+This change means that you **can no longer add exchanges or characterization factors which reference activities that don't (yet) exist**.
+
 ## Smaller changes
 
+* `IOTableBackend.write` arguments have changed to `(products, prod_exchanges, tech_exchanges, bio_exchanges)`.
 * `bw2data.utils.safe_filename` was moved to `bw_processing`
+* `Database.get` is removed (though `Database('foo').get()` still works). Use `get_activity` instead.
 
 ### 3.6.2 (2019-11-11)
 
