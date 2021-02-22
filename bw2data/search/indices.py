@@ -29,6 +29,7 @@ class IndexManager(object):
             comment=ds.get("comment", "").lower(),
             product=ds.get("reference product", "").lower(),
             categories=u", ".join(ds.get("categories", [])).lower(),
+            synonyms=u", ".join(ds.get("synonyms", [])).lower(),
             location=fl(ds.get("location", "")),
             database=ds["database"],
             code=ds["code"],
