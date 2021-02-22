@@ -668,8 +668,13 @@ class SQLiteBackend(ProcessedDataStore):
             ActivityDataset.database == self.name, ActivityDataset.type == "process"
         )
 
+        # self.filepath_processed checks if data is dirty,
+        # and processes if it is. This causes an infinite loop.
+        # So we construct the filepath ourselves.
+        fp = str(self.dirpath_processed() / self.filename_processed())
+
         dp = create_datapackage(
-            fs=ZipFS(str(self.filepath_processed()), write=True),
+            fs=ZipFS(fp, write=True),
             name=clean_datapackage_name(self.name),
             sum_intra_duplicates=True,
             sum_inter_duplicates=False,
