@@ -61,37 +61,33 @@ def prepare_lca_inputs(
     normalization=None,
     demands=None,
     remapping=True,
+    demand_database_last=True,
 ):
-    """Prepare LCA input arguments in Brightway 3 style."""
+    """Prepare LCA input arguments in Brightway 2.5 style."""
     databases.clean()
     data_objs = []
 
     if demands:
-        database_names = set.union(
-            *[
-                Database(db_label).find_graph_dependents()
-                for dct in demands
-                for db_label, _ in unpack(dct)
-            ]
-        )
+        demand_database_names = [db_label for dct in demands for db_label, _ in unpack(dct)]
     elif demand:
-        database_names = set.union(
-            *[
-                Database(db_label).find_graph_dependents()
-                for db_label, _ in unpack(demand)
-            ]
-        )
+        demand_database_names = [db_label for db_label, _ in unpack(demand)]
     else:
         raise ValueError("Need some form of demand for LCA calculation")
 
-    if demands:
-        data_objs.extend(
-            [ZipFS(Database(obj).filepath_processed()) for obj in database_names]
-        )
-    elif demand:
-        data_objs.extend(
-            [ZipFS(Database(obj).filepath_processed()) for obj in database_names]
-        )
+    database_names = set.union(
+        *[
+            Database(db_label).find_graph_dependents()
+            for db_label in demand_database_names
+        ]
+    )
+
+    if demand_database_last:
+        database_names = [x for x in database_names if x not in demand_database_names] + demand_database_names
+
+    data_objs.extend(
+        [ZipFS(Database(obj).filepath_processed()) for obj in database_names]
+    )
+
     if method:
         assert method in methods
         data_objs.append(ZipFS(Method(method).filepath_processed()))
