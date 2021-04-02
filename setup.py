@@ -46,7 +46,7 @@ setup(
         "whoosh",
         "wrapt",
     ],
-    url="https://bitbucket.org/cmutel/brightway2-data",
+    url="https://github.com/brightway-lca/brightway2-data",
     long_description=open('README.rst').read(),
     description=('Tools for the management of inventory databases '
                  'and impact assessment methods. Part of the Brightway2 LCA Framework'),
