@@ -7,7 +7,9 @@ from . import (
     Weighting,
     methods,
     Method,
+    projects
 )
+from .errors import Brightway2Project
 from .backends.schema import ActivityDataset as AD, get_id
 from fs.zipfs import ZipFS
 
@@ -15,7 +17,7 @@ from fs.zipfs import ZipFS
 class Mapping:
     """A dictionary that maps object ids, like ``("Ecoinvent 2.2", 42)``, to integers.
 
-    Used only for backwards compatibility; preferred methodd is now to look up the ids of activities directly in the SQlite database."""
+    Used only for backwards compatibility; preferred method is now to look up the ids of activities directly in the SQlite database."""
 
     def add(self, keys):
         raise DeprecationWarning(
@@ -64,6 +66,9 @@ def prepare_lca_inputs(
     demand_database_last=True,
 ):
     """Prepare LCA input arguments in Brightway 2.5 style."""
+    if not projects.dataset.data.get("25"):
+        raise Brightway2Project("Please use `projects.migrate_project_25` before calculating using Brightway 2.5")
+
     databases.clean()
     data_objs = []
 

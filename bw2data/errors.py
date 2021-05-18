@@ -64,3 +64,9 @@ class PickleError(BW2Exception):
     """Pickle file can't be loaded due to updated library file structure"""
 
     pass
+
+
+class Brightway2Project(BW2Exception):
+    """This project is not yet migrated to Brightway 2.5"""
+
+    pass

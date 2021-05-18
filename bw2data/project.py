@@ -156,6 +156,10 @@ class ProjectManager(Iterable):
     def current(self):
         return self._project_name
 
+    @property
+    def twofive(self):
+        return bool(self.dataset.data.get("25"))
+
     def set_current(self, name, writable=True, update=True):
         if not self.read_only and lockable() and hasattr(self, "_lock"):
             try:
@@ -238,11 +242,14 @@ class ProjectManager(Iterable):
 
     def create_project(self, name=None, **kwargs):
         name = name or self.current
+
+        kwargs["25"] = True
+        full_hash = kwargs.pop("full_hash", False)
         try:
             self.dataset = ProjectDataset.get(ProjectDataset.name == name)
         except DoesNotExist:
             self.dataset = ProjectDataset.create(
-                data=kwargs, name=name, full_hash=kwargs.get("full_hash", False)
+                data=kwargs, name=name, full_hash=full_hash
             )
         create_dir(self.dir)
         for dir_name in self._basic_directories:
@@ -303,6 +310,18 @@ class ProjectManager(Iterable):
         self.db.change_path(self._base_data_dir / "projects.db")
         self.set_current("default", update=False)
         self._is_temp_dir = False
+
+    def migrate_project_25(self):
+        """Migrate project to Brightway 2.5.
+
+        Reprocesses all databases and LCIA objects."""
+        assert not self.twofive, "Project is already 2.5 compatible"
+
+        from .updates import Updates
+        Updates()._reprocess_all()
+
+        self.dataset.data["25"] = True
+        self.dataset.save()
 
     def delete_project(self, name=None, delete_dir=False):
         """Delete project ``name``, or the current project.
