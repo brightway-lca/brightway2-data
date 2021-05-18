@@ -48,8 +48,8 @@ maybe_uncertainty = Any(Number, uncertainty_dict)
 ia_validator = Schema(
     [
         Any(
-            [valid_tuple, maybe_uncertainty],  # site-generic
-            [valid_tuple, maybe_uncertainty, object],  # regionalized
+            (valid_tuple, maybe_uncertainty),  # site-generic
+            (valid_tuple, maybe_uncertainty, object),  # regionalized
         )
     ]
 )
