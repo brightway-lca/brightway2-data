@@ -1,6 +1,10 @@
 # Changelog
 
-# 4.0.DEV1
+# 4.0.DEV2 (25-05-2021)
+
+Fix bug for `prepare_lca_inputs` without remapping dicts.
+
+## 4.0.DEV1 (19-05-2021)
 
 ## Breaking changes
 
