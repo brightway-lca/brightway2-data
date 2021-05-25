@@ -116,7 +116,7 @@ def prepare_lca_inputs(
             "biosphere": reversed_mapping,
         }
     else:
-        remapping = {}
+        remapping_dicts = {}
 
     if demands:
         indexed_demand = [{get_id(k): v for k, v in dct.items()} for dct in demands]
