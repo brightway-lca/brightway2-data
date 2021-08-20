@@ -1,6 +1,10 @@
 # Changelog
 
-# 4.0.DEV2 (25-05-2021)
+## 4.0.DEV3 (25-05-2021)
+
+Fix bug in `prepare_lca_inputs` to pass `bw_processing` packages instead of `PyFilesystem2` objects.
+
+## 4.0.DEV2 (25-05-2021)
 
 Fix bug for `prepare_lca_inputs` without remapping dicts.
 
