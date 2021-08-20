@@ -12,6 +12,7 @@ from . import (
 from .errors import Brightway2Project
 from .backends.schema import ActivityDataset as AD, get_id
 from fs.zipfs import ZipFS
+from bw_processing import load_datapackage
 
 
 class Mapping:
@@ -90,7 +91,7 @@ def prepare_lca_inputs(
         database_names = [x for x in database_names if x not in demand_database_names] + demand_database_names
 
     data_objs.extend(
-        [ZipFS(Database(obj).filepath_processed()) for obj in database_names]
+        [load_datapackage(ZipFS(Database(obj).filepath_processed())) for obj in database_names]
     )
 
     if method:
