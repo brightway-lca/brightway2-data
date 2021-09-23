@@ -105,3 +105,18 @@ class IOTableBackend(SQLiteBackend):
     def process(self):
         """No-op; no intermediate data to process"""
         return
+
+    def get(self, code):
+        from .proxies import IOTableActivity
+
+        return IOTableActivity(super().get(code))
+
+    def random(self, filters=True, true_random=False):
+        from .proxies import IOTableActivity
+
+        return IOTableActivity(super(IOTableBackend, self).random(filters, true_random))
+
+    def search(self, *args, **kwargs):
+        from .proxies import IOTableActivity
+
+        return [IOTableActivity(a) for a in super().search(*args, **kwargs)]
