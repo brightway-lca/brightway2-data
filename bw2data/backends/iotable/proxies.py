@@ -1,5 +1,4 @@
 from ..proxies import Activity, Exchange
-from ...utils import get_activity
 from ...compat import prepare_lca_inputs
 from bw2calc import LCA
 import itertools
@@ -64,8 +63,9 @@ class IOTableActivity(Activity):
                 demand=demand, data_objs=data_objs, remapping_dicts=remapping_dicts
             )
             lca.load_lci_data()
-            rev_act_dict = {v: k for k, v in lca.dicts.activity.items()}
-            rev_bio_dict = {v: k for k, v in lca.dicts.biosphere.items()}
+            lca.remap_inventory_dicts()
+            rev_act_dict = pd.Series(lca.dicts.activity.reversed)
+            rev_bio_dict = pd.Series(lca.dicts.biosphere.reversed)
             IOTableBackend.buffer["db name"] = db_name
             IOTableBackend.buffer["lca"] = lca
             IOTableBackend.buffer["rev act dict"] = rev_act_dict
@@ -75,44 +75,42 @@ class IOTableActivity(Activity):
 
     def technosphere(self, include_substitution=True):
 
-        lca, rev_act_dict, rev_bio_dict = self._construct_or_load_buffer()
+        lca, rev_act_dict, _ = self._construct_or_load_buffer()
 
         # look up technosphere inputs
-        col = lca.dicts.activity[self.id]
+        col = lca.dicts.activity[self.key]
         (row_ids, _), t_vals = (
             lca.technosphere_matrix[:, col].nonzero(),
             lca.technosphere_matrix[:, col].data,
         )
-        t_inputs = (get_activity(rev_act_dict[local_id]) for local_id in row_ids)
 
         return IOTableExchanges(
-            Exchange(input=i.key, output=self.key, amount=v, type="technosphere")
-            for i, v in zip(t_inputs, t_vals)
-            if i.id != self.id
+            Exchange(input=t_in, output=self.key, amount=v, type="technosphere")
+            for t_in, v in zip(rev_act_dict.loc[row_ids], t_vals)
+            if t_in != self.key
         )
 
     def biosphere(self):
 
-        lca, rev_act_dict, rev_bio_dict = self._construct_or_load_buffer()
+        lca, _, rev_bio_dict = self._construct_or_load_buffer()
 
         # look up biosphere inputs
-        col = lca.dicts.activity[self.id]
+        col = lca.dicts.activity[self.key]
         (row_ids, _), b_vals = (
             lca.biosphere_matrix[:, col].nonzero(),
             lca.biosphere_matrix[:, col].data,
         )
-        b_inputs = (get_activity(rev_bio_dict[local_id]) for local_id in row_ids)
 
         return IOTableExchanges(
-            Exchange(input=i.key, output=self.key, amount=v, type="biosphere")
-            for i, v in zip(b_inputs, b_vals)
+            Exchange(input=b_in, output=self.key, amount=v, type="biosphere")
+            for b_in, v in zip(rev_bio_dict.loc[row_ids], b_vals)
         )
 
     def production(self):
-        lca, rev_act_dict, rev_bio_dict = self._construct_or_load_buffer()
+        lca, _, _ = self._construct_or_load_buffer()
 
         # look up technosphere inputs
-        col = lca.dicts.activity[self.id]
+        col = lca.dicts.activity[self.key]
         val = lca.technosphere_matrix[col, col]
         return IOTableExchanges(
             [Exchange(input=self.key, output=self.key, amount=val, type="production")]
