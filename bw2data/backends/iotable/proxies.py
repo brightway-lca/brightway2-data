@@ -3,6 +3,35 @@ from ...utils import get_activity
 from ...compat import prepare_lca_inputs
 from bw2calc import LCA
 import itertools
+from collections.abc import Iterable
+import pandas as pd
+
+
+class IOTableExchanges(Iterable):
+    def __init__(self, data):
+        self.data = data
+
+    def __iter__(self):
+        return self.data.__iter__()
+
+    def __next__(self):
+        return self.data.__next__()
+
+    def to_dataframe(self, ascending=True):
+        return pd.DataFrame(
+            [
+                {
+                    "input database": e.input.key[0],
+                    "input name": e.input._data["name"],
+                    "input location": e.input._data.get("location")
+                    or e.input._data.get("categories"),
+                    "input unit": e.input._data["unit"],
+                    "amount": e.amount,
+                    "type": e._data["type"],
+                }
+                for e in self.data
+            ]
+        ).sort_values("amount", ascending=ascending)
 
 
 class IOTableActivity(Activity):
@@ -56,7 +85,7 @@ class IOTableActivity(Activity):
         )
         t_inputs = (get_activity(rev_act_dict[local_id]) for local_id in row_ids)
 
-        return (
+        return IOTableExchanges(
             Exchange(input=i.key, output=self.key, amount=v, type="technosphere")
             for i, v in zip(t_inputs, t_vals)
             if i.id != self.id
@@ -74,7 +103,7 @@ class IOTableActivity(Activity):
         )
         b_inputs = (get_activity(rev_bio_dict[local_id]) for local_id in row_ids)
 
-        return (
+        return IOTableExchanges(
             Exchange(input=i.key, output=self.key, amount=v, type="biosphere")
             for i, v in zip(b_inputs, b_vals)
         )
@@ -85,9 +114,11 @@ class IOTableActivity(Activity):
         # look up technosphere inputs
         col = lca.dicts.activity[self.id]
         val = lca.technosphere_matrix[col, col]
-        return [
-            Exchange(input=self.key, output=self.key, amount=val, type="production")
-        ]
+        return IOTableExchanges(
+            [Exchange(input=self.key, output=self.key, amount=val, type="production")]
+        )
 
     def exchanges(self):
-        return itertools.chain(self.production(), self.technosphere(), self.biosphere())
+        return IOTableExchanges(
+            itertools.chain(self.production(), self.technosphere(), self.biosphere())
+        )
