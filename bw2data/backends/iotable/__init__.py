@@ -28,6 +28,7 @@ class IOTableBackend(SQLiteBackend):
         """
         print("Starting IO table write")
 
+        # create empty datapackage
         dp = create_datapackage(
             fs=ZipFS(str(self.filepath_processed()), write=True),
             name=clean_datapackage_name(self.name),
@@ -35,6 +36,7 @@ class IOTableBackend(SQLiteBackend):
             sum_inter_duplicates=False,
         )
 
+        # add geomapping
         dp.add_persistent_vector_from_iterator(
             dict_iterator=(
                 {
@@ -48,19 +50,48 @@ class IOTableBackend(SQLiteBackend):
             name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
             nrows=len(self),
         )
+
+
         print("Adding technosphere matrix")
-        dp.add_persistent_vector_from_iterator(
-            matrix="technosphere_matrix",
-            name=clean_datapackage_name(self.name + " technosphere matrix"),
-            dict_iterator=technosphere,
-        )
+        # if technosphere is a dictionary pass it's keys & values
+        if isinstance(technosphere, dict):
+            dp.add_persistent_vector(
+                matrix="technosphere_matrix",
+                name=clean_datapackage_name(self.name + " technosphere matrix"),
+                **technosphere,
+            )
+        # if it is an iterable, convert to right format
+        elif hasattr(technosphere, '__iter__'):
+            dp.add_persistent_vector_from_iterator(
+                matrix="technosphere_matrix",
+                name=clean_datapackage_name(self.name + " technosphere matrix"),
+                dict_iterator=technosphere,
+            )
+        else:
+            raise Exception(f"Error: Unsupported technosphere type: {type(technosphere)}")
+
 
         print("Adding biosphere matrix")
-        dp.add_persistent_vector_from_iterator(
-            matrix="biosphere_matrix",
-            name=clean_datapackage_name(self.name + " biosphere matrix"),
-            dict_iterator=biosphere,
-        )
+        # if biosphere is a dictionary pass it's keys & values
+        if isinstance(biosphere, dict):
+            dp.add_persistent_vector(
+                matrix="biosphere_matrix",
+                name=clean_datapackage_name(self.name + " biosphere matrix"),
+                **biosphere,
+            )
+        # if it is an iterable, convert to right format
+        elif hasattr(biosphere, '__iter__'):
+            dp.add_persistent_vector_from_iterator(
+                matrix="biosphere_matrix",
+                name=clean_datapackage_name(self.name + " biosphere matrix"),
+                dict_iterator=biosphere,
+            )
+        else:
+            raise Exception(f"Error: Unsupported biosphere type: {type(technosphere)}")
+
+
+        # finalize
+        print("Finalizing serialization")
         dp.finalize_serialization()
 
         databases[self.name]["depends"] = sorted(set(dependents).difference({self.name}))
