@@ -1,6 +1,5 @@
 from ..proxies import Activity, Exchange
-from ...compat import prepare_lca_inputs
-from bw2calc import LCA
+from .storage import Storage
 import itertools
 from collections.abc import Iterable
 import pandas as pd
@@ -16,21 +15,43 @@ class IOTableExchanges(Iterable):
     def __next__(self):
         return self.data.__next__()
 
-    def to_dataframe(self, ascending=True):
-        return pd.DataFrame(
-            [
-                {
-                    "input database": e.input.key[0],
-                    "input name": e.input._data["name"],
-                    "input location": e.input._data.get("location")
-                    or e.input._data.get("categories"),
-                    "input unit": e.input._data["unit"],
-                    "amount": e.amount,
-                    "type": e._data["type"],
-                }
-                for e in self.data
+    def to_dataframe(self, ascending=True, fields=None):
+
+        # default columns to include
+        if fields is None:
+            fields = [
+                "name",
+                "location",
+                "amount",
+                "unit",
+                "exchange type",
+                "reference product",
             ]
-        ).sort_values("amount", ascending=ascending)
+
+        # load exchange data
+        df = pd.DataFrame(
+            {
+                "database": e["input"][0],
+                "code": e["input"][1],
+                "amount": e["amount"],
+                "exchange type": e["type"],
+            }
+            for e in self.data
+        ).set_index(["database", "code"])
+
+        # load activity metadata
+        df_meta = Storage.construct_or_load_metadata(
+            df.index.get_level_values("database").unique()
+        )
+
+        # join both into one dataframe
+        # sort values
+        df = df.join(df_meta, how="left").sort_values("amount", ascending=ascending)
+        # merge location, categories and compartments into one 'location' column
+        df.loc[:,'location'] = df['location'].fillna(df['categories']).fillna(df['compartment'])
+
+        # filter fields and return
+        return df[fields]
 
 
 class IOTableActivity(Activity):
@@ -40,42 +61,9 @@ class IOTableActivity(Activity):
         else:
             super().__init__(document=act._document)
 
-    def _construct_or_load_buffer(self):
-        # load or construct helper LCA object containing technosphere and biosphere data
-
-        from . import IOTableBackend
-
-        # check if lca object has been constructed previously, load if yes
-        db_name = self._data["database"]
-        if (
-            IOTableBackend.buffer is not None
-            and IOTableBackend.buffer["db name"] == db_name
-        ):
-            lca = IOTableBackend.buffer["lca"]
-            rev_act_dict = IOTableBackend.buffer["rev act dict"]
-            rev_bio_dict = IOTableBackend.buffer["rev bio dict"]
-        # otherwise construct new lca object and save in backend as class property
-        else:
-            if IOTableBackend.buffer is None:
-                IOTableBackend.buffer = dict()
-            demand, data_objs, remapping_dicts = prepare_lca_inputs({self.key: 1})
-            lca = LCA(
-                demand=demand, data_objs=data_objs, remapping_dicts=remapping_dicts
-            )
-            lca.load_lci_data()
-            lca.remap_inventory_dicts()
-            rev_act_dict = pd.Series(lca.dicts.activity.reversed)
-            rev_bio_dict = pd.Series(lca.dicts.biosphere.reversed)
-            IOTableBackend.buffer["db name"] = db_name
-            IOTableBackend.buffer["lca"] = lca
-            IOTableBackend.buffer["rev act dict"] = rev_act_dict
-            IOTableBackend.buffer["rev bio dict"] = rev_bio_dict
-
-        return lca, rev_act_dict, rev_bio_dict
-
     def technosphere(self, include_substitution=True):
 
-        lca, rev_act_dict, _ = self._construct_or_load_buffer()
+        lca, rev_act_dict, _ = Storage.construct_or_load_matrices(self.key[0])
 
         # look up technosphere inputs
         col = lca.dicts.activity[self.key]
@@ -92,7 +80,7 @@ class IOTableActivity(Activity):
 
     def biosphere(self):
 
-        lca, _, rev_bio_dict = self._construct_or_load_buffer()
+        lca, _, rev_bio_dict = Storage.construct_or_load_matrices(self.key[0])
 
         # look up biosphere inputs
         col = lca.dicts.activity[self.key]
@@ -107,7 +95,7 @@ class IOTableActivity(Activity):
         )
 
     def production(self):
-        lca, _, _ = self._construct_or_load_buffer()
+        lca, _, _ = Storage.construct_or_load_matrices(self.key[0])
 
         # look up technosphere inputs
         col = lca.dicts.activity[self.key]

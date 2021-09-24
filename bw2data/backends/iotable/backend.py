@@ -12,9 +12,6 @@ class IOTableBackend(SQLiteBackend):
 
     backend = "iotable"
 
-    # data buffers for fast exchange() lookup
-    buffer = None
-
     def write(self, data):
         super().write(data, process=False)
 
