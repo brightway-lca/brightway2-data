@@ -96,13 +96,13 @@ def prepare_lca_inputs(
 
     if method:
         assert method in methods
-        data_objs.append(ZipFS(Method(method).filepath_processed()))
+        data_objs.append(load_datapackage(ZipFS(Method(method).filepath_processed())))
     if weighting:
         assert weighting in weightings
-        data_objs.append(ZipFS(Weighting(weighting).filepath_processed()))
+        data_objs.append(load_datapackage(ZipFS(Weighting(weighting).filepath_processed())))
     if normalization:
         assert normalization in normalizations
-        data_objs.append(ZipFS(Normalization(normalization).filepath_processed()))
+        data_objs.append(load_datapackage(ZipFS(Normalization(normalization).filepath_processed())))
 
     if remapping:
         reversed_mapping = {
