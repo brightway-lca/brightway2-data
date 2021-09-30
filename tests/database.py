@@ -597,6 +597,7 @@ def test_sqlite_processed_array_order():
     }
     database.write(data)
     lookup = {k: get_id(("testy", k)) for k in "ABC"}
+    assert len(lookup) == 3
     t = sorted(
         [
             (lookup["A"], lookup["B"], 1),
