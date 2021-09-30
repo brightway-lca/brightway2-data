@@ -218,9 +218,6 @@ def test_merge_databases_wrong_backend():
                 "name": "baz",
             },
         },
-        [],
-        [],
-        [],
     )
     second = Database("another database")
     second.write(
