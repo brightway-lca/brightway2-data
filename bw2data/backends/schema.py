@@ -29,6 +29,11 @@ class ExchangeDataset(Model):
 
 @lru_cache(maxsize=4096)
 def get_id(key):
+    """Indirection because Windows test runners don't respect ``python-antilru``."""
+    return _get_id
+
+
+def _get_id(key):
     if isinstance(key, int):
         return key
     else:

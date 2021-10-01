@@ -1,5 +1,5 @@
 from .fixtures import food as food_data, biosphere, get_naughty
-from bw2data import get_id, geomapping
+from bw2data import geomapping
 from bw2data.tests import bw2test
 from bw2data.database import DatabaseChooser
 from bw2data.backends import (
@@ -26,6 +26,14 @@ import datetime
 import numpy as np
 import pytest
 import warnings
+import platform
+
+if platform.system() == "Windows":
+    # Windows test runners don't respect `python-antilru`
+    from bw2data.backends.schema import _get_id as get_id
+else:
+    from bw2data import get_id
+
 
 
 @pytest.fixture
