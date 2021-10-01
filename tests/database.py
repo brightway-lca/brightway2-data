@@ -597,21 +597,21 @@ def test_can_split_processes_products():
 def test_sqlite_processed_array_order():
     database = DatabaseChooser("testy")
     data = {
-        ("testy", "C"): {},
-        ("testy", "A"): {},
-        ("testy", "B"): {
+        ("testy_new", "C"): {},
+        ("testy_new", "A"): {},
+        ("testy_new", "B"): {
             "exchanges": [
-                {"input": ("testy", "A"), "amount": 1, "type": "technosphere"},
-                {"input": ("testy", "A"), "amount": 2, "type": "technosphere"},
-                {"input": ("testy", "C"), "amount": 2, "type": "biosphere"},
-                {"input": ("testy", "C"), "amount": 3, "type": "biosphere"},
-                {"input": ("testy", "B"), "amount": 4, "type": "production"},
-                {"input": ("testy", "B"), "amount": 1, "type": "production"},
+                {"input": ("testy_new", "A"), "amount": 1, "type": "technosphere"},
+                {"input": ("testy_new", "A"), "amount": 2, "type": "technosphere"},
+                {"input": ("testy_new", "C"), "amount": 2, "type": "biosphere"},
+                {"input": ("testy_new", "C"), "amount": 3, "type": "biosphere"},
+                {"input": ("testy_new", "B"), "amount": 4, "type": "production"},
+                {"input": ("testy_new", "B"), "amount": 1, "type": "production"},
             ]
         },
     }
     database.write(data)
-    lookup = {k: get_id(("testy", k)) for k in "ABC"}
+    lookup = {k: get_id(("testy_new", k)) for k in "ABC"}
     # print statements to get debugging for CI test runners
     print("lookup:", lookup)
     assert len(lookup) == 3
@@ -633,23 +633,23 @@ def test_sqlite_processed_array_order():
 
     package = load_datapackage(ZipFS(database.filepath_processed()))
 
-    array = package.get_resource("testy_technosphere_matrix.data")[0]
+    array = package.get_resource("testy_new_technosphere_matrix.data")[0]
     print("data array:", array)
     assert array.shape == (6,)
     assert np.allclose(array, [x[2] for x in t])
 
-    array = package.get_resource("testy_technosphere_matrix.indices")[0]
+    array = package.get_resource("testy_new_technosphere_matrix.indices")[0]
     print("indices array:", array)
     assert array.shape == (6,)
     assert np.allclose(array["row"], [x[0] for x in t])
     assert np.allclose(array["col"], [x[1] for x in t])
 
-    array = package.get_resource("testy_biosphere_matrix.data")[0]
+    array = package.get_resource("testy_new_biosphere_matrix.data")[0]
     print("data array:", array)
     assert array.shape == (2,)
     assert np.allclose(array, [x[2] for x in b])
 
-    array = package.get_resource("testy_biosphere_matrix.indices")[0]
+    array = package.get_resource("testy_new_biosphere_matrix.indices")[0]
     print("indices array:", array)
     assert array.shape == (2,)
     assert np.allclose(array["row"], [x[0] for x in b])
