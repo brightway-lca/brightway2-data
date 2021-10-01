@@ -576,8 +576,10 @@ def test_can_split_processes_products():
     array = package.get_resource("a_database_technosphere_matrix.indices")[0]
     # print statements to get debugging for CI test runners
     for x in database:
-        print(x.id, x.key)
+        print(x.id, x.key, get_id(x.key))
     print("array:", array)
+    print("array col:", array["col"])
+    print("array dtype:", array.dtype)
     assert array.shape == (1,)
     assert array["col"][0] == get_id(("a database", "foo"))
     assert array["row"][0] == get_id(("a database", "product"))
