@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.DEV4 (2021-10-01)
+
+* CI fixes
+* Compatibility with downstream changes for Brightway 2.5
+
 ## 4.0.DEV3 (25-05-2021)
 
 Fix bug in `prepare_lca_inputs` to pass `bw_processing` packages instead of `PyFilesystem2` objects.
