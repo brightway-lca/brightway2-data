@@ -595,7 +595,7 @@ def test_can_split_processes_products():
 
 @bw2test
 def test_sqlite_processed_array_order():
-    database = DatabaseChooser("testy")
+    database = DatabaseChooser("testy_new")
     data = {
         ("testy_new", "C"): {},
         ("testy_new", "A"): {},
