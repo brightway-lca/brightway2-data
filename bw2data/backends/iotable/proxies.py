@@ -15,7 +15,7 @@ class IOTableExchanges(Iterable):
     def __next__(self):
         return self.data.__next__()
 
-    def to_dataframe(self, ascending=True, fields=None):
+    def to_dataframe(self, ascending=False, fields=None):
 
         # default columns to include
         if fields is None:
