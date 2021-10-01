@@ -4,7 +4,7 @@ from bw2calc import LCA
 import pandas as pd
 
 
-class Storage(object):
+class Storage():
 
     buffer = dict()
 
