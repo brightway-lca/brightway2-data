@@ -27,7 +27,7 @@ TYPE_DICTIONARY = {
     "substitution": 3,
 }
 
-DOWNLOAD_URL = "https://brightwaylca.org/data/"
+DOWNLOAD_URL = "https://brightway.dev/data/"
 
 
 def maybe_path(x):
