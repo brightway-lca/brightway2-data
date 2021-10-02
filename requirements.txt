@@ -1,0 +1,16 @@
+appdirs
+bw2parameters
+bw_processing
+docopt
+fasteners
+lxml
+numpy
+peewee>=3.9.4
+psutil
+pyprind
+requests>=1.1.0
+scipy
+stats_arrays
+voluptuous
+whoosh
+wrapt
