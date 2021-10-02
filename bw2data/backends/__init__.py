@@ -14,3 +14,6 @@ from .base import SQLiteBackend
 from .utils import convert_backend
 
 config.sqlite3_databases.append((os.path.join("lci", "databases.db"), sqlite3_lci_db,))
+
+Node = Activity
+Edge = Exchange

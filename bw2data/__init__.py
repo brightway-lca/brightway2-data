@@ -6,6 +6,7 @@ __all__ = [
     "Database",
     "databases",
     "DataStore",
+    "Eddge",
     "get_activity",
     "get_id",
     "geomapping",
@@ -14,6 +15,7 @@ __all__ = [
     "mapping",
     "Method",
     "methods",
+    "Node",
     "Normalization",
     "normalizations",
     "parameters",
@@ -67,7 +69,7 @@ from .data_store import DataStore, ProcessedDataStore
 from .method import Method
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
-from .backends import convert_backend, get_id
+from .backends import convert_backend, get_id, Node, Edge
 from .compat import prepare_lca_inputs, Mapping
 
 mapping = Mapping()

@@ -229,6 +229,9 @@ class Activity(ActivityProxyBase):
     def exchanges(self):
         return Exchanges(self.key)
 
+    def edges(self):
+        return self.exchanges()
+
     def technosphere(self, include_substitution=True):
         return Exchanges(
             self.key,
@@ -258,6 +261,9 @@ class Activity(ActivityProxyBase):
         for key in kwargs:
             exc[key] = kwargs[key]
         return exc
+
+    def new_edge(self, **kwargs):
+        return self.new_exchange(**kwargs)
 
     @writable_project
     def copy(self, code=None, **kwargs):
