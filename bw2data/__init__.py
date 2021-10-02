@@ -6,7 +6,7 @@ __all__ = [
     "Database",
     "databases",
     "DataStore",
-    "Eddge",
+    "Edge",
     "get_activity",
     "get_id",
     "geomapping",
