@@ -1,8 +1,31 @@
 from ..proxies import Activity, Exchange
 from .storage import Storage
 import itertools
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 import pandas as pd
+
+
+class ReadOnlyExchange(Mapping):
+
+    __init__ = Exchange.__init__
+    __str__ = Exchange.__str__
+    __lt__ = Exchange.__lt__
+    __repr__ = Exchange.__repr__
+    __contains__ = Exchange.__contains__
+    __iter__ = Exchange.__iter__
+    __len__ = Exchange.__len__
+    __getitem__ = Exchange.__getitem__
+    __eq__ = Exchange.__eq__
+    __hash__ = Exchange.__hash__
+    _get_input = Exchange._get_input
+    _get_output = Exchange._get_output
+    input = property(_get_input)
+    output = property(_get_output)
+    valid = Exchange.valid
+    unit = Exchange.unit
+    amount = Exchange.amount
+    lca = Exchange.lca
+    as_dict = Exchange.as_dict
 
 
 class IOTableExchanges(Iterable):
@@ -48,7 +71,9 @@ class IOTableExchanges(Iterable):
         # sort values
         df = df.join(df_meta, how="left").sort_values("amount", ascending=ascending)
         # merge location, categories and compartments into one 'location' column
-        df.loc[:,'location'] = df['location'].fillna(df['categories']).fillna(df['compartment'])
+        df.loc[:, "location"] = (
+            df["location"].fillna(df["categories"]).fillna(df["compartment"])
+        )
 
         # filter fields and return
         return df[fields]
@@ -73,7 +98,7 @@ class IOTableActivity(Activity):
         )
 
         return IOTableExchanges(
-            Exchange(input=t_in, output=self.key, amount=v, type="technosphere")
+            ReadOnlyExchange(input=t_in, output=self.key, amount=v, type="technosphere")
             for t_in, v in zip(rev_act_dict.loc[row_ids], t_vals)
             if t_in != self.key
         )
@@ -90,7 +115,7 @@ class IOTableActivity(Activity):
         )
 
         return IOTableExchanges(
-            Exchange(input=b_in, output=self.key, amount=v, type="biosphere")
+            ReadOnlyExchange(input=b_in, output=self.key, amount=v, type="biosphere")
             for b_in, v in zip(rev_bio_dict.loc[row_ids], b_vals)
         )
 
@@ -101,7 +126,7 @@ class IOTableActivity(Activity):
         col = lca.dicts.activity[self.key]
         val = lca.technosphere_matrix[col, col]
         return IOTableExchanges(
-            [Exchange(input=self.key, output=self.key, amount=val, type="production")]
+            [ReadOnlyExchange(input=self.key, output=self.key, amount=val, type="production")]
         )
 
     def exchanges(self):
