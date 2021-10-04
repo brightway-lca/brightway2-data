@@ -139,3 +139,6 @@ class IOTableActivity(Activity):
         return IOTableExchanges(
             itertools.chain(self.production(), self.technosphere(), self.biosphere())
         )
+
+    def substitution(self):
+        return IOTableExchanges([])
