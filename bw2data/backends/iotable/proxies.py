@@ -38,6 +38,9 @@ class IOTableExchanges(Iterable):
     def __next__(self):
         return self.data.__next__()
 
+    def __len__(self):
+        return self.data.__len__()
+
     def to_dataframe(self, ascending=False, fields=None):
 
         # default columns to include
