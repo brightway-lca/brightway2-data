@@ -3,6 +3,7 @@ from .storage import Storage
 import itertools
 from collections.abc import Iterable, Mapping
 import pandas as pd
+from types import GeneratorType
 
 
 class ReadOnlyExchange(Mapping):
@@ -39,6 +40,8 @@ class IOTableExchanges(Iterable):
         return self.data.__next__()
 
     def __len__(self):
+        if isinstance(self.data, GeneratorType):
+            self.data = list(self.data)
         return self.data.__len__()
 
     def to_dataframe(self, ascending=False, fields=None):
