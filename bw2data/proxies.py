@@ -131,6 +131,12 @@ class ExchangeProxyBase(ProxyBase):
                 other.output.key,
             )
 
+    def __eq__(self, other):
+        return self._data == other
+
+    def __hash__(self):
+        return hash(self._data.__str__())
+
     def _get_input(self):
         """Get or set the exchange input.
 
