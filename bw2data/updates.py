@@ -19,6 +19,10 @@ import shutil
 import sqlite3
 import warnings
 import pickle
+import bw2io as bi
+from pathlib import Path
+from bw_processing import safe_filename
+
 
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
@@ -100,11 +104,16 @@ class Updates:
             "automatic": True,
             "explanation": "",
         },
-        # "4.0 new processed format": {
-        #     'method': 'expire_all_processed_data_40',
-        #     'automatic': True,
-        #     'explanation': "bw2data 4.0 release requires all database be reprocessed"
-        # }
+        "4.0 new processed format": {
+            'method': 'expire_all_processed_data_40',
+            'automatic': True,
+            'explanation': "bw2data 4.0 release requires all database be reprocessed"
+        },
+        "4.0 migrations filename change": {
+            'method': 'fix_migrations_filename',
+            'automatic': True,
+            'explanation': "bw2data 4.0 release requires migrations filename changes"
+        }
     }
 
     @classmethod
@@ -200,6 +209,17 @@ class Updates:
     @classmethod
     def expire_all_processed_data_40(cls):
         cls._reprocess_all()
+
+    @classmethod
+    def fix_migrations_filename(cls):
+        """"Fix migration data filenames to use shorter hash.
+
+        See https://github.com/brightway-lca/brightway2-io/issues/115"""
+        for name in bi.migrations:
+            current = Path(projects.request_directory("migrations") / (safe_filename(name, full=True) + ".json"))
+            assert current.is_file()
+            target = Path(projects.request_directory("migrations") / (safe_filename(name) + ".json"))
+            current.replace(target)
 
     @classmethod
     def _reprocess_all(cls):
