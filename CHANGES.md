@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.DEV5 (2021-10-13)
+
+* Add reprocessing migration for all data
+* Fix [bw2io issue #115: FileNotFoundError in migrated project](https://github.com/brightway-lca/brightway2-io/issues/115)
+
 ## 4.0.DEV4 (2021-10-01)
 
 * CI fixes
