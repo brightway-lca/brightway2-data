@@ -22,7 +22,7 @@ with warnings.catch_warnings():
     from bw2data import config, Updates
 
 
-class UpdaterInterface(object):
+class UpdaterInterface:
     def needed(self):
         return Updates.check_status(False)
 

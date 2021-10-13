@@ -10,7 +10,7 @@ class PickleField(BlobField):
         return pickle.loads(bytes(value))
 
 
-class SubstitutableDatabase(object):
+class SubstitutableDatabase:
     def __init__(self, filepath, tables):
         self._filepath = filepath
         self._tables = tables

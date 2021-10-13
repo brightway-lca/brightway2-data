@@ -13,7 +13,7 @@ except ImportError:
     anyjson = None
 
 
-class FakeLog(object):
+class FakeLog:
     """Like a log object, but does nothing"""
 
     def fake_function(cls, *args, **kwargs):

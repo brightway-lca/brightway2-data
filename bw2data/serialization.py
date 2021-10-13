@@ -17,7 +17,7 @@ except ImportError:
     import json
 
 
-class JsonWrapper(object):
+class JsonWrapper:
     @classmethod
     def dump(self, data, filepath):
         with atomic_open(filepath, "w") as f:
@@ -58,7 +58,7 @@ class JsonWrapper(object):
             return json.loads(data)
 
 
-class JsonSanitizer(object):
+class JsonSanitizer:
     @classmethod
     def sanitize(cls, data):
         if isinstance(data, tuple):

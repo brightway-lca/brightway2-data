@@ -1,7 +1,7 @@
 import platform
 
 
-class Config(object):
+class Config:
     """A singleton that stores configuration settings"""
 
     version = 3

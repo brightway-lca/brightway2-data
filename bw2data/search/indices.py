@@ -5,7 +5,7 @@ import os
 import shutil
 
 
-class IndexManager(object):
+class IndexManager:
     def __init__(self, database_path, dir_name="whoosh"):
         self.path = os.path.join(projects.request_directory("whoosh"), database_path)
         if not os.path.exists(self.path):

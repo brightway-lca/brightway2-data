@@ -1124,7 +1124,7 @@ class GroupDependency(Model):
         cls._meta.database.execute_sql(GD_INSERT_TRIGGER)
 
 
-class ParameterManager(object):
+class ParameterManager:
     def __init__(self):
         self.db = SubstitutableDatabase(
             projects.dir / "parameters.db",

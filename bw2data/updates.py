@@ -83,7 +83,7 @@ COMMIT;
 """
 
 
-class Updates(object):
+class Updates:
     UPDATES = {
         "2.0 schema change": {
             "method": "schema_change_20_compound_keys",

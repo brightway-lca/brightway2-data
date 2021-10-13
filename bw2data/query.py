@@ -31,7 +31,7 @@ def try_op(f, x, y):
         return False
 
 
-class Dictionaries(object):
+class Dictionaries:
     """Pretends to be a single dictionary when applying a ``Query`` to multiple databases.
 
     Usage:
@@ -49,7 +49,7 @@ class Dictionaries(object):
         return itertools.chain(*[x.items() for x in self.dicts])
 
 
-class Result(object):
+class Result:
     """A container that wraps a filtered dataset. Returned by a calling a ``Query`` object. A result object functions like a read-only dictionary; you can call ``Result[some_key]``, or ``some_key in Result``, or ``len(Result)``.
 
     The dataset can also be sorted, using ``sort(field)``; the underlying data is then a ``collections.OrderedDict``.
@@ -114,7 +114,7 @@ class Result(object):
         return key in self.result
 
 
-class Query(object):
+class Query:
     """A container for a set of filters applied to a dataset.
 
     Filters are applied by calling the ``Query`` object, and passing the dataset to filter as the argument. Calling a ``Query`` with some data returns a ``Result`` object with the filtered dataset.
@@ -142,7 +142,7 @@ class Query(object):
         return Result(data)
 
 
-class Filter(object):
+class Filter:
     """A filter on a dataset.
 
     The following functions are supported:

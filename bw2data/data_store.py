@@ -7,7 +7,7 @@ import pickle
 from fs.zipfs import ZipFS
 
 
-class DataStore(object):
+class DataStore:
     """
 Base class for all Brightway2 data stores. Subclasses should define:
 

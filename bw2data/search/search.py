@@ -8,7 +8,7 @@ def keysplit(strng):
     return tuple(strng.split("⊡|⊡"))
 
 
-class Searcher(object):
+class Searcher:
     def __init__(self, database):
         self._database = database
 
