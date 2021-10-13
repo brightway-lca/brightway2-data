@@ -56,7 +56,8 @@ except AttributeError:
         # OSError from GetLastError and so on yourself, which I don't
         # feel like doing. (I'll accept a pull request from anyone
         # else who does...)
-        import win32api, win32con
+        import win32api
+        import win32con
 
         def replace(src, dst):
             win32api.MoveFileEx(src, dst, win32con.MOVEFILE_REPLACE_EXISTING)

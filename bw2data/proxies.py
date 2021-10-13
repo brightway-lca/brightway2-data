@@ -1,9 +1,11 @@
+from collections.abc import MutableMapping
+from numbers import Number
+
+from stats_arrays import uncertainty_choices
+
 from . import databases
 from .errors import InvalidExchange
 from .utils import get_activity
-from collections.abc import MutableMapping
-from numbers import Number
-from stats_arrays import uncertainty_choices
 
 
 class ProxyBase(MutableMapping):

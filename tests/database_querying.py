@@ -1,13 +1,10 @@
-from bw2data.tests import BW2DataTest
 from bw2data import projects
-from bw2data.database import DatabaseChooser
-from bw2data.backends import (
-    Activity as PWActivity,
-    ActivityDataset,
-    Exchange as PWExchange,
-    ExchangeDataset,
-)
+from bw2data.backends import Activity as PWActivity
+from bw2data.backends import ActivityDataset
+from bw2data.backends import Exchange as PWExchange
+from bw2data.backends import ExchangeDataset
 from bw2data.backends.utils import convert_backend
+from bw2data.database import DatabaseChooser
 from bw2data.errors import (
     InvalidExchange,
     MissingIntermediateData,
@@ -15,7 +12,8 @@ from bw2data.errors import (
     UntypedExchange,
     ValidityError,
 )
-from bw2data.meta import geomapping, databases, methods
+from bw2data.meta import databases, geomapping, methods
+from bw2data.tests import BW2DataTest
 
 
 class DatabaseQuerysetTest(BW2DataTest):

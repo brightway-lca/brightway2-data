@@ -1,10 +1,12 @@
-from .. import config
-from ..meta import methods, databases
-from ..method import Method
-from ..errors import UntypedExchange, InvalidExchange
 import copy
-import numpy as np
 import warnings
+
+import numpy as np
+
+from .. import config
+from ..errors import InvalidExchange, UntypedExchange
+from ..meta import databases, methods
+from ..method import Method
 
 
 def get_csv_data_dict(ds):

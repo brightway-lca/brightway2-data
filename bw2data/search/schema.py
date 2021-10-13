@@ -1,4 +1,4 @@
-from whoosh.fields import TEXT, ID, Schema
+from whoosh.fields import ID, TEXT, Schema
 
 bw2_schema = Schema(
     name=TEXT(stored=True, sortable=True),

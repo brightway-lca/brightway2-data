@@ -1,16 +1,18 @@
-from bw2data.tests import bw2test
+import os
+import pickle
+
+# from bw_processing import load_package, COMMON_DTYPE
+from numbers import Number
+
+import numpy as np
+import pytest
+from voluptuous import Schema
+
 from bw2data import projects
 from bw2data.data_store import DataStore, ProcessedDataStore
 from bw2data.errors import UnknownObject
 from bw2data.serialization import SerializedDict
-
-# from bw_processing import load_package, COMMON_DTYPE
-from numbers import Number
-from voluptuous import Schema
-import numpy as np
-import os
-import pickle
-import pytest
+from bw2data.tests import bw2test
 
 
 class Metadata(SerializedDict):

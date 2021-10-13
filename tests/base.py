@@ -1,4 +1,4 @@
-from bw2data import databases, methods, geomapping, projects
+from bw2data import databases, geomapping, methods, projects
 from bw2data.tests import bw2test
 
 

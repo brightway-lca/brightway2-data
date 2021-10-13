@@ -13,13 +13,14 @@ Options:
   --version     Show version.
 
 """
-from docopt import docopt
 import sys
 import warnings
 
+from docopt import docopt
+
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    from bw2data import config, Updates
+    from bw2data import Updates, config
 
 
 class UpdaterInterface:

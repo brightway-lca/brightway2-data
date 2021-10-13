@@ -1,4 +1,7 @@
-from .fixtures import biosphere
+# from bw_processing import load_package
+import pytest
+import stats_arrays as sa
+
 from bw2data import Database, Method, methods
 from bw2data.backends import Activity as PWActivity
 from bw2data.errors import ValidityError
@@ -13,9 +16,7 @@ from bw2data.utils import (
     uncertainify,
 )
 
-# from bw_processing import load_package
-import pytest
-import stats_arrays as sa
+from .fixtures import biosphere
 
 
 class UtilsTest(BW2DataTest):
@@ -178,7 +179,11 @@ def test_merge_databases_nonunique_activity_codes():
         {
             ("a database", "foo"): {
                 "exchanges": [
-                    {"input": ("a database", "foo"), "amount": 1, "type": "production",}
+                    {
+                        "input": ("a database", "foo"),
+                        "amount": 1,
+                        "type": "production",
+                    }
                 ],
                 "location": "bar",
                 "name": "baz",
@@ -212,7 +217,11 @@ def test_merge_databases_wrong_backend():
         {
             ("a database", "foo"): {
                 "exchanges": [
-                    {"input": ("a database", "foo"), "amount": 1, "type": "production",}
+                    {
+                        "input": ("a database", "foo"),
+                        "amount": 1,
+                        "type": "production",
+                    }
                 ],
                 "location": "bar",
                 "name": "baz",
@@ -248,7 +257,11 @@ def test_merge_databases_nonexistent():
         {
             ("a database", "foo"): {
                 "exchanges": [
-                    {"input": ("a database", "foo"), "amount": 1, "type": "production",}
+                    {
+                        "input": ("a database", "foo"),
+                        "amount": 1,
+                        "type": "production",
+                    }
                 ],
                 "location": "bar",
                 "name": "baz",

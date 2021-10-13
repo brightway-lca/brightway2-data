@@ -1,6 +1,7 @@
-from .project import writable_project
-from .serialization import SerializedDict, PickledDict, CompoundJSONDict
 import datetime
+
+from .project import writable_project
+from .serialization import CompoundJSONDict, PickledDict, SerializedDict
 
 
 class GeoMapping(PickledDict):

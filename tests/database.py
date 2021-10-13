@@ -1,17 +1,23 @@
-from .fixtures import food as food_data, biosphere, get_naughty
+import copy
+import datetime
+import platform
+import warnings
+
+import numpy as np
+import pytest
+from bw_processing import load_datapackage
+from fs.zipfs import ZipFS
+
 from bw2data import geomapping
-from bw2data.tests import bw2test
+from bw2data.backends import Activity as PWActivity
+from bw2data.backends import sqlite3_lci_db
 from bw2data.database import DatabaseChooser
-from bw2data.backends import (
-    Activity as PWActivity,
-    sqlite3_lci_db,
-)
 from bw2data.errors import (
     InvalidExchange,
     UnknownObject,
     UntypedExchange,
+    WrongDatabase,
 )
-from bw2data.errors import WrongDatabase
 from bw2data.meta import databases
 from bw2data.parameters import (
     ActivityParameter,
@@ -19,21 +25,17 @@ from bw2data.parameters import (
     ParameterizedExchange,
     parameters,
 )
-from bw_processing import load_datapackage
-from fs.zipfs import ZipFS
-import copy
-import datetime
-import numpy as np
-import pytest
-import warnings
-import platform
+from bw2data.tests import bw2test
+
+from .fixtures import biosphere
+from .fixtures import food as food_data
+from .fixtures import get_naughty
 
 if platform.system() == "Windows":
     # Windows test runners don't respect `python-antilru`
     from bw2data.backends.schema import _get_id as get_id
 else:
     from bw2data import get_id
-
 
 
 @pytest.fixture
@@ -453,7 +455,11 @@ def test_find_dependents():
         {
             ("a database", "foo"): {
                 "exchanges": [
-                    {"input": ("foo", "bar"), "type": "technosphere", "amount": 0,},
+                    {
+                        "input": ("foo", "bar"),
+                        "type": "technosphere",
+                        "amount": 0,
+                    },
                     {
                         "input": ("biosphere", "bar"),
                         "type": "technosphere",
@@ -466,7 +472,11 @@ def test_find_dependents():
                         "amount": 0,
                     },
                     # Ignored because of 'unknown' type
-                    {"input": ("who", "am I?"), "type": "unknown", "amount": 0,},
+                    {
+                        "input": ("who", "am I?"),
+                        "type": "unknown",
+                        "amount": 0,
+                    },
                     {
                         "input": ("biosphere", "bar"),
                         "type": "technosphere",
@@ -477,7 +487,11 @@ def test_find_dependents():
             },
             ("a database", "baz"): {
                 "exchanges": [
-                    {"input": ("baz", "w00t"), "type": "technosphere", "amount": 0,}
+                    {
+                        "input": ("baz", "w00t"),
+                        "type": "technosphere",
+                        "amount": 0,
+                    }
                 ],
                 "type": "emission",  # Ignored because of type
             },
@@ -492,15 +506,30 @@ def test_find_dependents():
 def test_set_dependents():
     foo = DatabaseChooser("foo")
     foo.write(
-        {("foo", "bar"): {"exchanges": [], "type": "process",},}
+        {
+            ("foo", "bar"): {
+                "exchanges": [],
+                "type": "process",
+            },
+        }
     )
     baz = DatabaseChooser("baz")
     baz.write(
-        {("baz", "w00t"): {"exchanges": [], "type": "process",},}
+        {
+            ("baz", "w00t"): {
+                "exchanges": [],
+                "type": "process",
+            },
+        }
     )
     biosphere = DatabaseChooser("biosphere")
     biosphere.write(
-        {("biosphere", "bar"): {"exchanges": [], "type": "process",},}
+        {
+            ("biosphere", "bar"): {
+                "exchanges": [],
+                "type": "process",
+            },
+        }
     )
     database = DatabaseChooser("a database")
     database.register()
@@ -510,7 +539,11 @@ def test_set_dependents():
             ("a database", "foo"): {
                 "exchanges": [
                     {"input": ("foo", "bar"), "type": "technosphere", "amount": 1},
-                    {"input": ("biosphere", "bar"), "type": "biosphere", "amount": 1,},
+                    {
+                        "input": ("biosphere", "bar"),
+                        "type": "biosphere",
+                        "amount": 1,
+                    },
                 ],
                 "type": "process",
                 "location": "bar",
@@ -694,7 +727,10 @@ def test_database_delete_parameters():
     ).save()
 
     database_data = [
-        {"name": "red", "formula": "(blue ** 2) / 5",},
+        {
+            "name": "red",
+            "formula": "(blue ** 2) / 5",
+        },
         {"name": "blue", "amount": 12},
     ]
     parameters.new_database_parameters(database_data, "example")

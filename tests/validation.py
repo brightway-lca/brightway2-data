@@ -1,5 +1,7 @@
-from voluptuous import Invalid
 import unittest
+
+from voluptuous import Invalid
+
 from bw2data.validate import *
 
 
@@ -48,11 +50,46 @@ class ValidationTestCase(unittest.TestCase):
 
     def test_db_validator(self):
         self.assertTrue(db_validator({("a", "1"): {}}))
-        self.assertTrue(db_validator({("a", "1"): {"type": "foo", "exchanges": [],}}))
-        self.assertTrue(db_validator({("a", "1"): {"name": "foo", "exchanges": [],}}))
-        self.assertTrue(db_validator({("a", "1"): {"name": "foo", "type": "bar",}}))
         self.assertTrue(
-            db_validator({("a", "1"): {"name": "foo", "type": "bar", "exchanges": [],}})
+            db_validator(
+                {
+                    ("a", "1"): {
+                        "type": "foo",
+                        "exchanges": [],
+                    }
+                }
+            )
+        )
+        self.assertTrue(
+            db_validator(
+                {
+                    ("a", "1"): {
+                        "name": "foo",
+                        "exchanges": [],
+                    }
+                }
+            )
+        )
+        self.assertTrue(
+            db_validator(
+                {
+                    ("a", "1"): {
+                        "name": "foo",
+                        "type": "bar",
+                    }
+                }
+            )
+        )
+        self.assertTrue(
+            db_validator(
+                {
+                    ("a", "1"): {
+                        "name": "foo",
+                        "type": "bar",
+                        "exchanges": [],
+                    }
+                }
+            )
         )
         self.assertTrue(
             db_validator(
@@ -70,7 +107,14 @@ class ValidationTestCase(unittest.TestCase):
     def test_ia_validator(self):
         self.assertTrue(ia_validator([[("a", "1"), 2.0]]))
         self.assertTrue(ia_validator([[("a", "1"), 2.0, "CH"]]))
-        self.assertTrue(ia_validator([[("a", "1"), 2.0, "CH"], [("a", "1"), 2.0],]))
+        self.assertTrue(
+            ia_validator(
+                [
+                    [("a", "1"), 2.0, "CH"],
+                    [("a", "1"), 2.0],
+                ]
+            )
+        )
 
     def test_weighting_too_long(self):
         with self.assertRaises(Invalid):

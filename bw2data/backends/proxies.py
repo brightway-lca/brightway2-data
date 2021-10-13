@@ -1,14 +1,15 @@
-from . import sqlite3_lci_db
+import copy
+import uuid
+from collections.abc import Iterable
+
 from .. import databases, geomapping
 from ..errors import ValidityError
 from ..project import writable_project
 from ..proxies import ActivityProxyBase, ExchangeProxyBase
 from ..search import IndexManager
+from . import sqlite3_lci_db
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset, dict_as_exchangedataset
-from collections.abc import Iterable
-import copy
-import uuid
 
 
 class Exchanges(Iterable):
@@ -243,13 +244,22 @@ class Activity(ActivityProxyBase):
         )
 
     def biosphere(self):
-        return Exchanges(self.key, kinds=("biosphere",),)
+        return Exchanges(
+            self.key,
+            kinds=("biosphere",),
+        )
 
     def production(self):
-        return Exchanges(self.key, kinds=("production",),)
+        return Exchanges(
+            self.key,
+            kinds=("production",),
+        )
 
     def substitution(self):
-        return Exchanges(self.key, kinds=("substitution",),)
+        return Exchanges(
+            self.key,
+            kinds=("substitution",),
+        )
 
     def upstream(self, kinds=("technosphere",)):
         return Exchanges(self.key, kinds=kinds, reverse=True)

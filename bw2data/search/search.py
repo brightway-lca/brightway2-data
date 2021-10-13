@@ -1,6 +1,7 @@
-from .indices import IndexManager
 from whoosh.qparser import MultifieldParser
-from whoosh.query import Term, And
+from whoosh.query import And, Term
+
+from .indices import IndexManager
 
 
 def keysplit(strng):

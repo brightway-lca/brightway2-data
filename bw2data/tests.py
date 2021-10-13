@@ -1,12 +1,14 @@
-from . import config, databases, methods, geomapping
-from .parameters import parameters
-from .project import projects
 import atexit
 import random
 import shutil
 import string
 import unittest
+
 import wrapt
+
+from . import config, databases, geomapping, methods
+from .parameters import parameters
+from .project import projects
 
 
 class BW2DataTest(unittest.TestCase):

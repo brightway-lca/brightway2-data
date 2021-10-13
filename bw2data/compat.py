@@ -1,18 +1,20 @@
+from bw_processing import load_datapackage
+from fs.zipfs import ZipFS
+
 from . import (
     Database,
-    databases,
-    normalizations,
-    Normalization,
-    weightings,
-    Weighting,
-    methods,
     Method,
-    projects
+    Normalization,
+    Weighting,
+    databases,
+    methods,
+    normalizations,
+    projects,
+    weightings,
 )
+from .backends.schema import ActivityDataset as AD
+from .backends.schema import get_id
 from .errors import Brightway2Project
-from .backends.schema import ActivityDataset as AD, get_id
-from fs.zipfs import ZipFS
-from bw_processing import load_datapackage
 
 
 class Mapping:
@@ -68,13 +70,17 @@ def prepare_lca_inputs(
 ):
     """Prepare LCA input arguments in Brightway 2.5 style."""
     if not projects.dataset.data.get("25"):
-        raise Brightway2Project("Please use `projects.migrate_project_25` before calculating using Brightway 2.5")
+        raise Brightway2Project(
+            "Please use `projects.migrate_project_25` before calculating using Brightway 2.5"
+        )
 
     databases.clean()
     data_objs = []
 
     if demands:
-        demand_database_names = [db_label for dct in demands for db_label, _ in unpack(dct)]
+        demand_database_names = [
+            db_label for dct in demands for db_label, _ in unpack(dct)
+        ]
     elif demand:
         demand_database_names = [db_label for db_label, _ in unpack(demand)]
     else:
@@ -88,10 +94,15 @@ def prepare_lca_inputs(
     )
 
     if demand_database_last:
-        database_names = [x for x in database_names if x not in demand_database_names] + demand_database_names
+        database_names = [
+            x for x in database_names if x not in demand_database_names
+        ] + demand_database_names
 
     data_objs.extend(
-        [load_datapackage(ZipFS(Database(obj).filepath_processed())) for obj in database_names]
+        [
+            load_datapackage(ZipFS(Database(obj).filepath_processed()))
+            for obj in database_names
+        ]
     )
 
     if method:
@@ -99,10 +110,14 @@ def prepare_lca_inputs(
         data_objs.append(load_datapackage(ZipFS(Method(method).filepath_processed())))
     if weighting:
         assert weighting in weightings
-        data_objs.append(load_datapackage(ZipFS(Weighting(weighting).filepath_processed())))
+        data_objs.append(
+            load_datapackage(ZipFS(Weighting(weighting).filepath_processed()))
+        )
     if normalization:
         assert normalization in normalizations
-        data_objs.append(load_datapackage(ZipFS(Normalization(normalization).filepath_processed())))
+        data_objs.append(
+            load_datapackage(ZipFS(Normalization(normalization).filepath_processed()))
+        )
 
     if remapping:
         reversed_mapping = {

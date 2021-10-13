@@ -1,7 +1,9 @@
+from functools import lru_cache
+
+from peewee import DoesNotExist, Model, TextField
+
 from ..errors import UnknownObject
 from ..sqlite import PickleField
-from functools import lru_cache
-from peewee import Model, TextField, DoesNotExist
 
 
 class ActivityDataset(Model):

@@ -1,15 +1,12 @@
+import pytest
+from peewee import DoesNotExist
+
 from bw2data.backends import ActivityDataset, ExchangeDataset
 from bw2data.database import DatabaseChooser
 from bw2data.errors import ValidityError
-from bw2data.parameters import (
-    ActivityParameter,
-    ParameterizedExchange,
-    parameters,
-)
+from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
 from bw2data.tests import bw2test
 from bw2data.utils import get_activity
-from peewee import DoesNotExist
-import pytest
 
 
 @bw2test
@@ -19,7 +16,11 @@ def test_change_code_not_unique_raises_error():
         {
             ("a database", "foo"): {
                 "exchanges": [
-                    {"input": ("a database", "foo"), "amount": 1, "type": "production",}
+                    {
+                        "input": ("a database", "foo"),
+                        "amount": 1,
+                        "type": "production",
+                    }
                 ],
                 "location": "bar",
                 "name": "baz",
@@ -59,7 +60,11 @@ def activity():
         {
             ("a database", "foo"): {
                 "exchanges": [
-                    {"input": ("a database", "foo"), "amount": 1, "type": "production",}
+                    {
+                        "input": ("a database", "foo"),
+                        "amount": 1,
+                        "type": "production",
+                    }
                 ],
                 "location": "bar",
                 "name": "baz",

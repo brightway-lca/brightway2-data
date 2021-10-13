@@ -1,21 +1,22 @@
+import os
+import shutil
+import tempfile
+import warnings
+from collections.abc import Iterable
+from pathlib import Path
+from threading import ThreadError
+
+import appdirs
+import wrapt
+from bw_processing import safe_filename
+from fasteners import InterProcessLock
+from peewee import BooleanField, DoesNotExist, Model, TextField
+
 from . import config
 from .errors import ReadOnlyProject
 from .filesystem import create_dir
 from .sqlite import PickleField, SubstitutableDatabase
 from .utils import maybe_path
-from bw_processing import safe_filename
-from fasteners import InterProcessLock
-from collections.abc import Iterable
-from pathlib import Path
-from peewee import Model, TextField, BooleanField, DoesNotExist
-from threading import ThreadError
-import appdirs
-import os
-import shutil
-import tempfile
-import warnings
-import wrapt
-
 
 READ_ONLY_PROJECT = """
 ***Read only project***
@@ -318,6 +319,7 @@ class ProjectManager(Iterable):
         assert not self.twofive, "Project is already 2.5 compatible"
 
         from .updates import Updates
+
         Updates()._reprocess_all()
 
         self.dataset.data["25"] = True

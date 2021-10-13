@@ -1,5 +1,6 @@
-from peewee import SqliteDatabase, BlobField
 import pickle
+
+from peewee import BlobField, SqliteDatabase
 
 
 class PickleField(BlobField):

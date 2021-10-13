@@ -1,7 +1,7 @@
-from bw2data.tests import bw2test
 from bw2data import databases
-from bw2data.search import Searcher, IndexManager
 from bw2data.backends import SQLiteBackend
+from bw2data.search import IndexManager, Searcher
+from bw2data.tests import bw2test
 
 
 @bw2test
@@ -330,7 +330,14 @@ def test_case_sensitivity_mask():
 @bw2test
 def test_synonym_search():
     im = IndexManager("foo")
-    im.add_dataset({"database": "foo", "code": "bar", "name": "polytetrafluoroethylene", "synonyms":["PTFE", "Teflon"]})
+    im.add_dataset(
+        {
+            "database": "foo",
+            "code": "bar",
+            "name": "polytetrafluoroethylene",
+            "synonyms": ["PTFE", "Teflon"],
+        }
+    )
     with Searcher("foo") as s:
         assert s.search("Teflon", proxy=False) == [
             {
@@ -344,6 +351,7 @@ def test_synonym_search():
                 "synonyms": "ptfe, teflon",
             }
         ]
+
 
 if __name__ == "__main__":
     test_synonym_search()

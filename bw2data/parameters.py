@@ -1,6 +1,9 @@
-from . import databases, projects, config, get_activity
-from .backends.schema import ExchangeDataset
-from .sqlite import PickleField, SubstitutableDatabase
+import datetime
+import itertools
+import re
+import uuid
+
+import asteval
 from asteval import Interpreter
 from bw2parameters import ParameterSet
 from bw2parameters.errors import MissingName
@@ -13,12 +16,10 @@ from peewee import (
     Model,
     TextField,
 )
-import asteval
-import datetime
-import itertools
-import re
-import uuid
 
+from . import config, databases, get_activity, projects
+from .backends.schema import ExchangeDataset
+from .sqlite import PickleField, SubstitutableDatabase
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
 clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)
@@ -184,15 +185,15 @@ class ProjectParameter(ParameterBase):
         ParameterSet(data).evaluate_and_set_amount_field()
         with parameters.db.atomic() as _:
             for key, value in data.items():
-                ProjectParameter.update(amount=value["amount"],).where(
-                    ProjectParameter.name == key
-                ).execute()
+                ProjectParameter.update(
+                    amount=value["amount"],
+                ).where(ProjectParameter.name == key).execute()
             Group.get_or_create(name="project")[0].freshen()
             ProjectParameter.expire_downstream("project")
 
     @staticmethod
     def dependency_chain():
-        """ Determine if ```ProjectParameter`` parameters have dependencies
+        """Determine if ```ProjectParameter`` parameters have dependencies
         within the group.
 
         Returns:
@@ -244,7 +245,7 @@ class ProjectParameter(ParameterBase):
 
     @classmethod
     def update_formula_parameter_name(cls, old, new):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         NOTE: Make sure to wrap this in an .atomic() statement!
         """
@@ -259,7 +260,11 @@ class ProjectParameter(ParameterBase):
     def dict(self):
         """Parameter data as a standardized dictionary"""
         obj = nonempty(
-            {"name": self.name, "formula": self.formula, "amount": self.amount,}
+            {
+                "name": self.name,
+                "formula": self.formula,
+                "amount": self.amount,
+            }
         )
         obj.update(self.data)
         return obj
@@ -462,7 +467,7 @@ class DatabaseParameter(ParameterBase):
 
     @staticmethod
     def is_dependent_on(name):
-        """ Test if any database parameters are dependent on the given
+        """Test if any database parameters are dependent on the given
         project parameter name.
         """
         query = (
@@ -481,7 +486,7 @@ class DatabaseParameter(ParameterBase):
 
     @classmethod
     def update_formula_project_parameter_name(cls, old, new):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         This method specifically targets project parameters used in database
         formulas
@@ -511,7 +516,7 @@ class DatabaseParameter(ParameterBase):
 
     @classmethod
     def update_formula_database_parameter_name(cls, old, new):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         This method specifically targets database parameters used in database
         formulas
@@ -755,7 +760,7 @@ class ActivityParameter(ParameterBase):
 
     @staticmethod
     def is_dependency_within_group(name, group, include_order=False):
-        """ Determine if the given parameter `name` is a dependency within
+        """Determine if the given parameter `name` is a dependency within
         the given activity `group`.
 
         The optional ``include_order`` parameter will include dependencies
@@ -817,7 +822,8 @@ class ActivityParameter(ParameterBase):
         with parameters.db.atomic():
             for key, value in data.items():
                 ActivityParameter.update(amount=value["amount"],).where(
-                    ActivityParameter.name == key, ActivityParameter.group == group,
+                    ActivityParameter.name == key,
+                    ActivityParameter.group == group,
                 ).execute()
             Group.get(name=group).freshen()
             ActivityParameter.expire_downstream(group)
@@ -860,7 +866,7 @@ class ActivityParameter(ParameterBase):
 
     @staticmethod
     def is_dependent_on(name, group):
-        """ Test if any activity parameters are dependent on the given
+        """Test if any activity parameters are dependent on the given
         parameter name from the given group.
         """
         query = (
@@ -879,7 +885,7 @@ class ActivityParameter(ParameterBase):
 
     @classmethod
     def update_formula_project_parameter_name(cls, old, new):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         This method specifically targets project parameters used in activity
         formulas
@@ -928,7 +934,7 @@ class ActivityParameter(ParameterBase):
 
     @classmethod
     def update_formula_database_parameter_name(cls, old, new):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         This method specifically targets database parameters used in activity
         formulas
@@ -979,7 +985,7 @@ class ActivityParameter(ParameterBase):
 
     @classmethod
     def update_formula_activity_parameter_name(cls, old, new, include_order=False):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         This method specifically targets activity parameters used in activity
         formulas
@@ -1232,7 +1238,7 @@ class ParameterManager:
             activity.save()
 
     def add_exchanges_to_group(self, group, activity):
-        """ Add exchanges with formulas from ``activity`` to ``group``.
+        """Add exchanges with formulas from ``activity`` to ``group``.
 
         Every exchange with a formula field will have its original `amount`
         value stored as `original_amount`. This original value can be
@@ -1268,7 +1274,7 @@ class ParameterManager:
         return count
 
     def remove_exchanges_from_group(self, group, activity, restore_original=True):
-        """ Takes a group and activity and removes all ``ParameterizedExchange``
+        """Takes a group and activity and removes all ``ParameterizedExchange``
         objects from the group.
 
         The ``restore_original`` parameter determines if the original amount
@@ -1478,7 +1484,7 @@ class ParameterManager:
             ActivityParameter.recalculate(group)
 
     def rename_project_parameter(self, parameter, new_name, update_dependencies=False):
-        """ Given a parameter and a new name, safely update the parameter.
+        """Given a parameter and a new name, safely update the parameter.
 
         Will raise a TypeError if the given parameter is of the incorrect type.
         Will raise a ValueError if other parameters depend on the given one
@@ -1517,7 +1523,7 @@ class ParameterManager:
             self.recalculate()
 
     def rename_database_parameter(self, parameter, new_name, update_dependencies=False):
-        """ Given a parameter and a new name, safely update the parameter.
+        """Given a parameter and a new name, safely update the parameter.
 
         Will raise a TypeError if the given parameter is of the incorrect type.
         Will raise a ValueError if other parameters depend on the given one
@@ -1555,7 +1561,7 @@ class ParameterManager:
             self.recalculate()
 
     def rename_activity_parameter(self, parameter, new_name, update_dependencies=False):
-        """ Given a parameter and a new name, safely update the parameter.
+        """Given a parameter and a new name, safely update the parameter.
 
         Will raise a TypeError if the given parameter is of the incorrect type.
         Will raise a ValueError if other parameters depend on the given one
@@ -1639,7 +1645,7 @@ def get_new_symbols(data, context=None):
 
 
 def alter_parameter_formula(parameter, old, new):
-    """ Replace the `old` part with `new` in the formula field and return
+    """Replace the `old` part with `new` in the formula field and return
     the parameter itself.
     """
     if hasattr(parameter, "formula"):

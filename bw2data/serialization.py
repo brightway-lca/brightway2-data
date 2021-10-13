@@ -1,14 +1,15 @@
+import bz2
+import os
+import pickle
+import random
+from collections.abc import MutableMapping
+from time import time
+
 from . import projects
 from .errors import PickleError
 from .fatomic import open as atomic_open
 from .project import writable_project
 from .utils import maybe_path
-from collections.abc import MutableMapping
-from time import time
-import bz2
-import os
-import pickle
-import random
 
 try:
     import anyjson

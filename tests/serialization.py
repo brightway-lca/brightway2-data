@@ -1,5 +1,6 @@
-from bw2data.serialization import JsonSanitizer
 import unittest
+
+from bw2data.serialization import JsonSanitizer
 
 
 class JsonSantizierTestCase(unittest.TestCase):

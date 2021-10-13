@@ -1,18 +1,14 @@
-from .fixtures import food, biosphere
-from bw2data import (
-    config,
-    Database,
-    geomapping,
-    get_id,
-    Method,
-    projects,
-)
-from bw2data.tests import bw2test
-from bw_processing import load_datapackage
-from fs.zipfs import ZipFS
 import copy
+
 import numpy as np
 import pytest
+from bw_processing import load_datapackage
+from fs.zipfs import ZipFS
+
+from bw2data import Database, Method, config, geomapping, get_id, projects
+from bw2data.tests import bw2test
+
+from .fixtures import biosphere, food
 
 
 @pytest.fixture

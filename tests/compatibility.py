@@ -1,6 +1,7 @@
-from bw2data.tests import BW2DataTest, bw2test
 from bw2data import *
-from .fixtures import food, biosphere
+from bw2data.tests import BW2DataTest, bw2test
+
+from .fixtures import biosphere, food
 
 
 @bw2test

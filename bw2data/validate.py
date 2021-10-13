@@ -1,5 +1,6 @@
-from voluptuous import Schema, Required, Invalid, Any, All, Length, Optional
 from numbers import Number
+
+from voluptuous import All, Any, Invalid, Length, Optional, Required, Schema
 
 
 def valid_tuple(obj):

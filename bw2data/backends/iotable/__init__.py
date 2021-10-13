@@ -1,8 +1,10 @@
-from .. import SQLiteBackend
-from ... import geomapping, config, databases
-from bw_processing import create_datapackage, clean_datapackage_name
-from fs.zipfs import ZipFS
 import datetime
+
+from bw_processing import clean_datapackage_name, create_datapackage
+from fs.zipfs import ZipFS
+
+from ... import config, databases, geomapping
+from .. import SQLiteBackend
 
 
 class IOTableBackend(SQLiteBackend):
@@ -51,7 +53,6 @@ class IOTableBackend(SQLiteBackend):
             nrows=len(self),
         )
 
-
         print("Adding technosphere matrix")
         # if technosphere is a dictionary pass it's keys & values
         if isinstance(technosphere, dict):
@@ -61,15 +62,16 @@ class IOTableBackend(SQLiteBackend):
                 **technosphere,
             )
         # if it is an iterable, convert to right format
-        elif hasattr(technosphere, '__iter__'):
+        elif hasattr(technosphere, "__iter__"):
             dp.add_persistent_vector_from_iterator(
                 matrix="technosphere_matrix",
                 name=clean_datapackage_name(self.name + " technosphere matrix"),
                 dict_iterator=technosphere,
             )
         else:
-            raise Exception(f"Error: Unsupported technosphere type: {type(technosphere)}")
-
+            raise Exception(
+                f"Error: Unsupported technosphere type: {type(technosphere)}"
+            )
 
         print("Adding biosphere matrix")
         # if biosphere is a dictionary pass it's keys & values
@@ -80,7 +82,7 @@ class IOTableBackend(SQLiteBackend):
                 **biosphere,
             )
         # if it is an iterable, convert to right format
-        elif hasattr(biosphere, '__iter__'):
+        elif hasattr(biosphere, "__iter__"):
             dp.add_persistent_vector_from_iterator(
                 matrix="biosphere_matrix",
                 name=clean_datapackage_name(self.name + " biosphere matrix"),
@@ -89,12 +91,13 @@ class IOTableBackend(SQLiteBackend):
         else:
             raise Exception(f"Error: Unsupported biosphere type: {type(technosphere)}")
 
-
         # finalize
         print("Finalizing serialization")
         dp.finalize_serialization()
 
-        databases[self.name]["depends"] = sorted(set(dependents).difference({self.name}))
+        databases[self.name]["depends"] = sorted(
+            set(dependents).difference({self.name})
+        )
         databases[self.name]["processed"] = datetime.datetime.now().isoformat()
         databases.flush()
 

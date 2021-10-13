@@ -1,22 +1,23 @@
-from . import config
-from .errors import WebUIError, UnknownObject, NotFound, ValidityError
-from .fatomic import open
-from io import StringIO
-from pathlib import Path
-from peewee import DoesNotExist
 import collections
 import itertools
 import os
 import random
 import re
-import requests
-import stats_arrays as sa
 import string
 import urllib
 import warnings
 import webbrowser
 import zipfile
+from io import StringIO
+from pathlib import Path
 
+import requests
+import stats_arrays as sa
+from peewee import DoesNotExist
+
+from . import config
+from .errors import NotFound, UnknownObject, ValidityError, WebUIError
+from .fatomic import open
 
 # Type of technosphere/biosphere exchanges used in processed Databases
 TYPE_DICTIONARY = {
@@ -116,23 +117,23 @@ def as_uncertainty_dict(value):
 
 def uncertainify(data, distribution=None, bounds_factor=0.1, sd_factor=0.1):
     """
-Add some rough uncertainty to exchanges.
+    Add some rough uncertainty to exchanges.
 
-.. warning:: This function only changes exchanges with no uncertainty type or uncertainty type ``UndefinedUncertainty``, and does not change production exchanges!
+    .. warning:: This function only changes exchanges with no uncertainty type or uncertainty type ``UndefinedUncertainty``, and does not change production exchanges!
 
-Can only apply normal or uniform uncertainty distributions; default is uniform. Distribution, if specified, must be a ``stats_array`` uncertainty object.
+    Can only apply normal or uniform uncertainty distributions; default is uniform. Distribution, if specified, must be a ``stats_array`` uncertainty object.
 
-``data`` is a LCI data dictionary.
+    ``data`` is a LCI data dictionary.
 
-If using the normal distribution:
+    If using the normal distribution:
 
-* ``sd_factor`` will be multiplied by the mean to calculate the standard deviation.
-* If no bounds are desired, set ``bounds_factor`` to ``None``.
-* Otherwise, the bounds will be ``[(1 - bounds_factor) * mean, (1 + bounds_factor) * mean]``.
+    * ``sd_factor`` will be multiplied by the mean to calculate the standard deviation.
+    * If no bounds are desired, set ``bounds_factor`` to ``None``.
+    * Otherwise, the bounds will be ``[(1 - bounds_factor) * mean, (1 + bounds_factor) * mean]``.
 
-If using the uniform distribution, then the bounds are ``[(1 - bounds_factor) * mean, (1 + bounds_factor) * mean]``.
+    If using the uniform distribution, then the bounds are ``[(1 - bounds_factor) * mean, (1 + bounds_factor) * mean]``.
 
-Returns the modified data.
+    Returns the modified data.
     """
     assert distribution in {
         None,
@@ -180,7 +181,9 @@ Returns the modified data.
                     bounds_factor is not None
                 ), "must specify bounds_factor for uniform distribution"
                 exchange.update(
-                    {"uncertainty type": sa.UniformUncertainty.id,}
+                    {
+                        "uncertainty type": sa.UniformUncertainty.id,
+                    }
                 )
     return data
 
@@ -218,14 +221,14 @@ def merge_databases(parent_db, other):
     ``parent_db`` and ``other`` should be the names of databases.
 
     Doesn't return anything."""
-    from .database import Database
+    from . import databases
     from .backends import (
         ActivityDataset,
         ExchangeDataset,
         SQLiteBackend,
         sqlite3_lci_db,
     )
-    from . import databases
+    from .database import Database
 
     assert parent_db in databases
     assert other in databases
@@ -380,8 +383,9 @@ def create_in_memory_zipfile_from_directory(path):
 
 
 def get_activity(key):
+    from .backends import Activity
+    from .backends import ActivityDataset as AD
     from .database import Database
-    from .backends import ActivityDataset as AD, Activity
 
     if isinstance(key, int):
         try:

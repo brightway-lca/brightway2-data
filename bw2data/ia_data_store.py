@@ -1,7 +1,9 @@
-from .data_store import ProcessedDataStore
-from bw_processing import safe_filename
 import hashlib
 import string
+
+from bw_processing import safe_filename
+
+from .data_store import ProcessedDataStore
 
 
 def abbreviate(names, length=8):
@@ -30,14 +32,14 @@ def abbreviate(names, length=8):
 
 class ImpactAssessmentDataStore(ProcessedDataStore):
     """
-A subclass of ``DataStore`` for impact assessment methods.
+    A subclass of ``DataStore`` for impact assessment methods.
 
-IA objects are hierarchically structured, and their identifier uses this structure, like ``('ecological scarcity 2006', 'total', 'natural resources')``. The identifier must be a ``tuple``, i.e. ``()``, not a ``list``, i.e. ``[]``. The identifier should only contain unicode strings, and can be of any length >= 1.
+    IA objects are hierarchically structured, and their identifier uses this structure, like ``('ecological scarcity 2006', 'total', 'natural resources')``. The identifier must be a ``tuple``, i.e. ``()``, not a ``list``, i.e. ``[]``. The identifier should only contain unicode strings, and can be of any length >= 1.
 
-Because impact assessment methods are identified by a tuple of strings, e.g. ``('ReCiPe Endpoint (E,A)', 'human health', 'ionising radiation')``, we need to transform this identifier before it can be used e.g. as a filename. We do this using the :func:`.abbreviate` function, which returns a single unicode string.
+    Because impact assessment methods are identified by a tuple of strings, e.g. ``('ReCiPe Endpoint (E,A)', 'human health', 'ionising radiation')``, we need to transform this identifier before it can be used e.g. as a filename. We do this using the :func:`.abbreviate` function, which returns a single unicode string.
 
-Args:
-    * *name* (tuple): Name of the IA object to manage. Must be a tuple of unicode strings.
+    Args:
+        * *name* (tuple): Name of the IA object to manage. Must be a tuple of unicode strings.
 
     """
 

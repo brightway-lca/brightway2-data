@@ -1,4 +1,9 @@
-from bw2data.tests import bw2test
+import os
+import tempfile
+from pathlib import Path
+
+import pytest
+
 from bw2data import (
     config,
     databases,
@@ -8,13 +13,9 @@ from bw2data import (
     preferences,
     projects,
 )
-from bw2data.project import ProjectDataset
 from bw2data.errors import ReadOnlyProject
-from pathlib import Path
-import os
-import pytest
-import tempfile
-
+from bw2data.project import ProjectDataset
+from bw2data.tests import bw2test
 
 ###
 ### Basic setup

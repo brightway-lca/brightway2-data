@@ -1,20 +1,21 @@
-from bw2data.tests import bw2test
-from bw2data import parameters, Database, get_activity
+import re
+import time
+
+import pytest
+from bw2parameters.errors import MissingName
+from peewee import IntegrityError
+
+from bw2data import Database, get_activity, parameters
 from bw2data.parameters import (
     ActivityParameter,
     DatabaseParameter,
     Group,
     GroupDependency,
     ParameterizedExchange,
-    parameters,
     ProjectParameter,
+    parameters,
 )
-from bw2parameters.errors import MissingName
-from peewee import IntegrityError
-import pytest
-import time
-import re
-
+from bw2data.tests import bw2test
 
 # Regex to search for UUID: https://stackoverflow.com/a/18359032
 uuid4hex = re.compile(
@@ -62,7 +63,10 @@ def test_project_parameters_ordering():
     with pytest.raises(TypeError):
         obj < 0
     assert not (obj < obj)
-    another = ProjectParameter.create(name="bar", formula="2 * foo",)
+    another = ProjectParameter.create(
+        name="bar",
+        formula="2 * foo",
+    )
     assert another < obj
 
 
@@ -80,7 +84,10 @@ def test_project_parameters_dict():
 @bw2test
 def test_project_parameters_load():
     obj = ProjectParameter.create(name="foo", amount=3.14, data={"uncertainty type": 0})
-    another = ProjectParameter.create(name="bar", formula="2 * foo",)
+    another = ProjectParameter.create(
+        name="bar",
+        formula="2 * foo",
+    )
     expected = {
         "foo": {"amount": 3.14, "uncertainty type": 0},
         "bar": {"formula": "2 * foo"},
@@ -93,7 +100,10 @@ def test_project_parameters_load():
 @bw2test
 def test_project_parameters_static():
     obj = ProjectParameter.create(name="foo", amount=3.14, data={"uncertainty type": 0})
-    another = ProjectParameter.create(name="bar", formula="2 * foo",)
+    another = ProjectParameter.create(
+        name="bar",
+        formula="2 * foo",
+    )
     assert ProjectParameter.static() == {"foo": 3.14, "bar": None}
     assert ProjectParameter.static(only=["foo"]) == {"foo": 3.14}
     ProjectParameter.recalculate()
@@ -116,7 +126,10 @@ def test_project_parameters_recalculate():
     Group.create(name="project")
     ProjectParameter.recalculate()
     obj = ProjectParameter.create(name="foo", amount=3.14, data={"uncertainty type": 0})
-    another = ProjectParameter.create(name="bar", formula="2 * foo",)
+    another = ProjectParameter.create(
+        name="bar",
+        formula="2 * foo",
+    )
     ProjectParameter.recalculate()
     obj = ProjectParameter.get(name="bar")
     assert obj.amount == 2 * 3.14
@@ -137,7 +150,10 @@ def test_project_autoupdate_triggers():
     obj = ProjectParameter.create(name="foo", amount=3.14, data={"uncertainty type": 0})
     first = Group.get(name="project").updated
     time.sleep(1.1)
-    another = ProjectParameter.create(name="bar", formula="2 * foo",)
+    another = ProjectParameter.create(
+        name="bar",
+        formula="2 * foo",
+    )
     second = Group.get(name="project").updated
     assert first != second
     time.sleep(1.1)
@@ -155,7 +171,8 @@ def test_project_name_uniqueness():
     obj = ProjectParameter.create(name="foo", amount=3.14, data={"uncertainty type": 0})
     with pytest.raises(IntegrityError):
         ProjectParameter.create(
-            name="foo", amount=7,
+            name="foo",
+            amount=7,
         )
 
 
@@ -187,8 +204,7 @@ def test_project_parameter_depend_within_group():
 
 @bw2test
 def test_project_parameter_is_deletable():
-    """ Project parameters can be deleted if they are no dependencies.
-    """
+    """Project parameters can be deleted if they are no dependencies."""
     ProjectParameter.create(name="foo", amount=3.14)
     assert ProjectParameter.get(name="foo").is_deletable()
 
@@ -224,8 +240,7 @@ def test_project_parameter_is_not_deletable_activity():
 
 @bw2test
 def test_project_parameter_formula_update():
-    """ Update formulas only where the name of the parameter is an exact match.
-    """
+    """Update formulas only where the name of the parameter is an exact match."""
     ProjectParameter.create(name="foo", amount=3.14)
     ProjectParameter.create(name="foobar", amount=6.28)
     ProjectParameter.create(name="bar", amount=1, formula="foo + 2")
@@ -249,7 +264,11 @@ def test_project_parameter_formula_update():
 @bw2test
 def test_create_database_parameters():
     assert not len(parameters)
-    obj = DatabaseParameter.create(database="bar", name="foo", amount=3.14,)
+    obj = DatabaseParameter.create(
+        database="bar",
+        name="foo",
+        amount=3.14,
+    )
     assert obj.name == "foo"
     assert obj.database == "bar"
     assert obj.amount == 3.14
@@ -261,7 +280,11 @@ def test_create_database_parameters():
 @bw2test
 def test_database_parameters_group_autocreated():
     assert not Group.select().count()
-    obj = DatabaseParameter.create(database="bar", name="foo", amount=3.14,)
+    obj = DatabaseParameter.create(
+        database="bar",
+        name="foo",
+        amount=3.14,
+    )
     assert Group.get(name="bar")
     assert not Group.get(name="bar").fresh
 
@@ -270,14 +293,20 @@ def test_database_parameters_group_autocreated():
 def test_database_parameters_expired():
     assert not DatabaseParameter.expired("bar")
     DatabaseParameter.create(
-        database="bar", name="foo", amount=3.14,
+        database="bar",
+        name="foo",
+        amount=3.14,
     )
     assert DatabaseParameter.expired("bar")
 
 
 @bw2test
 def test_database_parameters_dict():
-    obj = DatabaseParameter.create(database="bar", name="foo", amount=3.14,)
+    obj = DatabaseParameter.create(
+        database="bar",
+        name="foo",
+        amount=3.14,
+    )
     expected = {
         "database": "bar",
         "name": "foo",
@@ -289,7 +318,9 @@ def test_database_parameters_dict():
 @bw2test
 def test_database_parameters_load():
     DatabaseParameter.create(
-        database="bar", name="foo", amount=3.14,
+        database="bar",
+        name="foo",
+        amount=3.14,
     )
     DatabaseParameter.create(database="bar", name="baz", formula="foo + baz")
     expected = {
@@ -302,7 +333,9 @@ def test_database_parameters_load():
 @bw2test
 def test_database_parameters_static():
     DatabaseParameter.create(
-        database="bar", name="foo", amount=3.14,
+        database="bar",
+        name="foo",
+        amount=3.14,
     )
     DatabaseParameter.create(database="bar", name="baz", amount=7, formula="foo + baz")
     expected = {"foo": 3.14, "baz": 7}
@@ -314,16 +347,26 @@ def test_database_parameters_static():
 def test_database_parameters_check():
     with pytest.raises(IntegrityError):
         DatabaseParameter.create(
-            database="project", name="foo", amount=3.14,
+            database="project",
+            name="foo",
+            amount=3.14,
         )
 
 
 @bw2test
 def test_database_autoupdate_triggers():
-    obj = DatabaseParameter.create(database="A", name="foo", amount=3.14,)
+    obj = DatabaseParameter.create(
+        database="A",
+        name="foo",
+        amount=3.14,
+    )
     first = Group.get(name="A").updated
     time.sleep(1.1)
-    another = DatabaseParameter.create(database="A", name="bar", formula="2 * foo",)
+    another = DatabaseParameter.create(
+        database="A",
+        name="bar",
+        formula="2 * foo",
+    )
     second = Group.get(name="A").updated
     assert first != second
     time.sleep(1.1)
@@ -343,7 +386,9 @@ def test_database_uniqueness_constraint():
     )
     with pytest.raises(IntegrityError):
         DatabaseParameter.create(
-            database="A", name="foo", amount=7,
+            database="A",
+            name="foo",
+            amount=7,
         )
 
 
@@ -353,10 +398,14 @@ def test_database_parameter_cross_database_constraint():
     Database("B").register()
     Database("C").register()
     DatabaseParameter.create(
-        database="B", name="car", amount=8,
+        database="B",
+        name="car",
+        amount=8,
     )
     DatabaseParameter.create(
-        database="C", name="plane", formula="car ** 5",
+        database="C",
+        name="plane",
+        formula="car ** 5",
     )
     with pytest.raises(MissingName):
         DatabaseParameter.recalculate("C")
@@ -368,9 +417,15 @@ def test_update_database_parameters():
     assert not GroupDependency.select().count()
 
     DatabaseParameter.create(
-        database="A", name="B", amount=5,
+        database="A",
+        name="B",
+        amount=5,
     )
-    o = DatabaseParameter.create(database="A", name="C", formula="B * 2 + foo",)
+    o = DatabaseParameter.create(
+        database="A",
+        name="C",
+        formula="B * 2 + foo",
+    )
     Group.create(name="Zed")
     GroupDependency.create(group="Zed", depends="A")
     assert Group.get(name="A")
@@ -387,7 +442,8 @@ def test_update_database_parameters():
     o.save()
     ProjectParameter.create(name="foo", amount=3.14, data={"uncertainty type": 0})
     ProjectParameter.create(
-        name="bar", formula="2 * foo",
+        name="bar",
+        formula="2 * foo",
     )
     assert Group.get(name="project")
     Database("A").register()
@@ -409,16 +465,26 @@ def test_update_database_parameters():
 def test_database_parameter_dependency_chain():
     Database("B").register()
     DatabaseParameter.create(
-        database="B", name="car", formula="2 ** fly", amount=8,
+        database="B",
+        name="car",
+        formula="2 ** fly",
+        amount=8,
     )
     DatabaseParameter.create(
-        database="B", name="bike", formula="car - hike", amount=2,
+        database="B",
+        name="bike",
+        formula="car - hike",
+        amount=2,
     )
     ProjectParameter.create(
-        name="hike", formula="2 * 2 * 2", amount=6,
+        name="hike",
+        formula="2 * 2 * 2",
+        amount=6,
     )
     ProjectParameter.create(
-        name="fly", formula="3", amount=3,
+        name="fly",
+        formula="3",
+        amount=3,
     )
     expected = [
         {"kind": "project", "group": "project", "names": set(["fly", "hike"])},
@@ -431,10 +497,15 @@ def test_database_parameter_dependency_chain():
 def test_database_parameter_dependency_chain_missing():
     Database("B").register()
     DatabaseParameter.create(
-        database="B", name="car", formula="2 ** fly", amount=8,
+        database="B",
+        name="car",
+        formula="2 ** fly",
+        amount=8,
     )
     ProjectParameter.create(
-        name="hike", formula="2 * 2 * 2", amount=6,
+        name="hike",
+        formula="2 * 2 * 2",
+        amount=6,
     )
     with pytest.raises(MissingName):
         DatabaseParameter.dependency_chain("B")
@@ -444,13 +515,20 @@ def test_database_parameter_dependency_chain_missing():
 def test_database_parameter_dependency_chain_include_self():
     Database("B").register()
     DatabaseParameter.create(
-        database="B", name="car", formula="2 ** fly", amount=8,
+        database="B",
+        name="car",
+        formula="2 ** fly",
+        amount=8,
     )
     DatabaseParameter.create(
-        database="B", name="truck", formula="car * 5",
+        database="B",
+        name="truck",
+        formula="car * 5",
     )
     ProjectParameter.create(
-        name="fly", formula="3", amount=3,
+        name="fly",
+        formula="3",
+        amount=3,
     )
     expected = [
         {"kind": "project", "group": "project", "names": set(["fly"])},
@@ -465,19 +543,32 @@ def test_database_parameter_depend_within_group():
     Database("B").register()
     Database("C").register()
     DatabaseParameter.create(
-        database="B", name="car", formula="2 ** fly", amount=8,
+        database="B",
+        name="car",
+        formula="2 ** fly",
+        amount=8,
     )
     DatabaseParameter.create(
-        database="B", name="truck", amount=2, formula="car * 5",
+        database="B",
+        name="truck",
+        amount=2,
+        formula="car * 5",
     )
     DatabaseParameter.create(
-        database="C", name="fly", amount=7,
+        database="C",
+        name="fly",
+        amount=7,
     )
     DatabaseParameter.create(
-        database="C", name="parade", amount=1, formula="fly * 2.7",
+        database="C",
+        name="parade",
+        amount=1,
+        formula="fly * 2.7",
     )
     ProjectParameter.create(
-        name="fly", formula="3", amount=3,
+        name="fly",
+        formula="3",
+        amount=3,
     )
     parameters.recalculate()
     assert DatabaseParameter.is_dependency_within_group("car", "B")
@@ -487,8 +578,7 @@ def test_database_parameter_depend_within_group():
 
 @bw2test
 def test_database_parameter_is_deletable():
-    """ Database parameters can be deleted if they are no dependencies.
-    """
+    """Database parameters can be deleted if they are no dependencies."""
     Database("B").register()
     DatabaseParameter.create(database="B", name="car", amount=8)
     assert DatabaseParameter.get(name="car").is_deletable()
@@ -521,8 +611,7 @@ def test_database_parameter_is_not_deletable_activity():
 
 @bw2test
 def test_database_parameter_is_dependent_on():
-    """ Databases parameters can be dependent on project parameters.
-    """
+    """Databases parameters can be dependent on project parameters."""
     Database("B").register()
     ProjectParameter.create(name="foo", amount=2)
     ProjectParameter.create(name="bar", amount=5)
@@ -534,7 +623,7 @@ def test_database_parameter_is_dependent_on():
 
 @bw2test
 def test_database_parameter_formula_update_project():
-    """ Update formulas of database parameters, only update the formulas
+    """Update formulas of database parameters, only update the formulas
     where the actual ProjectParameter is referenced.
     """
     ProjectParameter.create(name="foo", amount=2)
@@ -554,7 +643,7 @@ def test_database_parameter_formula_update_project():
 
 @bw2test
 def test_database_parameter_formula_update_database():
-    """ Update formulas of database parameters, only update the formulas
+    """Update formulas of database parameters, only update the formulas
     where the actual DatabaseParameter is referenced.
     """
     ProjectParameter.create(name="foo", amount=2)
@@ -563,7 +652,9 @@ def test_database_parameter_formula_update_database():
     DatabaseParameter.create(database="B", name="bar", amount=1, formula="foo + 2")
     DatabaseParameter.create(database="C", name="bing", amount=1, formula="foo + 2")
     DatabaseParameter.create(
-        database="C", name="foo", amount=8,
+        database="C",
+        name="foo",
+        amount=8,
     )
     parameters.recalculate()
     assert DatabaseParameter.get(name="bar").formula == "foo + 2"
@@ -615,19 +706,39 @@ def chain():
     Database("K").register()
     Group.create(name="G", order=["A"])
     ActivityParameter.create(
-        group="A", database="B", code="C", name="D", formula="2 ** 3", amount=1,
+        group="A",
+        database="B",
+        code="C",
+        name="D",
+        formula="2 ** 3",
+        amount=1,
     )
     ActivityParameter.create(
-        group="A", database="B", code="E", name="F", formula="foo + bar + D", amount=2,
+        group="A",
+        database="B",
+        code="E",
+        name="F",
+        formula="foo + bar + D",
+        amount=2,
     )
     ActivityParameter.create(
-        group="G", database="K", code="H", name="J", formula="F + D * 2", amount=3,
+        group="G",
+        database="K",
+        code="H",
+        name="J",
+        formula="F + D * 2",
+        amount=3,
     )
     DatabaseParameter.create(
-        database="B", name="foo", formula="2 ** 2", amount=5,
+        database="B",
+        name="foo",
+        formula="2 ** 2",
+        amount=5,
     )
     ProjectParameter.create(
-        name="bar", formula="2 * 2 * 2", amount=6,
+        name="bar",
+        formula="2 * 2 * 2",
+        amount=6,
     )
 
 
@@ -747,10 +858,14 @@ def test_activity_parameter_dependency_chain(chain):
 
 
 def test_activity_parameter_dependency_chain_missing(chain):
-    """ Use unknown parameter 'K' in formula to test for MissingName error.
-    """
+    """Use unknown parameter 'K' in formula to test for MissingName error."""
     ActivityParameter.create(
-        group="G", database="K", code="L", name="M", formula="foo + bar / K", amount=7,
+        group="G",
+        database="K",
+        code="L",
+        name="M",
+        formula="foo + bar / K",
+        amount=7,
     )
     with pytest.raises(MissingName):
         ActivityParameter.dependency_chain("G")
@@ -774,7 +889,7 @@ def test_activity_parameter_dependency_chain_includes_exchanges(chain):
 
 
 def test_activity_parameter_dependency_chain_include_self(chain):
-    """ Out of the parameters 'D' and 'F' in group 'A', only 'D' counts
+    """Out of the parameters 'D' and 'F' in group 'A', only 'D' counts
     as a dependency for group 'A'.
 
     This means that 'F' can be freely deleted, after which 'D' is no longer
@@ -795,11 +910,15 @@ def test_activity_parameter_dependency_chain_include_self(chain):
 
 
 def test_activity_parameter_dependency_chain_include_self_exchanges(chain):
-    """ Out of the parameters 'J' and 'H' in group 'G', only 'H' counts
+    """Out of the parameters 'J' and 'H' in group 'G', only 'H' counts
     as a dependency as 'J' is not used by either 'H' or by any exchanges.
     """
     ActivityParameter.create(
-        group="G", database="K", code="L", name="H", amount=7,
+        group="G",
+        database="K",
+        code="L",
+        name="H",
+        amount=7,
     )
     db = Database("K")
     a = db.new_activity(code="not a robot", name="actually an activity")
@@ -819,7 +938,7 @@ def test_activity_parameter_dependency_chain_include_self_exchanges(chain):
 
 
 def test_activity_parameter_depend_within_group(chain):
-    """ When considering only dependencies within the given group. 'D' is
+    """When considering only dependencies within the given group. 'D' is
     a dependency within the group 'A', while 'F' is not.
     """
     assert ActivityParameter.is_dependency_within_group("D", "A")
@@ -827,7 +946,7 @@ def test_activity_parameter_depend_within_group(chain):
 
 
 def test_activity_parameter_depend_within_group_include(chain):
-    """ The 'J' parameter in group 'G' depends on the 'F' parameter in group
+    """The 'J' parameter in group 'G' depends on the 'F' parameter in group
     'A'. 'F' doesn't exist within the 'G' group but is instead linked to the
     'J' parameter through the 'G' group order.
     """
@@ -886,13 +1005,19 @@ def test_activity_parameter_recalculate_exchanges():
     ).save()
 
     project_data = [
-        {"name": "foo", "formula": "green / 7",},
+        {
+            "name": "foo",
+            "formula": "green / 7",
+        },
         {"name": "green", "amount": 7},
     ]
     parameters.new_project_parameters(project_data)
 
     database_data = [
-        {"name": "red", "formula": "(foo + blue ** 2) / 5",},
+        {
+            "name": "red",
+            "formula": "(foo + blue ** 2) / 5",
+        },
         {"name": "blue", "amount": 12},
     ]
     parameters.new_database_parameters(database_data, "example")
@@ -934,7 +1059,9 @@ def test_pe_no_activities_parameter_group_error():
 
     for exc in a.exchanges():
         obj = ParameterizedExchange(
-            exchange=exc._document.id, group="my group", formula="1 + 1",
+            exchange=exc._document.id,
+            group="my group",
+            formula="1 + 1",
         )
         with pytest.raises(IntegrityError):
             obj.save()
@@ -952,7 +1079,10 @@ def test_recalculate_exchanges_no_activities_parameters():
     a.new_exchange(amount=0, input=a, type="production", formula="foo + 4").save()
 
     project_data = [
-        {"name": "foo", "formula": "green / 7",},
+        {
+            "name": "foo",
+            "formula": "green / 7",
+        },
         {"name": "green", "amount": 7},
     ]
     parameters.new_project_parameters(project_data)
@@ -990,7 +1120,11 @@ def test_activity_parameter_recalculate():
         group="G", database="K", code="H", name="J", formula="F + D * 2"
     )
     ActivityParameter.create(
-        group="G", database="K", code="E", name="F", amount=3,
+        group="G",
+        database="K",
+        code="E",
+        name="F",
+        amount=3,
     )
     assert not Group.get(name="G").fresh
     with pytest.raises(MissingName):
@@ -1006,10 +1140,13 @@ def test_activity_parameter_recalculate():
     assert ActivityParameter.get(name="F", database="K").amount == 3
 
     DatabaseParameter.create(
-        database="B", name="foo", formula="2 ** 2",
+        database="B",
+        name="foo",
+        formula="2 ** 2",
     )
     ProjectParameter.create(
-        name="bar", formula="2 * 2 * 2",
+        name="bar",
+        formula="2 * 2 * 2",
     )
     a = ActivityParameter.get(database="B", code="E")
     a.formula = "foo + bar + D"
@@ -1021,7 +1158,7 @@ def test_activity_parameter_recalculate():
 
 
 def test_activity_parameter_is_deletable(chain):
-    """ An activity parameter is deletable if it is not a dependency of another
+    """An activity parameter is deletable if it is not a dependency of another
     activity parameter.
     """
     # Ensure that all GroupDependencies exist.
@@ -1037,8 +1174,7 @@ def test_activity_parameter_is_deletable(chain):
 
 
 def test_activity_parameter_is_dependent_on(chain):
-    """ An activity parameter can be dependent on any other type of parameter.
-    """
+    """An activity parameter can be dependent on any other type of parameter."""
     # Ensure that GroupDependencies exist.
     parameters.recalculate()
 
@@ -1054,7 +1190,11 @@ def test_activity_parameter_is_dependent_on(chain):
 
 def test_activity_parameter_formula_update_project(chain):
     ActivityParameter.create(
-        group="G", database="K", code="AA", name="bar", amount=2,
+        group="G",
+        database="K",
+        code="AA",
+        name="bar",
+        amount=2,
     )
     ActivityParameter.create(
         group="G", database="K", code="BB", name="baz", amount=5, formula="bar * 6"
@@ -1069,7 +1209,11 @@ def test_activity_parameter_formula_update_project(chain):
 
 def test_activity_parameter_formula_update_database(chain):
     ActivityParameter.create(
-        group="G", database="K", code="AA", name="foo", amount=2,
+        group="G",
+        database="K",
+        code="AA",
+        name="foo",
+        amount=2,
     )
     ActivityParameter.create(
         group="G", database="K", code="BB", name="baz", amount=5, formula="foo * 6"
@@ -1118,26 +1262,46 @@ def test_activity_parameter_crossdatabase_triggers():
 @bw2test
 def test_activity_parameter_crossgroup_triggers():
     ActivityParameter.create(
-        group="A", database="B", name="C", code="D", amount=11,
+        group="A",
+        database="B",
+        name="C",
+        code="D",
+        amount=11,
     )
     with pytest.raises(IntegrityError):
         ActivityParameter.create(
-            group="E", database="B", name="C", code="D", amount=1,
+            group="E",
+            database="B",
+            name="C",
+            code="D",
+            amount=1,
         )
     ActivityParameter.create(
-        group="E", database="B", name="C", code="F", amount=1,
+        group="E",
+        database="B",
+        name="C",
+        code="F",
+        amount=1,
     )
 
 
 @bw2test
 def test_activity_parameter_autoupdate_triggers():
     obj = ActivityParameter.create(
-        group="A", database="B", name="C", code="D", amount=11,
+        group="A",
+        database="B",
+        name="C",
+        code="D",
+        amount=11,
     )
     first = Group.get(name="A").updated
     time.sleep(1.1)
     another = ActivityParameter.create(
-        group="A", database="B", code="E", name="F", formula="2 * foo",
+        group="A",
+        database="B",
+        code="E",
+        name="F",
+        formula="2 * foo",
     )
     second = Group.get(name="A").updated
     assert first != second
@@ -1154,11 +1318,19 @@ def test_activity_parameter_autoupdate_triggers():
 @bw2test
 def test_activity_parameter_checks_uniqueness_constraints():
     ActivityParameter.create(
-        group="A", database="B", name="C", code="D", amount=11,
+        group="A",
+        database="B",
+        name="C",
+        code="D",
+        amount=11,
     )
     with pytest.raises(IntegrityError):
         ActivityParameter.create(
-            group="A", database="B", name="C", code="G", amount=111,
+            group="A",
+            database="B",
+            name="C",
+            code="G",
+            amount=111,
         )
 
 
@@ -1244,7 +1416,7 @@ def test_group_dependency_circular():
 
 @bw2test
 def test_group_dependency_override():
-    """ GroupDependency can be overridden by having a parameter with the same
+    """GroupDependency can be overridden by having a parameter with the same
     name within the group.
     """
     ProjectParameter.create(name="foo", amount=2)
@@ -1257,7 +1429,9 @@ def test_group_dependency_override():
     )
     assert DatabaseParameter.get(name="bar").amount == 10
     DatabaseParameter.create(
-        database="B", name="foo", amount=8,
+        database="B",
+        name="foo",
+        amount=8,
     )
     parameters.recalculate()
     assert (
@@ -1323,10 +1497,13 @@ def test_parameters_recalculate():
         group="A", database="B", code="E", name="F", formula="foo + bar + D"
     )
     DatabaseParameter.create(
-        database="B", name="foo", formula="2 ** 2",
+        database="B",
+        name="foo",
+        formula="2 ** 2",
     )
     ProjectParameter.create(
-        name="bar", formula="2 * 2 * 2",
+        name="bar",
+        formula="2 * 2 * 2",
     )
     parameters.recalculate()
     assert ProjectParameter.get(name="bar").amount == 8
@@ -1451,8 +1628,11 @@ def test_parameters_new_activity_parameters_no_overlap():
 
 @bw2test
 def test_parameters_rename_project_parameter():
-    """ Project parameters can be renamed. """
-    param = ProjectParameter.create(name="foo", amount=7,)
+    """Project parameters can be renamed."""
+    param = ProjectParameter.create(
+        name="foo",
+        amount=7,
+    )
     assert ProjectParameter.select().where(ProjectParameter.name == "foo").count() == 1
     parameters.rename_project_parameter(param, "foobar")
     with pytest.raises(ProjectParameter.DoesNotExist):
@@ -1465,17 +1645,24 @@ def test_parameters_rename_project_parameter():
 @bw2test
 def test_parameters_rename_project_parameter_incorrect_type():
     Database("B").register()
-    param = DatabaseParameter.create(database="B", name="foo", amount=5,)
+    param = DatabaseParameter.create(
+        database="B",
+        name="foo",
+        amount=5,
+    )
     with pytest.raises(TypeError):
         parameters.rename_project_parameter(param, "bar")
 
 
 @bw2test
 def test_parameters_rename_project_parameter_dependencies():
-    """ Updating downstream parameters will update all relevant formulas
+    """Updating downstream parameters will update all relevant formulas
     to use the new name for the parameter.
     """
-    param = ProjectParameter.create(name="foo", amount=7,)
+    param = ProjectParameter.create(
+        name="foo",
+        amount=7,
+    )
     ProjectParameter.create(name="bar", amount=1, formula="foo * 2")
     assert ProjectParameter.is_dependency_within_group("foo")
     parameters.rename_project_parameter(param, "baz", update_dependencies=True)
@@ -1484,17 +1671,20 @@ def test_parameters_rename_project_parameter_dependencies():
 
 @bw2test
 def test_parameters_rename_project_parameter_dependencies_fail():
-    """ An exception is raised if rename is attempted without updating
+    """An exception is raised if rename is attempted without updating
     downstream if other parameters depend on that parameter.
     """
-    param = ProjectParameter.create(name="foo", amount=7,)
+    param = ProjectParameter.create(
+        name="foo",
+        amount=7,
+    )
     ProjectParameter.create(name="bar", amount=1, formula="foo * 2")
     with pytest.raises(ValueError):
         parameters.rename_project_parameter(param, "baz")
 
 
 def test_parameters_rename_project_parameter_dependencies_full(chain):
-    """ Updating downstream parameters will update all relevant formulas
+    """Updating downstream parameters will update all relevant formulas
     to use the new name for the parameter.
 
     Parameter amounts do no change as only the name is altered.
@@ -1523,7 +1713,11 @@ def test_parameters_rename_project_parameter_dependencies_full(chain):
 @bw2test
 def test_parameters_rename_database_parameter():
     Database("B").register()
-    param = DatabaseParameter.create(database="B", name="foo", amount=5,)
+    param = DatabaseParameter.create(
+        database="B",
+        name="foo",
+        amount=5,
+    )
     assert (
         DatabaseParameter.select().where(DatabaseParameter.name == "foo").count() == 1
     )
@@ -1568,13 +1762,18 @@ def test_parameters_rename_activity_parameter_dependencies(chain):
 
 @bw2test
 def test_parameters_rename_activity_parameter_group_exchange():
-    """ Rename 'D' from group 'A' updates ParameterizedExchange and
+    """Rename 'D' from group 'A' updates ParameterizedExchange and
     underlying exchange.
     """
     db = Database("B")
     db.register()
     ActivityParameter.create(
-        group="A", database="B", code="C", name="D", formula="2 ** 3", amount=1,
+        group="A",
+        database="B",
+        code="C",
+        name="D",
+        formula="2 ** 3",
+        amount=1,
     )
     a = db.new_activity(code="newcode", name="new activity")
     a.save()
@@ -1592,13 +1791,18 @@ def test_parameters_rename_activity_parameter_group_exchange():
 
 @bw2test
 def test_parameters_rename_activity_parameter_order_exchange():
-    """ Rename 'D' from group 'A' updates ParameterizedExchange and
+    """Rename 'D' from group 'A' updates ParameterizedExchange and
     underlying exchange in group 'G'
     """
     db = Database("K")
     db.register()
     ActivityParameter.create(
-        group="A", database="K", code="C", name="D", formula="2 ** 3", amount=1,
+        group="A",
+        database="K",
+        code="C",
+        name="D",
+        formula="2 ** 3",
+        amount=1,
     )
     a = db.new_activity(code="newcode", name="new activity")
     a.save()
@@ -1623,7 +1827,10 @@ def test_parameters_add_to_group_empty():
     assert not len(parameters)
     assert not len(db)
     assert not Group.select().count()
-    a = db.new_activity(code="A", name="An activity",)
+    a = db.new_activity(
+        code="A",
+        name="An activity",
+    )
     a.save()
     assert parameters.add_to_group("my group", a) is None
     assert Group.get(name="my group")
@@ -1639,7 +1846,11 @@ def test_parameters_add_to_group():
     assert not Group.select().count()
 
     ActivityParameter.create(
-        group="my group", database="example", name="bye bye", code="A", amount=1,
+        group="my group",
+        database="example",
+        name="bye bye",
+        code="A",
+        amount=1,
     )
 
     a = db.new_activity(
@@ -1706,7 +1917,7 @@ def test_parameters_remove_from_group():
 
 @bw2test
 def test_parameters_save_restore_exchange_amount():
-    """ The original amount of the exchange is restored when it is no
+    """The original amount of the exchange is restored when it is no
     longer parameterized.
     """
     db = Database("example")
@@ -1718,7 +1929,12 @@ def test_parameters_save_restore_exchange_amount():
     a.new_exchange(amount=5, input=b, type="technosphere", formula="bing + 5").save()
 
     activity_data = [
-        {"name": "bing", "amount": "7", "database": "example", "code": "A",}
+        {
+            "name": "bing",
+            "amount": "7",
+            "database": "example",
+            "code": "A",
+        }
     ]
     parameters.new_activity_parameters(activity_data, "calculate")
     parameters.add_exchanges_to_group("calculate", a)
@@ -1751,7 +1967,12 @@ def test_parameters_save_keep_changed_exchange_amount():
     a.new_exchange(amount=5, input=b, type="technosphere", formula="bing + 5").save()
 
     activity_data = [
-        {"name": "bing", "amount": "7", "database": "example", "code": "A",}
+        {
+            "name": "bing",
+            "amount": "7",
+            "database": "example",
+            "code": "A",
+        }
     ]
     parameters.new_activity_parameters(activity_data, "calculate")
     parameters.add_exchanges_to_group("calculate", a)

@@ -1,9 +1,9 @@
 from .backends.schema import get_id
 from .ia_data_store import ImpactAssessmentDataStore
-from .meta import weightings, normalizations
+from .meta import normalizations, weightings
 from .project import writable_project
 from .utils import as_uncertainty_dict
-from .validate import weighting_validator, normalization_validator
+from .validate import normalization_validator, weighting_validator
 
 
 class Weighting(ImpactAssessmentDataStore):

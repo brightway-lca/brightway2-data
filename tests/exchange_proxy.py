@@ -1,26 +1,15 @@
-from bw2data.tests import bw2test
-from bw2data import (
-    geomapping,
-    databases,
-    methods,
-    Method,
-    projects,
-    get_activity,
-)
+from bw2data import Method, databases, geomapping, get_activity, methods, projects
 from bw2data.database import DatabaseChooser
-from bw2data.parameters import (
-    ActivityParameter,
-    ParameterizedExchange,
-    parameters,
-)
+from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
+from bw2data.tests import bw2test
 
 try:
     import bw2calc
 except ImportError:
     bw2calc = None
 import numpy as np
-import stats_arrays as sa
 import pytest
+import stats_arrays as sa
 
 
 @pytest.fixture
@@ -31,9 +20,21 @@ def activity():
         {
             ("db", "a"): {
                 "exchanges": [
-                    {"input": ("db", "a"), "amount": 2, "type": "production",},
-                    {"input": ("db", "b"), "amount": 3, "type": "technosphere",},
-                    {"input": ("db", "c"), "amount": 4, "type": "biosphere",},
+                    {
+                        "input": ("db", "a"),
+                        "amount": 2,
+                        "type": "production",
+                    },
+                    {
+                        "input": ("db", "b"),
+                        "amount": 3,
+                        "type": "technosphere",
+                    },
+                    {
+                        "input": ("db", "c"),
+                        "amount": 4,
+                        "type": "biosphere",
+                    },
                 ],
                 "name": "a",
             },
@@ -59,9 +60,21 @@ def activity_and_method():
         {
             ("db", "a"): {
                 "exchanges": [
-                    {"input": ("db", "a"), "amount": 2, "type": "production",},
-                    {"input": ("db", "b"), "amount": 3, "type": "technosphere",},
-                    {"input": ("db", "c"), "amount": 4, "type": "biosphere",},
+                    {
+                        "input": ("db", "a"),
+                        "amount": 2,
+                        "type": "production",
+                    },
+                    {
+                        "input": ("db", "b"),
+                        "amount": 3,
+                        "type": "technosphere",
+                    },
+                    {
+                        "input": ("db", "c"),
+                        "amount": 4,
+                        "type": "biosphere",
+                    },
                 ],
                 "name": "a",
             },
@@ -344,6 +357,7 @@ def test_delete_parameterized_exchange():
 def test_exchange_eq(activity):
     ex = list(activity.exchanges())[0]
     assert ex == ex
+
 
 def test_exchange_hash(activity):
     ex = list(activity.exchanges())[0]

@@ -1,6 +1,5 @@
 import os
 
-
 biosphere = {
     ("biosphere", "1"): {
         "categories": ["things"],

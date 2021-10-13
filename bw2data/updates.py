@@ -1,28 +1,29 @@
-from . import (
-    Database,
-    databases,
-    Method,
-    methods,
-    Weighting,
-    weightings,
-    Normalization,
-    normalizations,
-    preferences,
-    projects,
-)
-from .backends import sqlite3_lci_db
-import numpy as np
 import os
-import pyprind
+import pickle
 import re
 import shutil
 import sqlite3
 import warnings
-import pickle
-import bw2io as bi
 from pathlib import Path
+
+import bw2io as bi
+import numpy as np
+import pyprind
 from bw_processing import safe_filename
 
+from . import (
+    Database,
+    Method,
+    Normalization,
+    Weighting,
+    databases,
+    methods,
+    normalizations,
+    preferences,
+    projects,
+    weightings,
+)
+from .backends import sqlite3_lci_db
 
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
@@ -105,15 +106,15 @@ class Updates:
             "explanation": "",
         },
         "4.0 new processed format": {
-            'method': 'expire_all_processed_data_40',
-            'automatic': True,
-            'explanation': "bw2data 4.0 release requires all database be reprocessed"
+            "method": "expire_all_processed_data_40",
+            "automatic": True,
+            "explanation": "bw2data 4.0 release requires all database be reprocessed",
         },
         "4.0 migrations filename change": {
-            'method': 'fix_migrations_filename',
-            'automatic': True,
-            'explanation': "bw2data 4.0 release requires migrations filename changes"
-        }
+            "method": "fix_migrations_filename",
+            "automatic": True,
+            "explanation": "bw2data 4.0 release requires migrations filename changes",
+        },
     }
 
     @classmethod
@@ -212,13 +213,19 @@ class Updates:
 
     @classmethod
     def fix_migrations_filename(cls):
-        """"Fix migration data filenames to use shorter hash.
+        """ "Fix migration data filenames to use shorter hash.
 
         See https://github.com/brightway-lca/brightway2-io/issues/115"""
         for name in bi.migrations:
-            current = Path(projects.request_directory("migrations") / (safe_filename(name, full=True) + ".json"))
+            current = Path(
+                projects.request_directory("migrations")
+                / (safe_filename(name, full=True) + ".json")
+            )
             assert current.is_file()
-            target = Path(projects.request_directory("migrations") / (safe_filename(name) + ".json"))
+            target = Path(
+                projects.request_directory("migrations")
+                / (safe_filename(name) + ".json")
+            )
             current.replace(target)
 
     @classmethod

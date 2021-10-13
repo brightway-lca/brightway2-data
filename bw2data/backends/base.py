@@ -1,34 +1,35 @@
-from . import sqlite3_lci_db
-from .. import config, databases, geomapping
-from ..data_store import ProcessedDataStore
-from ..errors import UntypedExchange, InvalidExchange, UnknownObject, WrongDatabase
-from ..project import writable_project
-from ..query import Query
-from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict
-from .proxies import Activity
-from .schema import ActivityDataset, ExchangeDataset, get_id
-from .utils import (
-    check_exchange,
-    get_csv_data_dict,
-    dict_as_activitydataset,
-    dict_as_exchangedataset,
-    retupleize_geo_strings,
-)
-from bw_processing import clean_datapackage_name, create_datapackage
-from fs.zipfs import ZipFS
-from peewee import fn, DoesNotExist
 import copy
 import datetime
 import itertools
-import pandas
 import pickle
 import pprint
-import pyprind
 import random
 import sqlite3
 import warnings
 
+import pandas
+import pyprind
+from bw_processing import clean_datapackage_name, create_datapackage
+from fs.zipfs import ZipFS
+from peewee import DoesNotExist, fn
+
+from .. import config, databases, geomapping
+from ..data_store import ProcessedDataStore
+from ..errors import InvalidExchange, UnknownObject, UntypedExchange, WrongDatabase
+from ..project import writable_project
+from ..query import Query
+from ..search import IndexManager, Searcher
+from ..utils import as_uncertainty_dict
+from . import sqlite3_lci_db
+from .proxies import Activity
+from .schema import ActivityDataset, ExchangeDataset, get_id
+from .utils import (
+    check_exchange,
+    dict_as_activitydataset,
+    dict_as_exchangedataset,
+    get_csv_data_dict,
+    retupleize_geo_strings,
+)
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
@@ -115,7 +116,9 @@ class SQLiteBackend(ProcessedDataStore):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             new_database = self.__class__(name)
-            new_database.register(format="Brightway2 copy",)
+            new_database.register(
+                format="Brightway2 copy",
+            )
 
         new_database.write(data)
         return new_database
@@ -583,8 +586,8 @@ class SQLiteBackend(ProcessedDataStore):
 
         if not keep_params:
             from ..parameters import (
-                DatabaseParameter,
                 ActivityParameter,
+                DatabaseParameter,
                 ParameterizedExchange,
             )
 
@@ -620,7 +623,15 @@ class SQLiteBackend(ProcessedDataStore):
         connection = sqlite3.connect(sqlite3_lci_db._filepath)
         cursor = connection.cursor()
         for row in cursor.execute(sql, (self.name,)):
-            data, row, col, input_database, input_code, output_database, output_code = row
+            (
+                data,
+                row,
+                col,
+                input_database,
+                input_code,
+                output_database,
+                output_code,
+            ) = row
             # Modify ``dependents`` in place
             if input_database != output_database:
                 dependents.add(input_database)
@@ -686,8 +697,7 @@ class SQLiteBackend(ProcessedDataStore):
                 {
                     "row": row[0],
                     "col": geomapping[
-                        retupleize_geo_strings(row[1])
-                        or config.global_location
+                        retupleize_geo_strings(row[1]) or config.global_location
                     ],
                     "amount": 1,
                 }

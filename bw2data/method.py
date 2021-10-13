@@ -1,8 +1,8 @@
-from . import methods, geomapping, config
+from . import config, geomapping, methods
+from .backends.schema import get_id
 from .ia_data_store import ImpactAssessmentDataStore
 from .utils import as_uncertainty_dict
 from .validate import ia_validator
-from .backends.schema import get_id
 
 
 class Method(ImpactAssessmentDataStore):

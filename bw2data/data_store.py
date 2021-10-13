@@ -1,18 +1,20 @@
+import pickle
+
+from bw_processing import clean_datapackage_name, create_datapackage, safe_filename
+from fs.zipfs import ZipFS
+
 from . import projects
-from .errors import UnknownObject, MissingIntermediateData
+from .errors import MissingIntermediateData, UnknownObject
 from .fatomic import open as atomic_open
 from .project import writable_project
-from bw_processing import create_datapackage, clean_datapackage_name, safe_filename
-import pickle
-from fs.zipfs import ZipFS
 
 
 class DataStore:
     """
-Base class for all Brightway2 data stores. Subclasses should define:
+    Base class for all Brightway2 data stores. Subclasses should define:
 
-    * **metadata**: A :ref:`serialized-dict` instance, e.g. ``databases`` or ``methods``. The custom is that each type of data store has a new metadata store, so the data store ``Foo`` would have a metadata store ``foos``.
-    * **validator**: A data validator. Optional. See bw2data.validate.
+        * **metadata**: A :ref:`serialized-dict` instance, e.g. ``databases`` or ``methods``. The custom is that each type of data store has a new metadata store, so the data store ``Foo`` would have a metadata store ``foos``.
+        * **validator**: A data validator. Optional. See bw2data.validate.
 
     """
 
@@ -78,7 +80,10 @@ Base class for all Brightway2 data stores. Subclasses should define:
             raise UnknownObject("This object is not registered and has no data")
         try:
             return pickle.load(
-                open(projects.dir / "intermediate" / (self.filename + ".pickle"), "rb",)
+                open(
+                    projects.dir / "intermediate" / (self.filename + ".pickle"),
+                    "rb",
+                )
             )
         except OSError:
             raise MissingIntermediateData("Can't load intermediate data")
@@ -137,9 +142,9 @@ Base class for all Brightway2 data stores. Subclasses should define:
 
 class ProcessedDataStore(DataStore):
     """
-Brightway2 data stores that can be processed to NumPy arrays.
+    Brightway2 data stores that can be processed to NumPy arrays.
 
-In addition to ``metadata`` and (optionally) ``validator``, subclasses should override ``add_geomappings``. This method takes the entire dataset, and loads objects to :ref:`geomapping` as needed.
+    In addition to ``metadata`` and (optionally) ``validator``, subclasses should override ``add_geomappings``. This method takes the entire dataset, and loads objects to :ref:`geomapping` as needed.
 
     """
 
@@ -178,13 +183,13 @@ In addition to ``metadata`` and (optionally) ``validator``, subclasses should ov
 
     def process(self, **extra_metadata):
         """
-Process intermediate data from a Python dictionary to a `stats_arrays <https://pypi.python.org/pypi/stats_arrays/>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
+        Process intermediate data from a Python dictionary to a `stats_arrays <https://pypi.python.org/pypi/stats_arrays/>`_ array, which is a `NumPy <http://numpy.scipy.org/>`_ `Structured <http://docs.scipy.org/doc/numpy/reference/generated/numpy.recarray.html#numpy.recarray>`_ `Array <http://docs.scipy.org/doc/numpy/user/basics.rec.html>`_. A structured array (also called record array) is a heterogeneous array, where each column has a different label and data type.
 
-Processed arrays are saved in the ``processed`` directory.
+        Processed arrays are saved in the ``processed`` directory.
 
-If the uncertainty type is no uncertainty, undefined, or not specified, then the 'amount' value is used for 'loc' as well. This is needed for the random number generator.
+        If the uncertainty type is no uncertainty, undefined, or not specified, then the 'amount' value is used for 'loc' as well. This is needed for the random number generator.
 
-Doesn't return anything, but writes a file to disk.
+        Doesn't return anything, but writes a file to disk.
 
         """
         data = self.load()

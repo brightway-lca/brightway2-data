@@ -1,6 +1,6 @@
 import collections
-import operator
 import itertools
+import operator
 
 operators = {
     "<": operator.lt,

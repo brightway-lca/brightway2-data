@@ -1,8 +1,10 @@
-from .. import projects
-from .schema import bw2_schema
-from whoosh import index
 import os
 import shutil
+
+from whoosh import index
+
+from .. import projects
+from .schema import bw2_schema
 
 
 class IndexManager:
