@@ -339,3 +339,12 @@ def test_delete_parameterized_exchange():
     exc.delete()
     assert ActivityParameter.select().count() == 2
     assert not ParameterizedExchange.select().count()
+
+
+def test_exchange_eq(activity):
+    ex = list(activity.exchanges())[0]
+    assert ex == ex
+
+def test_exchange_hash(activity):
+    ex = list(activity.exchanges())[0]
+    assert ex.__hash__()
