@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.DEV7 (2021-10-17)
+
+* `prepare_lca_inputs` shouldn't require a demand (e.g. `switch_method` in LCA class)
+
+## 4.0.DEV6 (2021-10-13)
+
+* Change bw2io migrations update to not require bw2io installation
+
 ## 4.0.DEV5 (2021-10-13)
 
 * Add reprocessing migration for all data
