@@ -6,7 +6,6 @@ import sqlite3
 import warnings
 from pathlib import Path
 
-import bw2io as bi
 import numpy as np
 import pyprind
 from bw_processing import safe_filename
@@ -216,6 +215,12 @@ class Updates:
         """ "Fix migration data filenames to use shorter hash.
 
         See https://github.com/brightway-lca/brightway2-io/issues/115"""
+        try:
+            import bw2io as bi
+        except ImportError:
+            print("`bw2io` not installed; not updating `migrations` filenames")
+            return
+
         for name in bi.migrations:
             current = Path(
                 projects.request_directory("migrations")
