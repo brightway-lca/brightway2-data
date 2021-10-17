@@ -76,6 +76,7 @@ def prepare_lca_inputs(
 
     databases.clean()
     data_objs = []
+    remapping_dicts = {}
 
     if demands:
         demand_database_names = [
@@ -84,26 +85,40 @@ def prepare_lca_inputs(
     elif demand:
         demand_database_names = [db_label for db_label, _ in unpack(demand)]
     else:
-        raise ValueError("Need some form of demand for LCA calculation")
+        demand_database_names = []
 
-    database_names = set.union(
-        *[
-            Database(db_label).find_graph_dependents()
-            for db_label in demand_database_names
-        ]
-    )
+    if demand_database_names:
+        database_names = set.union(
+            *[
+                Database(db_label).find_graph_dependents()
+                for db_label in demand_database_names
+            ]
+        )
 
-    if demand_database_last:
-        database_names = [
-            x for x in database_names if x not in demand_database_names
-        ] + demand_database_names
+        if demand_database_last:
+            database_names = [
+                x for x in database_names if x not in demand_database_names
+            ] + demand_database_names
 
-    data_objs.extend(
-        [
-            load_datapackage(ZipFS(Database(obj).filepath_processed()))
-            for obj in database_names
-        ]
-    )
+        data_objs.extend(
+            [
+                load_datapackage(ZipFS(Database(obj).filepath_processed()))
+                for obj in database_names
+            ]
+        )
+
+        if remapping:
+            reversed_mapping = {
+                i: (d, c)
+                for d, c, i in AD.select(AD.database, AD.code, AD.id)
+                .where(AD.database << database_names)
+                .tuples()
+            }
+            remapping_dicts = {
+                "activity": reversed_mapping,
+                "product": reversed_mapping,
+                "biosphere": reversed_mapping,
+            }
 
     if method:
         assert method in methods
@@ -118,21 +133,6 @@ def prepare_lca_inputs(
         data_objs.append(
             load_datapackage(ZipFS(Normalization(normalization).filepath_processed()))
         )
-
-    if remapping:
-        reversed_mapping = {
-            i: (d, c)
-            for d, c, i in AD.select(AD.database, AD.code, AD.id)
-            .where(AD.database << database_names)
-            .tuples()
-        }
-        remapping_dicts = {
-            "activity": reversed_mapping,
-            "product": reversed_mapping,
-            "biosphere": reversed_mapping,
-        }
-    else:
-        remapping_dicts = {}
 
     if demands:
         indexed_demand = [{get_id(k): v for k, v in dct.items()} for dct in demands]
