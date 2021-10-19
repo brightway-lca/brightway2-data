@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.DEV8 (2021-10-19)
+
+* Removing caching database lookups, it was causing pain and confusion
+
 ## 4.0.DEV7 (2021-10-17)
 
 * `prepare_lca_inputs` shouldn't require a demand (e.g. `switch_method` in LCA class)
