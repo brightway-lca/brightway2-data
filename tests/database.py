@@ -1,6 +1,5 @@
 import copy
 import datetime
-import platform
 import warnings
 
 import numpy as np
@@ -8,7 +7,7 @@ import pytest
 from bw_processing import load_datapackage
 from fs.zipfs import ZipFS
 
-from bw2data import geomapping
+from bw2data import geomapping, get_id
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import DatabaseChooser
@@ -30,12 +29,6 @@ from bw2data.tests import bw2test
 from .fixtures import biosphere
 from .fixtures import food as food_data
 from .fixtures import get_naughty
-
-if platform.system() == "Windows":
-    # Windows test runners don't respect `python-antilru`
-    from bw2data.backends.schema import _get_id as get_id
-else:
-    from bw2data import get_id
 
 
 @pytest.fixture

@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 from peewee import DoesNotExist, Model, TextField
 
 from ..errors import UnknownObject
@@ -29,13 +27,7 @@ class ExchangeDataset(Model):
     type = TextField()  # Reset from `data`
 
 
-@lru_cache(maxsize=4096)
 def get_id(key):
-    """Indirection because Windows test runners don't respect ``python-antilru``."""
-    return _get_id(key)
-
-
-def _get_id(key):
     if isinstance(key, int):
         return key
     else:
