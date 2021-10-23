@@ -401,3 +401,18 @@ def get_activity(key):
         raise UnknownObject(
             "Key {} cannot be understood as an activity" " or `(database, code)` tuple."
         )
+
+
+def get_geocollection(location, default_global_location=False):
+    '''conservative approach to finding geocollections. Won't guess about ecoinvent or other databases.'''
+    if not location:
+        if default_global_location:
+            return 'world'
+        else:
+            return None
+    elif isinstance(location, tuple):
+        return location[0]
+    elif isinstance(location, str) and (len(location) == 2 or location.lower() == 'glo'):
+        return 'world'
+    else:
+        return None

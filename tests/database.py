@@ -7,10 +7,10 @@ import pytest
 from bw_processing import load_datapackage
 from fs.zipfs import ZipFS
 
-from bw2data import geomapping, get_id
+from bw2data import geomapping, get_id, databases, Database
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
-from bw2data.database import DatabaseChooser
+from bw2data.database import Database
 from bw2data.errors import (
     InvalidExchange,
     UnknownObject,
@@ -34,9 +34,9 @@ from .fixtures import get_naughty
 @pytest.fixture
 @bw2test
 def food():
-    d = DatabaseChooser("biosphere")
+    d = Database("biosphere")
     d.write(biosphere)
-    d = DatabaseChooser("food")
+    d = Database("food")
     d.write(food_data)
 
 
@@ -50,7 +50,7 @@ def test_food(food):
 
 @bw2test
 def test_get():
-    d = DatabaseChooser("biosphere")
+    d = Database("biosphere")
     d.write(biosphere)
     activity = d.get("1")
     assert isinstance(activity, PWActivity)
@@ -59,7 +59,7 @@ def test_get():
 
 @bw2test
 def test_iter():
-    d = DatabaseChooser("biosphere")
+    d = Database("biosphere")
     d.write(biosphere)
     activity = next(iter(d))
     assert isinstance(activity, PWActivity)
@@ -68,7 +68,7 @@ def test_iter():
 
 @bw2test
 def test_get_random():
-    d = DatabaseChooser("biosphere")
+    d = Database("biosphere")
     d.write(biosphere)
     activity = d.random()
     assert isinstance(activity, PWActivity)
@@ -76,7 +76,7 @@ def test_get_random():
 
 
 def test_copy(food):
-    d = DatabaseChooser("food")
+    d = Database("food")
     with pytest.raises(AssertionError):
         d.copy("food")
     d.copy("repas")
@@ -92,7 +92,7 @@ def test_copy_does_deepcopy():
             ]
         }
     }
-    d = DatabaseChooser("old name")
+    d = Database("old name")
     d.write(data)
     new_db = d.copy("new name")
     new_data = new_db.load()
@@ -104,14 +104,14 @@ def test_copy_does_deepcopy():
 @bw2test
 def test_raise_wrong_database():
     data = {("foo", "1"): {}}
-    d = DatabaseChooser("bar")
+    d = Database("bar")
     with pytest.raises(WrongDatabase):
         d.write(data)
 
 
 @bw2test
 def test_deletes_from_database():
-    d = DatabaseChooser("biosphere")
+    d = Database("biosphere")
     d.write(biosphere)
     assert "biosphere" in databases
     del databases["biosphere"]
@@ -129,7 +129,7 @@ def test_deletes_from_database():
 
 @bw2test
 def test_delete_warning():
-    d = DatabaseChooser("biosphere")
+    d = Database("biosphere")
     d.write(biosphere)
     with pytest.warns(UserWarning):
         d.delete()
@@ -153,7 +153,7 @@ def test_relabel_data():
             "exchanges": [{"input": ("shiny new", "1"), "amount": 4.0}]
         },
     }
-    db = DatabaseChooser("foo")
+    db = Database("foo")
     assert shiny_new == db.relabel_data(old_data, "shiny new")
 
 
@@ -168,7 +168,7 @@ def test_find_graph_dependents():
     databases["four"] = {"depends": ["six"]}
     databases["five"] = {"depends": ["two"]}
     databases["six"] = {"depends": []}
-    assert DatabaseChooser("one").find_graph_dependents() == {
+    assert Database("one").find_graph_dependents() == {
         "one",
         "two",
         "three",
@@ -180,7 +180,7 @@ def test_find_graph_dependents():
 
 @bw2test
 def test_register():
-    database = DatabaseChooser("testy")
+    database = Database("testy")
     database.register()
     assert "testy" in databases
     assert "depends" in databases["testy"]
@@ -188,7 +188,7 @@ def test_register():
 
 @bw2test
 def test_deregister():
-    d = DatabaseChooser("food")
+    d = Database("food")
     d.register()
     assert "food" in databases
     d.deregister()
@@ -197,7 +197,7 @@ def test_deregister():
 
 @bw2test
 def test_write_sets_databases_number_attribute():
-    d = DatabaseChooser("biosphere")
+    d = Database("biosphere")
     d.write(biosphere)
     assert databases["biosphere"]["number"] == len(biosphere)
 
@@ -207,7 +207,7 @@ def test_write_sets_databases_number_attribute():
 
 @bw2test
 def test_process_unknown_object():
-    database = DatabaseChooser("testy")
+    database = Database("testy")
     data = {
         ("testy", "A"): {},
         ("testy", "B"): {
@@ -226,7 +226,7 @@ def test_process_unknown_object():
 
 @bw2test
 def test_naughty_activity_codes():
-    db = DatabaseChooser("foo")
+    db = Database("foo")
     data = {("foo", str(i)): {"name": x} for i, x in enumerate(get_naughty())}
     db.write(data)
     assert set(get_naughty()) == set(x["name"] for x in db)
@@ -234,17 +234,17 @@ def test_naughty_activity_codes():
 
 @bw2test
 def test_setup():
-    d = DatabaseChooser("biosphere")
+    d = Database("biosphere")
     d.write(biosphere)
-    d = DatabaseChooser("food")
+    d = Database("food")
     d.write(food_data)
 
 
 @bw2test
 def test_rename():
-    d = DatabaseChooser("biosphere")
+    d = Database("biosphere")
     d.write(biosphere)
-    d = DatabaseChooser("food")
+    d = Database("food")
     d.write(copy.deepcopy(food_data))
     ndb = d.rename("buildings")
     ndb_data = ndb.load()
@@ -259,7 +259,7 @@ def test_rename():
 
 @bw2test
 def test_exchange_save():
-    database = DatabaseChooser("testy")
+    database = Database("testy")
     data = {
         ("testy", "A"): {},
         ("testy", "C"): {"type": "biosphere"},
@@ -288,7 +288,7 @@ def test_exchange_save():
 @bw2test
 @pytest.mark.skip()
 def test_dirty_activities():
-    database = DatabaseChooser("testy")
+    database = Database("testy")
     data = {
         ("testy", "A"): {},
         ("testy", "C"): {"type": "biosphere"},
@@ -313,7 +313,7 @@ def test_dirty_activities():
 
 @bw2test
 def test_process_invalid_exchange_value():
-    database = DatabaseChooser("testy")
+    database = Database("testy")
     data = {
         ("testy", "A"): {},
         ("testy", "B"): {
@@ -329,7 +329,7 @@ def test_process_invalid_exchange_value():
 
 @bw2test
 def test_untyped_exchange_error():
-    database = DatabaseChooser("testy")
+    database = Database("testy")
     database_data = {
         ("testy", "A"): {"exchanges": [{"amount": 1, "input": ("testy", "A")}]},
     }
@@ -339,7 +339,7 @@ def test_untyped_exchange_error():
 
 @bw2test
 def test_no_input_raises_invalid_exchange():
-    database = DatabaseChooser("testy")
+    database = Database("testy")
     database_data = {
         ("testy", "A"): {"exchanges": [{"amount": 1}]},
     }
@@ -349,7 +349,7 @@ def test_no_input_raises_invalid_exchange():
 
 @bw2test
 def test_no_amount_raises_invalid_exchange():
-    database = DatabaseChooser("testy")
+    database = Database("testy")
     database_data = {
         ("testy", "A"): {
             "exchanges": [{"input": ("testy", "A"), "type": "technosphere"}]
@@ -361,7 +361,7 @@ def test_no_amount_raises_invalid_exchange():
 
 @bw2test
 def test_zero_amount_is_valid_exchange():
-    database = DatabaseChooser("testy")
+    database = Database("testy")
     database_data = {
         ("testy", "A"): {
             "exchanges": [
@@ -374,7 +374,7 @@ def test_zero_amount_is_valid_exchange():
 
 @bw2test
 def test_process_checks_process_type():
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     database.write(
         {
             ("a database", "foo"): {"exchanges": [], "type": "process"},
@@ -388,7 +388,7 @@ def test_process_checks_process_type():
 
 @bw2test
 def test_geomapping_array_includes_only_processes():
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     database.write(
         {
             ("a database", "foo"): {
@@ -407,7 +407,7 @@ def test_geomapping_array_includes_only_processes():
 
 @bw2test
 def test_processed_array():
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     database.write(
         {
             ("a database", "2"): {
@@ -437,13 +437,13 @@ def test_processed_array():
 
 @bw2test
 def test_base_class():
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     assert database._metadata is databases
 
 
 @bw2test
 def test_find_dependents():
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     database.write(
         {
             ("a database", "foo"): {
@@ -497,7 +497,7 @@ def test_find_dependents():
 
 @bw2test
 def test_set_dependents():
-    foo = DatabaseChooser("foo")
+    foo = Database("foo")
     foo.write(
         {
             ("foo", "bar"): {
@@ -506,7 +506,7 @@ def test_set_dependents():
             },
         }
     )
-    baz = DatabaseChooser("baz")
+    baz = Database("baz")
     baz.write(
         {
             ("baz", "w00t"): {
@@ -515,7 +515,7 @@ def test_set_dependents():
             },
         }
     )
-    biosphere = DatabaseChooser("biosphere")
+    biosphere = Database("biosphere")
     biosphere.write(
         {
             ("biosphere", "bar"): {
@@ -524,7 +524,7 @@ def test_set_dependents():
             },
         }
     )
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     database.register()
     assert databases["a database"]["depends"] == []
     database.write(
@@ -554,7 +554,7 @@ def test_set_dependents():
 
 @bw2test
 def test_process_without_exchanges_still_in_processed_array():
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     database.write({("a database", "foo"): {}})
 
     package = load_datapackage(ZipFS(database.filepath_processed()))
@@ -565,7 +565,7 @@ def test_process_without_exchanges_still_in_processed_array():
 
 @bw2test
 def test_random_empty():
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     database.write({})
     with warnings.catch_warnings() as w:
         warnings.simplefilter("ignore")
@@ -574,7 +574,7 @@ def test_random_empty():
 
 @bw2test
 def test_new_activity():
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     database.register()
     act = database.new_activity("foo", this="that", name="something")
     act.save()
@@ -588,7 +588,7 @@ def test_new_activity():
 
 @bw2test
 def test_can_split_processes_products():
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     database.write(
         {
             # No implicit production because type specified and not process
@@ -621,7 +621,7 @@ def test_can_split_processes_products():
 
 @bw2test
 def test_sqlite_processed_array_order():
-    database = DatabaseChooser("testy_new")
+    database = Database("testy_new")
     data = {
         ("testy_new", "C"): {},
         ("testy_new", "A"): {},
@@ -684,7 +684,7 @@ def test_sqlite_processed_array_order():
 
 @bw2test
 def test_no_distributions_if_no_uncertainty():
-    database = DatabaseChooser("a database")
+    database = Database("a database")
     database.write(
         {
             ("a database", "2"): {
@@ -708,7 +708,7 @@ def test_no_distributions_if_no_uncertainty():
 
 @bw2test
 def test_database_delete_parameters():
-    db = DatabaseChooser("example")
+    db = Database("example")
     db.register()
 
     a = db.new_activity(code="A", name="An activity")
@@ -759,7 +759,7 @@ def test_database_delete_parameters():
 def test_delete_duplicate_exchanges():
     all_exchanges = lambda db: [exc for ds in db for exc in ds.exchanges()]
 
-    db = DatabaseChooser("test-case")
+    db = Database("test-case")
 
     db.write({
         ("test-case", "1"): {
@@ -784,3 +784,40 @@ def test_delete_duplicate_exchanges():
     assert len(all_exchanges(db)) == 4
     db.delete_duplicate_exchanges(fields=['amount'])
     assert len(all_exchanges(db)) == 3
+
+
+@bw2test
+def test_add_geocollections(capsys):
+    db = Database("test-case")
+    db.write({
+        ("test-case", "1"): {
+            'location': 'RU',
+            "exchanges": []
+        },
+        ("test-case", "2"): {
+            "exchanges": []
+        },
+        ("test-case", "3"): {
+            "exchanges": [],
+            'location': ('foo', 'bar')
+        },
+    })
+    assert db.metadata['geocollections'] == ['foo', 'world']
+    assert "Not able" in capsys.readouterr().out
+
+
+@bw2test
+def test_add_geocollections_unable(capsys):
+    db = Database("test-case")
+    db.write({
+        ("test-case", "1"): {
+            'location': 'Russia',
+            "exchanges": []
+        },
+        ("test-case", "3"): {
+            "exchanges": [],
+            'location': ('foo', 'bar')
+        },
+    })
+    assert db.metadata['geocollections'] == ['foo']
+    assert "Not able" in capsys.readouterr().out

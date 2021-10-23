@@ -1,7 +1,7 @@
 from . import config, geomapping, methods
 from .backends.schema import get_id
 from .ia_data_store import ImpactAssessmentDataStore
-from .utils import as_uncertainty_dict
+from .utils import as_uncertainty_dict, get_geocollection
 from .validate import ia_validator
 
 
@@ -59,6 +59,15 @@ class Method(ImpactAssessmentDataStore):
         if self.name not in self._metadata:
             self.register()
         self.metadata["num_cfs"] = len(data)
+
+        third = lambda x: x[2] if len(x) == 3 else None
+
+        geocollections = {get_geocollection(third(elem), default_global_location=True) for elem in data}
+        if None in geocollections:
+            print('Not able to determine geocollections for all CFs. This method is not ready for regionalization.')
+            geocollections.discard(None)
+
+        self.metadata['geocollections'] = sorted(geocollections)
         self._metadata.flush()
         super(Method, self).write(data)
 

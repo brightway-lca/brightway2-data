@@ -207,3 +207,34 @@ def test_normalization_process_row(reset):
     indices = package.get_resource("foo_matrix_data.indices")[0]
     assert np.allclose(indices["row"], get_id(("foo", "bar")))
     assert np.allclose(indices["col"], get_id(("foo", "bar")))
+
+
+@bw2test
+def test_method_geocollection(capsys):
+    m = Method(('foo',))
+    m.write([
+        (1, 2, "RU"),
+        (3, 4, ("foo", "bar"))
+    ])
+    assert m.metadata['geocollections'] == ['foo', 'world']
+    assert "Not able" not in capsys.readouterr().out
+
+
+@bw2test
+def test_method_geocollection_missing_ok(capsys):
+    m = Method(('foo',))
+    m.write([
+        (1, 2, None),
+        (1, 2),
+    ])
+    assert m.metadata['geocollections'] == ['world']
+    assert "Not able" not in capsys.readouterr().out
+
+
+@bw2test
+def test_method_geocollection_warning(capsys):
+    m = Method(('foo',))
+    m.write([
+        (1, 2, "Russia"),
+    ])
+    assert "Not able" in capsys.readouterr().out

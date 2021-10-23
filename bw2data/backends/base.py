@@ -20,7 +20,7 @@ from ..errors import InvalidExchange, UnknownObject, UntypedExchange, WrongDatab
 from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict
+from ..utils import as_uncertainty_dict, get_geocollection
 from . import sqlite3_lci_db
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
@@ -501,7 +501,13 @@ class SQLiteBackend(ProcessedDataStore):
             )
 
         databases[self.name]["number"] = len(data)
+
         databases.set_modified(self.name)
+        geocollections = {get_geocollection(x.get('location')) for x in data.values()}
+        if None in geocollections:
+            print('Not able to determine geocollections for all datasets. This database is not ready for regionalization.')
+            geocollections.discard(None)
+        databases[self.name]["geocollections"] = sorted(geocollections)
 
         geomapping.add({x["location"] for x in data.values() if x.get("location")})
         if data:
