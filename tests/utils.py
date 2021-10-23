@@ -4,6 +4,7 @@ import stats_arrays as sa
 
 from bw2data import Database, Method, methods
 from bw2data.backends import Activity as PWActivity
+from bw2data.backends.schema import ActivityDataset as AD
 from bw2data.errors import ValidityError
 from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
@@ -171,6 +172,21 @@ def test_as_uncertainty_dict():
     with pytest.raises(TypeError):
         as_uncertainty_dict("foo")
 
+
+@bw2test
+def test_get_activity():
+    database = Database("a database", "sqlite")
+    database.write(
+        {
+            ("a database", "foo"): {"exchanges": [], "name": "baz"}
+        }
+    )
+    doc = AD.select().where(AD.name == 'baz').get()
+    assert isinstance(get_activity((doc.database, doc.code)), PWActivity)
+    assert get_activity((doc.database, doc.code)).id == doc.id
+    assert get_activity(doc.id).id == doc.id
+    act = get_activity((doc.database, doc.code))
+    assert get_activity(act).id == doc.id
 
 @bw2test
 def test_merge_databases_nonunique_activity_codes():

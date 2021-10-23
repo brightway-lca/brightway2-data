@@ -387,7 +387,9 @@ def get_activity(key):
     from .backends import ActivityDataset as AD
     from .database import Database
 
-    if isinstance(key, int):
+    if isinstance(key, Activity):
+        return key
+    elif isinstance(key, int):
         try:
             return Activity(AD.get(AD.id == key))
         except DoesNotExist:
