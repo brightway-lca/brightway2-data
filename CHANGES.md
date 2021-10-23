@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.DEV9 (2021-10-23)
+
+* Can pass `Activity` objects to `get_activity`
+* Add `delete_duplicate_exchanges` utility function
+* Automatically add geocollections for easier regionalization setup
+
 ## 4.0.DEV8 (2021-10-19)
 
 * Removing caching database lookups, it was causing pain and confusion
