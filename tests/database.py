@@ -753,3 +753,34 @@ def test_database_delete_parameters():
     del databases["example"]
     assert not len(parameters)
     assert not ParameterizedExchange.select().count()
+
+
+@bw2test
+def test_delete_duplicate_exchanges():
+    all_exchanges = lambda db: [exc for ds in db for exc in ds.exchanges()]
+
+    db = DatabaseChooser("test-case")
+
+    db.write({
+        ("test-case", "1"): {
+            "exchanges": []
+        },
+        ("test-case", "2"): {
+            "exchanges": []
+        },
+        ("test-case", "3"): {
+            "exchanges": [
+                {"input": ("test-case", "2"), "type": "foo", "amount": 1},
+                {"input": ("test-case", "2"), "type": "foo", "amount": 2},
+                {"input": ("test-case", "2"), "type": "bar", "amount": 2},
+                {"input": ("test-case", "1"), "type": "foo", "amount": 12},
+                {"input": ("test-case", "1"), "type": "foo", "amount": 12},
+            ]
+        },
+    })
+
+    assert len(all_exchanges(db)) == 5
+    db.delete_duplicate_exchanges()
+    assert len(all_exchanges(db)) == 4
+    db.delete_duplicate_exchanges(fields=['amount'])
+    assert len(all_exchanges(db)) == 3

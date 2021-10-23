@@ -10,6 +10,7 @@ import warnings
 import pandas
 import pyprind
 from bw_processing import clean_datapackage_name, create_datapackage
+from collections import defaultdict
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
 
@@ -835,3 +836,25 @@ class SQLiteBackend(ProcessedDataStore):
 
         smg = SparseMatrixGrapher(lca.technosphere_matrix)
         return smg.ordered_graph(filename, **kwargs)
+
+    def delete_duplicate_exchanges(self, fields=['amount', 'type']):
+        """Delete exchanges which are exact duplicates. Useful if you accidentally ran your input data notebook twice.
+
+        To determine uniqueness, we look at the exchange input and output nodes, and at the exchanges values for fields ``fields``."""
+        def get_uniqueness_key(exchange, fields):
+            lst = [exchange.input.key, exchange.output.key]
+            for field in fields:
+                lst.append(exchange.get(field))
+            return tuple(lst)
+
+        exchange_mapping = defaultdict(list)
+
+        for act in self:
+            for exchange in act.exchanges():
+                exchange_mapping[get_uniqueness_key(exchange, fields)].append(exchange)
+
+        for lst in exchange_mapping.values():
+            if len(lst) > 1:
+                for exc in lst[-1:0:-1]:
+                    print("Deleting exchange:", exc)
+                    exc.delete()
