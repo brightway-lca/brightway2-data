@@ -821,3 +821,21 @@ def test_add_geocollections_unable(capsys):
     })
     assert db.metadata['geocollections'] == ['foo']
     assert "Not able" in capsys.readouterr().out
+
+
+@bw2test
+def test_add_geocollections_no_unable_for_product(capsys):
+    db = Database("test-case")
+    db.write({
+        ("test-case", "1"): {
+            'location': 'Russia',
+            'type': 'product',
+            "exchanges": []
+        },
+        ("test-case", "3"): {
+            "exchanges": [],
+            'location': ('foo', 'bar')
+        },
+    })
+    assert db.metadata['geocollections'] == ['foo']
+    assert "Not able" not in capsys.readouterr().out
