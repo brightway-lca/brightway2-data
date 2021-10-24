@@ -1,6 +1,6 @@
 # Changelog
 
-## DEV
+## 4.0.DEV10 (2021-10-24)
 
 * Only need geocollections for process nodes
 
