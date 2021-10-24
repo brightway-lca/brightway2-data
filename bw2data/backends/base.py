@@ -503,7 +503,7 @@ class SQLiteBackend(ProcessedDataStore):
         databases[self.name]["number"] = len(data)
 
         databases.set_modified(self.name)
-        geocollections = {get_geocollection(x.get('location')) for x in data.values()}
+        geocollections = {get_geocollection(x.get('location')) for x in data.values() if x.get("type", "process") == "process"}
         if None in geocollections:
             print('Not able to determine geocollections for all datasets. This database is not ready for regionalization.')
             geocollections.discard(None)

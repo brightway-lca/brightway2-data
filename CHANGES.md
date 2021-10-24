@@ -1,5 +1,9 @@
 # Changelog
 
+## DEV
+
+* Only need geocollections for process nodes
+
 ## 4.0.DEV9 (2021-10-23)
 
 * Can pass `Activity` objects to `get_activity`
