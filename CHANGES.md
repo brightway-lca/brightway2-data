@@ -3,6 +3,8 @@
 ## 4.0.DDEV11
 
 * Change behaviour of `.get()` and `.get_activity()` to allow passing arbitrary filters and raise error if multiple results found
+* Add `Activity.consumers()` and `Activity.producers()`.
+* `technosphere()` no longer returns substitution exchanges by default (but still does if `include_substitution=True`); substitution exchanges are included by default in `production`.
 
 ## 4.0.DEV10 (2021-10-24)
 

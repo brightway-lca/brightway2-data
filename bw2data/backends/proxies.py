@@ -233,7 +233,7 @@ class Activity(ActivityProxyBase):
     def edges(self):
         return self.exchanges()
 
-    def technosphere(self, include_substitution=True):
+    def technosphere(self, include_substitution=False):
         return Exchanges(
             self.key,
             kinds=(
@@ -249,11 +249,14 @@ class Activity(ActivityProxyBase):
             kinds=("biosphere",),
         )
 
-    def production(self):
+    def production(self, include_substitution=False):
         return Exchanges(
             self.key,
-            kinds=("production",),
+            kinds=("production", "substitution") if include_substitution else ("production",),
         )
+
+    def producers(self):
+        return self.production()
 
     def substitution(self):
         return Exchanges(
@@ -261,19 +264,22 @@ class Activity(ActivityProxyBase):
             kinds=("substitution",),
         )
 
-    def upstream(self, kinds=("technosphere",)):
+    def upstream(self, kinds=("technosphere", "generic consumption")):
         return Exchanges(self.key, kinds=kinds, reverse=True)
 
+    def consumers(self, kinds=("technosphere", "generic consumption")):
+        return self.upstream(kinds=kinds)
+
     def new_exchange(self, **kwargs):
+        return self.new_edge(**kwargs)
+
+    def new_edge(self, **kwargs):
         """Create a new exchange linked to this activity"""
         exc = Exchange()
         exc.output = self.key
         for key in kwargs:
             exc[key] = kwargs[key]
         return exc
-
-    def new_edge(self, **kwargs):
-        return self.new_exchange(**kwargs)
 
     @writable_project
     def copy(self, code=None, **kwargs):
