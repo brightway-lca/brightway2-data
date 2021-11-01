@@ -8,6 +8,7 @@ __all__ = [
     "DataStore",
     "Edge",
     "get_activity",
+    "get_node",
     "get_id",
     "geomapping",
     "IndexManager",
@@ -64,7 +65,7 @@ config.p = preferences
 
 from .serialization import JsonWrapper
 from .database import DatabaseChooser as Database
-from .utils import get_activity
+from .utils import get_activity, get_node
 from .data_store import DataStore, ProcessedDataStore
 from .method import Method
 from .search import Searcher, IndexManager
