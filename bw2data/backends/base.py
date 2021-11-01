@@ -6,11 +6,11 @@ import pprint
 import random
 import sqlite3
 import warnings
+from collections import defaultdict
 
 import pandas
 import pyprind
 from bw_processing import clean_datapackage_name, create_datapackage
-from collections import defaultdict
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
 
@@ -20,7 +20,7 @@ from ..errors import InvalidExchange, UnknownObject, UntypedExchange, WrongDatab
 from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_geocollection, get_activity
+from ..utils import as_uncertainty_dict, get_activity, get_geocollection
 from . import sqlite3_lci_db
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
@@ -369,9 +369,9 @@ class SQLiteBackend(ProcessedDataStore):
             return None
 
     def get(self, code=None, **kwargs):
-        kwargs['database'] = self.name
+        kwargs["database"] = self.name
         if code is not None:
-            kwargs['code'] = code
+            kwargs["code"] = code
         return get_activity(**kwargs)
 
     ### Data management
@@ -495,9 +495,15 @@ class SQLiteBackend(ProcessedDataStore):
         databases[self.name]["number"] = len(data)
 
         databases.set_modified(self.name)
-        geocollections = {get_geocollection(x.get('location')) for x in data.values() if x.get("type", "process") == "process"}
+        geocollections = {
+            get_geocollection(x.get("location"))
+            for x in data.values()
+            if x.get("type", "process") == "process"
+        }
         if None in geocollections:
-            print('Not able to determine geocollections for all datasets. This database is not ready for regionalization.')
+            print(
+                "Not able to determine geocollections for all datasets. This database is not ready for regionalization."
+            )
             geocollections.discard(None)
         databases[self.name]["geocollections"] = sorted(geocollections)
 
@@ -835,10 +841,11 @@ class SQLiteBackend(ProcessedDataStore):
         smg = SparseMatrixGrapher(lca.technosphere_matrix)
         return smg.ordered_graph(filename, **kwargs)
 
-    def delete_duplicate_exchanges(self, fields=['amount', 'type']):
+    def delete_duplicate_exchanges(self, fields=["amount", "type"]):
         """Delete exchanges which are exact duplicates. Useful if you accidentally ran your input data notebook twice.
 
         To determine uniqueness, we look at the exchange input and output nodes, and at the exchanges values for fields ``fields``."""
+
         def get_uniqueness_key(exchange, fields):
             lst = [exchange.input.key, exchange.output.key]
             for field in fields:

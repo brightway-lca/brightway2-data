@@ -16,7 +16,7 @@ import stats_arrays as sa
 from peewee import DoesNotExist
 
 from . import config
-from .errors import NotFound, UnknownObject, ValidityError, WebUIError, MultipleResults
+from .errors import MultipleResults, NotFound, UnknownObject, ValidityError, WebUIError
 from .fatomic import open
 
 # Type of technosphere/biosphere exchanges used in processed Databases
@@ -387,13 +387,13 @@ def get_node(**kwargs):
     from .backends import ActivityDataset as AD
 
     mapping = {
-        'id': AD.id,
-        'code': AD.code,
-        'database': AD.database,
-        'location': AD.location,
-        'name': AD.name,
-        'product': AD.product,
-        'type': AD.type,
+        "id": AD.id,
+        "code": AD.code,
+        "database": AD.database,
+        "location": AD.location,
+        "name": AD.name,
+        "product": AD.product,
+        "type": AD.type,
     }
 
     qs = AD.select()
@@ -407,11 +407,23 @@ def get_node(**kwargs):
 
     extended_search = any(key not in mapping for key in kwargs)
     if extended_search:
-        if 'database' not in kwargs:
-            warnings.warn("Given search criteria very broad; try to specify at least a database")
-        candidates = [obj for obj in candidates if all(obj.get(key) == value for key, value in kwargs.items() if key not in mapping)]
+        if "database" not in kwargs:
+            warnings.warn(
+                "Given search criteria very broad; try to specify at least a database"
+            )
+        candidates = [
+            obj
+            for obj in candidates
+            if all(
+                obj.get(key) == value
+                for key, value in kwargs.items()
+                if key not in mapping
+            )
+        ]
     if len(candidates) > 1:
-        raise MultipleResults("Found {} results for the given search".format(len(candidates)))
+        raise MultipleResults(
+            "Found {} results for the given search".format(len(candidates))
+        )
     elif not candidates:
         raise UnknownObject
     return candidates[0]
@@ -422,26 +434,29 @@ def get_activity(key=None, **kwargs):
 
     ``key`` can be an integer or a key tuple."""
     from .backends import Activity
+
     if isinstance(key, Activity):
         return key
     elif isinstance(key, tuple):
-        kwargs['database'] = key[0]
-        kwargs['code'] = key[1]
+        kwargs["database"] = key[0]
+        kwargs["code"] = key[1]
     elif isinstance(key, int):
-        kwargs['id'] = key
+        kwargs["id"] = key
     return get_node(**kwargs)
 
 
 def get_geocollection(location, default_global_location=False):
-    '''conservative approach to finding geocollections. Won't guess about ecoinvent or other databases.'''
+    """conservative approach to finding geocollections. Won't guess about ecoinvent or other databases."""
     if not location:
         if default_global_location:
-            return 'world'
+            return "world"
         else:
             return None
     elif isinstance(location, tuple):
         return location[0]
-    elif isinstance(location, str) and (len(location) == 2 or location.lower() == 'glo'):
-        return 'world'
+    elif isinstance(location, str) and (
+        len(location) == 2 or location.lower() == "glo"
+    ):
+        return "world"
     else:
         return None

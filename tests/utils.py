@@ -176,7 +176,7 @@ def test_as_uncertainty_dict():
 @bw2test
 def test_get_node_normal():
     Database("biosphere").write(biosphere)
-    node = get_node(name='an emission')
+    node = get_node(name="an emission")
     assert node.id == 1
     assert isinstance(node, PWActivity)
 
@@ -184,7 +184,7 @@ def test_get_node_normal():
 @bw2test
 def test_get_node_multiple_filters():
     Database("biosphere").write(biosphere)
-    node = get_node(name='an emission', type='emission')
+    node = get_node(name="an emission", type="emission")
     assert node.id == 1
     assert isinstance(node, PWActivity)
 
@@ -193,14 +193,14 @@ def test_get_node_multiple_filters():
 def test_get_node_nonunique():
     Database("biosphere").write(biosphere)
     with pytest.raises(MultipleResults):
-        get_node(type='emission')
+        get_node(type="emission")
 
 
 @bw2test
 def test_get_node_no_node():
     Database("biosphere").write(biosphere)
     with pytest.raises(UnknownObject):
-        get_node(type='product')
+        get_node(type="product")
 
 
 @bw2test
@@ -221,13 +221,13 @@ def test_get_node_extended_search():
             "type": "emission",
             "name": "another emission",
             "unit": "kg",
-            "foo": "bar"
+            "foo": "bar",
         },
     }
     Database("biosphere").write(data)
     with pytest.warns(UserWarning):
-        node = get_node(unit='kg', foo='bar')
-    assert node['code'] == "2"
+        node = get_node(unit="kg", foo="bar")
+    assert node["code"] == "2"
 
 
 @bw2test
@@ -257,7 +257,7 @@ def test_get_activity_key():
 @bw2test
 def test_get_activity_kwargs():
     Database("biosphere").write(biosphere)
-    node = get_activity(name='an emission', type='emission')
+    node = get_activity(name="an emission", type="emission")
     assert node.id == 1
     assert isinstance(node, PWActivity)
 

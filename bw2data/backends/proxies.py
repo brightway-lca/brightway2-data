@@ -252,7 +252,9 @@ class Activity(ActivityProxyBase):
     def production(self, include_substitution=False):
         return Exchanges(
             self.key,
-            kinds=("production", "substitution") if include_substitution else ("production",),
+            kinds=("production", "substitution")
+            if include_substitution
+            else ("production",),
         )
 
     def producers(self):

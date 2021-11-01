@@ -62,7 +62,7 @@ def test_get_code():
 def test_get_kwargs():
     d = Database("biosphere")
     d.write(biosphere)
-    activity = d.get(name='an emission')
+    activity = d.get(name="an emission")
     assert isinstance(activity, PWActivity)
     assert activity["name"] == "an emission"
     assert activity.id == 1
@@ -772,81 +772,68 @@ def test_delete_duplicate_exchanges():
 
     db = Database("test-case")
 
-    db.write({
-        ("test-case", "1"): {
-            "exchanges": []
-        },
-        ("test-case", "2"): {
-            "exchanges": []
-        },
-        ("test-case", "3"): {
-            "exchanges": [
-                {"input": ("test-case", "2"), "type": "foo", "amount": 1},
-                {"input": ("test-case", "2"), "type": "foo", "amount": 2},
-                {"input": ("test-case", "2"), "type": "bar", "amount": 2},
-                {"input": ("test-case", "1"), "type": "foo", "amount": 12},
-                {"input": ("test-case", "1"), "type": "foo", "amount": 12},
-            ]
-        },
-    })
+    db.write(
+        {
+            ("test-case", "1"): {"exchanges": []},
+            ("test-case", "2"): {"exchanges": []},
+            ("test-case", "3"): {
+                "exchanges": [
+                    {"input": ("test-case", "2"), "type": "foo", "amount": 1},
+                    {"input": ("test-case", "2"), "type": "foo", "amount": 2},
+                    {"input": ("test-case", "2"), "type": "bar", "amount": 2},
+                    {"input": ("test-case", "1"), "type": "foo", "amount": 12},
+                    {"input": ("test-case", "1"), "type": "foo", "amount": 12},
+                ]
+            },
+        }
+    )
 
     assert len(all_exchanges(db)) == 5
     db.delete_duplicate_exchanges()
     assert len(all_exchanges(db)) == 4
-    db.delete_duplicate_exchanges(fields=['amount'])
+    db.delete_duplicate_exchanges(fields=["amount"])
     assert len(all_exchanges(db)) == 3
 
 
 @bw2test
 def test_add_geocollections(capsys):
     db = Database("test-case")
-    db.write({
-        ("test-case", "1"): {
-            'location': 'RU',
-            "exchanges": []
-        },
-        ("test-case", "2"): {
-            "exchanges": []
-        },
-        ("test-case", "3"): {
-            "exchanges": [],
-            'location': ('foo', 'bar')
-        },
-    })
-    assert db.metadata['geocollections'] == ['foo', 'world']
+    db.write(
+        {
+            ("test-case", "1"): {"location": "RU", "exchanges": []},
+            ("test-case", "2"): {"exchanges": []},
+            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar")},
+        }
+    )
+    assert db.metadata["geocollections"] == ["foo", "world"]
     assert "Not able" in capsys.readouterr().out
 
 
 @bw2test
 def test_add_geocollections_unable(capsys):
     db = Database("test-case")
-    db.write({
-        ("test-case", "1"): {
-            'location': 'Russia',
-            "exchanges": []
-        },
-        ("test-case", "3"): {
-            "exchanges": [],
-            'location': ('foo', 'bar')
-        },
-    })
-    assert db.metadata['geocollections'] == ['foo']
+    db.write(
+        {
+            ("test-case", "1"): {"location": "Russia", "exchanges": []},
+            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar")},
+        }
+    )
+    assert db.metadata["geocollections"] == ["foo"]
     assert "Not able" in capsys.readouterr().out
 
 
 @bw2test
 def test_add_geocollections_no_unable_for_product(capsys):
     db = Database("test-case")
-    db.write({
-        ("test-case", "1"): {
-            'location': 'Russia',
-            'type': 'product',
-            "exchanges": []
-        },
-        ("test-case", "3"): {
-            "exchanges": [],
-            'location': ('foo', 'bar')
-        },
-    })
-    assert db.metadata['geocollections'] == ['foo']
+    db.write(
+        {
+            ("test-case", "1"): {
+                "location": "Russia",
+                "type": "product",
+                "exchanges": [],
+            },
+            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar")},
+        }
+    )
+    assert db.metadata["geocollections"] == ["foo"]
     assert "Not able" not in capsys.readouterr().out

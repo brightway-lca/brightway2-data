@@ -62,12 +62,17 @@ class Method(ImpactAssessmentDataStore):
 
         third = lambda x: x[2] if len(x) == 3 else None
 
-        geocollections = {get_geocollection(third(elem), default_global_location=True) for elem in data}
+        geocollections = {
+            get_geocollection(third(elem), default_global_location=True)
+            for elem in data
+        }
         if None in geocollections:
-            print('Not able to determine geocollections for all CFs. This method is not ready for regionalization.')
+            print(
+                "Not able to determine geocollections for all CFs. This method is not ready for regionalization."
+            )
             geocollections.discard(None)
 
-        self.metadata['geocollections'] = sorted(geocollections)
+        self.metadata["geocollections"] = sorted(geocollections)
         self._metadata.flush()
         super(Method, self).write(data)
 
