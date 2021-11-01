@@ -133,7 +133,7 @@ def test_technosphere(activity):
 
 def test_technosphere_include_substitution(activity):
     d = get_activity(("db", "d"))
-    assert len(d.technosphere()) == 2
+    assert len(d.technosphere()) == 1
     assert len(d.technosphere(include_substitution=True)) == 2
 
 

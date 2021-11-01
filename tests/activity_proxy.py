@@ -1,9 +1,8 @@
 import pytest
-from peewee import DoesNotExist
 
 from bw2data.backends import ActivityDataset, ExchangeDataset
 from bw2data.database import DatabaseChooser
-from bw2data.errors import ValidityError
+from bw2data.errors import ValidityError, UnknownObject
 from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
 from bw2data.tests import bw2test
 from bw2data.utils import get_activity
@@ -92,7 +91,7 @@ def test_change_code(activity):
     activity["code"] = "a new one"
     assert len(db) == 1
     assert get_activity(("a database", "a new one"))
-    with pytest.raises(DoesNotExist):
+    with pytest.raises(UnknownObject):
         get_activity(old_key)
 
 
@@ -113,7 +112,7 @@ def test_change_database(activity):
     assert len(db2) == 1
     assert get_activity(("another database", "foo"))
     assert len(get_activity(("another database", "foo")).production()) == 1
-    with pytest.raises(DoesNotExist):
+    with pytest.raises(UnknownObject):
         get_activity(old_key)
 
 
