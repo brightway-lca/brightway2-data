@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.0.DDEV11
+## 4.0.DEV11 (2021-11-01)
 
 * Change behaviour of `.get()` and `.get_activity()` to allow passing arbitrary filters and raise error if multiple results found
 * Add `Activity.consumers()` and `Activity.producers()`.
