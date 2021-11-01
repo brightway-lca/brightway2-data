@@ -4,8 +4,6 @@ import warnings
 
 import numpy as np
 import pytest
-from bw_processing import load_datapackage
-from fs.zipfs import ZipFS
 
 from bw2data import geomapping, get_id, databases, Database
 from bw2data.backends import Activity as PWActivity
@@ -410,7 +408,7 @@ def test_geomapping_array_includes_only_processes():
             ("a database", "baz"): {"exchanges": [], "type": "emission"},
         }
     )
-    package = load_datapackage(ZipFS(database.filepath_processed()))
+    package = database.datapackage()
     array = package.get_resource("a_database_inventory_geomapping_matrix.indices")[0]
     assert array.shape == (1,)
     assert array[0]["col"] == geomapping["bar"]
@@ -434,7 +432,7 @@ def test_processed_array():
             }
         }
     )
-    package = load_datapackage(ZipFS(database.filepath_processed()))
+    package = database.datapackage()
     print(package.resources)
     array = package.get_resource("a_database_technosphere_matrix.data")[0]
 
@@ -568,7 +566,7 @@ def test_process_without_exchanges_still_in_processed_array():
     database = Database("a database")
     database.write({("a database", "foo"): {}})
 
-    package = load_datapackage(ZipFS(database.filepath_processed()))
+    package = database.datapackage()
     array = package.get_resource("a_database_technosphere_matrix.data")[0]
     assert array[0] == 1
     assert array.shape == (1,)
@@ -617,7 +615,7 @@ def test_can_split_processes_products():
             },
         }
     )
-    package = load_datapackage(ZipFS(database.filepath_processed()))
+    package = database.datapackage()
     array = package.get_resource("a_database_technosphere_matrix.indices")[0]
     # print statements to get debugging for CI test runners
     for x in database:
@@ -668,7 +666,7 @@ def test_sqlite_processed_array_order():
     print("t:", t)
     print("b:", b)
 
-    package = load_datapackage(ZipFS(database.filepath_processed()))
+    package = database.datapackage()
 
     array = package.get_resource("testy_new_technosphere_matrix.data")[0]
     print("data array:", array)
@@ -711,8 +709,7 @@ def test_no_distributions_if_no_uncertainty():
         }
     )
 
-    package = load_datapackage(ZipFS(database.filepath_processed()))
-    print(package.resources)
+    package = database.datapackage()
     with pytest.raises(KeyError):
         package.get_resource("a_database_technosphere_matrix.distributions")
 

@@ -1,6 +1,6 @@
 import pickle
 
-from bw_processing import clean_datapackage_name, create_datapackage, safe_filename
+from bw_processing import clean_datapackage_name, create_datapackage, safe_filename, load_datapackage
 from fs.zipfs import ZipFS
 
 from . import projects
@@ -158,6 +158,9 @@ class ProcessedDataStore(DataStore):
 
     def filepath_processed(self):
         return self.dirpath_processed() / self.filename_processed()
+
+    def datapackage(self):
+        return load_datapackage(ZipFS(self.filepath_processed()))
 
     @writable_project
     def write(self, data, process=True):

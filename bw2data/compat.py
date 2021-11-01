@@ -1,6 +1,3 @@
-from bw_processing import load_datapackage
-from fs.zipfs import ZipFS
-
 from . import (
     Database,
     Method,
@@ -102,7 +99,7 @@ def prepare_lca_inputs(
 
         data_objs.extend(
             [
-                load_datapackage(ZipFS(Database(obj).filepath_processed()))
+                Database(obj).datapackage()
                 for obj in database_names
             ]
         )
@@ -122,16 +119,16 @@ def prepare_lca_inputs(
 
     if method:
         assert method in methods
-        data_objs.append(load_datapackage(ZipFS(Method(method).filepath_processed())))
+        data_objs.append(Method(method).datapackage())
     if weighting:
         assert weighting in weightings
         data_objs.append(
-            load_datapackage(ZipFS(Weighting(weighting).filepath_processed()))
+            Weighting(weighting).datapackage()
         )
     if normalization:
         assert normalization in normalizations
         data_objs.append(
-            load_datapackage(ZipFS(Normalization(normalization).filepath_processed()))
+            Normalization(normalization).datapackage()
         )
 
     if demands:
