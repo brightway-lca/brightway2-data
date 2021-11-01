@@ -1,4 +1,4 @@
-class BW2Exception(Exception):
+class BW2Exception(BaseException):
     """Base class for exceptions in Brightway2"""
 
     pass
@@ -15,6 +15,10 @@ class MissingIntermediateData(BW2Exception):
 
 
 class UnknownObject(BW2Exception):
+    pass
+
+
+class MultipleResults(BW2Exception):
     pass
 
 

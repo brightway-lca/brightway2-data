@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.DDEV11
+
+* Change behaviour of `.get()` and `.get_activity()` to allow passing arbitrary filters and raise error if multiple results found
+
 ## 4.0.DEV10 (2021-10-24)
 
 * Only need geocollections for process nodes

@@ -16,7 +16,7 @@ import stats_arrays as sa
 from peewee import DoesNotExist
 
 from . import config
-from .errors import NotFound, UnknownObject, ValidityError, WebUIError
+from .errors import NotFound, UnknownObject, ValidityError, WebUIError, MultipleResults
 from .fatomic import open
 
 # Type of technosphere/biosphere exchanges used in processed Databases
@@ -382,25 +382,54 @@ def create_in_memory_zipfile_from_directory(path):
     return memory_obj
 
 
-def get_activity(key):
+def get_node(**kwargs):
     from .backends import Activity
     from .backends import ActivityDataset as AD
-    from .database import Database
 
+    mapping = {
+        'id': AD.id,
+        'code': AD.code,
+        'database': AD.database,
+        'location': AD.location,
+        'name': AD.name,
+        'product': AD.product,
+        'type': AD.type,
+    }
+
+    qs = AD.select()
+    for key, value in kwargs.items():
+        try:
+            qs = qs.where(mapping[key] == value)
+        except KeyError:
+            continue
+
+    candidates = [Activity(obj) for obj in qs]
+
+    extended_search = any(key not in mapping for key in kwargs)
+    if extended_search:
+        if 'database' not in kwargs:
+            warnings.warn("Given search criteria very broad; try to specify at least a database")
+        candidates = [obj for obj in candidates if all(obj.get(key) == value for key, value in kwargs.items() if key not in mapping)]
+    if len(candidates) > 1:
+        raise MultipleResults("Found {} results for the given search".format(len(candidates)))
+    elif not candidates:
+        raise UnknownObject
+    return candidates[0]
+
+
+def get_activity(key=None, **kwargs):
+    """Support multiple ways to get exactly one activity node.
+
+    ``key`` can be an integer or a key tuple."""
+    from .backends import Activity
     if isinstance(key, Activity):
         return key
+    elif isinstance(key, tuple):
+        kwargs['database'] = key[0]
+        kwargs['code'] = key[1]
     elif isinstance(key, int):
-        try:
-            return Activity(AD.get(AD.id == key))
-        except DoesNotExist:
-            raise UnknownObject
-
-    try:
-        return Database(key[0]).get(key[1])
-    except TypeError:
-        raise UnknownObject(
-            "Key {} cannot be understood as an activity" " or `(database, code)` tuple."
-        )
+        kwargs['id'] = key
+    return get_node(**kwargs)
 
 
 def get_geocollection(location, default_global_location=False):

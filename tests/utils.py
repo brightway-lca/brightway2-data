@@ -1,16 +1,16 @@
-# from bw_processing import load_package
 import pytest
 import stats_arrays as sa
 
 from bw2data import Database, Method, methods
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends.schema import ActivityDataset as AD
-from bw2data.errors import ValidityError
+from bw2data.errors import ValidityError, MultipleResults, UnknownObject
 from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
     as_uncertainty_dict,
     combine_methods,
     get_activity,
+    get_node,
     merge_databases,
     natural_sort,
     random_string,
@@ -174,19 +174,93 @@ def test_as_uncertainty_dict():
 
 
 @bw2test
-def test_get_activity():
-    database = Database("a database", "sqlite")
-    database.write(
-        {
-            ("a database", "foo"): {"exchanges": [], "name": "baz"}
-        }
-    )
-    doc = AD.select().where(AD.name == 'baz').get()
-    assert isinstance(get_activity((doc.database, doc.code)), PWActivity)
-    assert get_activity((doc.database, doc.code)).id == doc.id
-    assert get_activity(doc.id).id == doc.id
-    act = get_activity((doc.database, doc.code))
-    assert get_activity(act).id == doc.id
+def test_get_node_normal():
+    Database("biosphere").write(biosphere)
+    node = get_node(name='an emission')
+    assert node.id == 1
+    assert isinstance(node, PWActivity)
+
+
+@bw2test
+def test_get_node_multiple_filters():
+    Database("biosphere").write(biosphere)
+    node = get_node(name='an emission', type='emission')
+    assert node.id == 1
+    assert isinstance(node, PWActivity)
+
+
+@bw2test
+def test_get_node_nonunique():
+    Database("biosphere").write(biosphere)
+    with pytest.raises(MultipleResults):
+        get_node(type='emission')
+
+
+@bw2test
+def test_get_node_no_node():
+    Database("biosphere").write(biosphere)
+    with pytest.raises(UnknownObject):
+        get_node(type='product')
+
+
+@bw2test
+def test_get_node_extended_search():
+    data = {
+        ("biosphere", "1"): {
+            "categories": ["things"],
+            "code": "1",
+            "exchanges": [],
+            "name": "an emission",
+            "type": "emission",
+            "unit": "kg",
+        },
+        ("biosphere", "2"): {
+            "categories": ["things"],
+            "code": "2",
+            "exchanges": [],
+            "type": "emission",
+            "name": "another emission",
+            "unit": "kg",
+            "foo": "bar"
+        },
+    }
+    Database("biosphere").write(data)
+    with pytest.warns(UserWarning):
+        node = get_node(unit='kg', foo='bar')
+    assert node['code'] == "2"
+
+
+@bw2test
+def test_get_activity_activity():
+    Database("biosphere").write(biosphere)
+    node = get_node(id=1)
+    found = get_activity(node)
+    assert found is node
+
+
+@bw2test
+def test_get_activity_id():
+    Database("biosphere").write(biosphere)
+    node = get_activity(1)
+    assert node.id == 1
+    assert isinstance(node, PWActivity)
+
+
+@bw2test
+def test_get_activity_key():
+    Database("biosphere").write(biosphere)
+    node = get_activity(("biosphere", "1"))
+    assert node.id == 1
+    assert isinstance(node, PWActivity)
+
+
+@bw2test
+def test_get_activity_kwargs():
+    Database("biosphere").write(biosphere)
+    node = get_activity(name='an emission', type='emission')
+    assert node.id == 1
+    assert isinstance(node, PWActivity)
+
 
 @bw2test
 def test_merge_databases_nonunique_activity_codes():

@@ -49,12 +49,23 @@ def test_food(food):
 
 
 @bw2test
-def test_get():
+def test_get_code():
     d = Database("biosphere")
     d.write(biosphere)
     activity = d.get("1")
     assert isinstance(activity, PWActivity)
     assert activity["name"] == "an emission"
+    assert activity.id == 1
+
+
+@bw2test
+def test_get_kwargs():
+    d = Database("biosphere")
+    d.write(biosphere)
+    activity = d.get(name='an emission')
+    assert isinstance(activity, PWActivity)
+    assert activity["name"] == "an emission"
+    assert activity.id == 1
 
 
 @bw2test

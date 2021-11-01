@@ -20,7 +20,7 @@ from ..errors import InvalidExchange, UnknownObject, UntypedExchange, WrongDatab
 from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_geocollection
+from ..utils import as_uncertainty_dict, get_geocollection, get_activity
 from . import sqlite3_lci_db
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
@@ -368,19 +368,11 @@ class SQLiteBackend(ProcessedDataStore):
             warnings.warn("This database is empty")
             return None
 
-    def get(self, code):
-        if isinstance(code, int):
-            return Activity(
-                self._get_queryset(filters=False)
-                .where(ActivityDataset.id == code)
-                .get()
-            )
-        else:
-            return Activity(
-                self._get_queryset(filters=False)
-                .where(ActivityDataset.code == code)
-                .get()
-            )
+    def get(self, code=None, **kwargs):
+        kwargs['database'] = self.name
+        if code is not None:
+            kwargs['code'] = code
+        return get_activity(**kwargs)
 
     ### Data management
     ###################
