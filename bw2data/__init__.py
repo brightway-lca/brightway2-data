@@ -30,20 +30,21 @@ __all__ = [
     "weightings",
 ]
 
+from .version import version as __version__
+
 from .configuration import config
+from .project import projects
+from .utils import set_data_dir
 from .meta import (
+    dynamic_calculation_setups,
     calculation_setups,
     databases,
-    dynamic_calculation_setups,
     geomapping,
     methods,
     normalizations,
     preferences,
     weightings,
 )
-from .project import projects
-from .utils import set_data_dir
-from .version import version as __version__
 
 # Add metadata class instances to global list of serialized metadata
 config.metadata.extend(
@@ -62,19 +63,19 @@ config.metadata.extend(
 # Backwards compatibility - preferable to access ``preferences`` directly
 config.p = preferences
 
-from .backends import Edge, Node, convert_backend, get_id
-from .compat import Mapping, prepare_lca_inputs
-from .data_store import DataStore, ProcessedDataStore
-from .database import DatabaseChooser as Database
-from .method import Method
-from .search import IndexManager, Searcher
 from .serialization import JsonWrapper
+from .database import DatabaseChooser as Database
 from .utils import get_activity, get_node
-from .weighting_normalization import Normalization, Weighting
+from .data_store import DataStore, ProcessedDataStore
+from .method import Method
+from .search import Searcher, IndexManager
+from .weighting_normalization import Weighting, Normalization
+from .backends import convert_backend, get_id, Node, Edge
+from .compat import prepare_lca_inputs, Mapping
 
 mapping = Mapping()
 
-from .parameters import parameters
 from .updates import Updates
+from .parameters import parameters
 
 Updates.check_status()
