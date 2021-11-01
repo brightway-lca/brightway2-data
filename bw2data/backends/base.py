@@ -180,7 +180,7 @@ class SQLiteBackend(ProcessedDataStore):
         """Search through the database."""
         return Query(*queries)(self.load())
 
-    def register(self, **kwargs):
+    def register(self, write_empty=True, **kwargs):
         """Register a database with the metadata store.
 
         Databases must be registered before data can be written.
@@ -197,6 +197,8 @@ class SQLiteBackend(ProcessedDataStore):
             kwargs["depends"] = []
         kwargs["backend"] = self.backend
         super().register(**kwargs)
+        if write_empty:
+            self.write({})
 
     def relabel_data(self, data, new_name):
         """Relabel database keys and exchanges.
@@ -483,7 +485,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         Writing a database will first deletes all existing data."""
         if self.name not in databases:
-            self.register()
+            self.register(write_empty=False)
         wrong_database = {key[0] for key in data}.difference({self.name})
         if wrong_database:
             raise WrongDatabase(

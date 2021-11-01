@@ -61,7 +61,7 @@ class DataStore:
         def _register(kwargs):
             self._metadata[self.name] = kwargs
 
-        if self.name not in self._metadata:
+        if not self.registered:
             _register(kwargs)
 
     @writable_project
