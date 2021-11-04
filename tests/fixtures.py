@@ -19,6 +19,11 @@ biosphere = {
     },
 }
 
+lcia = [
+    (("biosphere", "1"), 10),
+    (("biosphere", "2"), 1000)
+]
+
 food = {
     ("food", "1"): {
         "categories": ["stuff", "meals"],

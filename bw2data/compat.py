@@ -73,7 +73,7 @@ def prepare_lca_inputs(
 
     databases.clean()
     data_objs = []
-    remapping_dicts = {}
+    remapping_dicts = None
 
     if demands:
         demand_database_names = [
@@ -97,14 +97,15 @@ def prepare_lca_inputs(
                 x for x in database_names if x not in demand_database_names
             ] + demand_database_names
 
-        data_objs.extend(
-            [
-                Database(obj).datapackage()
-                for obj in database_names
-            ]
-        )
+        data_objs.extend([Database(obj).datapackage() for obj in database_names])
 
         if remapping:
+            # This is technically wrong - we could have more complicated queries
+            # to determine what is truly a product, activity, etc.
+            # However, for the default database schema, we know that each node
+            # has a unique ID, so this won't produce incorrect responses,
+            # just too many values. As the dictionary only exists once, this is
+            # not really a problem.
             reversed_mapping = {
                 i: (d, c)
                 for d, c, i in AD.select(AD.database, AD.code, AD.id)
@@ -122,14 +123,10 @@ def prepare_lca_inputs(
         data_objs.append(Method(method).datapackage())
     if weighting:
         assert weighting in weightings
-        data_objs.append(
-            Weighting(weighting).datapackage()
-        )
+        data_objs.append(Weighting(weighting).datapackage())
     if normalization:
         assert normalization in normalizations
-        data_objs.append(
-            Normalization(normalization).datapackage()
-        )
+        data_objs.append(Normalization(normalization).datapackage())
 
     if demands:
         indexed_demand = [{get_id(k): v for k, v in dct.items()} for dct in demands]
