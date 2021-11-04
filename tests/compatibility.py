@@ -114,7 +114,7 @@ def test_prepare_lca_inputs_database_ordering():
         method=("foo",),
         demand_database_last=False,
     )
-    assert [str(o.fs) for o in objs] == [str(o.datapackage().fs) for o in pla]
+    assert {str(o.fs) for o in objs} == {str(o.datapackage().fs) for o in pla}
 
 
 @bw2test
