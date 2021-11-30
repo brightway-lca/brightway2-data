@@ -77,9 +77,10 @@ class IOTableExchanges(Iterable):
         # sort values
         df = df.join(df_meta, how="left").sort_values("amount", ascending=ascending)
         # merge location, categories and compartments into one 'location' column
-        df.loc[:, "location"] = (
-            df["location"].fillna(df["categories"]).fillna(df["compartment"])
-        )
+        if "categories" in df:
+            df.loc[:, "location"] = df["location"].fillna(df["categories"])
+        if "compartment" in df:
+            df.loc[:, "location"] = df["location"].fillna(df["compartment"])
 
         # filter fields and return
         return df[fields]
