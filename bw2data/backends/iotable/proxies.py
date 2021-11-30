@@ -40,7 +40,7 @@ class IOTableExchanges(Iterable):
         return self.data.__next__()
 
     def __len__(self):
-        if isinstance(self.data, GeneratorType):
+        if isinstance(self.data, GeneratorType) or isinstance(self.data, itertools.chain):
             self.data = list(self.data)
         return self.data.__len__()
 
