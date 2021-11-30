@@ -7,8 +7,8 @@ from types import GeneratorType
 
 
 class ReadOnlyExchange(Mapping):
+    # Helper class, which imitates behavior of bw2data.proxies.Exchange, except it does not inherit write methods
 
-    __init__ = Exchange.__init__
     __str__ = Exchange.__str__
     __lt__ = Exchange.__lt__
     __repr__ = Exchange.__repr__
@@ -27,6 +27,9 @@ class ReadOnlyExchange(Mapping):
     amount = Exchange.amount
     lca = Exchange.lca
     as_dict = Exchange.as_dict
+
+    def __init__(self, **kwargs):
+        self._data = kwargs
 
 
 class IOTableExchanges(Iterable):
@@ -133,7 +136,11 @@ class IOTableActivity(Activity):
         col = lca.dicts.activity[self.key]
         val = lca.technosphere_matrix[col, col]
         return IOTableExchanges(
-            [ReadOnlyExchange(input=self.key, output=self.key, amount=val, type="production")]
+            [
+                ReadOnlyExchange(
+                    input=self.key, output=self.key, amount=val, type="production"
+                )
+            ]
         )
 
     def exchanges(self):
