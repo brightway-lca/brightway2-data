@@ -1,5 +1,6 @@
 import pytest
 import stats_arrays as sa
+import numpy as np
 
 from bw2data import Database, Method, methods
 from bw2data.backends import Activity as PWActivity
@@ -244,6 +245,23 @@ def test_get_activity_id():
     node = get_activity(1)
     assert node.id == 1
     assert isinstance(node, PWActivity)
+
+
+@bw2test
+def test_get_activity_id_different_ints():
+    Database("biosphere").write(biosphere)
+    different_ints = [
+        int(1),
+        np.int0(1),
+        np.int8(1),
+        np.int16(1),
+        np.int32(1),
+        np.int64(1),
+    ]
+    for i in different_ints:
+        node = get_activity(i)
+        assert node.id == i
+        assert isinstance(node, PWActivity)
 
 
 @bw2test

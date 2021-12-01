@@ -1,5 +1,6 @@
 import collections
 import itertools
+import numbers
 import os
 import random
 import re
@@ -440,7 +441,7 @@ def get_activity(key=None, **kwargs):
     elif isinstance(key, tuple):
         kwargs["database"] = key[0]
         kwargs["code"] = key[1]
-    elif isinstance(key, int):
+    elif isinstance(key, numbers.Integral):
         kwargs["id"] = key
     return get_node(**kwargs)
 
