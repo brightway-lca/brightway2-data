@@ -43,7 +43,9 @@ class IOTableExchanges(Iterable):
         return self.data.__next__()
 
     def __len__(self):
-        if isinstance(self.data, GeneratorType) or isinstance(self.data, itertools.chain):
+        if isinstance(self.data, GeneratorType) or isinstance(
+            self.data, itertools.chain
+        ):
             self.data = list(self.data)
         return self.data.__len__()
 
@@ -53,7 +55,7 @@ class IOTableExchanges(Iterable):
         if fields is None:
             fields = [
                 "name",
-                "location",
+                "location/category/compartment",
                 "amount",
                 "unit",
                 "exchange type",
@@ -79,11 +81,12 @@ class IOTableExchanges(Iterable):
         # join both into one dataframe
         # sort values
         df = df.join(df_meta, how="left").sort_values("amount", ascending=ascending)
-        # merge location, categories and compartments into one 'location' column
+        # merge location, categories and compartments into one column
+        df["location/category/compartment"] = df["location"]
         if "categories" in df:
-            df.loc[:, "location"] = df["location"].fillna(df["categories"])
+            df["location/category/compartment"].fillna(df["categories"], inplace=True)
         if "compartment" in df:
-            df.loc[:, "location"] = df["location"].fillna(df["compartment"])
+            df["location/category/compartment"].fillna(df["compartment"], inplace=True)
 
         # filter fields and return
         return df[fields]
