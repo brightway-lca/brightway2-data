@@ -43,7 +43,7 @@ class IOTableBackend(SQLiteBackend):
             dict_iterator=(
                 {
                     "row": obj.id,
-                    "col": geomapping[obj["location"] or config.global_location],
+                    "col": geomapping[obj.get("location") or config.global_location],
                     "amount": 1,
                 }
                 for obj in self
