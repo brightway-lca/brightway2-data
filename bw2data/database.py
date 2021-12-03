@@ -1,9 +1,12 @@
 from . import databases
 from .backends import SQLiteBackend
 from .backends.iotable import IOTableBackend
+from typing import Union, Optional
 
 
-def DatabaseChooser(name, backend=None):
+def DatabaseChooser(
+    name: str, backend: Optional[str] = None
+) -> Union[SQLiteBackend, IOTableBackend]:
     """A method that returns a database class instance.
 
     Database types are specified in `databases[database_name]['backend']`.
