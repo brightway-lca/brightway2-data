@@ -1,9 +1,11 @@
 from . import databases
 from .backends import SQLiteBackend
 from .backends.iotable import IOTableBackend
+from functools import lru_cache
 from typing import Union, Optional
 
 
+@lru_cache(maxsize=5, typed=False)
 def DatabaseChooser(
     name: str, backend: Optional[str] = None
 ) -> Union[SQLiteBackend, IOTableBackend]:
