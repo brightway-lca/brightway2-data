@@ -1,5 +1,6 @@
 import copy
 import datetime
+from functools import lru_cache
 import itertools
 import pickle
 import pprint
@@ -285,6 +286,13 @@ class SQLiteBackend(ProcessedDataStore):
         del databases[old_name]
         self.name = name
         return new_db
+
+    @lru_cache(maxsize=5, typed=False)
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Converts the database into a dataframe with one row per activity and one column per property / database field.
+        """
+        return pd.DataFrame(self)
 
     ### Iteration, filtering, and ordering
     ######################################
