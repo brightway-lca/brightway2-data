@@ -1,6 +1,24 @@
 import pickle
+import json
 
-from peewee import BlobField, SqliteDatabase
+from peewee import BlobField, SqliteDatabase, TextField
+
+
+class JSONField(TextField):
+    """Simpler JSON field that doesn't support advanced querying and is human-readable"""
+    def db_value(self, value):
+        return super().db_value(json.dumps(value, ensure_ascii=False, indent=2))
+
+    def python_value(self, value):
+        return json.loads(value)
+
+
+class TupleJSONField(JSONField):
+    def python_value(self, value):
+        data = json.loads(value)
+        if isinstance(data, list):
+            data = tuple(data)
+        return data
 
 
 class PickleField(BlobField):
@@ -23,6 +41,9 @@ class SubstitutableDatabase:
             model.bind(db, bind_refs=False, bind_backrefs=False)
         db.connect()
         db.create_tables(self._tables)
+        for table in self._tables:
+            if hasattr(table, "initial_data"):
+                table.initial_data()
         return db
 
     @property

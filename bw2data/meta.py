@@ -1,23 +1,60 @@
+import os
+import shutil
+import tempfile
+import warnings
+from collections.abc import Iterable
+from pathlib import Path
+from threading import ThreadError
+
+import appdirs
+import wrapt
+from bw_processing import safe_filename
+from fasteners import InterProcessLock
+from peewee import BooleanField, DoesNotExist, Model, TextField
+
+from . import config
+from .errors import ReadOnlyProject
+from .filesystem import create_dir
+from .sqlite import PickleField, SubstitutableDatabase
+from .utils import maybe_path
+
 import datetime
 
 from .project import writable_project
 from .serialization import CompoundJSONDict, PickledDict, SerializedDict
 
 
-class GeoMapping(PickledDict):
+class Location(Model):
+    geocollection = TextField(null=True)
+    name = TextField(null=False)
+
+    def __str__(self):
+        return "Location {}: {}|{}".format(self.ids, self.geocollection, self.name)
+
+    def __lt__(self, other):
+        if not isinstance(other, Location):
+            raise TypeError
+        else:
+            return str(self) < str(other)
+
+    class Meta:
+        indexes = (
+            (('geocollection', 'name'), True),
+        )
+
+    @classmethod
+    def initial_data(cls):
+        Location.get_or_create(geocollection=None, name="GLO")
+
+
+class GeoMapping:
     """A dictionary that maps location codes to integers. Needed because parameter arrays have integer ``geo`` fields.
 
-    File data is stored in ``geomapping.pickle``.
+    File data is stored in SQLite database.
 
     This dictionary does not support setting items directly; instead, use the ``add`` method to add multiple keys."""
-
-    filename = "geomapping.pickle"
-
-    def __init__(self, *args, **kwargs):
-        super(GeoMapping, self).__init__(*args, **kwargs)
-        # At a minimum, "GLO" should always be present
-        if "GLO" not in self:
-            self.add(["GLO"])
+    def flush(self):
+        pass
 
     @writable_project
     def add(self, keys):
@@ -27,6 +64,7 @@ class GeoMapping(PickledDict):
             * *keys* (list): The keys to add.
 
         """
+
         index = max(self.data.values()) if self.data else 0
         for i, key in enumerate(keys):
             if key not in self.data:
