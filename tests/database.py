@@ -3,7 +3,10 @@ import datetime
 import warnings
 
 import numpy as np
+import pandas as pd
+from pandas.testing import assert_frame_equal
 import pytest
+from time import time
 
 from bw2data import geomapping, get_id, databases, Database
 from bw2data.backends import Activity as PWActivity
@@ -24,9 +27,8 @@ from bw2data.parameters import (
 )
 from bw2data.tests import bw2test
 
-from .fixtures import biosphere
+from .fixtures import biosphere, get_naughty, large_database
 from .fixtures import food as food_data
-from .fixtures import get_naughty
 
 
 @pytest.fixture
@@ -834,3 +836,35 @@ def test_add_geocollections_no_unable_for_product(capsys):
     )
     assert db.metadata["geocollections"] == ["foo"]
     assert "Not able" not in capsys.readouterr().out
+
+
+@bw2test
+def test_to_dataframe_sqlite():
+
+    # write dummy database
+    db = Database("large db", backend="sqlite")
+    db.write(large_database)
+
+    # measure duration of first call
+    t_start = time()
+    df = db.to_dataframe()
+    elapsed1 = time() - t_start
+
+    # measure duration of second call -> should be much faster
+    t_start = time()
+    df = db.to_dataframe()
+    elapsed2 = time() - t_start
+
+    # check if caching works
+    assert elapsed2 < elapsed1
+
+    # construct expected result
+    expected = pd.DataFrame(large_database).T.rename_axis(["database", "code"], axis=0).reset_index()
+    expected["id"] = expected["code"].astype(int)+1
+    # make sure same column and row order
+    expected = expected[df.columns].sort_values("id")
+    df = df.sort_values("id").reset_index(drop=True)
+
+    # check if expected result
+    assert_frame_equal(df, expected, check_dtype=False)
+    pass

@@ -125,3 +125,12 @@ get_naughty = lambda: [
     )
     if x[0] != "#"
 ]
+
+large_database = {
+    ("large db", str(i)): {
+        "name": f"name {i}",
+        "location": f"location {i}",
+        "reference product": f"product {i}",
+    }
+    for i in range(1000)
+}
