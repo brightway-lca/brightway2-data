@@ -8,7 +8,7 @@ import sqlite3
 import warnings
 from collections import defaultdict
 
-import pandas
+import pandas as pd
 import pyprind
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
@@ -777,7 +777,7 @@ class SQLiteBackend(ProcessedDataStore):
             ),
         )
         if csv:
-            df = pandas.DataFrame([get_csv_data_dict(ds) for ds in self])
+            df = pd.DataFrame([get_csv_data_dict(ds) for ds in self])
             dp.add_csv_metadata(
                 dataframe=df,
                 valid_for=[
