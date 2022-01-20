@@ -3,7 +3,6 @@ from . import (
     Method,
     Normalization,
     Weighting,
-    databases,
     methods,
     normalizations,
     projects,
@@ -12,6 +11,7 @@ from . import (
 from .backends.schema import ActivityDataset as AD
 from .backends.schema import get_id
 from .errors import Brightway2Project
+from .utils import clean_dirty_databases
 
 
 class Mapping:
@@ -71,7 +71,7 @@ def prepare_lca_inputs(
             "Please use `projects.migrate_project_25` before calculating using Brightway 2.5"
         )
 
-    databases.clean()
+    clean_dirty_databases()
     data_objs = []
     remapping_dicts = None
 

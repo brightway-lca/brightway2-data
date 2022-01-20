@@ -1,17 +1,18 @@
-from . import databases
-from .backends import SQLiteBackend
+from peewee import DoesNotExist
+from .backends import SQLiteBackend, DatabaseMetadata
 from .backends.iotable import IOTableBackend
 
 
 def DatabaseChooser(name, backend=None):
     """A method that returns a database class instance.
 
-    Database types are specified in `databases[database_name]['backend']`.
+    Database types are specified in `DatabaseMetdata.data['backend']`.
 
     """
-    if name in databases:
-        backend = databases[name].get("backend", backend or "sqlite")
-    else:
+    try:
+        dm = DatabaseMetadata.get(DatabaseMetadata.name == name)
+        backend = dm.data.get('backend', backend or "sqlite")
+    except DoesNotExist:
         backend = backend or "sqlite"
 
     # Backwards compatibility

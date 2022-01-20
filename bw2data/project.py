@@ -376,7 +376,7 @@ class ProjectManager(Iterable):
         """Give a report on current projects, including installed databases and file sizes.
 
         Returns tuples of ``(project name, number of databases, size of all databases (GB))``."""
-        from . import databases
+        from .backends import DatabaseMetadata as DM
 
         _current = self.current
         data = []
@@ -393,7 +393,7 @@ class ProjectManager(Iterable):
         names = sorted([x.name for x in self])
         for obj in names:
             self.set_current(obj, update=False, writable=False)
-            data.append((obj, len(databases), get_dir_size(projects.dir) / 1e9))
+            data.append((obj, DM.select().count(), get_dir_size(projects.dir) / 1e9))
         self.set_current(_current)
         return data
 

@@ -9,13 +9,13 @@ from pathlib import Path
 import numpy as np
 import pyprind
 from bw_processing import safe_filename
+from peewee import SchemaManager
 
 from . import (
     Database,
     Method,
     Normalization,
     Weighting,
-    databases,
     methods,
     normalizations,
     preferences,
@@ -23,6 +23,7 @@ from . import (
     weightings,
 )
 from .backends import sqlite3_lci_db
+from .backends.schema import ActivityDataset, ExchangeDataset
 
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
@@ -114,6 +115,11 @@ class Updates:
             "automatic": True,
             "explanation": "bw2data 4.0 release requires migrations filename changes",
         },
+        "4.0 index renaming": {
+            "method": "index_renaming",
+            "automatic": True,
+            "explanation": "Use peewee.SchemaManager instead of manual SQL",
+        }
     }
 
     @classmethod
@@ -173,6 +179,17 @@ class Updates:
         )
 
     @classmethod
+    def index_renaming(cls):
+        """Use built-in index management instead of manual SQL"""
+        with sqlite3_lci_db.transaction():
+            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "activitydataset_key"')
+            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_input"')
+            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_output"')
+            SchemaManager(ActivityDataset, database=sqlite3_lci_db.db).create_indexes(safe=True)
+            SchemaManager(ExchangeDataset, database=sqlite3_lci_db.db).create_indexes(safe=True)
+
+
+    @classmethod
     def reprocess_all_1_0(cls):
         """1.0: Reprocess all to make sure default 'loc' value inserted when not specified."""
         cls._reprocess_all()
@@ -189,10 +206,10 @@ class Updates:
     @classmethod
     def database_search_directories_20(cls):
         shutil.rmtree(projects.request_directory("whoosh"))
-        for db in databases:
-            if databases[db].get("searchable"):
-                databases[db]["searchable"] = False
-                print("Reindexing database {}".format(db))
+        for db in DatabaseMetadata.select():
+            if db.data.get("searchable"):
+                db.data["searchable"] = False
+                print("Reindexing database {}".format(db.name))
                 Database(db).make_searchable()
 
     @classmethod
@@ -239,7 +256,8 @@ class Updates:
             (methods, Method, "LCIA methods"),
             (weightings, Weighting, "LCIA weightings"),
             (normalizations, Normalization, "LCIA normalizations"),
-            (databases, Database, "LCI databases"),
+            # TODO: Fix for removing metadata files
+            # (DatabaseMetadata.select(), Database, "LCI databases"),
         ]
 
         for (meta, klass, name) in objects:

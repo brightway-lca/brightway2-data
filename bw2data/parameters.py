@@ -17,8 +17,8 @@ from peewee import (
     TextField,
 )
 
-from . import config, databases, get_activity, projects
-from .backends.schema import ExchangeDataset
+from . import config, get_activity, projects
+from .backends import ExchangeDataset, DatabaseMetadata as DM
 from .sqlite import PickleField, SubstitutableDatabase
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
@@ -847,7 +847,7 @@ class ActivityParameter(ParameterBase):
             exc.data["amount"] = interpreter(obj.formula)
             exc.save()
 
-        databases.set_dirty(ActivityParameter.get(group=group).database)
+        DM.get(DM.name == ActivityParameter.get(group=group).database).set_dirty()
 
     def save(self, *args, **kwargs):
         """Save this model instance"""
@@ -1101,7 +1101,7 @@ class Group(Model):
         super(Group, self).save(*args, **kwargs)
 
     def purge_order(self):
-        reserved = set(databases).union(set(["project"]))
+        reserved = {obj.name for obj in DM.select()}.union(set(["project"]))
         self.order = [x for x in self.order if x not in reserved]
 
     class Meta:
@@ -1119,7 +1119,7 @@ class GroupDependency(Model):
     def save(self, *args, **kwargs):
         if self.group == "project":
             raise ValueError("`project` group can't have dependencies")
-        elif self.group in databases and self.depends != "project":
+        elif DM.select(DM.name == self.group).count() and self.depends != "project":
             raise ValueError("Database groups can only depend on `project`")
         super(GroupDependency, self).save(*args, **kwargs)
 
@@ -1365,7 +1365,7 @@ class ParameterManager:
             }]
 
         """
-        assert database in databases, "Unknown database"
+        assert DM.select().where(DM.name == database).count(), "Unknown database"
 
         potentially_non_unique_names = [ds["name"] for ds in data]
         unique_names = list(set(potentially_non_unique_names))
@@ -1434,7 +1434,7 @@ class ParameterManager:
         """
         database = {o["database"] for o in data}
         assert len(database) == 1, "Multiple databases"
-        assert database.pop() in databases, "Unknown database"
+        assert DM.select().where(DM.name == database.pop()).count(), "Unknown database"
 
         potentially_non_unique_names = [o["name"] for o in data]
         unique_names = list(set(potentially_non_unique_names))
@@ -1602,12 +1602,12 @@ class ParameterManager:
         """Recalculate all expired project, database, and activity parameters, as well as exchanges."""
         if ProjectParameter.expired():
             ProjectParameter.recalculate()
-        for db in databases:
-            if DatabaseParameter.expired(db):
-                DatabaseParameter.recalculate(db)
+        for db in DM.select():
+            if DatabaseParameter.expired(db.name):
+                DatabaseParameter.recalculate(db.name)
         for obj in Group.select().where(Group.fresh == False):
             # Shouldn't be possible? Maybe concurrent access?
-            if obj.name in databases or obj.name == "project":
+            if DM.select().where(DM.name == obj.name).count() or obj.name == "project":
                 continue
             ActivityParameter.recalculate(obj.name)
 

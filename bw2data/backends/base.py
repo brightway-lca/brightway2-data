@@ -13,7 +13,7 @@ import pandas
 import pyprind
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
-from peewee import DoesNotExist, fn
+from peewee import DoesNotExist, fn, SchemaManager
 
 from .. import config, databases, geomapping
 from ..data_store import ProcessedDataStore
@@ -27,7 +27,7 @@ from ..errors import (
 from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_node, get_geocollection
+from ..utils import as_uncertainty_dict, get_node, get_activity, get_geocollection, MAX_SQLITE_PARAMETERS
 from . import sqlite3_lci_db
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
@@ -103,7 +103,7 @@ class SQLiteBackend(ProcessedDataStore):
     node_class = Activity
 
     def __init__(self, *args, **kwargs):
-        super(SQLiteBackend, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._filters = {}
         self._order_by = None
@@ -389,24 +389,6 @@ class SQLiteBackend(ProcessedDataStore):
 
     # Private methods
 
-    def _drop_indices(self):
-        with sqlite3_lci_db.transaction():
-            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "activitydataset_key"')
-            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_input"')
-            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_output"')
-
-    def _add_indices(self):
-        with sqlite3_lci_db.transaction():
-            sqlite3_lci_db.execute_sql(
-                'CREATE UNIQUE INDEX IF NOT EXISTS "activitydataset_key" ON "activitydataset" ("database", "code")'
-            )
-            sqlite3_lci_db.execute_sql(
-                'CREATE INDEX IF NOT EXISTS "exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")'
-            )
-            sqlite3_lci_db.execute_sql(
-                'CREATE INDEX IF NOT EXISTS "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")'
-            )
-
     def _efficient_write_dataset(self, index, key, ds, exchanges, activities):
         for exchange in ds.get("exchanges", []):
             if "input" not in exchange or "amount" not in exchange:
@@ -417,11 +399,11 @@ class SQLiteBackend(ProcessedDataStore):
             exchanges.append(dict_as_exchangedataset(exchange))
 
             # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
-            # SQLite3 has a limit of 999 variables,
-            # So 6 fields * 125 is under the limit
+            # SQLite3 has a limit of 999 or 32766 variables,
+            # Our table has 6 fields
             # Otherwise get the following:
             # peewee.OperationalError: too many SQL variables
-            if len(exchanges) > 125:
+            if len(exchanges) > (MAX_SQLITE_PARAMETERS // 6 - 1):
                 ExchangeDataset.insert_many(exchanges).execute()
                 exchanges = []
 
@@ -443,7 +425,8 @@ class SQLiteBackend(ProcessedDataStore):
     def _efficient_write_many_data(self, data, indices=True):
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
-            self._drop_indices()
+            SchemaManager(ActivityDataset, database=sqlite3_lci_db.db).drop_indexes(safe=True)
+            SchemaManager(ExchangeDataset, database=sqlite3_lci_db.db).drop_indexes(safe=True)
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
@@ -476,8 +459,8 @@ class SQLiteBackend(ProcessedDataStore):
             raise
         finally:
             sqlite3_lci_db.db.autocommit = True
-            if be_complicated:
-                self._add_indices()
+            SchemaManager(ActivityDataset, database=sqlite3_lci_db.db).create_indexes(safe=True)
+            SchemaManager(ExchangeDataset, database=sqlite3_lci_db.db).create_indexes(safe=True)
 
     # Public API
 

@@ -14,6 +14,7 @@ __all__ = [
     "geomapping",
     "IndexManager",
     "JsonWrapper",
+    "MAX_SQLITE_PARAMETERS",
     "mapping",
     "Method",
     "methods",
@@ -35,7 +36,7 @@ from .version import version as __version__
 
 from .configuration import config
 from .project import projects
-from .utils import set_data_dir
+from .utils import set_data_dir, MAX_SQLITE_PARAMETERS
 from .meta import (
     dynamic_calculation_setups,
     calculation_setups,
@@ -53,7 +54,6 @@ config.metadata.extend(
         dynamic_calculation_setups,
         calculation_setups,
         databases,
-        geomapping,
         methods,
         normalizations,
         preferences,

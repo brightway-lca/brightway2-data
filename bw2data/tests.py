@@ -6,7 +6,8 @@ import unittest
 
 import wrapt
 
-from . import config, databases, geomapping, methods
+from . import config, geomapping, methods
+from .backends import DatabaseMetadata, Location
 from .parameters import parameters
 from .project import projects
 
@@ -25,9 +26,9 @@ class BW2DataTest(unittest.TestCase):
         pass
 
     def test_setup_clean(self):
-        self.assertEqual(list(databases), [])
+        self.assertEqual(DatabaseMetadata.select().count(), 0)
         self.assertEqual(list(methods), [])
-        self.assertEqual(len(geomapping), 1)  # GLO
+        self.assertEqual(Location.select().count(), 1)  # GLO
         self.assertTrue("GLO" in geomapping)
         self.assertEqual(len(projects), 1)  # Default project
         self.assertTrue("default" in projects)

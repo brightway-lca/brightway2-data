@@ -1,3 +1,4 @@
+import sqlite3
 import collections
 import itertools
 import numbers
@@ -483,3 +484,22 @@ def get_geocollection(location, default_global_location=False):
         return "world"
     else:
         return None
+
+
+def get_max_sqlite_parameters():
+    # https://www.sqlite.org/limits.html#max_variable_number
+    if tuple([int(x) for x in sqlite3.sqlite_version.split(".")]) >= (3, 32, 0):
+        return 32766
+    else:
+        return 999
+
+
+MAX_SQLITE_PARAMETERS = get_max_sqlite_parameters()
+
+
+def clean_dirty_databases():
+    from . import Database
+    from .backends import DatabaseMetadata
+
+    for dd in DatabaseMetadata.select().where(DatabaseMetadata.dirty == True):
+        Database(dd.name).process()
