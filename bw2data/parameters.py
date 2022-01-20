@@ -1610,7 +1610,6 @@ class ParameterManager:
             if obj.name in databases or obj.name == "project":
                 continue
             ActivityParameter.recalculate(obj.name)
-            ActivityParameter.recalculate_exchanges(obj.name)
 
     def __len__(self):
         return (
