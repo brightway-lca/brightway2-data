@@ -3,14 +3,14 @@ import os
 from .. import config
 from ..project import projects
 from ..sqlite import SubstitutableDatabase
-from .schema import ActivityDataset, ExchangeDataset, get_id, Location, DatabaseMetadata
+from .schema import ActivityDataset, ExchangeDataset, get_id, Location
+from .base import SQLiteBackend
 
 sqlite3_lci_db = SubstitutableDatabase(
     projects.dir / "lci" / "databases.db",
-    [ActivityDataset, ExchangeDataset, Location, DatabaseMetadata],
+    [ActivityDataset, ExchangeDataset, Location, SQLiteBackend],
 )
 
-from .base import SQLiteBackend
 from .proxies import Activity, Exchange
 from .utils import convert_backend
 

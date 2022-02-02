@@ -72,7 +72,6 @@ class GeoMapping:
 class Databases:
     def increment_version(self, database, number=None):
         warnings.warn("This function is obsolete and has no effect", DeprecationWarning)
-        pass
 
     def version(self, database):
         warnings.warn("This function is obsolete and always returns -1", DeprecationWarning)
@@ -99,11 +98,7 @@ class Databases:
 
     def __delitem__(self, name):
         from . import Database
-        from .backends import DatabaseMetadata
-
-        dd = DatabaseMetadata.get(DatabaseMetadata.name == name)
         Database(name).delete(warn=False)
-        dd.delete_instance()
 
     def __contains__(self, name):
         from .backends import DatabaseMetadata
@@ -121,14 +116,18 @@ class Databases:
     def __iter__(self):
         from .backends import DatabaseMetadata
 
-        return DatabaseMetadata.select()
+        return(o[0] for o in DatabaseMetadata.select(DatabaseMetadata.name).tuples())
 
     def migrate_to_sqlite(self):
         from .backends import DatabaseMetadata
         from . import projects
 
-        data = json.load(open(projects.dir / "databases.json"))
-        Location.add_many(data.keys())
+        objs = json.load(open(projects.dir / "databases.json"))
+
+        for name, data in objs.items():
+            if "processed" in data:
+                del data['processed']
+            DatabaseMetadata.create(name=name, dirty=True, data=data)
 
 
 class CalculationSetups(PickledDict):

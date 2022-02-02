@@ -1,8 +1,7 @@
 import copy
-import datetime
 import itertools
 import pickle
-import pprint
+import datetime
 import random
 import sqlite3
 import warnings
@@ -13,12 +12,13 @@ import pandas
 import pyprind
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
-from peewee import DoesNotExist, fn, SchemaManager
+from peewee import DoesNotExist, fn, SchemaManager, Model, TextField, DateTimeField, BooleanField
 
 from .. import config, databases, geomapping
 from ..data_store import ProcessedDataStore
 from ..errors import (
     DuplicateNode,
+    InvalidExchange,
     InvalidExchange,
     UnknownObject,
     UntypedExchange,
@@ -30,7 +30,7 @@ from ..search import IndexManager, Searcher
 from ..utils import as_uncertainty_dict, get_node, get_activity, get_geocollection, MAX_SQLITE_PARAMETERS
 from . import sqlite3_lci_db
 from .proxies import Activity
-from .schema import ActivityDataset, ExchangeDataset, get_id
+from .schema import ActivityDataset, ExchangeDataset, get_id, Location
 from .utils import (
     check_exchange,
     dict_as_activitydataset,
@@ -38,11 +38,13 @@ from .utils import (
     get_csv_data_dict,
     retupleize_geo_strings,
 )
+from ..sqlite import JSONField
+
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
 
-class SQLiteBackend(ProcessedDataStore):
+class SQLiteBackend(ProcessedDataStore, Model):
     """
     A base class for SQLite backends.
 
@@ -96,20 +98,72 @@ class SQLiteBackend(ProcessedDataStore):
         *name* (unicode string): Name of the database to manage.
 
     """
-
-    _metadata = databases
     validator = None
     backend = "sqlite"
     node_class = Activity
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    name = TextField(null=False, unique=True)
+    metadata = JSONField(null=False, default={})
+    modified = DateTimeField(default=datetime.datetime.now)
+    dirty = BooleanField(default=True)
 
-        self._filters = {}
-        self._order_by = None
+    class Meta:
+        table_name = 'database_metadata'
+
+    def set_modified(self):
+        self.modified = datetime.datetime.now()
+        self.save()
+
+    def set_dirty(self):
+        self.dirty = True
+        self.save()
+
+    def __str__(self):
+        if self.id is None:
+            n = 0
+        else:
+            n = len(self)
+        return "SQLite3 Database {} with {} activities".format(self.name, n)
 
     ### Generic LCI backend methods
     ###############################
+
+    @property
+    def _metadata(self):
+        metadata = copy.copy(self.data)
+        metadata.update(**{'modified': self.modified, 'dirty': self.dirty})
+        return metadata
+
+    @property
+    def registered(self):
+        warnings.warn("Registration no longer exists as a separate concept", DeprecationWarning)
+        return self.id is not None
+
+    def register(self, write_empty=True, **kwargs):
+        """Legacy method to register a database with the metadata store.
+
+        Writing data automatically sets the following metadata:
+            * *depends*: Names of the databases that this database references, e.g. "biosphere"
+            * *number*: Number of processes in this database.
+
+        """
+        kwargs = {k: v for k, v in kwargs.items() if k not in ('dirty', 'modified', 'name')}
+        if "depends" not in kwargs:
+            kwargs["depends"] = []
+        kwargs["backend"] = self.backend
+
+        self.data = kwargs
+        self.save()
+
+        if write_empty:
+            self.write({})
+
+    def deregister(self):
+        """Legacy method to remove an object from the metadata store. Does not delete any data."""
+        warnings.warn("This method is obsolete; the metadata store has been removed as a separate item", DeprecationWarning)
+
+        if self.id is not None:
+            self.delete_instance()
 
     def copy(self, name):
         """Make a copy of the database.
@@ -120,14 +174,18 @@ class SQLiteBackend(ProcessedDataStore):
             * *name* (str): Name of the new database. Must not already exist.
 
         """
-        assert name not in databases, ValueError("This database exists")
-        data = self.relabel_data(copy.deepcopy(self.load()), name)
+        assert SQLiteBackend.select().where(SQLiteBackend.name == name).count(), ValueError(f"Database {name} already exists")
+        data = self.relabel_data(copy.copy(self.load()), name)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            new_database = self.__class__(name)
-            new_database.register(
-                format="Brightway2 copy",
-            )
+            new_database = self.__class__()
+
+            metadata = copy.copy(self.data)
+            metadata['format'] = "Brightway copy"
+
+            new_database.name = name
+            new_database.metadata = metadata
+            new_database.save()
 
         new_database.write(data)
         return new_database
@@ -136,7 +194,7 @@ class SQLiteBackend(ProcessedDataStore):
         raise NotImplementedError
 
     def filepath_processed(self):
-        if self.metadata.get("dirty"):
+        if self.dirty:
             self.process()
         return self.dirpath_processed() / self.filename_processed()
 
@@ -187,26 +245,6 @@ class SQLiteBackend(ProcessedDataStore):
     def query(self, *queries):
         """Search through the database."""
         return Query(*queries)(self.load())
-
-    def register(self, write_empty=True, **kwargs):
-        """Register a database with the metadata store.
-
-        Databases must be registered before data can be written.
-
-        Writing data automatically sets the following metadata:
-            * *depends*: Names of the databases that this database references, e.g. "biosphere"
-            * *number*: Number of processes in this database.
-
-        Args:
-            * *format* (str, optional): Format that the database was converted from, e.g. "Ecospold"
-
-        """
-        if "depends" not in kwargs:
-            kwargs["depends"] = []
-        kwargs["backend"] = self.backend
-        super().register(**kwargs)
-        if write_empty:
-            self.write({})
 
     def relabel_data(self, data, new_name):
         """Relabel database keys and exchanges.
@@ -274,25 +312,23 @@ class SQLiteBackend(ProcessedDataStore):
         )
 
     def rename(self, name):
-        """Rename a database. Modifies exchanges to link to new name. Deregisters old database.
+        """Rename a database. Modifies exchanges to link to new name.
 
         Args:
             * *name* (str): New name.
 
         Returns:
-            New ``Database`` object.
+            Nothing
 
         """
-        old_name = self.name
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            new_db = self.__class__(name)
-            databases[name] = databases[old_name]
-        new_data = self.relabel_data(self.load(), name)
-        new_db.write(new_data)
-        del databases[old_name]
-        self.name = name
-        return new_db
+        if self.id is None:
+            self.name = name
+        else:
+            new_data = self.relabel_data(self.load(), name)
+            self.name = name
+            self.write({})
+            self.write(new_data)
+            self.save()
 
     ### Iteration, filtering, and ordering
     ######################################
@@ -300,77 +336,46 @@ class SQLiteBackend(ProcessedDataStore):
     # Private methods
 
     def __iter__(self):
-        for ds in self._get_queryset():
+        for ds in self.get_queryset():
             yield self.node_class(ds)
 
     def __len__(self):
-        return self._get_queryset().count()
+        return self.get_queryset().count()
 
     def __contains__(self, obj):
-        return self._get_queryset(filters={"code": obj[1]}).count() > 0
+        try:
+            if isinstance(obj, int):
+                obj = ActivityDataset.get(ActivityDataset.id == obj)
+            else:
+                obj = ActivityDataset.get(ActivityDataset.database == obj[0], ActivityDataset.code == obj[1])
+        except DoesNotExist:
+            return False
+
+        return obj.database == self.name
 
     @property
     def _searchable(self):
-        return databases.get(self.name, {}).get("searchable", False)
+        return self.metadata.get('searchable', False)
 
-    def _get_queryset(self, random=False, filters=True):
+    def get_queryset(self, random=False):
         qs = ActivityDataset.select().where(ActivityDataset.database == self.name)
-        if filters:
-            if isinstance(filters, dict):
-                for key, value in filters.items():
-                    qs = qs.where(getattr(ActivityDataset, key) == value)
-            if self.filters:
-                print("Using the following database filters:")
-                pprint.pprint(self.filters)
-                for key, value in self.filters.items():
-                    qs = qs.where(getattr(ActivityDataset, key) == value)
-        if self.order_by and not random:
-            qs = qs.order_by(getattr(ActivityDataset, self.order_by))
-        else:
+        if random:
             qs = qs.order_by(fn.Random())
         return qs
 
-    def _get_filters(self):
-        return self._filters
+    # # Public API
 
-    def _set_filters(self, filters):
-        if not filters:
-            self._filters = {}
-        else:
-            print(
-                "Filters will effect all database queries"
-                " until unset (`.filters = None`)"
-            )
-            assert isinstance(filters, dict), "Filter must be a dictionary"
-            for key in filters:
-                assert key in _VALID_KEYS, "Filter key {} is invalid".format(key)
-                self._filters = filters
-        return self
-
-    def _get_order_by(self):
-        return self._order_by
-
-    def _set_order_by(self, field):
-        if not field:
-            self._order_by = None
-        else:
-            assert field in _VALID_KEYS, "order_by field {} is invalid".format(field)
-            self._order_by = field
-        return self
-
-    # Public API
-
-    filters = property(_get_filters, _set_filters)
-    order_by = property(_get_order_by, _set_order_by)
+    # filters = property(_get_filters, _set_filters)
+    # order_by = property(_get_order_by, _set_order_by)
 
     def random(self, filters=True, true_random=False):
         """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
             if true_random:
-                return self.node_class(self._get_queryset(random=True, filters=filters).get())
+                return self.node_class(self.get_queryset(random=True, filters=filters).get())
             else:
                 return self.node_class(
-                    self._get_queryset(filters=filters)
+                    self.get_queryset(filters=filters)
                     .offset(random.randint(0, len(self)))
                     .get()
                 )
@@ -423,6 +428,8 @@ class SQLiteBackend(ProcessedDataStore):
         return exchanges, activities
 
     def _efficient_write_many_data(self, data, indices=True):
+        from . import sqlite3_lci_db
+
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
             SchemaManager(ActivityDataset, database=sqlite3_lci_db.db).drop_indexes(safe=True)
@@ -463,8 +470,6 @@ class SQLiteBackend(ProcessedDataStore):
             SchemaManager(ExchangeDataset, database=sqlite3_lci_db.db).create_indexes(safe=True)
 
     # Public API
-
-    @writable_project
     def write(self, data, process=True):
         """Write ``data`` to database.
 
@@ -475,8 +480,6 @@ class SQLiteBackend(ProcessedDataStore):
             }
 
         Writing a database will first deletes all existing data."""
-        if self.name not in databases:
-            self.register(write_empty=False)
         wrong_database = {key[0] for key in data}.difference({self.name})
         if wrong_database:
             raise WrongDatabase(
@@ -485,9 +488,6 @@ class SQLiteBackend(ProcessedDataStore):
                 )
             )
 
-        databases[self.name]["number"] = len(data)
-
-        databases.set_modified(self.name)
         geocollections = {
             get_geocollection(x.get("location"))
             for x in data.values()
@@ -498,10 +498,13 @@ class SQLiteBackend(ProcessedDataStore):
                 "Not able to determine geocollections for all datasets. This database is not ready for regionalization."
             )
             geocollections.discard(None)
-        databases[self.name]["geocollections"] = sorted(geocollections)
         # processing will flush the database metadata
+        self.metadata["number"] = len(data)
+        self.metadata["geocollections"] = sorted(geocollections)
+        self.set_modified()
 
-        geomapping.add({x["location"] for x in data.values() if x.get("location")})
+        Location.add_many({x["location"] for x in data.values() if x.get("location")})
+
         if data:
             try:
                 self._efficient_write_many_data(data)
@@ -517,7 +520,7 @@ class SQLiteBackend(ProcessedDataStore):
 
     def load(self, *args, **kwargs):
         # Should not be used, in general; relatively slow
-        activities = [obj["data"] for obj in self._get_queryset().dicts()]
+        activities = [obj["data"] for obj in self.get_queryset().dicts()]
 
         activities = {(o["database"], o["code"]): o for o in activities}
         for o in activities.values():
@@ -534,7 +537,7 @@ class SQLiteBackend(ProcessedDataStore):
                 activities[exc["data"]["output"]]["exchanges"].append(exc["data"])
             except KeyError:
                 # This exchange not in the reduced set of activities returned
-                # by _get_queryset
+                # by get_queryset
                 pass
         return activities
 
@@ -567,27 +570,26 @@ class SQLiteBackend(ProcessedDataStore):
         obj.update(kwargs)
         return obj
 
-    @writable_project
     def make_searchable(self, reset=False):
-        if self.name not in databases:
-            raise UnknownObject("This database is not yet registered")
+        if self.id is None:
+            self.save()
         if self._searchable and not reset:
             print("This database is already searchable")
             return
-        databases[self.name]["searchable"] = True
-        databases.flush()
+        self.metadata["searchable"] = True
+        self.metadata.save()
         IndexManager(self.filename).delete_database()
         IndexManager(self.filename).add_datasets(self)
 
-    @writable_project
     def make_unsearchable(self):
-        databases[self.name]["searchable"] = False
-        databases.flush()
+        self.metadata.data["searchable"] = False
+        self.metadata.save()
         IndexManager(self.filename).delete_database()
 
-    @writable_project
     def delete(self, keep_params=False, warn=True):
         """Delete all data from SQLite database and Whoosh index"""
+        from . import sqlite3_lci_db
+
         if warn:
             MESSAGE = """
             Please use `del databases['{}']` instead.
@@ -632,6 +634,10 @@ class SQLiteBackend(ProcessedDataStore):
         if vacuum_needed:
             sqlite3_lci_db.vacuum()
 
+        if self.id is not None:
+            self.delete_instance()
+            self.id = None
+
     def exchange_data_iterator(self, sql, dependents, flip=False):
         """Iterate over exchanges and format for ``bw_processing`` arrays.
 
@@ -640,6 +646,8 @@ class SQLiteBackend(ProcessedDataStore):
         ``flip`` means flip the numeric sign; see ``bw_processing`` docs.
 
         Uses raw sqlite3 to retrieve data for ~2x speed boost."""
+        from . import sqlite3_lci_db
+
         connection = sqlite3.connect(sqlite3_lci_db._filepath)
         cursor = connection.cursor()
         for line in cursor.execute(sql, (self.name,)):
@@ -685,7 +693,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         """
         # Try to avoid race conditions - but no guarantee
-        self.metadata["processed"] = datetime.datetime.now().isoformat()
+        self.metadata.set_modified()
 
         # Get number of exchanges and processes to set
         # initial Numpy array size (still have to include)
@@ -806,9 +814,9 @@ class SQLiteBackend(ProcessedDataStore):
 
         dp.finalize_serialization()
 
-        self.metadata["depends"] = sorted(dependents)
-        self.metadata["dirty"] = False
-        self._metadata.flush()
+        self.metadata.data["depends"] = sorted(dependents)
+        self.metadata.dirty = False
+        self.metadata.save()
 
     def search(self, string, **kwargs):
         """Search this database for ``string``.

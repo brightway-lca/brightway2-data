@@ -1,5 +1,9 @@
 # Changelog
 
+### DEV
+
+`SQLiteBackend.rename()` no longer returns anything, as we don't need to create a new `Database` object
+
 ## 4.0.DEV18 (2022-08-19)
 
 * Add `Exchanges.to_dataframe`

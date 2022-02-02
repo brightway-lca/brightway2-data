@@ -19,7 +19,6 @@ class DataStore:
     """
 
     validator = None
-    _metadata = None
     _intermediate_dir = "intermediate"
 
     def __init__(self, name):
@@ -30,21 +29,6 @@ class DataStore:
 
     __repr__ = lambda self: str(self)
 
-    def _get_metadata(self):
-        if self.name not in self._metadata:
-            raise UnknownObject(
-                "This object is not yet registered; can't get or set metadata"
-            )
-        return self._metadata[self.name]
-
-    @writable_project
-    def _set_metadata(self, value):
-        self._get_metadata()
-        self._metadata[self.name] = value
-        self._metadata.flush()
-
-    metadata = property(_get_metadata, _set_metadata)
-
     @property
     def filename(self):
         """Remove filesystem-unsafe characters and perform unicode normalization on ``self.name`` using :func:`.filesystem.safe_filename`."""
@@ -52,22 +36,17 @@ class DataStore:
 
     @property
     def registered(self):
-        return self.name in self._metadata
+        return bool(self.id)
 
     def register(self, **kwargs):
         """Register an object with the metadata store. Takes any number of keyword arguments."""
-
-        @writable_project
-        def _register(kwargs):
-            self._metadata[self.name] = kwargs
-
-        if not self.registered:
-            _register(kwargs)
+        pass
 
     @writable_project
     def deregister(self):
         """Remove an object from the metadata store. Does not delete any files."""
-        del self._metadata[self.name]
+        self.delete_instance()
+        self.id = None
 
     def load(self):
         """Load the intermediate data for this object.

@@ -4,6 +4,7 @@ __all__ = [
     "config",
     "convert_backend",
     "Database",
+    "DatabaseMetadata",
     "databases",
     "DataStore",
     "Edge",
@@ -14,6 +15,7 @@ __all__ = [
     "geomapping",
     "IndexManager",
     "JsonWrapper",
+    'Location',
     "MAX_SQLITE_PARAMETERS",
     "mapping",
     "Method",
@@ -53,7 +55,6 @@ config.metadata.extend(
     [
         dynamic_calculation_setups,
         calculation_setups,
-        databases,
         methods,
         normalizations,
         preferences,
@@ -71,7 +72,7 @@ from .data_store import DataStore, ProcessedDataStore
 from .method import Method
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
-from .backends import convert_backend, get_id, Node, Edge
+from .backends import convert_backend, get_id, Node, Edge, Location, DatabaseMetadata
 from .compat import prepare_lca_inputs, Mapping
 from .backends.wurst_extraction import extract_brightway_databases
 

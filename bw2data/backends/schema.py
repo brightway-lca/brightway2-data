@@ -1,10 +1,9 @@
-import datetime
 import itertools
 
-from peewee import DoesNotExist, Model, TextField, chunked, DateTimeField, BooleanField
+from peewee import DoesNotExist, Model, TextField, chunked
 
 from ..errors import UnknownObject
-from ..sqlite import PickleField, JSONField
+from ..sqlite import PickleField
 from .. import MAX_SQLITE_PARAMETERS
 
 
@@ -25,6 +24,7 @@ class ActivityDataset(Model):
         indexes = (
             (('database', 'code'), True),
         )
+        legacy_table_names=True
 
 
 class ExchangeDataset(Model):
@@ -40,6 +40,7 @@ class ExchangeDataset(Model):
             (("input_database", "input_code"), False),
             (("output_database", "output_code"), False),
         )
+        legacy_table_names=True
 
 
 def get_id(key):
@@ -112,25 +113,3 @@ class Location(Model):
             raise ValueError(f"Geomapping keys can only be strings or tuples; got: {other_keys}")
 
         return reformatted
-
-
-class DatabaseMetadata(Model):
-    name = TextField(null=False)
-    data = JSONField(null=False, default={})
-    modified = DateTimeField(default=datetime.datetime.now)
-    dirty = BooleanField(default=True)
-
-    def set_modified(self):
-        self.modified = datetime.datetime.now()
-        self.save()
-
-    def set_dirty(self):
-        self.dirty = True
-        self.save()
-
-    @staticmethod
-    def __contains__(name):
-        return bool(DatabaseMetadata.select().where(DatabaseMetadata.name == name).count())
-
-    def __str__(self):
-        return "Database metadata object for {} (modified: {}, dirty: {})".format(self.name, self.modified.isoformat(), self.dirty)
