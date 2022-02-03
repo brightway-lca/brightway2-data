@@ -7,6 +7,7 @@ import random
 import re
 import string
 import urllib
+import hashlib
 import warnings
 import webbrowser
 import zipfile
@@ -503,3 +504,27 @@ def clean_dirty_databases():
 
     for dd in DatabaseMetadata.select().where(DatabaseMetadata.dirty == True):
         Database(dd.name).process()
+
+
+def abbreviate(names, length=8):
+    """Take a tuple or list, and construct a string, doing the following:
+
+    First, apply :func:`.filesystem.safe_filename` to each element in ``names``.
+
+    Next, take the following, in order:
+        * The first word of the first element in names, lower-cased, where word is defined as everything up to the first empty space character.
+        * Join the rest of the first element (i.e. after the first word) with all other elements. Use the empty space character to join.
+        * In this long string separated by spaces, take the lowercase first character of each word. Add the first word to this new string.
+        * Finally, add a dash, and then the MD5 hash of the entire identifier, where each element is joined by a dash character.
+
+    ``('ReCiPe Endpoint (E,A)', 'human health', 'ionising radiation')`` becomes ``'recipee(hhir-70eeef20a20deb6347ad428e3f6c5f3c'``.
+
+    The MD5 hash is needed because taking the first characters doesn't guarantee unique strings.
+
+    """
+    safe_names = [safe_filename(x, False) for x in names]
+    abbrev = lambda x: x if x[0] in string.digits else x[0].lower()
+    name = " ".join(safe_names).split(" ")[0].lower() + "".join(
+        [abbrev(x) for x in " ".join(safe_names).split(" ")[1:]]
+    )
+    return name + "." + str(hashlib.md5(("-".join(names)).encode("utf-8")).hexdigest())
