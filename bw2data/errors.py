@@ -58,12 +58,6 @@ class WrongDatabase(BW2Exception):
     pass
 
 
-class ReadOnlyProject(BW2Exception):
-    """Current project is read only"""
-
-    pass
-
-
 class NotFound(BW2Exception):
     """Requested web resource not found"""
 

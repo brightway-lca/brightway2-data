@@ -1,25 +1,21 @@
-import pickle
+import copy
 
 from bw_processing import clean_datapackage_name, create_datapackage, safe_filename, load_datapackage
 from fs.zipfs import ZipFS
 
 from . import projects
-from .errors import MissingIntermediateData, UnknownObject
-from .fatomic import open as atomic_open
-from .project import writable_project
 
 
-class DataStore:
+class ProcessedDataStore:
     """
-    Base class for all Brightway2 data stores. Subclasses should define:
+    Brightway2 data stores that can be processed to NumPy arrays.
 
-        * **metadata**: A :ref:`serialized-dict` instance, e.g. ``databases`` or ``methods``. The custom is that each type of data store has a new metadata store, so the data store ``Foo`` would have a metadata store ``foos``.
-        * **validator**: A data validator. Optional. See bw2data.validate.
+    In addition to ``metadata`` and (optionally) ``validator``. This method takes the entire dataset, and loads objects to :ref:`geomapping` as needed.
 
     """
 
+    matrix = "unknown"
     validator = None
-    _intermediate_dir = "intermediate"
 
     def __init__(self, name):
         self.name = name
@@ -36,13 +32,13 @@ class DataStore:
 
     @property
     def registered(self):
+        """Obsolete method kept for backwards compatibility."""
         return bool(self.id)
 
     def register(self, **kwargs):
-        """Register an object with the metadata store. Takes any number of keyword arguments."""
+        """Obsolete method kept for backwards compatibility."""
         pass
 
-    @writable_project
     def deregister(self):
         """Remove an object from the metadata store. Does not delete any files."""
         self.delete_instance()
@@ -51,23 +47,11 @@ class DataStore:
     def load(self):
         """Load the intermediate data for this object.
 
-        Returns:
-            The intermediate data.
+        Must be defined in subclasses.
 
         """
-        if not self.registered:
-            raise UnknownObject("This object is not registered and has no data")
-        try:
-            return pickle.load(
-                open(
-                    projects.dir / "intermediate" / (self.filename + ".pickle"),
-                    "rb",
-                )
-            )
-        except OSError:
-            raise MissingIntermediateData("Can't load intermediate data")
+        raise NotImplementedError
 
-    @writable_project
     def copy(self, name):
         """Make a copy of this object with a new ``name``.
 
@@ -80,9 +64,12 @@ class DataStore:
             The new object.
 
         """
-        assert name not in self._metadata, "%s already exists" % name
-        new_obj = self.__class__(name)
-        new_obj.register(**self.metadata)
+        assert not self.select().where(self.name == name).count(), f"{name} already exists"
+        new_obj = self.__class__()
+        new_obj.name = name
+        new_obj.data = copy.copy(self.data)
+        new_obj.data['format'] = "Brightway copy"
+        new_obj.save()
         new_obj.write(self.load())
         return new_obj
 
@@ -100,34 +87,21 @@ class DataStore:
         except ImportError:
             print("bw2io not installed")
 
-    @writable_project
-    def write(self, data):
-        """Serialize intermediate data to disk.
+    def write(self, data, process=True):
+        """Write associated object data (e.g. activities, CFs) to disk
+
+        Must be defined in subclasses.
 
         Args:
             * *data* (object): The data
 
         """
-        self.register()
-        filepath = projects.dir / self._intermediate_dir / (self.filename + ".pickle")
-        with atomic_open(filepath, "wb") as f:
-            pickle.dump(data, f, protocol=4)
+        raise NotImplementedError
 
     def validate(self, data):
         """Validate data. Must be called manually."""
         self.validator(data)
         return True
-
-
-class ProcessedDataStore(DataStore):
-    """
-    Brightway2 data stores that can be processed to NumPy arrays.
-
-    In addition to ``metadata`` and (optionally) ``validator``, subclasses should override ``add_geomappings``. This method takes the entire dataset, and loads objects to :ref:`geomapping` as needed.
-
-    """
-
-    matrix = "unknown"
 
     def dirpath_processed(self):
         return projects.dir / "processed"
@@ -140,22 +114,6 @@ class ProcessedDataStore(DataStore):
 
     def datapackage(self):
         return load_datapackage(ZipFS(self.filepath_processed()))
-
-    @writable_project
-    def write(self, data, process=True):
-        """Serialize intermediate data to disk.
-
-        Args:
-            * *data* (object): The data
-
-        """
-        self.register()
-        self.add_geomappings(data)
-        filepath = projects.dir / self._intermediate_dir / (self.filename + ".pickle")
-        with atomic_open(filepath, "wb") as f:
-            pickle.dump(data, f, protocol=4)
-        if process:
-            self.process()
 
     def process_row(self, row):
         """Translate data into a dictionary suitable for array inputs.
@@ -189,17 +147,3 @@ class ProcessedDataStore(DataStore):
             **extra_metadata
         )
         dp.finalize_serialization()
-
-    def add_geomappings(self, data):
-        """Add objects to ``geomapping``, if necessary.
-
-        Args:
-            * *data* (object): The data
-
-        """
-        return
-
-    def validate(self, data):
-        """Validate data. Must be called manually."""
-        self.validator(data)
-        return True

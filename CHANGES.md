@@ -2,7 +2,10 @@
 
 ### DEV
 
-`SQLiteBackend.rename()` no longer returns anything, as we don't need to create a new `Database` object
+* `SQLiteBackend.rename()` no longer returns anything, as we don't need to create a new `Database` object
+* `projects.writable_project` is removed
+* `.filepath_intermediate` doesn't have any meaning for the data we use, and is removed
+* Database.get() changed to Database.get_activity
 
 ## 4.0.DEV18 (2022-08-19)
 

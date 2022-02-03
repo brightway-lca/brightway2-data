@@ -7,6 +7,7 @@ import sqlite3
 import warnings
 from collections import defaultdict
 from typing import Callable, List, Optional
+import uuid
 
 import pandas
 import pyprind
@@ -14,7 +15,7 @@ from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn, SchemaManager, Model, TextField, DateTimeField, BooleanField
 
-from .. import config, databases, geomapping
+from .. import config
 from ..data_store import ProcessedDataStore
 from ..errors import (
     DuplicateNode,
@@ -103,12 +104,18 @@ class SQLiteBackend(ProcessedDataStore, Model):
     node_class = Activity
 
     name = TextField(null=False, unique=True)
+    backend = TextField(null=False)
     metadata = JSONField(null=False, default={})
     modified = DateTimeField(default=datetime.datetime.now)
     dirty = BooleanField(default=True)
 
     class Meta:
         table_name = 'database_metadata'
+
+    def __init__(self, *args, **kwargs):
+        if 'backend' not in kwargs:
+            self.backend = self.backend_string
+        super().__init__(*args, **kwargs)
 
     def set_modified(self):
         self.modified = datetime.datetime.now()
@@ -119,10 +126,7 @@ class SQLiteBackend(ProcessedDataStore, Model):
         self.save()
 
     def __str__(self):
-        if self.id is None:
-            n = 0
-        else:
-            n = len(self)
+        n = 0 if self.id is None else len(self)
         return "SQLite3 Database {} with {} activities".format(self.name, n)
 
     ### Generic LCI backend methods
@@ -130,6 +134,7 @@ class SQLiteBackend(ProcessedDataStore, Model):
 
     @property
     def _metadata(self):
+        warnings.warn("Metadata is now stored directly on database objects", DeprecationWarning)
         metadata = copy.copy(self.data)
         metadata.update(**{'modified': self.modified, 'dirty': self.dirty})
         return metadata
@@ -147,6 +152,7 @@ class SQLiteBackend(ProcessedDataStore, Model):
             * *number*: Number of processes in this database.
 
         """
+        warnings.warn("Registration is no longer necessary, save the metadata directly on the database object", DeprecationWarning)
         kwargs = {k: v for k, v in kwargs.items() if k not in ('dirty', 'modified', 'name')}
         if "depends" not in kwargs:
             kwargs["depends"] = []
@@ -178,7 +184,7 @@ class SQLiteBackend(ProcessedDataStore, Model):
         data = self.relabel_data(copy.copy(self.load()), name)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            new_database = self.__class__()
+            new_database = SQLiteBackend()
 
             metadata = copy.copy(self.data)
             metadata['format'] = "Brightway copy"
@@ -189,9 +195,6 @@ class SQLiteBackend(ProcessedDataStore, Model):
 
         new_database.write(data)
         return new_database
-
-    def filepath_intermediate(self):
-        raise NotImplementedError
 
     def filepath_processed(self):
         if self.dirty:
@@ -231,10 +234,11 @@ class SQLiteBackend(ProcessedDataStore, Model):
             A set of database names
 
         """
+        from ..database import DatabaseChooser
 
-        def extend(seeds):
+        def extend(names):
             return set.union(
-                seeds, set.union(*[set(databases[obj]["depends"]) for obj in seeds])
+                names, set.union(*[set(DatabaseChooser(name).metadata.get('depends', []) for name in names)])
             )
 
         seed, extended = {self.name}, extend({self.name})
@@ -326,7 +330,9 @@ class SQLiteBackend(ProcessedDataStore, Model):
         else:
             new_data = self.relabel_data(self.load(), name)
             self.name = name
-            self.write({})
+
+            # TBD: This doesn't work with parameterization
+            self.write({})  # Purge any existing data
             self.write(new_data)
             self.save()
 
@@ -352,10 +358,6 @@ class SQLiteBackend(ProcessedDataStore, Model):
             return False
 
         return obj.database == self.name
-
-    @property
-    def _searchable(self):
-        return self.metadata.get('searchable', False)
 
     def get_queryset(self, random=False):
         qs = ActivityDataset.select().where(ActivityDataset.database == self.name)
@@ -383,7 +385,7 @@ class SQLiteBackend(ProcessedDataStore, Model):
             warnings.warn("This database is empty")
             return None
 
-    def get(self, code=None, **kwargs):
+    def get_activity(self, code=None, **kwargs):
         kwargs["database"] = self.name
         if code is not None:
             kwargs["code"] = code
@@ -470,7 +472,7 @@ class SQLiteBackend(ProcessedDataStore, Model):
             SchemaManager(ExchangeDataset, database=sqlite3_lci_db.db).create_indexes(safe=True)
 
     # Public API
-    def write(self, data, process=True):
+    def write(self, data, process=True, searchable=True):
         """Write ``data`` to database.
 
         ``data`` must be a dictionary of the form::
@@ -510,10 +512,11 @@ class SQLiteBackend(ProcessedDataStore, Model):
                 self._efficient_write_many_data(data)
             except:
                 # Purge all data from database, then reraise
-                self.delete(warn=False)
+                self.delete()
                 raise
 
-        self.make_searchable(reset=True)
+        if searchable:
+            self.make_searchable(reset=True)
 
         if process:
             self.process()
@@ -541,13 +544,11 @@ class SQLiteBackend(ProcessedDataStore, Model):
                 pass
         return activities
 
-    def new_activity(self, code, **kwargs):
-        return self.new_node(code, **kwargs)
-
-    def new_node(self, code, **kwargs):
+    def new_node(self, code=None, **kwargs):
         obj = self.node_class()
         obj["database"] = self.name
         obj["code"] = str(code)
+        obj["code"] = str(code or uuid.uuid4().hex)
 
         if (
             ActivityDataset.select()
@@ -566,37 +567,31 @@ class SQLiteBackend(ProcessedDataStore, Model):
         ):
             raise DuplicateNode("Node with this id already exists")
 
-        obj["location"] = config.global_location
         obj.update(kwargs)
         return obj
+
+    def new_activity(self, code=None, **kwargs):
+        return self.new_node(code=code, **kwargs)
 
     def make_searchable(self, reset=False):
         if self.id is None:
             self.save()
-        if self._searchable and not reset:
+        if self.metadata.get('searchable') and not reset:
             print("This database is already searchable")
             return
         self.metadata["searchable"] = True
-        self.metadata.save()
+        self.save()
         IndexManager(self.filename).delete_database()
         IndexManager(self.filename).add_datasets(self)
 
     def make_unsearchable(self):
-        self.metadata.data["searchable"] = False
-        self.metadata.save()
+        self.metadata["searchable"] = False
+        self.save()
         IndexManager(self.filename).delete_database()
 
-    def delete(self, keep_params=False, warn=True):
+    def delete(self, keep_params=False, warn=True, delete_instance=True):
         """Delete all data from SQLite database and Whoosh index"""
         from . import sqlite3_lci_db
-
-        if warn:
-            MESSAGE = """
-            Please use `del databases['{}']` instead.
-            Otherwise, the metadata and database get out of sync.
-            Call `.delete(warn=False)` to skip this message in the future.
-            """
-            warnings.warn(MESSAGE.format(self.name), UserWarning)
 
         vacuum_needed = len(self) > 500
 
@@ -634,7 +629,7 @@ class SQLiteBackend(ProcessedDataStore, Model):
         if vacuum_needed:
             sqlite3_lci_db.vacuum()
 
-        if self.id is not None:
+        if delete_instance and self.id is not None:
             self.delete_instance()
             self.id = None
 
@@ -692,9 +687,6 @@ class SQLiteBackend(ProcessedDataStore, Model):
         Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         """
-        # Try to avoid race conditions - but no guarantee
-        self.metadata.set_modified()
-
         # Get number of exchanges and processes to set
         # initial Numpy array size (still have to include)
         # implicit production exchanges
@@ -814,9 +806,10 @@ class SQLiteBackend(ProcessedDataStore, Model):
 
         dp.finalize_serialization()
 
-        self.metadata.data["depends"] = sorted(dependents)
-        self.metadata.dirty = False
-        self.metadata.save()
+        self.metadata["depends"] = sorted(dependents)
+        self.modified = datetime.datetime.now()
+        self.dirty = False
+        self.save()
 
     def search(self, string, **kwargs):
         """Search this database for ``string``.
@@ -874,8 +867,10 @@ class SQLiteBackend(ProcessedDataStore, Model):
     def graph_technosphere(self, filename=None, **kwargs):
         from bw2analyzer.matrix_grapher import SparseMatrixGrapher
         from bw2calc import LCA
+        from .compat import prepare_lca_inputs
 
-        lca = LCA({self.random(): 1})
+        fu, objs, _ = prepare_lca_inputs({self.random(): 1}, remapping=False)
+        lca = LCA(demand=fu, data_objs=objs)
         lca.lci()
 
         smg = SparseMatrixGrapher(lca.technosphere_matrix)

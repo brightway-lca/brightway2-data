@@ -1,5 +1,5 @@
 from peewee import DoesNotExist
-from .backends import SQLiteBackend, DatabaseMetadata
+from .backends import SQLiteBackend
 from .backends.iotable import IOTableBackend
 
 
@@ -9,19 +9,17 @@ def DatabaseChooser(name, backend=None):
     Database types are specified in `DatabaseMetdata.data['backend']`.
 
     """
-    try:
-        dm = DatabaseMetadata.get(DatabaseMetadata.name == name)
-        backend = dm.data.get('backend', backend or "sqlite")
-    except DoesNotExist:
-        backend = backend or "sqlite"
+    if backend not in ("sqlite", "iotable"):
+        raise ValueError("Please instantiate non-standard databases manually")
 
-    # Backwards compatibility
-    if backend == "sqlite":
-        return SQLiteBackend(name)
-    elif backend == "iotable":
-        return IOTableBackend(name)
-    else:
-        raise ValueError("Backend {} not found".format(backend))
+    try:
+        db = SQLiteBackend.get(SQLiteBackend.name == name)
+    except DoesNotExist:
+        raise KeyError(f"Can't find database {name}")
+
+    if db.backend == 'iotable':
+        db = IOTableBackend.get(IOTableBackend.name == name)
+    return db
 
 
 # Backwards compatibility

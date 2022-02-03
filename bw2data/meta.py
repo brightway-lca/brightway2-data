@@ -16,14 +16,14 @@ from fasteners import InterProcessLock
 from peewee import BooleanField, DoesNotExist, Model, TextField, chunked
 
 from . import config
-from .errors import ReadOnlyProject
 from .filesystem import create_dir
 from .sqlite import PickleField, SubstitutableDatabase
 from .utils import maybe_path
+from .database import DatabaseChooser
+from .backends import SQLiteBackend
 
 import datetime
 
-from .project import writable_project
 from .serialization import CompoundJSONDict, PickledDict, SerializedDict
 
 
@@ -46,14 +46,14 @@ class GeoMapping:
     def delete(self, keys):
         from .backends import Location
 
-        warnings.warn("Use `Location.add_many` instead", DeprecationWarning)
+        warnings.warn("Use `Location.delete_many` instead", DeprecationWarning)
         Location.delete_many(keys)
 
     def __setitem__(self, key, value):
         raise NotImplementedError
 
     def __str__(self):
-        return "Obsolete mapping from databases and methods to indices"
+        return "Obsolete mapping from database and method locations to indices"
 
     def __len__(self):
         from .backends import Location
@@ -61,11 +61,13 @@ class GeoMapping:
         warnings.warn("Use `len(Location)` instead", DeprecationWarning)
         return Location.select().count()
 
-    def migrate_to_sqlite(self):
+    def migrate_to_sqlite(self, reset=True):
         from . import projects
         from .backends import Location
 
         data = pickle.load(open(projects.dir / "geomapping.pickle", "rb"))
+        if reset:
+            Location.delete().execute()
         Location.add_many(data.keys())
 
 
@@ -78,56 +80,56 @@ class Databases:
         return -1
 
     def set_modified(self, database):
-        from .backends import DatabaseMetadata
-        DatabaseMetadata.get(DatabaseMetadata.name == database).set_modified()
+        warnings.warn("Use `Database.set_modified()` instead", DeprecationWarning)
+
+        from .database import DatabaseChooser
+        DatabaseChooser(database).set_modified()
 
     def set_dirty(self, database):
-        from .backends import DatabaseMetadata
-        DatabaseMetadata.get(DatabaseMetadata.name == database).set_dirty()
+        warnings.warn("Use `Database.set_dirty()` instead", DeprecationWarning)
+
+        from .database import DatabaseChooser
+        DatabaseChooser(database).set_dirty()
 
     def clean(self):
-        from . import Database
-        from .backends import DatabaseMetadata
+        from .database import DatabaseChooser
+        from .backends import SQLiteBackend
 
-        for dd in DatabaseMetadata.select().where(DatabaseMetadata.dirty == True):
-            Database(dd.name).process()
+        for db in SQLiteBackend.select().where(SQLiteBackend.dirty == True):
+            DatabaseChooser(db.name).process()
 
     def __getitem__(self, name):
-        from .backends import DatabaseMetadata
-        return DatabaseMetadata.get(DatabaseMetadata.name == name)
+        warnings.warn("Use `Database.metadata` instead", DeprecationWarning)
+        return DatabaseChooser(name).metadata
 
     def __delitem__(self, name):
-        from . import Database
-        Database(name).delete(warn=False)
+        warnings.warn("Use `Database.delete()` instead", DeprecationWarning)
+        DatabaseChooser(name).delete()
 
     def __contains__(self, name):
-        from .backends import DatabaseMetadata
-
-        return bool(DatabaseMetadata.select().where(DatabaseMetadata.name == name).count())
+        return bool(SQLiteBackend.select().where(SQLiteBackend.name == name).count())
 
     def __str__(self):
-        return "Obsolete databases metadatastore. Use `DatabaseMetadata` methods instead."
+        return "Obsolete database metadata store. Use `Database.metadata` instead."
 
     def __len__(self):
-        from .backends import DatabaseMetadata
-
-        return DatabaseMetadata.select().count()
+        return SQLiteBackend.select().count()
 
     def __iter__(self):
-        from .backends import DatabaseMetadata
-
-        return(o[0] for o in DatabaseMetadata.select(DatabaseMetadata.name).tuples())
+        return (obj.name for obj in SQLiteBackend.select())
 
     def migrate_to_sqlite(self):
-        from .backends import DatabaseMetadata
         from . import projects
 
         objs = json.load(open(projects.dir / "databases.json"))
 
-        for name, data in objs.items():
-            if "processed" in data:
-                del data['processed']
-            DatabaseMetadata.create(name=name, dirty=True, data=data)
+        for name, metadata in objs.items():
+            if "processed" in metadata:
+                del metadata['processed']
+            backend = metadata.pop('backend', 'sqlite')
+
+            # A bit of a hack, but this will also work for IOTables
+            SQLiteBackend.create(name=name, dirty=True, backend=backend, metadata=metadata)
 
 
 class CalculationSetups(PickledDict):
@@ -140,18 +142,6 @@ class CalculationSetups(PickledDict):
     """
 
     filename = "setups.pickle"
-
-
-class DynamicCalculationSetups(PickledDict):
-    """A dictionary for Dynamic calculation setups.
-
-    Keys:
-    * `inv`: List of functional units, e.g. ``[{(key): amount}, {(key): amount}]``
-    * `ia`: Dictionary of orst case LCIA method and the relative dynamic LCIA method, e.g. `` [{dLCIA_method_1_worstcase:dLCIA_method_1 , dLCIA_method_2_worstcase:dLCIA_method_2}]``.
-
-    """
-
-    filename = "dynamicsetups.pickle"
 
 
 class Methods(CompoundJSONDict):
