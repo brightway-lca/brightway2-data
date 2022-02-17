@@ -1,5 +1,9 @@
 # Changelog
 
+### 3.6.3 (2022-02-17)
+
+* Fix import error for Py 3.10
+
 ### 3.6.2 (2019-11-11)
 
 * Fixed invalid variable name creation
