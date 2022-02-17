@@ -1,5 +1,9 @@
 # Changelog
 
+### 3.6.4 (2022-02-17)
+
+* Fix more import errors for `collections.abc`
+
 ### 3.6.3 (2022-02-17)
 
 * Fix import error for Py 3.10
