@@ -9,7 +9,6 @@ from .project import safe_filename
 from contextlib import contextmanager
 from future.utils import PY2
 from io import StringIO
-import collections
 import datetime
 import itertools
 import os
@@ -22,6 +21,10 @@ import urllib
 import webbrowser
 import zipfile
 import sys
+try:
+    from collections.abc import Iterable, Mapping
+except ImportError:
+    from collections import Iterable, Mapping
 
 
 # Maximum value for unsigned integer stored in 4 bytes
@@ -166,13 +169,13 @@ def recursive_str_to_unicode(data, encoding="utf8"):
         return data
     elif isinstance(data, bytes):
         return str(data, encoding)  # Faster than str.encode
-    elif isinstance(data, collections.Mapping):
+    elif isinstance(data, Mapping):
         return dict(map(
             recursive_str_to_unicode,
             data.items(),
             itertools.repeat(encoding)
         ))
-    elif isinstance(data, collections.Iterable):
+    elif isinstance(data, Iterable):
         return type(data)(map(
             recursive_str_to_unicode,
             data,

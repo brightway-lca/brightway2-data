@@ -13,12 +13,15 @@ from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset, dict_as_exchangedataset
 from future.utils import implements_iterator
 import copy
-import collections
 import warnings
 import uuid
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 
 
-class Exchanges(collections.Iterable):
+class Exchanges(Iterable):
     """Iterator for exchanges with some additional methods.
 
     This is not a generator; ``next()`` is not supported. Everything time you start to iterate over the object you get a new list starting from the beginning. However, to get a single item you can do ``next(iter(foo))``.
