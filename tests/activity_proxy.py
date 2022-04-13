@@ -120,6 +120,33 @@ def test_delete(activity):
     assert ExchangeDataset.select().count() == 0
     assert ActivityDataset.select().count() == 0
 
+@bw2test
+def test_delete_activity_only_self_references():
+    database = DatabaseChooser("a database")
+    database.write({
+        ("a database", "foo"): {
+            'exchanges': [{
+                'input': ("a database", "foo"),
+                'amount': 1,
+                'type': 'production',
+            }, {
+                'input': ("a database", "foo"),
+                'amount': 0.1,
+                'type': 'technosphere',
+            }],
+            'location': 'bar',
+            'name': 'baz'
+        },
+    })
+    activity = database.get('foo')
+
+    assert ExchangeDataset.select().count() == 2
+    assert ActivityDataset.select().count() == 1
+    activity.delete()
+    assert ExchangeDataset.select().count() == 0
+    assert ActivityDataset.select().count() == 0
+
+
 def test_copy(activity):
     assert ExchangeDataset.select().count() == 1
     assert ActivityDataset.select().count() == 1
