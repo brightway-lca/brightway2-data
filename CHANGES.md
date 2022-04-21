@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.DEV12 (2022-04-21)
+
+* Add `Database.set_geocollections`
+
 ## 4.0.DEV11 (2021-11-01)
 
 * Change behaviour of `.get()` and `.get_activity()` to allow passing arbitrary filters and raise error if multiple results found
