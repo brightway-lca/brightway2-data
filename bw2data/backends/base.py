@@ -833,6 +833,22 @@ class SQLiteBackend(ProcessedDataStore):
             results = s.search(string, **kwargs)
         return results
 
+    def set_geocollections(self):
+        """Set ``geocollections`` attribute for databases which don't currently have it."""
+        geocollections = {
+            get_geocollection(x.get("location"))
+            for x in self
+            if x.get("type", "process") == "process"
+        }
+        if None in geocollections:
+            print(
+                "Not able to determine geocollections for all datasets. Not setting `geocollections`."
+            )
+            geocollections.discard(None)
+        else:
+            self.metadata["geocollections"] = sorted(geocollections)
+            self._metadata.flush()
+
     def graph_technosphere(self, filename=None, **kwargs):
         from bw2analyzer.matrix_grapher import SparseMatrixGrapher
         from bw2calc import LCA

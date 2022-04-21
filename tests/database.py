@@ -5,7 +5,7 @@ import warnings
 import numpy as np
 import pytest
 
-from bw2data import geomapping, get_id, databases, Database
+from bw2data import geomapping, get_id, databases, Database, get_activity
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import Database
@@ -804,6 +804,31 @@ def test_add_geocollections(capsys):
     )
     assert db.metadata["geocollections"] == ["foo", "world"]
     assert "Not able" in capsys.readouterr().out
+
+
+@bw2test
+def test_set_geocollections(capsys):
+    db = Database("test-case")
+    db.write(
+        {
+            ("test-case", "1"): {"location": "RU", "exchanges": [], 'name': 'a'},
+            ("test-case", "2"): {"exchanges": [], 'name': 'b'},
+            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar"), 'name': 'c'},
+        }
+    )
+    assert db.metadata["geocollections"] == ["foo", "world"]
+    assert "Not able" in capsys.readouterr().out
+
+    act = get_activity(("test-case", "1"))
+    act['location'] = ('this', 'that')
+    act.save()
+
+    act = get_activity(("test-case", "2"))
+    act['location'] = 'DE'
+    act.save()
+
+    db.set_geocollections()
+    assert db.metadata['geocollections'] == ['foo', 'this', 'world']
 
 
 @bw2test
