@@ -508,7 +508,7 @@ class SQLiteBackend(ProcessedDataStore):
             )
             geocollections.discard(None)
         databases[self.name]["geocollections"] = sorted(geocollections)
-        databases.flush()
+        # processing will flush the database metadata
 
         geomapping.add({x["location"] for x in data.values() if x.get("location")})
         if data:

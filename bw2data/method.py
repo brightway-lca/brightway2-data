@@ -67,9 +67,6 @@ class Method(ImpactAssessmentDataStore):
             for elem in data
         }
         if None in geocollections:
-            print(
-                "Not able to determine geocollections for all CFs. This method is not ready for regionalization."
-            )
             geocollections.discard(None)
 
         self.metadata["geocollections"] = sorted(geocollections)
