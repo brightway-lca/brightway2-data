@@ -508,6 +508,7 @@ class SQLiteBackend(ProcessedDataStore):
             )
             geocollections.discard(None)
         databases[self.name]["geocollections"] = sorted(geocollections)
+        databases.flush()
 
         geomapping.add({x["location"] for x in data.values() if x.get("location")})
         if data:
