@@ -548,6 +548,9 @@ class SQLiteBackend(ProcessedDataStore):
         return activities
 
     def new_activity(self, code, **kwargs):
+        return self.new_node(code, **kwargs)
+
+    def new_node(self, code, **kwargs):
         obj = Activity()
         obj["database"] = self.name
         obj["code"] = str(code)

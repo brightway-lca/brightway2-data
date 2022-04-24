@@ -582,6 +582,20 @@ def test_random_empty():
 
 
 @bw2test
+def test_new_node():
+    database = Database("a database")
+    database.register()
+    act = database.new_node("foo", this="that", name="something")
+    act.save()
+
+    act = database.get("foo")
+    assert act["database"] == "a database"
+    assert act["code"] == "foo"
+    assert act["location"] == "GLO"
+    assert act["this"] == "that"
+
+
+@bw2test
 def test_new_activity():
     database = Database("a database")
     database.register()
