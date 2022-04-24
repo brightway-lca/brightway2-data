@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.DEV13 (2022-04-24)
+
+* Add `Database.new_node`
+
 ## 4.0.DEV12 (2022-04-21)
 
 * Add `Database.set_geocollections`
