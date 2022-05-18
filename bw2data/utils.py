@@ -103,9 +103,13 @@ def clean_exchanges(data):
     return {key: tupleize(value) for key, value in data.items()}
 
 
+POSITIVE= {2, 6, 8, 9, 10}
+
 def as_uncertainty_dict(value):
     """Given either a number or a ``stats_arrays`` uncertainty dict, return an uncertainty dict"""
     if isinstance(value, dict):
+        if value.get('amount', 0) < 0 and value.get('uncertainty_type') in POSITIVE and 'negative' not in value:
+            value['negative'] = True
         return value
     try:
         return {"amount": float(value)}

@@ -55,7 +55,7 @@ class UncertainifyTestCase(BW2DataTest):
         with self.assertRaises(AssertionError):
             uncertainify({}, sa.LognormalUncertainty)
 
-    def test_factors_valid(self):
+    def test_uncertainify_factors_valid(self):
         with self.assertRaises(AssertionError):
             uncertainify({}, bounds_factor=-1)
         with self.assertRaises(TypeError):
@@ -65,10 +65,10 @@ class UncertainifyTestCase(BW2DataTest):
         with self.assertRaises(TypeError):
             uncertainify({}, sd_factor="foo")
 
-    def test_bounds_factor_none_ok(self):
+    def test_uncertainify_bounds_factor_none_ok(self):
         uncertainify({}, bounds_factor=None)
 
-    def test_skips(self):
+    def test_uncertainify_skips(self):
         data = {
             1: {
                 "exchanges": [
@@ -80,7 +80,7 @@ class UncertainifyTestCase(BW2DataTest):
         # Doesn't raise KeyError for 'amount'
         data = uncertainify(data)
 
-    def test_uniform(self):
+    def test_uncertainify_uniform(self):
         data = {1: {"exchanges": [{"amount": 10.0}]}}
         data = uncertainify(data)
         new_dict = {
@@ -91,7 +91,7 @@ class UncertainifyTestCase(BW2DataTest):
         }
         self.assertEqual(data[1]["exchanges"][0], new_dict)
 
-    def test_normal_bounded(self):
+    def test_uncertainify_normal_bounded(self):
         data = {1: {"exchanges": [{"amount": 10.0}]}}
         data = uncertainify(data, sa.NormalUncertainty)
         new_dict = {
@@ -104,7 +104,7 @@ class UncertainifyTestCase(BW2DataTest):
         }
         self.assertEqual(data[1]["exchanges"][0], new_dict)
 
-    def test_normal_unbounded(self):
+    def test_uncertainify_normal_unbounded(self):
         data = {1: {"exchanges": [{"amount": 10.0}]}}
         data = uncertainify(data, sa.NormalUncertainty, bounds_factor=None)
         new_dict = {
@@ -115,7 +115,7 @@ class UncertainifyTestCase(BW2DataTest):
         }
         self.assertEqual(data[1]["exchanges"][0], new_dict)
 
-    def test_normal_negative_amount(self):
+    def test_uncertainify_normal_negative_amount(self):
         data = {1: {"exchanges": [{"amount": -10.0}]}}
         data = uncertainify(data, sa.NormalUncertainty)
         new_dict = {
@@ -128,7 +128,7 @@ class UncertainifyTestCase(BW2DataTest):
         }
         self.assertEqual(data[1]["exchanges"][0], new_dict)
 
-    def test_bounds_flipped_negative_amount(self):
+    def test_uncertainify_bounds_flipped_negative_amount(self):
         data = {1: {"exchanges": [{"amount": -10.0}]}}
         data = uncertainify(data)
         new_dict = {
@@ -139,7 +139,7 @@ class UncertainifyTestCase(BW2DataTest):
         }
         self.assertEqual(data[1]["exchanges"][0], new_dict)
 
-    def test_skip_zero_amounts(self):
+    def test_uncertainify_skip_zero_amounts(self):
         data = {1: {"exchanges": [{"amount": 0.0}]}}
         data = uncertainify(data)
         new_dict = {
@@ -172,6 +172,32 @@ def test_as_uncertainty_dict():
     assert as_uncertainty_dict(1) == {"amount": 1.0}
     with pytest.raises(TypeError):
         as_uncertainty_dict("foo")
+
+
+def test_as_uncertainty_dict_set_negative():
+    given = {'uncertainty_type': 2, 'amount': 1}
+    expected = {'uncertainty_type': 2, 'amount': 1}
+    assert as_uncertainty_dict(given) == expected
+
+    given = {'uncertainty_type': 2, 'amount': -1}
+    expected = {'uncertainty_type': 2, 'amount': -1, 'negative': True}
+    assert as_uncertainty_dict(given) == expected
+
+    given = {'uncertainty_type': 8, 'amount': -1}
+    expected = {'uncertainty_type': 8, 'amount': -1, 'negative': True}
+    assert as_uncertainty_dict(given) == expected
+
+    given = {'uncertainty_type': 3, 'amount': -1}
+    expected = {'uncertainty_type': 3, 'amount': -1}
+    assert as_uncertainty_dict(given) == expected
+
+    given = {'uncertainty_type': 3}
+    expected = {'uncertainty_type': 3}
+    assert as_uncertainty_dict(given) == expected
+
+    given = {'uncertainty_type': 8, 'amount': -1, 'negative': False}
+    expected = {'uncertainty_type': 8, 'amount': -1, 'negative': False}
+    assert as_uncertainty_dict(given) == expected
 
 
 @bw2test
