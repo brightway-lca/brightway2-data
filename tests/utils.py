@@ -175,28 +175,32 @@ def test_as_uncertainty_dict():
 
 
 def test_as_uncertainty_dict_set_negative():
-    given = {'uncertainty_type': 2, 'amount': 1}
-    expected = {'uncertainty_type': 2, 'amount': 1}
+    given = {"uncertainty_type": 2, "amount": 1}
+    expected = {"uncertainty_type": 2, "amount": 1}
     assert as_uncertainty_dict(given) == expected
 
-    given = {'uncertainty_type': 2, 'amount': -1}
-    expected = {'uncertainty_type': 2, 'amount': -1, 'negative': True}
+    given = {"uncertainty_type": 2, "amount": -1}
+    expected = {"uncertainty_type": 2, "amount": -1, "negative": True}
     assert as_uncertainty_dict(given) == expected
 
-    given = {'uncertainty_type': 8, 'amount': -1}
-    expected = {'uncertainty_type': 8, 'amount': -1, 'negative': True}
+    given = {"uncertainty type": 2, "amount": -1}
+    expected = {"uncertainty type": 2, "amount": -1, "negative": True}
     assert as_uncertainty_dict(given) == expected
 
-    given = {'uncertainty_type': 3, 'amount': -1}
-    expected = {'uncertainty_type': 3, 'amount': -1}
+    given = {"uncertainty_type": 8, "amount": -1}
+    expected = {"uncertainty_type": 8, "amount": -1, "negative": True}
     assert as_uncertainty_dict(given) == expected
 
-    given = {'uncertainty_type': 3}
-    expected = {'uncertainty_type': 3}
+    given = {"uncertainty_type": 3, "amount": -1}
+    expected = {"uncertainty_type": 3, "amount": -1}
     assert as_uncertainty_dict(given) == expected
 
-    given = {'uncertainty_type': 8, 'amount': -1, 'negative': False}
-    expected = {'uncertainty_type': 8, 'amount': -1, 'negative': False}
+    given = {"uncertainty_type": 3}
+    expected = {"uncertainty_type": 3}
+    assert as_uncertainty_dict(given) == expected
+
+    given = {"uncertainty_type": 8, "amount": -1, "negative": False}
+    expected = {"uncertainty_type": 8, "amount": -1, "negative": False}
     assert as_uncertainty_dict(given) == expected
 
 
