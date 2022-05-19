@@ -767,7 +767,8 @@ class SQLiteBackend(ProcessedDataStore):
                 LEFT JOIN activitydataset as a ON a.code == e.input_code AND a.database == e.input_database
                 LEFT JOIN activitydataset as b ON b.code == e.output_code AND b.database == e.output_database
                 WHERE e.output_database = ?
-                AND e.type IN ('technosphere', 'generic consumption')"""
+                AND e.type IN ('technosphere', 'generic consumption')
+        """
 
         dp.add_persistent_vector_from_iterator(
             matrix="technosphere_matrix",
