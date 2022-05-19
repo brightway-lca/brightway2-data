@@ -633,7 +633,7 @@ class SQLiteBackend(ProcessedDataStore):
         Uses raw sqlite3 to retrieve data for ~2x speed boost."""
         connection = sqlite3.connect(sqlite3_lci_db._filepath)
         cursor = connection.cursor()
-        for row in cursor.execute(sql, (self.name,)):
+        for line in cursor.execute(sql, (self.name,)):
             (
                 data,
                 row,
@@ -642,7 +642,7 @@ class SQLiteBackend(ProcessedDataStore):
                 input_code,
                 output_database,
                 output_code,
-            ) = row
+            ) = line
             # Modify ``dependents`` in place
             if input_database != output_database:
                 dependents.add(input_database)
