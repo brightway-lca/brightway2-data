@@ -1,5 +1,10 @@
 # Changelog
 
+## DEV
+
+* Add ``Activity.rp_exchange`` for easier access to reference product exchange
+* ``Activity['foo']`` will now also lookup reference product classifications and properties
+
 ## 4.0.DEV13 (2022-04-24)
 
 * Add `Database.new_node`

@@ -254,3 +254,75 @@ def test_delete_activity_parameters():
     a.delete()
     assert ActivityParameter.select().count() == 1
     assert not ParameterizedExchange.select().count()
+
+
+@bw2test
+def test_get_classifications_ref_product():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    a.new_exchange(
+        amount=1,
+        input=b,
+        type="production",
+        classifications={'CPC': ['17300: Steam and hot water']},
+    ).save()
+
+    assert a['CPC'] == ['17300: Steam and hot water']
+
+
+@bw2test
+def test_get_properties_ref_product():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    a.new_exchange(
+        amount=1,
+        input=b,
+        type="production",
+        properties={'corresponding fuel use, propane, furnace >100kW': 7}
+    ).save()
+
+    assert a['corresponding fuel use, propane, furnace >100kW'] == 7
+
+
+@bw2test
+def test_get_properties_missing_property():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    a.new_exchange(
+        amount=1,
+        input=b,
+        type="production",
+        properties={'corresponding fuel use, propane, furnace >100kW': 7}
+    ).save()
+
+    with pytest.raises(KeyError):
+        a['CPC']
+
+
+@bw2test
+def test_get_properties_no_rp_exchange():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+
+    with pytest.raises(KeyError):
+        a['CPC']
