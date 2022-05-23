@@ -1,6 +1,6 @@
 # Changelog
 
-## DEV
+## 4.0.DEV14 (2022-05-23)
 
 * Add ``Activity.rp_exchange`` for easier access to reference product exchange
 * ``Activity['foo']`` will now also lookup reference product classifications and properties
