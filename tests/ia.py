@@ -210,15 +210,14 @@ def test_normalization_process_row(reset):
 
 
 @bw2test
-def test_method_geocollection(capsys):
+def test_method_geocollection():
     m = Method(("foo",))
     m.write([(1, 2, "RU"), (3, 4, ("foo", "bar"))])
     assert m.metadata["geocollections"] == ["foo", "world"]
-    assert "Not able" not in capsys.readouterr().out
 
 
 @bw2test
-def test_method_geocollection_missing_ok(capsys):
+def test_method_geocollection_missing_ok():
     m = Method(("foo",))
     m.write(
         [
@@ -227,15 +226,14 @@ def test_method_geocollection_missing_ok(capsys):
         ]
     )
     assert m.metadata["geocollections"] == ["world"]
-    assert "Not able" not in capsys.readouterr().out
 
 
 @bw2test
-def test_method_geocollection_warning(capsys):
+def test_method_geocollection_warning():
     m = Method(("foo",))
     m.write(
         [
             (1, 2, "Russia"),
         ]
     )
-    assert "Not able" in capsys.readouterr().out
+    assert m.metadata["geocollections"] == []
