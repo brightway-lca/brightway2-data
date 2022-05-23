@@ -109,6 +109,26 @@ class Activity(ActivityProxyBase):
         else:
             super(Activity, self).__setitem__(key, value)
 
+    def __getitem__(self, key):
+        if key == 0:
+            return self["database"]
+        elif key == 1:
+            return self["code"]
+        elif key in self._data:
+            return self._data[key]
+
+        try:
+            rp = self.rp_exchange()
+        except ValueError:
+            raise KeyError
+
+        if key in rp.get('classifications', []):
+            return rp['classifications'][key]
+        if key in rp.get('properties', []):
+            return rp['properties'][key]
+
+        raise KeyError
+
     @property
     def key(self):
         return (self.get("database"), self.get("code"))
@@ -254,6 +274,22 @@ class Activity(ActivityProxyBase):
             kinds=kinds,
             reverse=True
         )
+
+    def rp_exchange(self):
+        """Return an ``Exchange`` object corresponding to the reference production. Uses the following in order:
+
+        * The ``production`` exchange, if only one is present
+        * The ``production`` exchange with the same name as the activity ``reference product``.
+
+        Raises ``ValueError`` if no suitable exchange is found."""
+        candidates = list(self.production())
+        if len(candidates) == 1:
+            return candidates[0]
+        candidates2 = [exc for exc in candidates if exc.input._data.get('name') == self._data.get('reference product')]
+        if len(candidates2) == 1:
+            return candidates2[0]
+        else:
+            raise ValueError("Can't find a single reference product exchange (found {} candidates)".format(len(candidates)))
 
     def new_exchange(self, **kwargs):
         """Create a new exchange linked to this activity"""
