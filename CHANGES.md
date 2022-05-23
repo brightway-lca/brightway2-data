@@ -1,5 +1,10 @@
 # Changelog
 
+### 3.6.5 (2023-05-23)
+
+* Add ``Activity.rp_exchange`` for easier access to reference product exchange
+* ``Activity['foo']`` will now also lookup reference product classifications and properties
+
 ### 3.6.4 (2022-02-17)
 
 * Fix more import errors for `collections.abc`
