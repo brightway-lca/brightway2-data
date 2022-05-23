@@ -276,6 +276,25 @@ def test_get_classifications_ref_product():
 
 
 @bw2test
+def test_get_classifications_also_in_activity():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity", CPC='foo')
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    a.new_exchange(
+        amount=1,
+        input=b,
+        type="production",
+        classifications={'CPC': ['17300: Steam and hot water']},
+    ).save()
+
+    assert a['CPC'] == 'foo'
+
+
+@bw2test
 def test_get_properties_ref_product():
     db = DatabaseChooser("example")
     db.register()
@@ -326,3 +345,108 @@ def test_get_properties_no_rp_exchange():
 
     with pytest.raises(KeyError):
         a['CPC']
+
+
+@bw2test
+def test_rp_exchange_single_production_wrong_rp_name():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a['reference product'] = 'something'
+    a.save()
+    b = db.new_activity(code="B", name="else")
+    b.save()
+    a.new_exchange(
+        amount=1,
+        input=b,
+        type="production",
+    ).save()
+
+    exc = a.rp_exchange()
+    assert exc.input.id == b.id and exc.output.id == a.id
+
+
+@bw2test
+def test_rp_exchange_multiple_produuction_match_rp_name():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a['reference product'] = 'something'
+    a.save()
+    b = db.new_activity(code="B", name="else")
+    b.save()
+    c = db.new_activity(code="C", name="something")
+    c.save()
+    a.new_exchange(
+        amount=1,
+        input=b,
+        type="production",
+    ).save()
+    a.new_exchange(
+        amount=1,
+        input=c,
+        type="production",
+    ).save()
+
+    exc = a.rp_exchange()
+    assert exc.input.id == c.id and exc.output.id == a.id
+
+
+@bw2test
+def test_rp_exchange_value_error_multiple():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="else")
+    b.save()
+    c = db.new_activity(code="C", name="something")
+    c.save()
+    a.new_exchange(
+        amount=1,
+        input=b,
+        type="production",
+    ).save()
+    a.new_exchange(
+        amount=1,
+        input=c,
+        type="production",
+    ).save()
+
+    with pytest.raises(ValueError):
+        a.rp_exchange()
+
+
+@bw2test
+def test_rp_exchange_value_error_no_production():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="else")
+    b.save()
+
+    with pytest.raises(ValueError):
+        a.rp_exchange()
+
+@bw2test
+def test_rp_exchange_value_error_only_substitution():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="else")
+    b.save()
+    a.new_exchange(
+        amount=1,
+        input=b,
+        type="substitution",
+    ).save()
+
+    with pytest.raises(ValueError):
+        a.rp_exchange()
