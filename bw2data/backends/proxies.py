@@ -105,6 +105,16 @@ class Activity(ActivityProxyBase):
         elif key in self._data:
             return self._data[key]
 
+        for section in ('classifications', 'properties'):
+            if section in self._data:
+                if isinstance(self._data[section], list):
+                    try:
+                        return {k: v for k, v in self._data[section]}[key]
+                    except:
+                        pass
+                elif key in self._data[section]:
+                    return self._data[section][key]
+
         try:
             rp = self.rp_exchange()
         except ValueError:

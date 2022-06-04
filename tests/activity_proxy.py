@@ -276,6 +276,37 @@ def test_get_classifications_ref_product():
 
 
 @bw2test
+def test_get_classifications_main_activity_dict():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity", classifications={
+                        'EcoSpold01Categories': 'transport systems/train',
+                        'ISIC rev.4 ecoinvent': '4912:Freight rail transport',
+                        'CPC': '6512: Railway transport services of freight'})
+    a.save()
+
+    assert a['CPC'] == '6512: Railway transport services of freight'
+    assert a['ISIC rev.4 ecoinvent'] == '4912:Freight rail transport'
+    assert a['EcoSpold01Categories'] == 'transport systems/train'
+
+
+@bw2test
+def test_get_classifications_main_activity_list():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity", classifications=[('EcoSpold01Categories', 'transport systems/train'),
+ ('ISIC rev.4 ecoinvent', '4912:Freight rail transport'),
+ ('CPC', '6512: Railway transport services of freight')])
+    a.save()
+
+    assert a['CPC'] == '6512: Railway transport services of freight'
+    assert a['ISIC rev.4 ecoinvent'] == '4912:Freight rail transport'
+    assert a['EcoSpold01Categories'] == 'transport systems/train'
+
+
+@bw2test
 def test_get_classifications_also_in_activity():
     db = DatabaseChooser("example")
     db.register()
