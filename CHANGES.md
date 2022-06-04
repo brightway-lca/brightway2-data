@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.DEV15 (2022-06-04)
+
+* Improve lookup of activity classifications and properties
+
 ## 4.0.DEV14 (2022-05-23)
 
 * Add ``Activity.rp_exchange`` for easier access to reference product exchange
