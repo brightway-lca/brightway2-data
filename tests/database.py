@@ -3,6 +3,8 @@ import datetime
 import warnings
 
 import numpy as np
+import pandas as pd
+from pandas.testing import assert_frame_equal
 import pytest
 
 from bw2data import geomapping, get_id, databases, Database, get_activity
@@ -442,6 +444,41 @@ def test_processed_array():
     array = package.get_resource("a_database_technosphere_matrix.distributions")[0]
     assert array.shape == (1,)
     assert array[0]["uncertainty_type"] == 7
+
+
+@bw2test
+def test_processed_array_with_metadata():
+    database = Database("a database")
+    database.write(
+        {
+            ("a database", "2"): {
+                "type": "process",
+                'name': 'fooz',
+                'unit': 'something',
+                "exchanges": [
+                    {
+                        "input": ("a database", "2"),
+                        "amount": 42,
+                        "uncertainty_type": 7,
+                        "type": "production",
+                    }
+                ],
+            }
+        }
+    )
+    package = database.datapackage()
+
+    with pytest.raises(KeyError):
+        package.get_resource("a_database_activity_metadata")
+
+    database.process(csv=True)
+    package = database.datapackage()
+    df = package.get_resource("a_database_activity_metadata")[0]
+    df.drop('Unnamed: 0', axis=1, inplace=True)
+    expected = pd.DataFrame([
+        {'name': 'fooz', 'reference product': np.NaN, 'unit': 'something','location': np.NaN, 'id': 1}])
+    assert isinstance(df, pd.DataFrame)
+    assert_frame_equal(df.reindex(sorted(df.columns), axis=1), expected.reindex(sorted(expected.columns), axis=1))
 
 
 @bw2test

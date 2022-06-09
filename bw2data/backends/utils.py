@@ -7,6 +7,7 @@ from .. import config
 from ..errors import InvalidExchange, UntypedExchange
 from ..meta import databases, methods
 from ..method import Method
+from .schema import get_id
 
 
 def get_csv_data_dict(ds):
