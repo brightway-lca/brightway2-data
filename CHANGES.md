@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.DEV16 (2022-06-09)
+
+* Fix and test export CSV metadata from databases during datapackage creation
+
 ## 4.0.DEV15 (2022-06-04)
 
 * Improve lookup of activity classifications and properties
