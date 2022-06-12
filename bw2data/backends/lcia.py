@@ -44,7 +44,7 @@ class Method(Model, ProcessedDataStore):
     matrix = "characterization_matrix"
 
     name = TupleJSONField(unique=True, null=False)
-    filename = TextField(null=False)
+    filename = TextField(null=True)
     metadata = JSONField(default={})
     modified = DateTimeField(default=datetime.datetime.now)
 
