@@ -16,7 +16,7 @@ jobs:
       Python37:
         python.version: '3.9'
 
-  timeoutInMinutes: 8
+  timeoutInMinutes: 20
   steps:
   - bash: echo "##vso[task.prependpath]$CONDA/bin"
     displayName: Add conda to PATH
@@ -48,7 +48,7 @@ jobs:
       Python37:
         python.version: '3.7'
 
-  timeoutInMinutes: 8
+  timeoutInMinutes: 20
   steps:
   - task: UsePythonVersion@0
     inputs:
@@ -77,10 +77,8 @@ jobs:
     matrix:
       Python310:
         python.version: '3.10'
-      Python37:
-        python.version: '3.9'
 
-  timeoutInMinutes: 8
+  timeoutInMinutes: 20
   steps:
   - bash: echo "##vso[task.prependpath]$CONDA/bin"
     displayName: Add conda to PATH
@@ -109,10 +107,8 @@ jobs:
     matrix:
       Python310:
         python.version: '3.10'
-      Python37:
-        python.version: '3.7'
 
-  timeoutInMinutes: 8
+  timeoutInMinutes: 20
   steps:
   - task: UsePythonVersion@0
     inputs:
@@ -135,10 +131,8 @@ jobs:
     matrix:
       Python310:
         python.version: '3.10'
-      Python37:
-        python.version: '3.9'
 
-  timeoutInMinutes: 8
+  timeoutInMinutes: 20
 
   steps:
   - powershell: Write-Host "##vso[task.prependpath]$env:CONDA\Scripts"
@@ -151,7 +145,7 @@ jobs:
 
   - script: |
       call activate bw2
-      conda install --yes -c defaults -c conda-forge -c cmutel -c haasad --name bw2 python=%PYTHON_VERSION% bw_processing pytest peewee brightway25 pytest-azurepipelines">=1.0" pytest-cov pywin32 pip
+      conda install --yes -c defaults -c conda-forge -c cmutel -c haasad --name bw2 python=%PYTHON_VERSION% bw_processing pytest peewee brightway25 pytest-azurepipelines">=1.0" pywin32 pip
     displayName: Install Anaconda packages
 
   - script: |
@@ -170,7 +164,7 @@ jobs:
       Python37:
         python.version: '3.7'
 
-  timeoutInMinutes: 8
+  timeoutInMinutes: 20
   steps:
   - task: UsePythonVersion@0
     inputs:
