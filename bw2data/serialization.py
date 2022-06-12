@@ -7,7 +7,6 @@ from time import time
 
 from . import projects
 from .errors import PickleError
-from .fatomic import open as atomic_open
 from .utils import maybe_path
 
 try:
@@ -20,7 +19,7 @@ except ImportError:
 class JsonWrapper:
     @classmethod
     def dump(self, data, filepath):
-        with atomic_open(filepath, "w") as f:
+        with open(filepath, "w") as f:
             if anyjson:
                 f.write(anyjson.serialize(data))
             else:
@@ -28,7 +27,7 @@ class JsonWrapper:
 
     @classmethod
     def dump_bz2(self, data, filepath):
-        with atomic_open(filepath, "wb") as f:
+        with open(filepath, "wb") as f:
             with bz2.BZ2File(f.name, "wb") as b:
                 b.write((JsonWrapper.dumps(data)).encode("utf-8"))
 
@@ -184,7 +183,7 @@ class SerializedDict(MutableMapping):
             * *filepath* (str, optional): Provide an alternate filepath (e.g. for backup).
 
         """
-        with atomic_open(filepath or self.filepath, "w") as f:
+        with open(filepath or self.filepath, "w") as f:
             f.write(JsonWrapper.dumps(self.pack(self.data)))
 
     def deserialize(self):
@@ -218,7 +217,7 @@ class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
 
     def serialize(self):
-        with atomic_open(self.filepath, "wb") as f:
+        with open(self.filepath, "wb") as f:
             pickle.dump(self.pack(self.data), f, protocol=4)
 
     def deserialize(self):

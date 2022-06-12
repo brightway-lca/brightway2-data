@@ -16,11 +16,9 @@ from pathlib import Path
 
 import requests
 import stats_arrays as sa
-from peewee import DoesNotExist
 
 from . import config
 from .errors import MultipleResults, NotFound, UnknownObject, ValidityError, WebUIError
-from .fatomic import open
 
 # Type of technosphere/biosphere exchanges used in processed Databases
 TYPE_DICTIONARY = {
