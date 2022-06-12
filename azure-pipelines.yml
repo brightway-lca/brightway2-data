@@ -1,15 +1,22 @@
+pr:
+  autoCancel: true
+  branches:
+    include:
+    - master
+
 jobs:
 - job:
-  displayName: ubuntu-18.04-38
+  displayName: ubuntu-20.04-conda
   pool:
-    vmImage: 'ubuntu-18.04'
+    vmImage: 'ubuntu-20.04'
   strategy:
     matrix:
+      Python310:
+        python.version: '3.10'
       Python37:
         python.version: '3.7'
-      Python38:
-        python.version: '3.8'
 
+  timeoutInMinutes: 8
   steps:
   - bash: echo "##vso[task.prependpath]$CONDA/bin"
     displayName: Add conda to PATH
@@ -19,25 +26,58 @@ jobs:
 
   - bash: |
       source activate bw2
-      conda install --yes --quiet -c defaults -c conda-forge -c cmutel -c haasad --name bw2 bw_processing python=$PYTHON_VERSION pytest peewee brightway2 bw_processing pytest pytest-azurepipelines pytest-cov pip bw_processing
+      conda install --yes --quiet -c defaults -c conda-forge -c cmutel --name bw2 bw_processing python=$PYTHON_VERSION peewee brightway25 pytest pytest-azurepipelines pytest-cov pip
     displayName: Install Anaconda packages
 
   - bash: |
       source activate bw2
-      pytest --cov=bw2data
+      pytest --color=yes -v --cov-report html --cov=bw2data
     displayName: pytest
 
 - job:
-  displayName: macOS-10.14-38
+  displayName: ubuntu-20.04-pip
   pool:
-    vmImage: 'macOS-10.14'
+    vmImage: 'ubuntu-20.04'
   strategy:
     matrix:
-      Python38:
-        python.version: '3.8'
+      Python310:
+        python.version: '3.10'
       Python37:
         python.version: '3.7'
 
+  timeoutInMinutes: 8
+  steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '$(python.version)'
+
+  - bash: |
+      python --version
+      pip --version
+      pip install --pre bw2data bw2io bw2array bw2calc numpy pandas pytest pytest-azurepipelines
+      echo "which pytest"
+      which pytest
+      echo "pytest version"
+      pytest --version
+    displayName: Install packages
+
+  - bash: |
+      pytest --color=yes -vv
+    displayName: pytest
+
+
+- job:
+  displayName: macOS-1015-38-conda
+  pool:
+    vmImage: 'macOS-1015'
+  strategy:
+    matrix:
+      Python310:
+        python.version: '3.10'
+      Python37:
+        python.version: '3.7'
+
+  timeoutInMinutes: 8
   steps:
   - bash: echo "##vso[task.prependpath]$CONDA/bin"
     displayName: Add conda to PATH
@@ -47,24 +87,52 @@ jobs:
 
   - bash: |
       source activate bw2
-      conda install --yes -c defaults -c conda-forge -c cmutel -c haasad --name bw2 python=$PYTHON_VERSION bw_processing pytest peewee brightway2 bw_processing pytest pytest-azurepipelines pytest-cov pip bw_processing
+      conda install --yes -c defaults -c conda-forge -c cmutel --name bw2 python=$PYTHON_VERSION bw_processing pytest peewee brightway25 pytest-azurepipelines pip
     displayName: Install Anaconda packages
 
   - bash: |
       source activate bw2
-      pytest --cov=bw2data
+      pytest --color=yes -vv
     displayName: pytest
 
 - job:
-  displayName: vs2017-win2016-38
+  displayName: macOS-1015-pip
+  pool:
+    vmImage: 'macOS-1015'
+  strategy:
+    matrix:
+      Python310:
+        python.version: '3.10'
+      Python37:
+        python.version: '3.7'
+
+  timeoutInMinutes: 8
+  steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '$(python.version)'
+
+  - bash: |
+      python --version
+      pip3 install --pre bw2data bw2io bw2array bw2calc numpy pandas pytest pytest-azurepipelines
+    displayName: Install packages
+
+  - bash: |
+      pytest --color=yes -vv
+    displayName: pytest
+
+- job:
+  displayName: vs2017-win2016-conda
   pool:
     vmImage: 'vs2017-win2016'
   strategy:
     matrix:
-      Python38:
-        python.version: '3.8'
+      Python310:
+        python.version: '3.10'
       Python37:
         python.version: '3.7'
+
+  timeoutInMinutes: 8
 
   steps:
   - powershell: Write-Host "##vso[task.prependpath]$env:CONDA\Scripts"
@@ -75,10 +143,36 @@ jobs:
 
   - script: |
       call activate bw2
-      conda install --yes -c defaults -c conda-forge -c cmutel -c haasad --name bw2 python=%PYTHON_VERSION% bw_processing pytest peewee brightway2 bw_processing pytest pytest-azurepipelines pytest-cov pywin32 pip bw_processing
+      conda install --yes -c defaults -c conda-forge -c cmutel -c haasad --name bw2 python=%PYTHON_VERSION% bw_processing pytest peewee brightway25 pytest-azurepipelines pytest-cov pywin32 pip
     displayName: Install Anaconda packages
 
   - script: |
       call activate bw2
-      pytest --cov=bw2data
+      pytest --color=yes -vv
+    displayName: pytest
+
+- job:
+  displayName: vs2017-win2016-pip
+  pool:
+    vmImage: 'vs2017-win2016'
+  strategy:
+    matrix:
+      Python310:
+        python.version: '3.10'
+      Python37:
+        python.version: '3.7'
+
+  timeoutInMinutes: 8
+  steps:
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '$(python.version)'
+
+  - script: |
+      python --version
+      pip install --pre bw2data bw2io bw2array bw2calc numpy pandas pytest pytest-azurepipelines
+    displayName: Install packages
+
+  - script: |
+      pytest --color=yes -vv
     displayName: pytest
