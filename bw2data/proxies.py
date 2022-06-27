@@ -111,7 +111,6 @@ class ActivityProxyBase(ProxyBase):
         lca.lci()
         if method is not None:
             lca.lcia()
-        lca.fix_dictionaries()
         return lca
 
 
@@ -273,5 +272,4 @@ class ExchangeProxyBase(ProxyBase):
         lca.lci()
         if method is not None:
             lca.lcia()
-        lca.fix_dictionaries()
         return lca
