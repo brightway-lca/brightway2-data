@@ -888,7 +888,7 @@ class SQLiteBackend(ProcessedDataStore):
                     print("Deleting exchange:", exc)
                     exc.delete()
 
-    def to_dataframe(self, categorical: bool = True, formatters: Optional[List[Callable]] = None) -> pandas.DataFrame:
+    def edges_to_dataframe(self, categorical: bool = True, formatters: Optional[List[Callable]] = None) -> pandas.DataFrame:
         """Return a pandas DataFrame with all database exchanges. Standard DataFrame columns are:
 
             target_id: int,
