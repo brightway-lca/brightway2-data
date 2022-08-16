@@ -4,6 +4,7 @@ import itertools
 from collections.abc import Iterable, Mapping
 import pandas as pd
 from types import GeneratorType
+from warnings import warn
 
 
 class ReadOnlyExchange(Mapping):
@@ -93,13 +94,19 @@ class IOTableExchanges(Iterable):
 
 
 class IOTableActivity(Activity):
-    def __init__(self, act=None):
-        if act is None:
-            super().__init__()
-        else:
-            super().__init__(document=act._document)
+    # def __init__(self, act=None):
+    #     if act is None:
+    #         super().__init__()
+    #     else:
+    #         super().__init__(document=act._document)
 
-    def technosphere(self, include_substitution=True):
+    def delete(self):
+        # TBD
+        pass
+
+    def technosphere(self):
+
+
 
         lca, rev_act_dict, _ = Storage.construct_or_load_matrices(self.key[0])
 
@@ -152,4 +159,5 @@ class IOTableActivity(Activity):
         )
 
     def substitution(self):
-        return IOTableExchanges([])
+        warn("IO Table doesn't store exchange types, only numeric data. All positive technosphere edges are `production`, all negative technosphere edges are `technosphere`. Returning an empty iterator.")
+        return iter([])

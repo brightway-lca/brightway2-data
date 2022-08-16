@@ -8,37 +8,59 @@ import numpy as np
 
 @pytest.fixture
 @bw2test
-def activity_and_method():
+def activity_and_method(techno_name = "db", bio_name = "db_bio"):
+    """Technosphere matrix:
+
+        a   b   c
+    a   2   0   -3
+    b   -1  1   0
+    c   4   0.2 -1
+
+    Biosphere matrix:
+
+        a   b   c
+    d   0   1   2
+
+    Characterization matrix:
+
+        d
+    d   42
+
+    """
 
     def write_dummy_technosphere(name):
-
         db = Database(name, backend="iotable")
 
         # define activity metadata
         technosphere_data = {
             (name, "a"): {"name": "a"},
             (name, "b"): {"name": "b"},
-            (name, "d"): {"name": "d"},
+            (name, "c"): {"name": "c"},
         }
         db.write(technosphere_data)
 
+        exchanges = [
+            ("a", "a", 2, False),
+            ("a", "c", 3, True),
+            ("b", "a", 1, True),
+            ("b", "b", 1, False),
+            ("c", "a", 4, False),
+            ("c", "b", 0.2, True),
+            ("c", "c", 1, True),
+        ]
+
         # define exchanges
-        exchanges = {
-            "input": [(name, "a"), (name, "b"), (name, "a")],
-            "output": [(name, "a"), (name, "a"), (name, "d")],
-            "amount": [2, 3, 5],
-        }
-        return dict(
-            indices_array=np.array(
+        return {
+            "indices_array": np.array(
                 [
-                    (get_activity(i).id, get_activity(o).id)
-                    for i, o in zip(exchanges["input"], exchanges["output"])
+                    (get_activity(name=x).id, get_activity(name=y).id)
+                    for x, y, _, _ in exchanges
                 ],
                 dtype=INDICES_DTYPE,
             ),
-            data_array=np.array(exchanges["amount"]),
-            flip_array=np.zeros((len(exchanges), 1)),
-        )
+            "data_array": np.array([row[2] for row in exchanges]),
+            "flip_array": np.array([row[3] for row in exchanges]),
+        }
 
     def write_dummy_biosphere(name):
 
@@ -65,19 +87,16 @@ def activity_and_method():
                 dtype=INDICES_DTYPE,
             ),
             data_array=np.array(exchanges["amount"]),
-            flip_array=np.zeros((len(exchanges), 1)),
         )
 
     # create dummy technosphere and biosphere
-    techno_name = "db"
     technosphere = write_dummy_technosphere(techno_name)
-    bio_name = "db_bio"
     biosphere = write_dummy_biosphere(bio_name)
     dependents = [techno_name]
     Database(techno_name).write_exchanges(technosphere, biosphere, dependents)
 
     # create dummy method
-    cfs = [((bio_name, "c"), 42)]
+    cfs = [((bio_name, "d"), 42)]
     method = Method(("a method",))
     method.register()
     method.write(cfs)
@@ -86,7 +105,8 @@ def activity_and_method():
 
 
 def test_setup_clean(activity_and_method):
-    assert len(databases) == 1
+    print(databases)
+    assert len(databases) == 2
     assert list(methods) == [("a method",)]
     assert len(projects) == 2  # Default project
     assert "default" in projects
@@ -107,6 +127,8 @@ def test_substitution(activity_and_method):
 
 def test_biosphere(activity_and_method):
     activity, method = activity_and_method
+    for exc in activity.exchanges():
+        print(exc)
     assert len(list(activity.biosphere())) == 1
     assert len(activity.biosphere()) == 1
     exc = list(activity.biosphere())[0]
