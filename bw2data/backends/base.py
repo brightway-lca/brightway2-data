@@ -13,6 +13,7 @@ import pyprind
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
+from tqdm import tqdm
 
 from .. import config, databases, geomapping
 from ..data_store import ProcessedDataStore
@@ -886,3 +887,101 @@ class SQLiteBackend(ProcessedDataStore):
                 for exc in lst[-1:0:-1]:
                     print("Deleting exchange:", exc)
                     exc.delete()
+
+    def to_dataframe(self, categorical=True, formatters=None):
+        """Return a pandas DataFrame with all database exchanges. Standard DataFrame columns are:
+
+            target_id: int,
+            target_database: str,
+            target_code: str,
+            target_activity: Optional[str],
+            target_reference_product: Optional[str],
+            target_location: Optional[str],
+            target_unit: Optional[str],
+            target_type: Optional[str]
+            source_id: int,
+            source_database: str,
+            source_code: str,
+            source_activity: Optional[str],
+            source_product: Optional[str],  # Note different label
+            source_location: Optional[str],
+            source_unit: Optional[str],
+            source_type: Optional[str]
+            source_categories: Optional[str]  # Tuple concatenated with "::" as in `bw2io`
+            edge_amount: float,
+            edge_type: str,
+
+        Target is the node consuming the edge, source is the node or flow being consumed. The terms target and source were chosen because they also work well for biosphere edges.
+
+        Args:
+
+        ``categorical`` will turn each string column in a `pandas Categorical Series <https://pandas.pydata.org/docs/reference/api/pandas.Categorical.html>`__. This takes 1-2 extra seconds, but saves around 50% of the memory consumption.
+
+        ``formatters`` is a list of callables that modify each row. These functions must take the following keyword arguments, and use the `Wurst internal data format <https://wurst.readthedocs.io/#internal-data-format>`__:
+
+            * ``node``: The target node, as a dict
+            * ``edge``: The edge, including attributes of the source node
+            * ``row``: The current row dict being modified. ``row`` must be returned as well.
+
+        Returns a pandas ``DataFrame``.
+
+        """
+        try:
+            from wurst import extract_brightway2_databases
+        except ImportError:
+            raise ImportError("This method requires the `wurst` library.")
+
+        result = []
+
+        for target in extract_brightway2_databases(self.name, add_identifiers=True):
+            for edge in target["exchanges"]:
+                row = {
+                    "target_id": target["id"],
+                    "target_database": target["database"],
+                    "target_code": target["code"],
+                    "target_activity": target.get("name"),
+                    "target_reference_product": target.get("reference product"),
+                    "target_location": target.get("location"),
+                    "target_unit": target.get("unit"),
+                    "target_type": target.get("type", "process"),
+                    "source_id": edge["id"],
+                    "source_database": edge["database"],
+                    "source_code": edge["code"],
+                    "source_activity": edge.get("name"),
+                    "source_product": edge.get("product"),
+                    "source_location": edge.get("location"),
+                    "source_unit": edge.get("unit"),
+                    "source_categories": "::".join(edge.get("categories", ("",))),
+                    "edge_amount": edge["amount"],
+                    "edge_type": edge["type"],
+                }
+                if formatters is not None:
+                    for func in formatters:
+                        row = func(node=target, edge=edge, row=row)
+                result.append(row)
+
+        print("Creating DataFrame")
+        df = pandas.DataFrame(result)
+
+        if categorical:
+            categorical_columns = [
+                "target_database",
+                "target_activity",
+                "target_reference_product",
+                "target_location",
+                "target_unit",
+                "target_type",
+                "source_database",
+                "source_code",
+                "source_activity",
+                "source_product",
+                "source_location",
+                "source_unit",
+                "source_categories",
+            ]
+            print("Compressing DataFrame")
+            for column in categorical_columns:
+                if column in df.columns:
+                    df[column] = df[column].astype("category")
+
+        return df
