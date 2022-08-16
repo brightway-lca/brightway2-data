@@ -978,6 +978,7 @@ class SQLiteBackend(ProcessedDataStore):
                 "source_location",
                 "source_unit",
                 "source_categories",
+                "edge_type",
             ]
             print("Compressing DataFrame")
             for column in categorical_columns:
