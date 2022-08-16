@@ -888,6 +888,26 @@ class SQLiteBackend(ProcessedDataStore):
                     print("Deleting exchange:", exc)
                     exc.delete()
 
+    def nodes_to_dataframe(self, columns: Optional[List[str]] = None, return_sorted: bool = True) -> pandas.DataFrame:
+        """Return a pandas DataFrame with all database nodes. Uses the provided node attributes by default,  such as name, unit, location.
+
+        By default, returns a DataFrame sorted by name, reference product, location, and unit. Set ``return_sorted`` to ``False`` to skip sorting.
+
+        Specify ``columns`` to get custom columns. You will need to write your own function to get more customization, there are endless possibilities here.
+
+        Returns a pandas ``DataFrame``.
+
+        """
+        if columns is None:
+            # Feels like magic
+            df = pandas.DataFrame(self)
+        else:
+            df = pandas.DataFrame([{field: obj.get(field) for field in columns} for obj in self])
+        if return_sorted:
+            sort_columns = ['name', 'reference product', 'location', 'unit']
+            df = df.sort_values(by=[column for column in sort_columns if column in df.columns])
+        return df
+
     def edges_to_dataframe(self, categorical: bool = True, formatters: Optional[List[Callable]] = None) -> pandas.DataFrame:
         """Return a pandas DataFrame with all database exchanges. Standard DataFrame columns are:
 
