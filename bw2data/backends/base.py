@@ -7,13 +7,13 @@ import random
 import sqlite3
 import warnings
 from collections import defaultdict
+from typing import List, Callable, Optional
 
 import pandas
 import pyprind
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
-from tqdm import tqdm
 
 from .. import config, databases, geomapping
 from ..data_store import ProcessedDataStore
@@ -888,7 +888,7 @@ class SQLiteBackend(ProcessedDataStore):
                     print("Deleting exchange:", exc)
                     exc.delete()
 
-    def to_dataframe(self, categorical=True, formatters=None):
+    def to_dataframe(self, categorical: bool = True, formatters: Optional[List[Callable]] = None) -> pandas.DataFrame:
         """Return a pandas DataFrame with all database exchanges. Standard DataFrame columns are:
 
             target_id: int,
