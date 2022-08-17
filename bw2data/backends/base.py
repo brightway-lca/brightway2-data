@@ -941,7 +941,9 @@ class SQLiteBackend(ProcessedDataStore):
 
             * ``node``: The target node, as a dict
             * ``edge``: The edge, including attributes of the source node
-            * ``row``: The current row dict being modified. ``row`` must be returned as well.
+            * ``row``: The current row dict being modified.
+
+        The functions in ``formatters`` don't need to return anything, they modify ``row`` in place.
 
         Returns a pandas ``DataFrame``.
 
@@ -977,7 +979,7 @@ class SQLiteBackend(ProcessedDataStore):
                 }
                 if formatters is not None:
                     for func in formatters:
-                        row = func(node=target, edge=edge, row=row)
+                        func(node=target, edge=edge, row=row)
                 result.append(row)
 
         print("Creating DataFrame")
