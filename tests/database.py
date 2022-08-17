@@ -1028,3 +1028,51 @@ def test_edges_to_dataframe_formatters(df_fixture):
     df = Database("food").edges_to_dataframe(formatters=[foo])
     assert_series_equal(df['foo'], pd.Series(['bar'] * 4, name='foo'))
 
+
+def test_nodes_to_dataframe_simple(df_fixture):
+    df = Database("food").nodes_to_dataframe()
+    expected = pd.DataFrame([{
+        "categories": ["stuff", "meals"],
+        "code": "2",
+        "database": "food",
+        "id": get_id(("food", "2")),
+        "location": "CH",
+        "name": "dinner",
+        "type": "process",
+        "unit": "kg",
+    }, {
+        "categories": ("stuff", "meals"),
+        "code": "1",
+        "database": "food",
+        "id": get_id(("food", "1")),
+        "location": "CA",
+        "name": "lunch",
+        "type": "process",
+        "unit": "kg",
+    }])
+    assert_frame_equal(
+        df.reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )
+
+
+def test_nodes_to_dataframe_columns(df_fixture):
+    df = Database("food").nodes_to_dataframe(columns=['id', 'name', 'unit'])
+    expected = pd.DataFrame([{
+        "id": get_id(("food", "2")),
+        "name": "dinner",
+        "unit": "kg",
+    }, {
+        "id": get_id(("food", "1")),
+        "name": "lunch",
+        "unit": "kg",
+    }])
+    assert_frame_equal(
+        df.reset_index(drop=True),
+        expected.reset_index(drop=True),
+    )
+
+
+def test_nodes_to_dataframe_unsorted(df_fixture):
+    df = Database("food").nodes_to_dataframe()
+    assert df.shape == (2, 8)
