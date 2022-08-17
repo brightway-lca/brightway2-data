@@ -7,13 +7,13 @@ import random
 import sqlite3
 import warnings
 from collections import defaultdict
+from typing import List, Callable, Optional
 
 import pandas
 import pyprind
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
-from tqdm import tqdm
 
 from .. import config, databases, geomapping
 from ..data_store import ProcessedDataStore
@@ -888,13 +888,33 @@ class SQLiteBackend(ProcessedDataStore):
                     print("Deleting exchange:", exc)
                     exc.delete()
 
-    def to_dataframe(self, categorical=True, formatters=None):
+    def nodes_to_dataframe(self, columns: Optional[List[str]] = None, return_sorted: bool = True) -> pandas.DataFrame:
+        """Return a pandas DataFrame with all database nodes. Uses the provided node attributes by default,  such as name, unit, location.
+
+        By default, returns a DataFrame sorted by name, reference product, location, and unit. Set ``return_sorted`` to ``False`` to skip sorting.
+
+        Specify ``columns`` to get custom columns. You will need to write your own function to get more customization, there are endless possibilities here.
+
+        Returns a pandas ``DataFrame``.
+
+        """
+        if columns is None:
+            # Feels like magic
+            df = pandas.DataFrame(self)
+        else:
+            df = pandas.DataFrame([{field: obj.get(field) for field in columns} for obj in self])
+        if return_sorted:
+            sort_columns = ['name', 'reference product', 'location', 'unit']
+            df = df.sort_values(by=[column for column in sort_columns if column in df.columns])
+        return df
+
+    def edges_to_dataframe(self, categorical: bool = True, formatters: Optional[List[Callable]] = None) -> pandas.DataFrame:
         """Return a pandas DataFrame with all database exchanges. Standard DataFrame columns are:
 
             target_id: int,
             target_database: str,
             target_code: str,
-            target_activity: Optional[str],
+            target_name: Optional[str],
             target_reference_product: Optional[str],
             target_location: Optional[str],
             target_unit: Optional[str],
@@ -902,11 +922,10 @@ class SQLiteBackend(ProcessedDataStore):
             source_id: int,
             source_database: str,
             source_code: str,
-            source_activity: Optional[str],
+            source_name: Optional[str],
             source_product: Optional[str],  # Note different label
             source_location: Optional[str],
             source_unit: Optional[str],
-            source_type: Optional[str]
             source_categories: Optional[str]  # Tuple concatenated with "::" as in `bw2io`
             edge_amount: float,
             edge_type: str,
@@ -921,7 +940,9 @@ class SQLiteBackend(ProcessedDataStore):
 
             * ``node``: The target node, as a dict
             * ``edge``: The edge, including attributes of the source node
-            * ``row``: The current row dict being modified. ``row`` must be returned as well.
+            * ``row``: The current row dict being modified.
+
+        The functions in ``formatters`` don't need to return anything, they modify ``row`` in place.
 
         Returns a pandas ``DataFrame``.
 
@@ -939,7 +960,7 @@ class SQLiteBackend(ProcessedDataStore):
                     "target_id": target["id"],
                     "target_database": target["database"],
                     "target_code": target["code"],
-                    "target_activity": target.get("name"),
+                    "target_name": target.get("name"),
                     "target_reference_product": target.get("reference product"),
                     "target_location": target.get("location"),
                     "target_unit": target.get("unit"),
@@ -947,17 +968,17 @@ class SQLiteBackend(ProcessedDataStore):
                     "source_id": edge["id"],
                     "source_database": edge["database"],
                     "source_code": edge["code"],
-                    "source_activity": edge.get("name"),
+                    "source_name": edge.get("name"),
                     "source_product": edge.get("product"),
                     "source_location": edge.get("location"),
                     "source_unit": edge.get("unit"),
-                    "source_categories": "::".join(edge.get("categories", ("",))),
+                    "source_categories": "::".join(edge["categories"]) if edge.get("categories") else None,
                     "edge_amount": edge["amount"],
                     "edge_type": edge["type"],
                 }
                 if formatters is not None:
                     for func in formatters:
-                        row = func(node=target, edge=edge, row=row)
+                        func(node=target, edge=edge, row=row)
                 result.append(row)
 
         print("Creating DataFrame")
@@ -966,18 +987,19 @@ class SQLiteBackend(ProcessedDataStore):
         if categorical:
             categorical_columns = [
                 "target_database",
-                "target_activity",
+                "target_name",
                 "target_reference_product",
                 "target_location",
                 "target_unit",
                 "target_type",
                 "source_database",
                 "source_code",
-                "source_activity",
+                "source_name",
                 "source_product",
                 "source_location",
                 "source_unit",
                 "source_categories",
+                "edge_type",
             ]
             print("Compressing DataFrame")
             for column in categorical_columns:
