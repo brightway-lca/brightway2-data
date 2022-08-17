@@ -4,8 +4,13 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from pandas.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal, assert_series_equal
 import pytest
+
+try:
+    import wurst
+except ImportError:
+    wurst = None
 
 from bw2data import geomapping, get_id, databases, Database, get_activity
 from bw2data.backends import Activity as PWActivity
@@ -910,3 +915,115 @@ def test_add_geocollections_no_unable_for_product(capsys):
     )
     assert db.metadata["geocollections"] == ["foo"]
     assert "Not able" not in capsys.readouterr().out
+
+@pytest.fixture
+@bw2test
+def df_fixture():
+    Database("biosphere").write(biosphere)
+    Database("food").write(food_data)
+
+
+@pytest.mark.skipif(not wurst, reason="wurst not installed")
+def test_to_dataframe_simple(df_fixture):
+    df = Database("food").edges_to_dataframe(categorical=False)
+    id_map = {obj['code']: obj.id for obj in Database("food")}
+
+    expected = pd.DataFrame([{
+        "target_id": id_map['1'],
+        "target_database": "food",
+        "target_code": "1",
+        "target_activity": "lunch",
+        "target_reference_product": None,
+        "target_location": "CA",
+        "target_unit": "kg",
+        "target_type": "process",
+        "source_id": id_map['2'],
+        "source_database": 'food',
+        "source_code": '2',
+        "source_activity": 'dinner',
+        "source_product": None,
+        "source_location": 'CH',
+        "source_unit": 'kg',
+        "source_categories": None,
+        "edge_amount": 0.5,
+        "edge_type": 'technosphere',
+    }, {
+        "target_id": id_map['1'],
+        "target_database": "food",
+        "target_code": "1",
+        "target_activity": "lunch",
+        "target_reference_product": None,
+        "target_location": "CA",
+        "target_unit": "kg",
+        "target_type": "process",
+        "source_id": get_id(("biosphere", "1")),
+        "source_database": 'biosphere',
+        "source_code": '1',
+        "source_activity": 'an emission',
+        "source_product": None,
+        "source_location": None,
+        "source_unit": 'kg',
+        "source_categories": "things",
+        "edge_amount": 0.05,
+        "edge_type": 'biosphere',
+    }, {
+        "target_id": id_map['2'],
+        "target_database": "food",
+        "target_code": "2",
+        "target_activity": "dinner",
+        "target_reference_product": None,
+        "target_location": "CH",
+        "target_unit": "kg",
+        "target_type": "process",
+        "source_id": get_id(("biosphere", "2")),
+        "source_database": 'biosphere',
+        "source_code": '2',
+        "source_activity": 'another emission',
+        "source_product": None,
+        "source_location": None,
+        "source_unit": 'kg',
+        "source_categories": "things",
+        "edge_amount": 0.15,
+        "edge_type": 'biosphere',
+    }, {
+        "target_id": id_map['2'],
+        "target_database": "food",
+        "target_code": "2",
+        "target_activity": "dinner",
+        "target_reference_product": None,
+        "target_location": "CH",
+        "target_unit": "kg",
+        "target_type": "process",
+        "source_id": id_map['1'],
+        "source_database": 'food',
+        "source_code": '1',
+        "source_activity": 'lunch',
+        "source_product": None,
+        "source_location": 'CA',
+        "source_unit": 'kg',
+        "source_categories": None,
+        "edge_amount": 0.25,
+        "edge_type": 'technosphere',
+    }])
+    assert_frame_equal(
+        df.sort_values(['target_id', 'source_id']).reset_index(drop=True),
+        expected.sort_values(['target_id', 'source_id']).reset_index(drop=True),
+        check_dtype=False
+    )
+
+
+@pytest.mark.skipif(not wurst, reason="wurst not installed")
+def test_to_dataframe_categorical(df_fixture):
+    df = Database("food").edges_to_dataframe()
+    assert df.shape == (4, 18)
+    assert df['edge_type'].dtype.name == 'category'
+
+
+@pytest.mark.skipif(not wurst, reason="wurst not installed")
+def test_to_dataframe_formatters(df_fixture):
+    def foo(node, edge, row):
+        row['foo'] = 'bar'
+
+    df = Database("food").edges_to_dataframe(formatters=[foo])
+    assert_series_equal(df['foo'], pd.Series(['bar'] * 4, name='foo'))
+
