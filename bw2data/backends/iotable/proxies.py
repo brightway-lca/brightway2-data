@@ -67,7 +67,7 @@ class IOTableExchanges(Iterable):
     ):
         """Iterable of ``ReadOnlyExchange`` objects drawn from Datapackage arrays.
 
-        In the *technosphere*, all positive exchanges are considered *production*, and all negative exchanges are *technosphere*, i.e. consumption.
+        In the *technosphere matrix*, all positive exchanges are considered *production*, and all negative exchanges are *technosphere*, i.e. consumption, and we use this convention to label the edges. However, to be consistent with SQLite database results, we don't flip signs in the returned dataframe.
 
         The order of returned edges are production, technosphere, biosphere.
 
@@ -97,16 +97,6 @@ class IOTableExchanges(Iterable):
             )
         ]
         resources = [obj for obj in resources if obj]
-
-        # Adjust signs using `flip`
-        for resource in resources:
-            if "flip" in resource:
-                flip_arr = datapackage.get_resource(resource["flip"]["name"])[0]
-                flip_int_arr = np.ones_like(flip_arr, dtype=int)
-                flip_int_arr[flip_arr] = -1
-
-                data_ind = datapackage._get_index(resource["data"]["name"])
-                datapackage.data[data_ind] = datapackage.data[data_ind] * flip_int_arr
 
         if target is not None:
             for resource in resources:
@@ -164,10 +154,17 @@ class IOTableExchanges(Iterable):
             obj["matrix"] == "technosphere_matrix" for obj in x.values()
         )
         for resource in filter(tm, self.resources):
-            for (row, col), value in zip(
-                resource["indices"]["array"], resource["data"]["array"]
+            data_arr = resource["data"]["array"]
+            flip_int_arr = np.ones_like(data_arr, dtype=int)
+
+            if "flip" in resource:
+                flip_arr = self.datapackage.get_resource(resource["flip"]["name"])[0]
+                flip_int_arr[flip_arr] = -1
+
+            for (row, col), value, sign in zip(
+                resource["indices"]["array"], data_arr, flip_int_arr
             ):
-                if (value < 0) == negative:
+                if (sign * value < 0) == negative:
                     yield (row, col, value)
 
     def _raw_biosphere_iterator(self):
