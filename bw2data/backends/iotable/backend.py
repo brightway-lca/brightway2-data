@@ -1,9 +1,11 @@
-from .proxies import IOTableActivity
-from .. import SQLiteBackend
-from ... import geomapping, config, databases
-from bw_processing import create_datapackage, clean_datapackage_name
-from fs.zipfs import ZipFS
 import datetime
+
+from bw_processing import clean_datapackage_name, create_datapackage
+from fs.zipfs import ZipFS
+
+from ... import config, databases, geomapping
+from .. import SQLiteBackend
+from .proxies import IOTableActivity
 
 
 class IOTableBackend(SQLiteBackend):
@@ -43,7 +45,9 @@ class IOTableBackend(SQLiteBackend):
             dict_iterator=(
                 {
                     "row": obj.id,
-                    "col": geomapping[obj.get("location", None) or config.global_location],
+                    "col": geomapping[
+                        obj.get("location", None) or config.global_location
+                    ],
                     "amount": 1,
                 }
                 for obj in self
