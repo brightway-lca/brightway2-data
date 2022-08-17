@@ -926,7 +926,6 @@ class SQLiteBackend(ProcessedDataStore):
             source_product: Optional[str],  # Note different label
             source_location: Optional[str],
             source_unit: Optional[str],
-            source_type: Optional[str]
             source_categories: Optional[str]  # Tuple concatenated with "::" as in `bw2io`
             edge_amount: float,
             edge_type: str,
