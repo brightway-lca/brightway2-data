@@ -916,6 +916,7 @@ def test_add_geocollections_no_unable_for_product(capsys):
     assert db.metadata["geocollections"] == ["foo"]
     assert "Not able" not in capsys.readouterr().out
 
+
 @pytest.fixture
 @bw2test
 def df_fixture():
@@ -924,7 +925,7 @@ def df_fixture():
 
 
 @pytest.mark.skipif(not wurst, reason="wurst not installed")
-def test_to_dataframe_simple(df_fixture):
+def test_edges_to_dataframe_simple(df_fixture):
     df = Database("food").edges_to_dataframe(categorical=False)
     id_map = {obj['code']: obj.id for obj in Database("food")}
 
@@ -932,7 +933,7 @@ def test_to_dataframe_simple(df_fixture):
         "target_id": id_map['1'],
         "target_database": "food",
         "target_code": "1",
-        "target_activity": "lunch",
+        "target_name": "lunch",
         "target_reference_product": None,
         "target_location": "CA",
         "target_unit": "kg",
@@ -940,7 +941,7 @@ def test_to_dataframe_simple(df_fixture):
         "source_id": id_map['2'],
         "source_database": 'food',
         "source_code": '2',
-        "source_activity": 'dinner',
+        "source_name": 'dinner',
         "source_product": None,
         "source_location": 'CH',
         "source_unit": 'kg',
@@ -951,7 +952,7 @@ def test_to_dataframe_simple(df_fixture):
         "target_id": id_map['1'],
         "target_database": "food",
         "target_code": "1",
-        "target_activity": "lunch",
+        "target_name": "lunch",
         "target_reference_product": None,
         "target_location": "CA",
         "target_unit": "kg",
@@ -959,7 +960,7 @@ def test_to_dataframe_simple(df_fixture):
         "source_id": get_id(("biosphere", "1")),
         "source_database": 'biosphere',
         "source_code": '1',
-        "source_activity": 'an emission',
+        "source_name": 'an emission',
         "source_product": None,
         "source_location": None,
         "source_unit": 'kg',
@@ -970,7 +971,7 @@ def test_to_dataframe_simple(df_fixture):
         "target_id": id_map['2'],
         "target_database": "food",
         "target_code": "2",
-        "target_activity": "dinner",
+        "target_name": "dinner",
         "target_reference_product": None,
         "target_location": "CH",
         "target_unit": "kg",
@@ -978,7 +979,7 @@ def test_to_dataframe_simple(df_fixture):
         "source_id": get_id(("biosphere", "2")),
         "source_database": 'biosphere',
         "source_code": '2',
-        "source_activity": 'another emission',
+        "source_name": 'another emission',
         "source_product": None,
         "source_location": None,
         "source_unit": 'kg',
@@ -989,7 +990,7 @@ def test_to_dataframe_simple(df_fixture):
         "target_id": id_map['2'],
         "target_database": "food",
         "target_code": "2",
-        "target_activity": "dinner",
+        "target_name": "dinner",
         "target_reference_product": None,
         "target_location": "CH",
         "target_unit": "kg",
@@ -997,7 +998,7 @@ def test_to_dataframe_simple(df_fixture):
         "source_id": id_map['1'],
         "source_database": 'food',
         "source_code": '1',
-        "source_activity": 'lunch',
+        "source_name": 'lunch',
         "source_product": None,
         "source_location": 'CA',
         "source_unit": 'kg',
@@ -1013,14 +1014,14 @@ def test_to_dataframe_simple(df_fixture):
 
 
 @pytest.mark.skipif(not wurst, reason="wurst not installed")
-def test_to_dataframe_categorical(df_fixture):
+def test_edges_to_dataframe_categorical(df_fixture):
     df = Database("food").edges_to_dataframe()
     assert df.shape == (4, 18)
     assert df['edge_type'].dtype.name == 'category'
 
 
 @pytest.mark.skipif(not wurst, reason="wurst not installed")
-def test_to_dataframe_formatters(df_fixture):
+def test_edges_to_dataframe_formatters(df_fixture):
     def foo(node, edge, row):
         row['foo'] = 'bar'
 
