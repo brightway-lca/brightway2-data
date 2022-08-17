@@ -7,11 +7,6 @@ import pandas as pd
 from pandas.testing import assert_frame_equal, assert_series_equal
 import pytest
 
-try:
-    import wurst
-except ImportError:
-    wurst = None
-
 from bw2data import geomapping, get_id, databases, Database, get_activity
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
@@ -924,7 +919,6 @@ def df_fixture():
     Database("food").write(food_data)
 
 
-@pytest.mark.skipif(not wurst, reason="wurst not installed")
 def test_edges_to_dataframe_simple(df_fixture):
     df = Database("food").edges_to_dataframe(categorical=False)
     id_map = {obj['code']: obj.id for obj in Database("food")}
@@ -1013,14 +1007,12 @@ def test_edges_to_dataframe_simple(df_fixture):
     )
 
 
-@pytest.mark.skipif(not wurst, reason="wurst not installed")
 def test_edges_to_dataframe_categorical(df_fixture):
     df = Database("food").edges_to_dataframe()
     assert df.shape == (4, 18)
     assert df['edge_type'].dtype.name == 'category'
 
 
-@pytest.mark.skipif(not wurst, reason="wurst not installed")
 def test_edges_to_dataframe_formatters(df_fixture):
     def foo(node, edge, row):
         row['foo'] = 'bar'
