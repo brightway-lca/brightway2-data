@@ -102,7 +102,7 @@ class IOTableExchanges(Iterable):
         for resource in resources:
             if "flip" in resource:
                 flip_arr = datapackage.get_resource(resource["flip"]["name"])[0]
-                flip_int_arr = np.ones_like(flip_arr)
+                flip_int_arr = np.ones_like(flip_arr, dtype=int)
                 flip_int_arr[flip_arr] = -1
 
                 data_ind = datapackage._get_index(resource["data"]["name"])
