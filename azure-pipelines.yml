@@ -29,7 +29,7 @@ jobs:
 
   - bash: |
       source activate bw2
-      mamba install --yes --quiet -c defaults -c conda-forge -c cmutel --name bw2 bw_processing python=$PYTHON_VERSION peewee brightway25 pytest pytest-azurepipelines">=1.0" pytest-cov pip
+      mamba install --yes --quiet -c defaults -c conda-forge -c cmutel --name bw2 bw_processing python=$PYTHON_VERSION peewee wurst brightway25 pytest pytest-azurepipelines">=1.0" pytest-cov pip
     displayName: Install Anaconda packages
 
   - bash: |
@@ -90,7 +90,7 @@ jobs:
 
   - bash: |
       source activate bw2
-      mamba install --yes -c defaults -c conda-forge -c cmutel --name bw2 python=$PYTHON_VERSION bw_processing pytest peewee brightway25 pytest-azurepipelines">=1.0" pip
+      mamba install --yes -c defaults -c conda-forge -c cmutel --name bw2 python=$PYTHON_VERSION bw_processing pytest peewee wurst brightway25 pytest-azurepipelines">=1.0" pip
     displayName: Install Anaconda packages
 
   - bash: |
@@ -144,7 +144,7 @@ jobs:
 
   - bash: |
       source activate bw2
-      mamba install --yes -c defaults -c conda-forge -c cmutel --name bw2 python=$PYTHON_VERSION bw_processing pytest peewee brightway25 pytest-azurepipelines">=1.0" pip
+      mamba install --yes -c defaults -c conda-forge -c cmutel --name bw2 python=$PYTHON_VERSION bw_processing pytest peewee wurst brightway25 pytest-azurepipelines">=1.0" pip
     displayName: Install Anaconda packages
 
   - bash: |
@@ -198,7 +198,7 @@ jobs:
 
   - script: |
       call activate bw2
-      conda install --yes -c defaults -c conda-forge -c cmutel -c haasad --name bw2 python=%PYTHON_VERSION% bw_processing pytest peewee brightway25 pytest-azurepipelines">=1.0" pywin32 pip
+      conda install --yes -c defaults -c conda-forge -c cmutel -c haasad --name bw2 python=%PYTHON_VERSION% bw_processing pytest peewee wurst brightway25 pytest-azurepipelines">=1.0" pywin32 pip
     displayName: Install Anaconda packages
 
   - script: |
