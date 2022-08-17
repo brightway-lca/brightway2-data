@@ -341,45 +341,41 @@ def test_correct_backend_fixture(iotable_fixture):
 #     assert exc["amount"] == 3
 
 
-# def test_readonlyexchange(activity_and_method):
-#     # test if all properties and methods implemented in class ReadOnlyExchange are working correctly
+def test_iotabe_readonlyexchange(iotable_fixture):
+    a = get_node(code="b")
+    exc = next(iter(a.technosphere()))
+    exc2 = next(iter(a.biosphere()))
 
-#     activity, method = activity_and_method
-#     exc = list(activity.technosphere())[0]
-#     # __str__
-#     assert str(exc) == "Exchange: 3.0 None 'd' (None, None, None) to 'a' (None, None, None)>"
-#     # __contains__
-#     assert "output" in exc
-#     # __eq__
-#     assert exc == exc
-#     # __len__
-#     assert len(exc) == 4
-#     # __hash__
-#     assert exc.__hash__() is not None
-#     # output getter
-#     assert exc.output == activity
-#     # input getter
-#     assert exc.input == get_activity(("db","d"))
-#     # amount getter
-#     assert exc.amount == 3
-#     # unit getter
-#     assert exc.unit == None
-#     # type getter
-#     assert exc['type'] == "technosphere"
-#     # as_dict
-#     assert exc.as_dict() == {'input': ('db', 'd'), 'output': ('db', 'a'), 'amount': 3.0, 'type': 'technosphere'}
-#     # valid
-#     assert exc.valid()
-#     # lca
-#     exc.lca(method.name, 1)
+    assert exc < exc2
 
-#     # test if exchange is read-only
-#     with pytest.raises(AttributeError, match="can't set attribute"):
-#         exc.input = exc.output
-#         exc.output = exc.input
-#         exc.amount = 1
-#     with pytest.raises(AttributeError, match="'ReadOnlyExchange' object has no attribute .*"):
-#         exc.delete()
-#         exc.save()
-#     with pytest.raises(TypeError, match="'ReadOnlyExchange' object does not support item assignment"):
-#         exc['type'] = 'biosphere'
+    assert str(exc)
+    assert "output" in exc
+    assert exc == exc
+    assert len(exc) == len(exc._data)
+    assert hash(exc)
+    assert isinstance(exc.input, IOTableActivity)
+    assert isinstance(exc.output, IOTableActivity)
+    assert exc.amount
+
+    assert exc['type'] in ("technosphere", "production")
+    assert isinstance(exc.as_dict(), dict)
+
+    exc.lca(("a method",), 1)
+
+
+def test_iotabe_readonlyexchange_missing_methods(iotable_fixture):
+    a = get_node(code="b")
+    exc = next(iter(a.technosphere()))
+
+    with pytest.raises(AttributeError):
+        exc.save()
+    with pytest.raises(AttributeError):
+        exc.delete()
+
+
+def test_iotabe_readonlyexchange_not_setitem(iotable_fixture):
+    a = get_node(code="b")
+    exc = next(iter(a.technosphere()))
+
+    with pytest.raises(TypeError, match="'ReadOnlyExchange' object does not support item assignment"):
+        exc['type'] = 'biosphere'
