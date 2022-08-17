@@ -94,6 +94,7 @@ class SQLiteBackend(ProcessedDataStore):
     _metadata = databases
     validator = None
     backend = "sqlite"
+    node_class = Activity
 
     def __init__(self, *args, **kwargs):
         super(SQLiteBackend, self).__init__(*args, **kwargs)
@@ -294,7 +295,7 @@ class SQLiteBackend(ProcessedDataStore):
 
     def __iter__(self):
         for ds in self._get_queryset():
-            yield Activity(ds)
+            yield self.node_class(ds)
 
     def __len__(self):
         return self._get_queryset().count()
@@ -360,9 +361,9 @@ class SQLiteBackend(ProcessedDataStore):
         """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
             if true_random:
-                return Activity(self._get_queryset(random=True, filters=filters).get())
+                return self.node_class(self._get_queryset(random=True, filters=filters).get())
             else:
-                return Activity(
+                return self.node_class(
                     self._get_queryset(filters=filters)
                     .offset(random.randint(0, len(self)))
                     .get()
@@ -375,7 +376,7 @@ class SQLiteBackend(ProcessedDataStore):
         kwargs["database"] = self.name
         if code is not None:
             kwargs["code"] = code
-        return get_activity(**kwargs)
+        return get_activity(node_class=self.node_class, **kwargs)
 
     ### Data management
     ###################
@@ -552,7 +553,7 @@ class SQLiteBackend(ProcessedDataStore):
         return self.new_node(code, **kwargs)
 
     def new_node(self, code, **kwargs):
-        obj = Activity()
+        obj = self.node_class()
         obj["database"] = self.name
         obj["code"] = str(code)
         obj["location"] = config.global_location
@@ -836,7 +837,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         Returns a list of ``Activity`` datasets."""
         with Searcher(self.filename) as s:
-            results = s.search(string, **kwargs)
+            results = s.search(string=string, node_class=self.node_class, **kwargs)
         return results
 
     def set_geocollections(self):

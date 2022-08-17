@@ -1,3 +1,4 @@
+from .proxies import IOTableActivity
 from .. import SQLiteBackend
 from ... import geomapping, config, databases
 from bw_processing import create_datapackage, clean_datapackage_name
@@ -11,6 +12,7 @@ class IOTableBackend(SQLiteBackend):
     Activities will not seem to have any exchanges."""
 
     backend = "iotable"
+    node_class = IOTableActivity
 
     def write(self, data):
         super().write(data, process=False)
@@ -102,18 +104,3 @@ class IOTableBackend(SQLiteBackend):
     def process(self):
         """No-op; no intermediate data to process"""
         return
-
-    def get(self, code):
-        from .proxies import IOTableActivity
-
-        return IOTableActivity(super().get(code))
-
-    def random(self, filters=True, true_random=False):
-        from .proxies import IOTableActivity
-
-        return IOTableActivity(super(IOTableBackend, self).random(filters, true_random))
-
-    def search(self, *args, **kwargs):
-        from .proxies import IOTableActivity
-
-        return [IOTableActivity(a) for a in super().search(*args, **kwargs)]

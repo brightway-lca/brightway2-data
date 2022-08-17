@@ -1,5 +1,5 @@
 from ..proxies import Activity, Exchange
-from .storage import Storage
+# from .storage import Storage
 import itertools
 from collections.abc import Iterable, Mapping
 import pandas as pd

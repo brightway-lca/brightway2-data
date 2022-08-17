@@ -395,9 +395,12 @@ def create_in_memory_zipfile_from_directory(path):
     return memory_obj
 
 
-def get_node(**kwargs):
+def get_node(node_class=None, **kwargs):
     from .backends import Activity
     from .backends import ActivityDataset as AD
+
+    if node_class is None:
+        node_class = Activity
 
     mapping = {
         "id": AD.id,
@@ -416,7 +419,7 @@ def get_node(**kwargs):
         except KeyError:
             continue
 
-    candidates = [Activity(obj) for obj in qs]
+    candidates = [node_class(obj) for obj in qs]
 
     extended_search = any(key not in mapping for key in kwargs)
     if extended_search:
@@ -448,6 +451,7 @@ def get_activity(key=None, **kwargs):
     ``key`` can be an integer or a key tuple."""
     from .backends import Activity
 
+    # Includes subclasses
     if isinstance(key, Activity):
         return key
     elif isinstance(key, tuple):
