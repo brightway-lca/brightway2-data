@@ -109,6 +109,10 @@ class IOTableExchanges(Iterable):
                 datapackage.data[indices_ind] = indices_arr[mask]
                 datapackage.data[data_ind] = datapackage.data[data_ind][mask]
 
+                if "flip" in resource:
+                    flip_ind = datapackage._get_index(resource["flip"]["name"])
+                    datapackage.data[flip_ind] = datapackage.data[flip_ind][mask]
+
         for resource in resources:
             resource["data"]["array"] = datapackage.get_resource(
                 resource["data"]["name"]
