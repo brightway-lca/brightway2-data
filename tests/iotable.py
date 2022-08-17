@@ -78,12 +78,75 @@ def iotable_fixture():
     method.write(cfs)
 
 
-def test_setup_clean(iotable_fixture):
+def test_iotable_setup_clean(iotable_fixture):
     print(databases)
     assert len(databases) == 2
     assert list(methods) == [("a method",)]
     assert len(projects) == 2  # Default project
     assert "default" in projects
+
+
+def test_iotable_matrix_construction(iotable_fixture):
+    lca = LCA({("cat", "a"): 1}, ("a method",))
+    lca.lci()
+    lca.lcia()
+
+    tech_values = [
+        ("a", "a", 2, False),
+        ("a", "c", 3, True),
+        ("b", "a", 1, True),
+        ("b", "b", 1, False),
+        ("c", "a", 4, False),
+        ("c", "b", 0.2, True),
+        ("c", "c", 1, True),
+    ]
+    for a, b, c, d in tech_values:
+        assert np.allclose(
+            lca.technosphere_matrix[
+                lca.dicts.product[get_activity(code=a).id],
+                lca.dicts.activity[get_activity(code=b).id],
+            ],
+            (-1 if d else 1) * c
+        )
+    assert np.allclose(
+        lca.technosphere_matrix.sum(),
+        2 - 3 - 1 + 1 + 4 - 0.2 - 1
+    )
+
+    bio_values = [
+        ("d", "b", 1, False),
+        ("d", "c", 2, False),
+    ]
+    for a, b, c, d in bio_values:
+        assert np.allclose(
+            lca.biosphere_matrix[
+                lca.dicts.biosphere[get_activity(code=a).id],
+                lca.dicts.activity[get_activity(code=b).id],
+            ],
+            (-1 if d else 1) * c
+        )
+    assert np.allclose(
+        lca.biosphere_matrix.sum(),
+        3
+    )
+
+    assert np.allclose(
+        lca.characterization_matrix.sum(),
+        42
+    )
+    assert lca.characterization_matrix.shape == (1, 1)
+
+
+def test_iotable_process_method(iotable_fixture):
+    Database("cat").process()
+
+
+def test_iotable_edges_to_dataframe(iotable_fixture):
+    df = Database("cat").edges_to_dataframe()
+
+
+def test_iotable_nodes_to_dataframe(iotable_fixture):
+    df = Database("cat").nodes_to_dataframe()
 
 
 # def test_production(activity_and_method):
@@ -116,12 +179,7 @@ def test_setup_clean(iotable_fixture):
 #     exc = list(activity.technosphere())[0]
 #     assert exc["amount"] == 3
 
-# def test_lca(activity_and_method):
-#     _, method = activity_and_method
-#     lca = LCA({("db","d"):1}, method.name)
-#     lca.lci()
-#     lca.lcia()
-#     lca.score
+
 
 # def test_readonlyexchange(activity_and_method):
 #     # test if all properties and methods implemented in class ReadOnlyExchange are working correctly
