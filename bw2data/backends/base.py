@@ -973,7 +973,7 @@ class SQLiteBackend(ProcessedDataStore):
                     "source_product": edge.get("product"),
                     "source_location": edge.get("location"),
                     "source_unit": edge.get("unit"),
-                    "source_categories": "::".join(edge.get("categories", ("",))),
+                    "source_categories": "::".join(edge["categories"]) if edge.get("categories") else None,
                     "edge_amount": edge["amount"],
                     "edge_type": edge["type"],
                 }
