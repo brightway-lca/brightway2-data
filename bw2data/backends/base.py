@@ -947,14 +947,11 @@ class SQLiteBackend(ProcessedDataStore):
         Returns a pandas ``DataFrame``.
 
         """
-        try:
-            from wurst import extract_brightway2_databases
-        except ImportError:
-            raise ImportError("This method requires the `wurst` library.")
+        from .wurst_extraction import extract_brightway_databases
 
         result = []
 
-        for target in extract_brightway2_databases(self.name, add_identifiers=True):
+        for target in extract_brightway_databases(self.name, add_identifiers=True):
             for edge in target["exchanges"]:
                 row = {
                     "target_id": target["id"],
