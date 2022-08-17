@@ -30,7 +30,7 @@ class ReadOnlyExchange(Mapping):
 
     def __str__(self):
         return "Exchange: {} {} {} to {}>".format(
-            self.amount, self.input["unit"], self.input, self.output
+            self.amount, self.input.get("unit"), self.input, self.output
         )
 
     def __init__(self, **kwargs):
