@@ -1,11 +1,17 @@
+from tqdm import tqdm
+import functools
 import datetime
+import itertools
 
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
 
+import pandas as pd
+from typing import Callable, Optional, List
+
 from ... import config, databases, geomapping
 from .. import SQLiteBackend
-from .proxies import IOTableActivity
+from .proxies import IOTableActivity, IOTableExchanges
 
 
 class IOTableBackend(SQLiteBackend):
@@ -108,3 +114,109 @@ class IOTableBackend(SQLiteBackend):
     def process(self):
         """No-op; no intermediate data to process"""
         return
+
+    def edges_to_dataframe(self) -> pd.DataFrame:
+        """Return a pandas DataFrame with all database exchanges. DataFrame columns are:
+
+            target_id: int,
+            target_database: str,
+            target_code: str,
+            target_name: Optional[str],
+            target_reference_product: Optional[str],
+            target_location: Optional[str],
+            target_unit: Optional[str],
+            target_type: Optional[str]
+            source_id: int,
+            source_database: str,
+            source_code: str,
+            source_name: Optional[str],
+            source_product: Optional[str],  # Note different label
+            source_location: Optional[str],
+            source_unit: Optional[str],
+            source_categories: Optional[str]  # Tuple concatenated with "::" as in `bw2io`
+            edge_amount: float,
+            edge_type: str,
+
+        Target is the node consuming the edge, source is the node or flow being consumed. The terms target and source were chosen because they also work well for biosphere edges.
+
+        As IO Tables are normally quite large, the DataFrame building will operate directly on Numpy arrays, and therefore special formatters are not supported in this function.
+
+        Returns a pandas ``DataFrame``.
+
+        """
+        from ... import get_activity
+
+        @functools.lru_cache(10000)
+        def cached_lookup(code):
+            return get_activity(id=code)
+
+        print("Retrieving metadata")
+        activities = {o.id: o for o in self}
+        exchanges = IOTableExchanges(datapackage=self.datapackage())
+        exchanges_iterator = [
+            zip(exchanges._raw_technosphere_iterator(negative=False), itertools.repeat("production")),
+            zip(exchanges._raw_technosphere_iterator(negative=True), itertools.repeat("technosphere")),
+            zip(exchanges._raw_biosphere_iterator(), itertools.repeat("biosphere")),
+        ]
+
+        result = []
+
+        print("Iterating over exchanges")
+        pbar = tqdm(total=len(exchanges))
+        for (row, col, value), type_label in itertools.chain(*exchanges_iterator):
+            target = activities[col]
+            try:
+                source = activities[row]
+            except KeyError:
+                source = cached_lookup(row)
+
+            row = {
+                "target_id": target["id"],
+                "target_database": target["database"],
+                "target_code": target["code"],
+                "target_name": target.get("name"),
+                "target_reference_product": target.get("reference product"),
+                "target_location": target.get("location"),
+                "target_unit": target.get("unit"),
+                "target_type": target.get("type", "process"),
+                "source_id": source["id"],
+                "source_database": source["database"],
+                "source_code": source["code"],
+                "source_name": source.get("name"),
+                "source_product": source.get("product"),
+                "source_location": source.get("location"),
+                "source_unit": source.get("unit"),
+                "source_categories": "::".join(source["categories"]) if source.get("categories") else None,
+                "edge_amount": value,
+                "edge_type": type_label,
+            }
+            result.append(row)
+            pbar.update(1)
+
+        pbar.close()
+
+        print("Creating DataFrame")
+        df = pd.DataFrame(result)
+
+        categorical_columns = [
+            "target_database",
+            "target_name",
+            "target_reference_product",
+            "target_location",
+            "target_unit",
+            "target_type",
+            "source_database",
+            "source_code",
+            "source_name",
+            "source_product",
+            "source_location",
+            "source_unit",
+            "source_categories",
+            "edge_type",
+        ]
+        print("Compressing DataFrame")
+        for column in categorical_columns:
+            if column in df.columns:
+                df[column] = df[column].astype("category")
+
+        return df
