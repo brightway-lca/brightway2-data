@@ -837,7 +837,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         Returns a list of ``Activity`` datasets."""
         with Searcher(self.filename) as s:
-            results = s.search(string=string, node_class=self.node_class, **kwargs)
+            results = s.search(string=string, **kwargs)
         return results
 
     def set_geocollections(self):
