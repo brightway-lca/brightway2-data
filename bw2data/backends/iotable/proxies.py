@@ -12,9 +12,8 @@ from ..proxies import Activity, Exchange
 
 
 class ReadOnlyExchange(Mapping):
-    """Dictionary which mimics ``bw2data.proxies.Exchange``, but is read-only and doesn't link to a SQLite database row."""
+    """Non-mutable dictionary which mimics ``bw2data.proxies.Exchange``, but is read-only and doesn't link to a SQLite database row."""
 
-    __lt__ = Exchange.__lt__
     __contains__ = Exchange.__contains__
     __iter__ = Exchange.__iter__
     __len__ = Exchange.__len__
@@ -27,6 +26,15 @@ class ReadOnlyExchange(Mapping):
 
     lca = Exchange.lca
     as_dict = Exchange.as_dict
+
+    def __lt__(self, other):
+        if not isinstance(other, ReadOnlyExchange):
+            raise TypeError
+        else:
+            return (self.input.key, self.output.key) < (
+                other.input.key,
+                other.output.key,
+            )
 
     def __str__(self):
         return "Exchange: {} {} {} to {}>".format(
