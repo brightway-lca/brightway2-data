@@ -21,7 +21,7 @@ from ..errors import InvalidExchange, UnknownObject, UntypedExchange, WrongDatab
 from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_activity, get_geocollection
+from ..utils import as_uncertainty_dict, get_node, get_geocollection
 from . import sqlite3_lci_db
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
@@ -376,7 +376,7 @@ class SQLiteBackend(ProcessedDataStore):
         kwargs["database"] = self.name
         if code is not None:
             kwargs["code"] = code
-        return get_activity(node_class=self.node_class, **kwargs)
+        return get_node(**kwargs)
 
     ### Data management
     ###################

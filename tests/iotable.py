@@ -1,10 +1,12 @@
-from bw2data import Method, Database, databases, methods, projects, get_activity, get_id
+from bw2data import Method, Database, databases, methods, projects, get_activity, get_id, get_node
+from bw2data.backends import Activity
 import pytest
 from bw2data.tests import bw2test
 from bw2calc import LCA
 import numpy as np
 from pandas.testing import assert_frame_equal
 import pandas as pd
+from bw2data.backends.iotable.proxies import ReadOnlyExchange, IOTableExchanges, IOTableActivity
 
 
 @pytest.fixture
@@ -268,6 +270,44 @@ def test_iotable_nodes_to_dataframe(iotable_fixture):
         df.reset_index(drop=True),
         expected.reset_index(drop=True),
     )
+
+
+def test_iotable_get_methods_correct_class(iotable_fixture):
+    act = get_activity(("cat", "a"))
+    assert isinstance(act, IOTableActivity)
+
+    act = get_node(code="a")
+    assert isinstance(act, IOTableActivity)
+
+    act = Database("cat").get(code="a")
+    assert isinstance(act, IOTableActivity)
+
+    act = get_activity(("mouse", "d"))
+    assert isinstance(act, Activity)
+
+    act = get_node(code="d")
+    assert isinstance(act, Activity)
+
+    act = Database("mouse").get(code="d")
+    assert isinstance(act, Activity)
+
+
+def test_iotable_activity(iotable_fixture):
+    act = get_activity(("cat", "a"))
+    assert act['name'] == 'a'
+    assert act['unit'] == 'meow'
+    assert act['location'] == 'sunshine'
+
+    with pytest.raises(NotImplementedError):
+        act.delete()
+
+    with pytest.raises(ValueError):
+        act.rp_exchange()
+
+
+def test_correct_backend_fixture(iotable_fixture):
+    act = get_activity(("mouse", "d"))
+    assert not isinstance(act, IOTableActivity)
 
 
 # def test_production(activity_and_method):

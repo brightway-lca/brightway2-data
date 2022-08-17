@@ -395,12 +395,18 @@ def create_in_memory_zipfile_from_directory(path):
     return memory_obj
 
 
-def get_node(node_class=None, **kwargs):
+def get_node(**kwargs):
+    from . import databases
     from .backends import Activity
     from .backends import ActivityDataset as AD
+    from .backends.iotable.proxies import IOTableActivity
 
-    if node_class is None:
-        node_class = Activity
+    def node_class(database_name):
+        mapping = {
+            'sqlite': Activity,
+            'iotable': IOTableActivity,
+        }
+        return mapping[databases[database_name].get("backend", "sqlite")]
 
     mapping = {
         "id": AD.id,
@@ -419,7 +425,7 @@ def get_node(node_class=None, **kwargs):
         except KeyError:
             continue
 
-    candidates = [node_class(obj) for obj in qs]
+    candidates = [node_class(obj.database)(obj) for obj in qs]
 
     extended_search = any(key not in mapping for key in kwargs)
     if extended_search:
