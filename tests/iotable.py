@@ -1,13 +1,27 @@
-from bw2data import Method, Database, databases, methods, projects, get_activity, get_id, get_node
-from bw2data.backends import Activity
-import pytest
-from bw2data.tests import bw2test
-from bw2calc import LCA
 import numpy as np
-from pandas.testing import assert_frame_equal
 import pandas as pd
-from bw2data.backends.iotable.proxies import ReadOnlyExchange, IOTableExchanges, IOTableActivity
+import pytest
+from bw2calc import LCA
+from pandas.testing import assert_frame_equal
+
+from bw2data import (
+    Database,
+    Method,
+    databases,
+    get_activity,
+    get_id,
+    get_node,
+    methods,
+    projects,
+)
+from bw2data.backends import Activity
+from bw2data.backends.iotable.proxies import (
+    IOTableActivity,
+    IOTableExchanges,
+    ReadOnlyExchange,
+)
 from bw2data.errors import InvalidDatapackage
+from bw2data.tests import bw2test
 
 
 @pytest.fixture
@@ -61,7 +75,7 @@ def iotable_fixture():
                 "row": get_activity(code=m).id,
                 "col": get_activity(code=n).id,
                 "amount": o,
-                "flip": p
+                "flip": p,
             }
             for m, n, o, p in tech_exchanges
         ],
@@ -70,7 +84,7 @@ def iotable_fixture():
                 "row": get_activity(code=m).id,
                 "col": get_activity(code=n).id,
                 "amount": o,
-                "flip": p
+                "flip": p,
             }
             for m, n, o, p in bio_exchanges
         ],
@@ -107,10 +121,12 @@ def test_iotable_matrix_construction(iotable_fixture):
     ]
     for a, b, c, d in tech_values:
         print(a, b, c, d)
-        print(lca.technosphere_matrix[
+        print(
+            lca.technosphere_matrix[
                 lca.dicts.product[get_activity(code=a).id],
                 lca.dicts.activity[get_activity(code=b).id],
-            ])
+            ]
+        )
         assert np.allclose(
             lca.technosphere_matrix[
                 lca.dicts.product[get_activity(code=a).id],
@@ -167,13 +183,15 @@ def test_iotable_edges_to_dataframe(iotable_fixture):
                 "target_id": id_map[a],
                 "source_id": id_map[b],
                 "edge_amount": c,
-                "edge_type": "technosphere" if ((-1 if d else 1) * c) < 0 else "production",
+                "edge_type": "technosphere"
+                if ((-1 if d else 1) * c) < 0
+                else "production",
                 "target_database": "mouse" if a == "d" else "cat",
                 "target_code": a,
                 "target_name": get_activity(code=a).get("name"),
                 "target_location": get_activity(code=a).get("location"),
                 "target_unit": get_activity(code=a).get("unit"),
-                "target_type": get_activity(code=a).get("type") or 'process',
+                "target_type": get_activity(code=a).get("type") or "process",
                 "target_reference_product": None,
                 "source_database": "mouse" if b == "d" else "cat",
                 "source_code": b,
@@ -196,7 +214,7 @@ def test_iotable_edges_to_dataframe(iotable_fixture):
                 "target_name": get_activity(code=a).get("name"),
                 "target_location": get_activity(code=a).get("location"),
                 "target_unit": get_activity(code=a).get("unit"),
-                "target_type": get_activity(code=a).get("type") or 'process',
+                "target_type": get_activity(code=a).get("type") or "process",
                 "target_reference_product": None,
                 "source_database": "mouse" if b == "d" else "cat",
                 "source_code": b,
@@ -295,9 +313,9 @@ def test_iotable_get_methods_correct_class(iotable_fixture):
 
 def test_iotable_activity(iotable_fixture):
     act = get_activity(("cat", "a"))
-    assert act['name'] == 'a'
-    assert act['unit'] == 'meow'
-    assert act['location'] == 'sunshine'
+    assert act["name"] == "a"
+    assert act["unit"] == "meow"
+    assert act["location"] == "sunshine"
 
     with pytest.raises(NotImplementedError):
         act.delete()
@@ -327,7 +345,7 @@ def test_iotable_activity_edges_to_dataframe(iotable_fixture):
                 "target_reference_product": None,
                 "target_location": get_activity(code=a).get("location"),
                 "target_unit": get_activity(code=a).get("unit"),
-                "target_type": get_activity(code=a).get("type") or 'process',
+                "target_type": get_activity(code=a).get("type") or "process",
                 "source_id": id_map[b],
                 "source_database": "mouse" if b == "d" else "cat",
                 "source_code": b,
@@ -337,7 +355,9 @@ def test_iotable_activity_edges_to_dataframe(iotable_fixture):
                 "source_unit": get_activity(code=b).get("unit"),
                 "source_categories": None,
                 "edge_amount": c,
-                "edge_type": "technosphere" if ((-1 if d else 1) * c) < 0 else "production",
+                "edge_type": "technosphere"
+                if ((-1 if d else 1) * c) < 0
+                else "production",
             }
             for b, a, c, d in tech_exchanges
         ]
@@ -382,7 +402,7 @@ def test_iotable_edges_production(iotable_fixture):
     assert exc.input == act
     assert exc.output in (act, get_activity(("cat", "c")))
     assert isinstance(exc, ReadOnlyExchange)
-    assert exc['amount'] in (2, 4)
+    assert exc["amount"] in (2, 4)
 
 
 def test_iotable_edges_technosphere(iotable_fixture):
@@ -393,7 +413,7 @@ def test_iotable_edges_technosphere(iotable_fixture):
     assert exc.input == get_activity(("cat", "b"))
     assert exc.output == act
     assert isinstance(exc, ReadOnlyExchange)
-    assert exc['amount'] == -1
+    assert exc["amount"] == -1
 
 
 def test_iotable_edges_biosphere(iotable_fixture):
@@ -403,7 +423,7 @@ def test_iotable_edges_biosphere(iotable_fixture):
     assert exc.input == get_activity(("mouse", "d"))
     assert exc.output == act
     assert isinstance(exc, ReadOnlyExchange)
-    assert exc['amount'] == -1
+    assert exc["amount"] == -1
 
 
 def test_substitution(iotable_fixture):
@@ -427,7 +447,7 @@ def test_iotabe_readonlyexchange(iotable_fixture):
     assert isinstance(exc.output, IOTableActivity)
     assert exc.amount
 
-    assert exc['type'] in ("technosphere", "production")
+    assert exc["type"] in ("technosphere", "production")
     assert isinstance(exc.as_dict(), dict)
 
     exc.lca(("a method",), 1)
@@ -447,8 +467,10 @@ def test_iotabe_readonlyexchange_not_setitem(iotable_fixture):
     a = get_node(code="b")
     exc = next(iter(a.technosphere()))
 
-    with pytest.raises(TypeError, match="'ReadOnlyExchange' object does not support item assignment"):
-        exc['type'] = 'biosphere'
+    with pytest.raises(
+        TypeError, match="'ReadOnlyExchange' object does not support item assignment"
+    ):
+        exc["type"] = "biosphere"
 
 
 def test_iotable_filtered_datapackage(iotable_fixture):

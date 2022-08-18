@@ -7,9 +7,9 @@ import numpy as np
 import pandas as pd
 from bw_processing import Datapackage
 
+from ...errors import InvalidDatapackage
 from ...utils import get_node
 from ..proxies import Activity, Exchange
-from ...errors import InvalidDatapackage
 
 
 class ReadOnlyExchange(Mapping):
@@ -92,17 +92,23 @@ class IOTableExchanges(Iterable):
                 "Must include some edges from `technosphere`, `production`, and `biosphere`"
             )
 
-        if hasattr(datapackage, "filtered") and ((target is None) or (datapackage.filtered != target.id)):
-            raise InvalidDatapackage("This datapackage was already filtered to a different node. Please load it again.")
+        if hasattr(datapackage, "filtered") and (
+            (target is None) or (datapackage.filtered != target.id)
+        ):
+            raise InvalidDatapackage(
+                "This datapackage was already filtered to a different node. Please load it again."
+            )
 
         resources = self._group_and_filter_resources(datapackage)
         self._add_arrays_to_resources(resources, datapackage)
-        resources = self._reduce_arrays_to_selected_types(resources, technosphere, production, biosphere)
+        resources = self._reduce_arrays_to_selected_types(
+            resources, technosphere, production, biosphere
+        )
 
         if target is not None:
             datapackage.filtered = target.id
             for resource in resources:
-                mask = resource['indices']['array']["col"] == target.id
+                mask = resource["indices"]["array"]["col"] == target.id
                 self._mask_resource_arrays(resource, mask)
 
         self.resources = resources
@@ -113,11 +119,7 @@ class IOTableExchanges(Iterable):
 
     def _group_and_filter_resources(self, datapackage):
         resources = [
-            {
-                obj["kind"]: obj
-                for obj in group
-                if obj["category"] == "vector"
-            }
+            {obj["kind"]: obj for obj in group if obj["category"] == "vector"}
             for _, group in itertools.groupby(
                 datapackage.resources, lambda x: x["group"]
             )
@@ -137,29 +139,48 @@ class IOTableExchanges(Iterable):
                     resource["flip"]["name"]
                 )[0]
             else:
-                resource['flip'] = {'array': np.zeros_like(resource["data"]["array"], dtype=bool)}
+                resource["flip"] = {
+                    "array": np.zeros_like(resource["data"]["array"], dtype=bool)
+                }
 
             # Add array indicating if values are positive after combining data and flip
-            positive_arr = np.ones_like(resource['flip']['array'], dtype=int)
-            positive_arr[resource['flip']['array']] = -1
-            resource['flip']['positive'] = (resource["data"]["array"] * positive_arr) >= 0
+            positive_arr = np.ones_like(resource["flip"]["array"], dtype=int)
+            positive_arr[resource["flip"]["array"]] = -1
+            resource["flip"]["positive"] = (
+                resource["data"]["array"] * positive_arr
+            ) >= 0
 
-    def _reduce_arrays_to_selected_types(self, resources, technosphere, production, biosphere):
+    def _reduce_arrays_to_selected_types(
+        self, resources, technosphere, production, biosphere
+    ):
         if not biosphere:
-            resources = [resource for resource in resources if resource['data']['matrix'] == 'technosphere_matrix']
+            resources = [
+                resource
+                for resource in resources
+                if resource["data"]["matrix"] == "technosphere_matrix"
+            ]
         elif not (technosphere or production):
-            resources = [resource for resource in resources if resource['data']['matrix'] == 'biosphere_matrix']
+            resources = [
+                resource
+                for resource in resources
+                if resource["data"]["matrix"] == "biosphere_matrix"
+            ]
         else:
-            resources = [resource for resource in resources if resource['data']['matrix'] in ('biosphere_matrix', 'technosphere_matrix')]
+            resources = [
+                resource
+                for resource in resources
+                if resource["data"]["matrix"]
+                in ("biosphere_matrix", "technosphere_matrix")
+            ]
 
         if technosphere != production:
             for resource in resources:
-                if resource['data']['matrix'] != 'technosphere_matrix':
+                if resource["data"]["matrix"] != "technosphere_matrix":
                     continue
                 elif technosphere:
-                    self._mask_resource_arrays(resource, ~resource['flip']['positive'])
+                    self._mask_resource_arrays(resource, ~resource["flip"]["positive"])
                 else:
-                    self._mask_resource_arrays(resource, resource['flip']['positive'])
+                    self._mask_resource_arrays(resource, resource["flip"]["positive"])
         return resources
 
     def _mask_resource_arrays(self, resource, mask):
@@ -195,12 +216,12 @@ class IOTableExchanges(Iterable):
             )
 
     def _raw_technosphere_iterator(self, negative=True):
-        tm = lambda x: any(
-            obj["matrix"] == "technosphere_matrix" for obj in x.values()
-        )
+        tm = lambda x: any(obj["matrix"] == "technosphere_matrix" for obj in x.values())
         for resource in filter(tm, self.resources):
             for (row, col), value, positive_flag in zip(
-                resource["indices"]["array"], resource["data"]["array"], resource['flip']['positive']
+                resource["indices"]["array"],
+                resource["data"]["array"],
+                resource["flip"]["positive"],
             ):
                 if positive_flag != negative:
                     yield (row, col, value)

@@ -1,12 +1,12 @@
-from tqdm import tqdm
-import functools
 import datetime
+import functools
 import itertools
 
-from bw_processing import clean_datapackage_name, create_datapackage
-from fs.zipfs import ZipFS
 import numpy as np
 import pandas as pd
+from bw_processing import clean_datapackage_name, create_datapackage
+from fs.zipfs import ZipFS
+from tqdm import tqdm
 
 from ... import config, databases, geomapping
 from .. import SQLiteBackend
@@ -172,20 +172,26 @@ class IOTableBackend(SQLiteBackend):
                     dct["target_type"] = obj.get("type", "process")
                     dct["target_reference_product"] = obj.get("reference product")
                 else:
-                    dct["source_categories"] = "::".join(obj["categories"]) if obj.get("categories") else None
+                    dct["source_categories"] = (
+                        "::".join(obj["categories"]) if obj.get("categories") else None
+                    )
                     dct["source_product"] = obj.get("product")
                 return dct
 
-            return pd.DataFrame([dict_for_obj(get(id_), prefix) for id_ in np.unique(ids)])
+            return pd.DataFrame(
+                [dict_for_obj(get(id_), prefix) for id_ in np.unique(ids)]
+            )
 
         def get_edge_types(exchanges):
             arrays = []
             for resource in exchanges.resources:
-                if resource['data']['matrix'] == 'biosphere_matrix':
-                    arrays.append(np.array(['biosphere'] * len(resource['data']['array'])))
+                if resource["data"]["matrix"] == "biosphere_matrix":
+                    arrays.append(
+                        np.array(["biosphere"] * len(resource["data"]["array"]))
+                    )
                 else:
-                    arr = np.array(['technosphere'] * len(resource['data']['array']))
-                    arr[resource['flip']['positive']] = 'production'
+                    arr = np.array(["technosphere"] * len(resource["data"]["array"]))
+                    arr[resource["flip"]["positive"]] = "production"
                     arrays.append(arr)
 
             return np.hstack(arrays)
@@ -193,9 +199,15 @@ class IOTableBackend(SQLiteBackend):
         print("Loading datapackage")
         exchanges = IOTableExchanges(datapackage=self.datapackage())
 
-        target_ids = np.hstack([resource['indices']['array']['col'] for resource in exchanges.resources])
-        source_ids = np.hstack([resource['indices']['array']['row'] for resource in exchanges.resources])
-        edge_amounts = np.hstack([resource['data']['array'] for resource in exchanges.resources])
+        target_ids = np.hstack(
+            [resource["indices"]["array"]["col"] for resource in exchanges.resources]
+        )
+        source_ids = np.hstack(
+            [resource["indices"]["array"]["row"] for resource in exchanges.resources]
+        )
+        edge_amounts = np.hstack(
+            [resource["data"]["array"] for resource in exchanges.resources]
+        )
         edge_types = get_edge_types(exchanges)
 
         print("Creating metadata dataframes")
@@ -203,14 +215,16 @@ class IOTableBackend(SQLiteBackend):
         source_metadata = metadata_dataframe(source_ids, "source_")
 
         print("Building merged dataframe")
-        df = pd.DataFrame({
-            'target_id': target_ids,
-            'source_id': source_ids,
-            'edge_amount': edge_amounts,
-            'edge_type': edge_types
-        })
-        df = df.merge(target_metadata, on='target_id')
-        df = df.merge(source_metadata, on='source_id')
+        df = pd.DataFrame(
+            {
+                "target_id": target_ids,
+                "source_id": source_ids,
+                "edge_amount": edge_amounts,
+                "edge_type": edge_types,
+            }
+        )
+        df = df.merge(target_metadata, on="target_id")
+        df = df.merge(source_metadata, on="source_id")
 
         categorical_columns = [
             "target_database",
