@@ -306,40 +306,109 @@ def test_iotable_activity(iotable_fixture):
         act.rp_exchange()
 
 
+def test_iotable_activity_edges_to_dataframe(iotable_fixture):
+    df = get_node(code="a").exchanges().to_dataframe()
+    id_map = {obj["code"]: obj.id for obj in Database("cat")} | {
+        obj["code"]: obj.id for obj in Database("mouse")
+    }
+
+    tech_exchanges = [
+        ("a", "a", 2, False),
+        ("b", "a", -1, False),
+        ("c", "a", 4, False),
+    ]
+    expected = pd.DataFrame(
+        [
+            {
+                "target_id": id_map[a],
+                "target_database": "mouse" if a == "d" else "cat",
+                "target_code": a,
+                "target_name": get_activity(code=a).get("name"),
+                "target_reference_product": None,
+                "target_location": get_activity(code=a).get("location"),
+                "target_unit": get_activity(code=a).get("unit"),
+                "target_type": get_activity(code=a).get("type") or 'process',
+                "source_id": id_map[b],
+                "source_database": "mouse" if b == "d" else "cat",
+                "source_code": b,
+                "source_name": get_activity(code=b).get("name"),
+                "source_product": None,
+                "source_location": get_activity(code=b).get("location"),
+                "source_unit": get_activity(code=b).get("unit"),
+                "source_categories": None,
+                "edge_amount": c,
+                "edge_type": "technosphere" if ((-1 if d else 1) * c) < 0 else "production",
+            }
+            for b, a, c, d in tech_exchanges
+        ]
+    )
+
+    categorical_columns = [
+        "target_database",
+        "target_name",
+        "target_reference_product",
+        "target_location",
+        "target_unit",
+        "target_type",
+        "source_database",
+        "source_code",
+        "source_name",
+        "source_product",
+        "source_location",
+        "source_unit",
+        "source_categories",
+        "edge_type",
+    ]
+    for column in categorical_columns:
+        if column in expected.columns:
+            expected[column] = expected[column].astype("category")
+
+    assert_frame_equal(
+        df.sort_values(["target_id", "source_id"]).reset_index(drop=True),
+        expected.sort_values(["target_id", "source_id"]).reset_index(drop=True),
+        check_dtype=False,
+    )
+
+
 def test_correct_backend_fixture(iotable_fixture):
     act = get_activity(("mouse", "d"))
     assert not isinstance(act, IOTableActivity)
 
 
-# def test_production(activity_and_method):
-#     activity, method = activity_and_method
-#     assert len(list(activity.production())) == 1
-#     assert len(activity.production()) == 1
-#     exc = list(activity.production())[0]
-#     assert exc["amount"] == 2
+def test_iotable_edges_production(iotable_fixture):
+    act = get_activity(("cat", "a"))
+    assert len(act.production()) == 2
+    exc = next(iter(act.production()))
+    assert exc.input == act
+    assert exc.output in (act, get_activity(("cat", "c")))
+    assert isinstance(exc, ReadOnlyExchange)
+    assert exc['amount'] in (2, 4)
 
 
-# def test_substitution(activity_and_method):
-#     activity, method = activity_and_method
-#     assert len(activity.substitution()) == 0
+def test_iotable_edges_technosphere(iotable_fixture):
+    act = get_activity(("cat", "a"))
+    assert len(act.technosphere()) == 1
+    exc = next(iter(act.technosphere()))
+    print(exc)
+    assert exc.input == get_activity(("cat", "b"))
+    assert exc.output == act
+    assert isinstance(exc, ReadOnlyExchange)
+    assert exc['amount'] == -1
 
 
-# def test_biosphere(activity_and_method):
-#     activity, method = activity_and_method
-#     for exc in activity.exchanges():
-#         print(exc)
-#     assert len(list(activity.biosphere())) == 1
-#     assert len(activity.biosphere()) == 1
-#     exc = list(activity.biosphere())[0]
-#     assert exc["amount"] == 4
+def test_iotable_edges_biosphere(iotable_fixture):
+    act = get_activity(("cat", "b"))
+    assert len(act.biosphere()) == 1
+    exc = next(iter(act.biosphere()))
+    assert exc.input == get_activity(("mouse", "d"))
+    assert exc.output == act
+    assert isinstance(exc, ReadOnlyExchange)
+    assert exc['amount'] == -1
 
 
-# def test_technosphere(activity_and_method):
-#     activity, method = activity_and_method
-#     assert len(list(activity.technosphere())) == 1
-#     assert len(activity.technosphere()) == 1
-#     exc = list(activity.technosphere())[0]
-#     assert exc["amount"] == 3
+def test_substitution(iotable_fixture):
+    act = get_activity(("cat", "b"))
+    assert len(list(act.substitution())) == 0
 
 
 def test_iotabe_readonlyexchange(iotable_fixture):
