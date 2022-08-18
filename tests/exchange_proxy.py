@@ -1,4 +1,4 @@
-from bw2data import Method, databases, geomapping, get_activity, methods, projects
+from bw2data import Method, databases, geomapping, get_activity, methods, projects, get_node
 from bw2data.database import DatabaseChooser
 from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
 from bw2data.tests import bw2test
@@ -8,8 +8,10 @@ try:
 except ImportError:
     bw2calc = None
 import numpy as np
+import pandas as pd
 import pytest
 import stats_arrays as sa
+from pandas.testing import assert_frame_equal
 
 
 @pytest.fixture
@@ -168,6 +170,67 @@ def test_ordering_consistency(activity):
     for sample in ordering[1:]:
         assert sample == ordering[0]
 
+
+def test_exchanges_to_dataframe(activity):
+    df = get_node(code="a").exchanges().to_dataframe()
+    id_map = {obj["code"]: obj.id for obj in DatabaseChooser("db")}
+
+    tech_exchanges = [
+        ("a", "a", 2, "production"),
+        ("b", "a", 3, "technosphere"),
+        ("c", "a", 4, "biosphere"),
+    ]
+    expected = pd.DataFrame(
+        [
+            {
+                "target_id": id_map[a],
+                "target_database": "db",
+                "target_code": a,
+                "target_name": get_activity(code=a).get("name"),
+                "target_reference_product": None,
+                "target_location": get_activity(code=a).get("location"),
+                "target_unit": get_activity(code=a).get("unit"),
+                "target_type": get_activity(code=a).get("type") or "process",
+                "source_id": id_map[b],
+                "source_database": "db",
+                "source_code": b,
+                "source_name": get_activity(code=b).get("name"),
+                "source_product": None,
+                "source_location": get_activity(code=b).get("location"),
+                "source_unit": get_activity(code=b).get("unit"),
+                "source_categories": None,
+                "edge_amount": c,
+                "edge_type": d,
+            }
+            for b, a, c, d in tech_exchanges
+        ]
+    )
+
+    categorical_columns = [
+        "target_database",
+        "target_name",
+        "target_reference_product",
+        "target_location",
+        "target_unit",
+        "target_type",
+        "source_database",
+        "source_code",
+        "source_name",
+        "source_product",
+        "source_location",
+        "source_unit",
+        "source_categories",
+        "edge_type",
+    ]
+    for column in categorical_columns:
+        if column in expected.columns:
+            expected[column] = expected[column].astype("category")
+
+    assert_frame_equal(
+        df.sort_values(["target_id", "source_id"]).reset_index(drop=True),
+        expected.sort_values(["target_id", "source_id"]).reset_index(drop=True),
+        check_dtype=False,
+    )
 
 @bw2test
 def test_uncertainty():
