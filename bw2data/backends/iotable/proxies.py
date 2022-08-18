@@ -95,7 +95,7 @@ class IOTableExchanges(Iterable):
         if hasattr(datapackage, "filtered") and ((target is None) or (datapackage.filtered != target.id)):
             raise InvalidDatapackage("This datapackage was already filtered to a different node. Please load it again.")
 
-        resources = self._group_and_filter_resources(datapackage, technosphere, production, biosphere)
+        resources = self._group_and_filter_resources(datapackage)
         self._add_arrays_to_resources(resources, datapackage)
         resources = self._reduce_arrays_to_selected_types(resources, technosphere, production, biosphere)
 
@@ -111,16 +111,12 @@ class IOTableExchanges(Iterable):
         self.production = production
         self.biosphere = biosphere
 
-    def _group_and_filter_resources(self, datapackage, technosphere, production, biosphere):
-        INCLUDE = [
-            "technosphere_matrix" if any((technosphere, production)) else None,
-            "biosphere_matrix" if biosphere else None,
-        ]
+    def _group_and_filter_resources(self, datapackage):
         resources = [
             {
                 obj["kind"]: obj
                 for obj in group
-                if obj["matrix"] in INCLUDE and obj["category"] == "vector"
+                if obj["category"] == "vector"
             }
             for _, group in itertools.groupby(
                 datapackage.resources, lambda x: x["group"]
@@ -153,6 +149,8 @@ class IOTableExchanges(Iterable):
             resources = [resource for resource in resources if resource['data']['matrix'] == 'technosphere_matrix']
         elif not (technosphere or production):
             resources = [resource for resource in resources if resource['data']['matrix'] == 'biosphere_matrix']
+        else:
+            resources = [resource for resource in resources if resource['data']['matrix'] in ('biosphere_matrix', 'technosphere_matrix')]
 
         if technosphere != production:
             for resource in resources:
