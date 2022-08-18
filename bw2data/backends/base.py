@@ -7,7 +7,7 @@ import random
 import sqlite3
 import warnings
 from collections import defaultdict
-from typing import List, Callable, Optional
+from typing import Callable, List, Optional
 
 import pandas
 import pyprind
@@ -17,7 +17,13 @@ from peewee import DoesNotExist, fn
 
 from .. import config, databases, geomapping
 from ..data_store import ProcessedDataStore
-from ..errors import InvalidExchange, UnknownObject, UntypedExchange, WrongDatabase
+from ..errors import (
+    DuplicateNode,
+    InvalidExchange,
+    UnknownObject,
+    UntypedExchange,
+    WrongDatabase,
+)
 from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
@@ -555,6 +561,24 @@ class SQLiteBackend(ProcessedDataStore):
         obj = Activity()
         obj["database"] = self.name
         obj["code"] = str(code)
+
+        if (
+            ActivityDataset.select()
+            .where(
+                (ActivityDataset.database == self.name)
+                & (ActivityDataset.code == obj["code"])
+            )
+            .count()
+        ):
+            raise DuplicateNode("Node with this database / code combo already exists")
+        if (
+            "id" in kwargs
+            and ActivityDataset.select()
+            .where(ActivityDataset.id == int("id" in kwargs))
+            .count()
+        ):
+            raise DuplicateNode("Node with this id already exists")
+
         obj["location"] = config.global_location
         obj.update(kwargs)
         return obj
@@ -888,7 +912,9 @@ class SQLiteBackend(ProcessedDataStore):
                     print("Deleting exchange:", exc)
                     exc.delete()
 
-    def nodes_to_dataframe(self, columns: Optional[List[str]] = None, return_sorted: bool = True) -> pandas.DataFrame:
+    def nodes_to_dataframe(
+        self, columns: Optional[List[str]] = None, return_sorted: bool = True
+    ) -> pandas.DataFrame:
         """Return a pandas DataFrame with all database nodes. Uses the provided node attributes by default,  such as name, unit, location.
 
         By default, returns a DataFrame sorted by name, reference product, location, and unit. Set ``return_sorted`` to ``False`` to skip sorting.
@@ -902,13 +928,19 @@ class SQLiteBackend(ProcessedDataStore):
             # Feels like magic
             df = pandas.DataFrame(self)
         else:
-            df = pandas.DataFrame([{field: obj.get(field) for field in columns} for obj in self])
+            df = pandas.DataFrame(
+                [{field: obj.get(field) for field in columns} for obj in self]
+            )
         if return_sorted:
-            sort_columns = ['name', 'reference product', 'location', 'unit']
-            df = df.sort_values(by=[column for column in sort_columns if column in df.columns])
+            sort_columns = ["name", "reference product", "location", "unit"]
+            df = df.sort_values(
+                by=[column for column in sort_columns if column in df.columns]
+            )
         return df
 
-    def edges_to_dataframe(self, categorical: bool = True, formatters: Optional[List[Callable]] = None) -> pandas.DataFrame:
+    def edges_to_dataframe(
+        self, categorical: bool = True, formatters: Optional[List[Callable]] = None
+    ) -> pandas.DataFrame:
         """Return a pandas DataFrame with all database exchanges. Standard DataFrame columns are:
 
             target_id: int,
@@ -972,7 +1004,9 @@ class SQLiteBackend(ProcessedDataStore):
                     "source_product": edge.get("product"),
                     "source_location": edge.get("location"),
                     "source_unit": edge.get("unit"),
-                    "source_categories": "::".join(edge["categories"]) if edge.get("categories") else None,
+                    "source_categories": "::".join(edge["categories"])
+                    if edge.get("categories")
+                    else None,
                     "edge_amount": edge["amount"],
                     "edge_type": edge["type"],
                 }

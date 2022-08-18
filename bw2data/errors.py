@@ -10,6 +10,12 @@ class InvalidExchange(BW2Exception):
     pass
 
 
+class DuplicateNode(BW2Exception):
+    """Can't have nodes with same unique identifiers"""
+
+    pass
+
+
 class MissingIntermediateData(BW2Exception):
     pass
 

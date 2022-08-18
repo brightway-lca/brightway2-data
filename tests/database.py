@@ -4,25 +4,25 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from pandas.testing import assert_frame_equal, assert_series_equal
 import pytest
+from pandas.testing import assert_frame_equal, assert_series_equal
 
 try:
     import wurst
 except ImportError:
     wurst = None
 
-from bw2data import geomapping, get_id, databases, Database, get_activity
+from bw2data import Database, databases, geomapping, get_activity, get_id
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import Database
 from bw2data.errors import (
+    DuplicateNode,
     InvalidExchange,
     UnknownObject,
     UntypedExchange,
     WrongDatabase,
 )
-from bw2data.meta import databases
 from bw2data.parameters import (
     ActivityParameter,
     DatabaseParameter,
@@ -458,8 +458,8 @@ def test_processed_array_with_metadata():
         {
             ("a database", "2"): {
                 "type": "process",
-                'name': 'fooz',
-                'unit': 'something',
+                "name": "fooz",
+                "unit": "something",
                 "exchanges": [
                     {
                         "input": ("a database", "2"),
@@ -479,11 +479,23 @@ def test_processed_array_with_metadata():
     database.process(csv=True)
     package = database.datapackage()
     df = package.get_resource("a_database_activity_metadata")[0]
-    df.drop('Unnamed: 0', axis=1, inplace=True)
-    expected = pd.DataFrame([
-        {'name': 'fooz', 'reference product': np.NaN, 'unit': 'something','location': np.NaN, 'id': 1}])
+    df.drop("Unnamed: 0", axis=1, inplace=True)
+    expected = pd.DataFrame(
+        [
+            {
+                "name": "fooz",
+                "reference product": np.NaN,
+                "unit": "something",
+                "location": np.NaN,
+                "id": 1,
+            }
+        ]
+    )
     assert isinstance(df, pd.DataFrame)
-    assert_frame_equal(df.reindex(sorted(df.columns), axis=1), expected.reindex(sorted(expected.columns), axis=1))
+    assert_frame_equal(
+        df.reindex(sorted(df.columns), axis=1),
+        expected.reindex(sorted(expected.columns), axis=1),
+    )
 
 
 @bw2test
@@ -635,6 +647,19 @@ def test_new_node():
     assert act["code"] == "foo"
     assert act["location"] == "GLO"
     assert act["this"] == "that"
+
+
+@bw2test
+def test_new_node_error():
+    database = Database("a database")
+    database.register()
+    act = database.new_node("foo", this="that", name="something")
+    act.save()
+
+    with pytest.raises(DuplicateNode):
+        database.new_node("foo")
+    with pytest.raises(DuplicateNode):
+        database.new_node(code="bar", id=act.id)
 
 
 @bw2test
@@ -867,24 +892,28 @@ def test_set_geocollections(capsys):
     db = Database("test-case")
     db.write(
         {
-            ("test-case", "1"): {"location": "RU", "exchanges": [], 'name': 'a'},
-            ("test-case", "2"): {"exchanges": [], 'name': 'b'},
-            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar"), 'name': 'c'},
+            ("test-case", "1"): {"location": "RU", "exchanges": [], "name": "a"},
+            ("test-case", "2"): {"exchanges": [], "name": "b"},
+            ("test-case", "3"): {
+                "exchanges": [],
+                "location": ("foo", "bar"),
+                "name": "c",
+            },
         }
     )
     assert db.metadata["geocollections"] == ["foo", "world"]
     assert "Not able" in capsys.readouterr().out
 
     act = get_activity(("test-case", "1"))
-    act['location'] = ('this', 'that')
+    act["location"] = ("this", "that")
     act.save()
 
     act = get_activity(("test-case", "2"))
-    act['location'] = 'DE'
+    act["location"] = "DE"
     act.save()
 
     db.set_geocollections()
-    assert db.metadata['geocollections'] == ['foo', 'this', 'world']
+    assert db.metadata["geocollections"] == ["foo", "this", "world"]
 
 
 @bw2test
@@ -927,89 +956,96 @@ def df_fixture():
 @pytest.mark.skipif(not wurst, reason="wurst not installed")
 def test_edges_to_dataframe_simple(df_fixture):
     df = Database("food").edges_to_dataframe(categorical=False)
-    id_map = {obj['code']: obj.id for obj in Database("food")}
+    id_map = {obj["code"]: obj.id for obj in Database("food")}
 
-    expected = pd.DataFrame([{
-        "target_id": id_map['1'],
-        "target_database": "food",
-        "target_code": "1",
-        "target_name": "lunch",
-        "target_reference_product": None,
-        "target_location": "CA",
-        "target_unit": "kg",
-        "target_type": "process",
-        "source_id": id_map['2'],
-        "source_database": 'food',
-        "source_code": '2',
-        "source_name": 'dinner',
-        "source_product": None,
-        "source_location": 'CH',
-        "source_unit": 'kg',
-        "source_categories": None,
-        "edge_amount": 0.5,
-        "edge_type": 'technosphere',
-    }, {
-        "target_id": id_map['1'],
-        "target_database": "food",
-        "target_code": "1",
-        "target_name": "lunch",
-        "target_reference_product": None,
-        "target_location": "CA",
-        "target_unit": "kg",
-        "target_type": "process",
-        "source_id": get_id(("biosphere", "1")),
-        "source_database": 'biosphere',
-        "source_code": '1',
-        "source_name": 'an emission',
-        "source_product": None,
-        "source_location": None,
-        "source_unit": 'kg',
-        "source_categories": "things",
-        "edge_amount": 0.05,
-        "edge_type": 'biosphere',
-    }, {
-        "target_id": id_map['2'],
-        "target_database": "food",
-        "target_code": "2",
-        "target_name": "dinner",
-        "target_reference_product": None,
-        "target_location": "CH",
-        "target_unit": "kg",
-        "target_type": "process",
-        "source_id": get_id(("biosphere", "2")),
-        "source_database": 'biosphere',
-        "source_code": '2',
-        "source_name": 'another emission',
-        "source_product": None,
-        "source_location": None,
-        "source_unit": 'kg',
-        "source_categories": "things",
-        "edge_amount": 0.15,
-        "edge_type": 'biosphere',
-    }, {
-        "target_id": id_map['2'],
-        "target_database": "food",
-        "target_code": "2",
-        "target_name": "dinner",
-        "target_reference_product": None,
-        "target_location": "CH",
-        "target_unit": "kg",
-        "target_type": "process",
-        "source_id": id_map['1'],
-        "source_database": 'food',
-        "source_code": '1',
-        "source_name": 'lunch',
-        "source_product": None,
-        "source_location": 'CA',
-        "source_unit": 'kg',
-        "source_categories": None,
-        "edge_amount": 0.25,
-        "edge_type": 'technosphere',
-    }])
+    expected = pd.DataFrame(
+        [
+            {
+                "target_id": id_map["1"],
+                "target_database": "food",
+                "target_code": "1",
+                "target_name": "lunch",
+                "target_reference_product": None,
+                "target_location": "CA",
+                "target_unit": "kg",
+                "target_type": "process",
+                "source_id": id_map["2"],
+                "source_database": "food",
+                "source_code": "2",
+                "source_name": "dinner",
+                "source_product": None,
+                "source_location": "CH",
+                "source_unit": "kg",
+                "source_categories": None,
+                "edge_amount": 0.5,
+                "edge_type": "technosphere",
+            },
+            {
+                "target_id": id_map["1"],
+                "target_database": "food",
+                "target_code": "1",
+                "target_name": "lunch",
+                "target_reference_product": None,
+                "target_location": "CA",
+                "target_unit": "kg",
+                "target_type": "process",
+                "source_id": get_id(("biosphere", "1")),
+                "source_database": "biosphere",
+                "source_code": "1",
+                "source_name": "an emission",
+                "source_product": None,
+                "source_location": None,
+                "source_unit": "kg",
+                "source_categories": "things",
+                "edge_amount": 0.05,
+                "edge_type": "biosphere",
+            },
+            {
+                "target_id": id_map["2"],
+                "target_database": "food",
+                "target_code": "2",
+                "target_name": "dinner",
+                "target_reference_product": None,
+                "target_location": "CH",
+                "target_unit": "kg",
+                "target_type": "process",
+                "source_id": get_id(("biosphere", "2")),
+                "source_database": "biosphere",
+                "source_code": "2",
+                "source_name": "another emission",
+                "source_product": None,
+                "source_location": None,
+                "source_unit": "kg",
+                "source_categories": "things",
+                "edge_amount": 0.15,
+                "edge_type": "biosphere",
+            },
+            {
+                "target_id": id_map["2"],
+                "target_database": "food",
+                "target_code": "2",
+                "target_name": "dinner",
+                "target_reference_product": None,
+                "target_location": "CH",
+                "target_unit": "kg",
+                "target_type": "process",
+                "source_id": id_map["1"],
+                "source_database": "food",
+                "source_code": "1",
+                "source_name": "lunch",
+                "source_product": None,
+                "source_location": "CA",
+                "source_unit": "kg",
+                "source_categories": None,
+                "edge_amount": 0.25,
+                "edge_type": "technosphere",
+            },
+        ]
+    )
     assert_frame_equal(
-        df.sort_values(['target_id', 'source_id']).reset_index(drop=True),
-        expected.sort_values(['target_id', 'source_id']).reset_index(drop=True),
-        check_dtype=False
+        df.sort_values(["target_id", "source_id"]).reset_index(drop=True),
+        expected.sort_values(["target_id", "source_id"]).reset_index(drop=True),
+        check_dtype=False,
     )
 
 
@@ -1017,39 +1053,44 @@ def test_edges_to_dataframe_simple(df_fixture):
 def test_edges_to_dataframe_categorical(df_fixture):
     df = Database("food").edges_to_dataframe()
     assert df.shape == (4, 18)
-    assert df['edge_type'].dtype.name == 'category'
+    assert df["edge_type"].dtype.name == "category"
 
 
 @pytest.mark.skipif(not wurst, reason="wurst not installed")
 def test_edges_to_dataframe_formatters(df_fixture):
     def foo(node, edge, row):
-        row['foo'] = 'bar'
+        row["foo"] = "bar"
 
     df = Database("food").edges_to_dataframe(formatters=[foo])
-    assert_series_equal(df['foo'], pd.Series(['bar'] * 4, name='foo'))
+    assert_series_equal(df["foo"], pd.Series(["bar"] * 4, name="foo"))
 
 
 def test_nodes_to_dataframe_simple(df_fixture):
     df = Database("food").nodes_to_dataframe()
-    expected = pd.DataFrame([{
-        "categories": ["stuff", "meals"],
-        "code": "2",
-        "database": "food",
-        "id": get_id(("food", "2")),
-        "location": "CH",
-        "name": "dinner",
-        "type": "process",
-        "unit": "kg",
-    }, {
-        "categories": ("stuff", "meals"),
-        "code": "1",
-        "database": "food",
-        "id": get_id(("food", "1")),
-        "location": "CA",
-        "name": "lunch",
-        "type": "process",
-        "unit": "kg",
-    }])
+    expected = pd.DataFrame(
+        [
+            {
+                "categories": ["stuff", "meals"],
+                "code": "2",
+                "database": "food",
+                "id": get_id(("food", "2")),
+                "location": "CH",
+                "name": "dinner",
+                "type": "process",
+                "unit": "kg",
+            },
+            {
+                "categories": ("stuff", "meals"),
+                "code": "1",
+                "database": "food",
+                "id": get_id(("food", "1")),
+                "location": "CA",
+                "name": "lunch",
+                "type": "process",
+                "unit": "kg",
+            },
+        ]
+    )
     assert_frame_equal(
         df.reset_index(drop=True),
         expected.reset_index(drop=True),
@@ -1057,16 +1098,21 @@ def test_nodes_to_dataframe_simple(df_fixture):
 
 
 def test_nodes_to_dataframe_columns(df_fixture):
-    df = Database("food").nodes_to_dataframe(columns=['id', 'name', 'unit'])
-    expected = pd.DataFrame([{
-        "id": get_id(("food", "2")),
-        "name": "dinner",
-        "unit": "kg",
-    }, {
-        "id": get_id(("food", "1")),
-        "name": "lunch",
-        "unit": "kg",
-    }])
+    df = Database("food").nodes_to_dataframe(columns=["id", "name", "unit"])
+    expected = pd.DataFrame(
+        [
+            {
+                "id": get_id(("food", "2")),
+                "name": "dinner",
+                "unit": "kg",
+            },
+            {
+                "id": get_id(("food", "1")),
+                "name": "lunch",
+                "unit": "kg",
+            },
+        ]
+    )
     assert_frame_equal(
         df.reset_index(drop=True),
         expected.reset_index(drop=True),
