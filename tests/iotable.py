@@ -7,6 +7,7 @@ import numpy as np
 from pandas.testing import assert_frame_equal
 import pandas as pd
 from bw2data.backends.iotable.proxies import ReadOnlyExchange, IOTableExchanges, IOTableActivity
+from bw2data.errors import InvalidDatapackage
 
 
 @pytest.fixture
@@ -379,3 +380,10 @@ def test_iotabe_readonlyexchange_not_setitem(iotable_fixture):
 
     with pytest.raises(TypeError, match="'ReadOnlyExchange' object does not support item assignment"):
         exc['type'] = 'biosphere'
+
+
+def test_iotable_filtered_datapackage(iotable_fixture):
+    dp = Database("cat").datapackage()
+    IOTableExchanges(datapackage=dp, target=get_node(code="b"))
+    with pytest.raises(InvalidDatapackage):
+        IOTableExchanges(datapackage=dp, target=get_node(code="a"))

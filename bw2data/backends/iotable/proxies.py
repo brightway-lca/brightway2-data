@@ -9,6 +9,7 @@ from bw_processing import Datapackage
 
 from ...utils import get_node
 from ..proxies import Activity, Exchange
+from ...errors import InvalidDatapackage
 
 
 class ReadOnlyExchange(Mapping):
@@ -90,6 +91,10 @@ class IOTableExchanges(Iterable):
             raise ValueError(
                 "Must include some edges from `technosphere`, `production`, and `biosphere`"
             )
+
+        if hasattr(datapackage, "filtered") and ((target is None) or (datapackage.filtered != target.id)):
+            raise InvalidDatapackage("This datapackage was already filtered to a different node. Please load it again.")
+
         INCLUDE = [
             "technosphere_matrix" if any((technosphere, production)) else None,
             "biosphere_matrix" if biosphere else None,
@@ -107,6 +112,7 @@ class IOTableExchanges(Iterable):
         resources = [obj for obj in resources if obj]
 
         if target is not None:
+            datapackage.filtered = target.id
             for resource in resources:
                 indices_ind = datapackage._get_index(resource["indices"]["name"])
                 data_ind = datapackage._get_index(resource["data"]["name"])
@@ -166,17 +172,10 @@ class IOTableExchanges(Iterable):
             obj["matrix"] == "technosphere_matrix" for obj in x.values()
         )
         for resource in filter(tm, self.resources):
-            data_arr = resource["data"]["array"]
-            flip_int_arr = np.ones_like(data_arr, dtype=int)
-
-            if "flip" in resource:
-                flip_arr = self.datapackage.get_resource(resource["flip"]["name"])[0]
-                flip_int_arr[flip_arr] = -1
-
-            for (row, col), value, sign in zip(
-                resource["indices"]["array"], data_arr, flip_int_arr
+            for (row, col), value, positive_flag in zip(
+                resource["indices"]["array"], resource["data"]["array"], resource['flip']['positive']
             ):
-                if (sign * value < 0) == negative:
+                if positive_flag != negative:
                     yield (row, col, value)
 
     def _raw_biosphere_iterator(self):
@@ -191,7 +190,12 @@ class IOTableExchanges(Iterable):
         raise NotImplementedError
 
     def __len__(self):
-        return sum(len(resource["data"]["array"]) for resource in self.resources)
+        return sum([
+            sum([len(resource["data"]["array"]) for resource in self.resources if resource['data']['matrix'] == "biosphere_matrix" and self.biosphere]),
+            sum([sum(resource["flip"]["positive"]) for resource in self.resources if resource['data']['matrix'] == "technosphere_matrix" and self.production]),
+            sum([sum(~resource["flip"]["positive"]) for resource in self.resources if resource['data']['matrix'] == "technosphere_matrix" and self.technosphere]),
+
+        ])
 
     def to_dataframe(
         self, categorical: bool = True, formatters: Optional[List[Callable]] = None
