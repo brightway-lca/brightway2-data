@@ -1,6 +1,9 @@
 import copy
 import uuid
 from collections.abc import Iterable
+from typing import Callable, List, Optional
+
+import pandas as pd
 
 from .. import databases, geomapping
 from ..errors import ValidityError
@@ -75,6 +78,101 @@ class Exchanges(Iterable):
     def __len__(self):
         return self._get_queryset().count()
 
+    def to_dataframe(
+        self, categorical: bool = True, formatters: Optional[List[Callable]] = None
+    ) -> pd.DataFrame:
+        """Return a pandas DataFrame with all node exchanges. Standard DataFrame columns are:
+
+            target_id: int,
+            target_database: str,
+            target_code: str,
+            target_name: Optional[str],
+            target_reference_product: Optional[str],
+            target_location: Optional[str],
+            target_unit: Optional[str],
+            target_type: Optional[str]
+            source_id: int,
+            source_database: str,
+            source_code: str,
+            source_name: Optional[str],
+            source_product: Optional[str],  # Note different label
+            source_location: Optional[str],
+            source_unit: Optional[str],
+            source_categories: Optional[str]  # Tuple concatenated with "::" as in `bw2io`
+            edge_amount: float,
+            edge_type: str,
+
+        Target is the node consuming the edge, source is the node or flow being consumed. The terms target and source were chosen because they also work well for biosphere edges.
+
+        Args:
+
+        ``categorical`` will turn each string column in a `pandas Categorical Series <https://pandas.pydata.org/docs/reference/api/pandas.Categorical.html>`__. This takes 1-2 extra seconds, but saves around 50% of the memory consumption.
+
+        ``formatters`` is a list of callables that modify each row. These functions must take the following keyword arguments, and use the `Wurst internal data format <https://wurst.readthedocs.io/#internal-data-format>`__:
+
+            * ``node``: The target node, as a dict
+            * ``edge``: The edge, including attributes of the source node
+            * ``row``: The current row dict being modified.
+
+        The functions in ``formatters`` don't need to return anything, they modify ``row`` in place.
+
+        Returns a pandas ``DataFrame``.
+
+        """
+        result = []
+
+        for edge in self:
+            row = {
+                "target_id": edge.output["id"],
+                "target_database": edge.output["database"],
+                "target_code": edge.output["code"],
+                "target_name": edge.output.get("name"),
+                "target_reference_product": edge.output.get("reference product"),
+                "target_location": edge.output.get("location"),
+                "target_unit": edge.output.get("unit"),
+                "target_type": edge.output.get("type", "process"),
+                "source_id": edge.input["id"],
+                "source_database": edge.input["database"],
+                "source_code": edge.input["code"],
+                "source_name": edge.input.get("name"),
+                "source_product": edge.input.get("product"),
+                "source_location": edge.input.get("location"),
+                "source_unit": edge.input.get("unit"),
+                "source_categories": "::".join(edge.input["categories"])
+                if edge.input.get("categories")
+                else None,
+                "edge_amount": edge["amount"],
+                "edge_type": edge["type"],
+            }
+            if formatters is not None:
+                for func in formatters:
+                    func(node=edge.output, edge=edge, row=row)
+            result.append(row)
+
+        df = pd.DataFrame(result)
+
+        if categorical:
+            categorical_columns = [
+                "target_database",
+                "target_name",
+                "target_reference_product",
+                "target_location",
+                "target_unit",
+                "target_type",
+                "source_database",
+                "source_code",
+                "source_name",
+                "source_product",
+                "source_location",
+                "source_unit",
+                "source_categories",
+                "edge_type",
+            ]
+            for column in categorical_columns:
+                if column in df.columns:
+                    df[column] = df[column].astype("category")
+
+        return df
 
 class Activity(ActivityProxyBase):
     def __init__(self, document=None, **kwargs):
