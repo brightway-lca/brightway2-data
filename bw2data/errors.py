@@ -80,3 +80,9 @@ class Brightway2Project(BW2Exception):
     """This project is not yet migrated to Brightway 2.5"""
 
     pass
+
+
+class InvalidDatapackage(BW2Exception):
+    """The given datapackage can't be used for the requested task."""
+
+    pass

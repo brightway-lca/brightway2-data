@@ -396,8 +396,17 @@ def create_in_memory_zipfile_from_directory(path):
 
 
 def get_node(**kwargs):
+    from . import databases
     from .backends import Activity
     from .backends import ActivityDataset as AD
+    from .backends.iotable.proxies import IOTableActivity
+
+    def node_class(database_name):
+        mapping = {
+            'sqlite': Activity,
+            'iotable': IOTableActivity,
+        }
+        return mapping[databases[database_name].get("backend", "sqlite")]
 
     mapping = {
         "id": AD.id,
@@ -416,7 +425,7 @@ def get_node(**kwargs):
         except KeyError:
             continue
 
-    candidates = [Activity(obj) for obj in qs]
+    candidates = [node_class(obj.database)(obj) for obj in qs]
 
     extended_search = any(key not in mapping for key in kwargs)
     if extended_search:
@@ -448,6 +457,7 @@ def get_activity(key=None, **kwargs):
     ``key`` can be an integer or a key tuple."""
     from .backends import Activity
 
+    # Includes subclasses
     if isinstance(key, Activity):
         return key
     elif isinstance(key, tuple):

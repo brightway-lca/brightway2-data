@@ -27,7 +27,7 @@ from ..errors import (
 from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_activity, get_geocollection
+from ..utils import as_uncertainty_dict, get_node, get_geocollection
 from . import sqlite3_lci_db
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
@@ -100,6 +100,7 @@ class SQLiteBackend(ProcessedDataStore):
     _metadata = databases
     validator = None
     backend = "sqlite"
+    node_class = Activity
 
     def __init__(self, *args, **kwargs):
         super(SQLiteBackend, self).__init__(*args, **kwargs)
@@ -300,7 +301,7 @@ class SQLiteBackend(ProcessedDataStore):
 
     def __iter__(self):
         for ds in self._get_queryset():
-            yield Activity(ds)
+            yield self.node_class(ds)
 
     def __len__(self):
         return self._get_queryset().count()
@@ -366,9 +367,9 @@ class SQLiteBackend(ProcessedDataStore):
         """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
             if true_random:
-                return Activity(self._get_queryset(random=True, filters=filters).get())
+                return self.node_class(self._get_queryset(random=True, filters=filters).get())
             else:
-                return Activity(
+                return self.node_class(
                     self._get_queryset(filters=filters)
                     .offset(random.randint(0, len(self)))
                     .get()
@@ -381,7 +382,7 @@ class SQLiteBackend(ProcessedDataStore):
         kwargs["database"] = self.name
         if code is not None:
             kwargs["code"] = code
-        return get_activity(**kwargs)
+        return get_node(**kwargs)
 
     ### Data management
     ###################
@@ -558,7 +559,7 @@ class SQLiteBackend(ProcessedDataStore):
         return self.new_node(code, **kwargs)
 
     def new_node(self, code, **kwargs):
-        obj = Activity()
+        obj = self.node_class()
         obj["database"] = self.name
         obj["code"] = str(code)
 
@@ -860,7 +861,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         Returns a list of ``Activity`` datasets."""
         with Searcher(self.filename) as s:
-            results = s.search(string, **kwargs)
+            results = s.search(string=string, **kwargs)
         return results
 
     def set_geocollections(self):
@@ -979,14 +980,11 @@ class SQLiteBackend(ProcessedDataStore):
         Returns a pandas ``DataFrame``.
 
         """
-        try:
-            from wurst import extract_brightway2_databases
-        except ImportError:
-            raise ImportError("This method requires the `wurst` library.")
+        from .wurst_extraction import extract_brightway_databases
 
         result = []
 
-        for target in extract_brightway2_databases(self.name, add_identifiers=True):
+        for target in extract_brightway_databases(self.name, add_identifiers=True):
             for edge in target["exchanges"]:
                 row = {
                     "target_id": target["id"],
