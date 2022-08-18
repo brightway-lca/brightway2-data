@@ -5,9 +5,8 @@ import itertools
 
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
-
+import numpy as np
 import pandas as pd
-from typing import Callable, Optional, List
 
 from ... import config, databases, geomapping
 from .. import SQLiteBackend
@@ -147,56 +146,71 @@ class IOTableBackend(SQLiteBackend):
         from ... import get_activity
 
         @functools.lru_cache(10000)
-        def cached_lookup(code):
-            return get_activity(id=code)
+        def cached_lookup(id_):
+            return get_activity(id=id_)
 
         print("Retrieving metadata")
         activities = {o.id: o for o in self}
-        exchanges = IOTableExchanges(datapackage=self.datapackage())
-        exchanges_iterator = [
-            zip(exchanges._raw_technosphere_iterator(negative=False), itertools.repeat("production")),
-            zip(exchanges._raw_technosphere_iterator(negative=True), itertools.repeat("technosphere")),
-            zip(exchanges._raw_biosphere_iterator(), itertools.repeat("biosphere")),
-        ]
 
-        result = []
-
-        print("Iterating over exchanges")
-        pbar = tqdm(total=len(exchanges))
-        for (row, col, value), type_label in itertools.chain(*exchanges_iterator):
-            target = activities[col]
+        def get(id_):
             try:
-                source = activities[row]
+                return activities[id_]
             except KeyError:
-                source = cached_lookup(row)
+                return cached_lookup(id_)
 
-            row = {
-                "target_id": target["id"],
-                "target_database": target["database"],
-                "target_code": target["code"],
-                "target_name": target.get("name"),
-                "target_reference_product": target.get("reference product"),
-                "target_location": target.get("location"),
-                "target_unit": target.get("unit"),
-                "target_type": target.get("type", "process"),
-                "source_id": source["id"],
-                "source_database": source["database"],
-                "source_code": source["code"],
-                "source_name": source.get("name"),
-                "source_product": source.get("product"),
-                "source_location": source.get("location"),
-                "source_unit": source.get("unit"),
-                "source_categories": "::".join(source["categories"]) if source.get("categories") else None,
-                "edge_amount": value,
-                "edge_type": type_label,
-            }
-            result.append(row)
-            pbar.update(1)
+        def metadata_dataframe(ids, prefix="target_"):
+            def dict_for_obj(obj, prefix):
+                dct = {
+                    f"{prefix}id": obj["id"],
+                    f"{prefix}database": obj["database"],
+                    f"{prefix}code": obj["code"],
+                    f"{prefix}name": obj.get("name"),
+                    f"{prefix}location": obj.get("location"),
+                    f"{prefix}unit": obj.get("unit"),
+                }
+                if prefix == "target_":
+                    dct["target_type"] = obj.get("type", "process")
+                    dct["target_reference_product"] = obj.get("reference product")
+                else:
+                    dct["source_categories"] = "::".join(obj["categories"]) if obj.get("categories") else None
+                    dct["source_product"] = obj.get("product")
+                return dct
 
-        pbar.close()
+            return pd.DataFrame([dict_for_obj(get(id_), prefix) for id_ in np.unique(ids)])
 
-        print("Creating DataFrame")
-        df = pd.DataFrame(result)
+        def get_edge_types(exchanges):
+            arrays = []
+            for resource in exchanges.resources:
+                if resource['data']['matrix'] == 'biosphere_matrix':
+                    arrays.append(np.array(['biosphere'] * len(resource['data']['array'])))
+                else:
+                    arr = np.array(['technosphere'] * len(resource['data']['array']))
+                    arr[resource['flip']['positive']] = 'production'
+                    arrays.append(arr)
+
+            return np.hstack(arrays)
+
+        print("Loading datapackage")
+        exchanges = IOTableExchanges(datapackage=self.datapackage())
+
+        target_ids = np.hstack([resource['indices']['array']['col'] for resource in exchanges.resources])
+        source_ids = np.hstack([resource['indices']['array']['row'] for resource in exchanges.resources])
+        edge_amounts = np.hstack([resource['data']['array'] for resource in exchanges.resources])
+        edge_types = get_edge_types(exchanges)
+
+        print("Creating metadata dataframes")
+        target_metadata = metadata_dataframe(target_ids)
+        source_metadata = metadata_dataframe(source_ids, "source_")
+
+        print("Building merged dataframe")
+        df = pd.DataFrame({
+            'target_id': target_ids,
+            'source_id': source_ids,
+            'edge_amount': edge_amounts,
+            'edge_type': edge_types
+        })
+        df = df.merge(target_metadata, on='target_id')
+        df = df.merge(source_metadata, on='source_id')
 
         categorical_columns = [
             "target_database",
