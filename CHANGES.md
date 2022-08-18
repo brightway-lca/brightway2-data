@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.0.DEV17 (2022-08-18)
+
+* [PR #109: Export edges and activities to dataframes](https://github.com/brightway-lca/brightway2-data/pull/109)
+* [PR #105: Complete revamp of IO Table functionality](https://github.com/brightway-lca/brightway2-data/pull/105)
+* [PR #104: Fix `Exchange.lca()`](https://github.com/brightway-lca/brightway2-data/pull/104)
+* [Fix #95](https://github.com/brightway-lca/brightway2-data/issues/95)
+* [Moved `wurst` extraction functions to `bw2data`](https://github.com/brightway-lca/brightway2-data/commit/55f107177ead8a73cdf88a5b5be56bf6811bf27f)
+
 ## 4.0.DEV16 (2022-06-09)
 
 * Fix and test export CSV metadata from databases during datapackage creation
