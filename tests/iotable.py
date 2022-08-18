@@ -165,46 +165,46 @@ def test_iotable_edges_to_dataframe(iotable_fixture):
         [
             {
                 "target_id": id_map[a],
+                "source_id": id_map[b],
+                "edge_amount": c,
+                "edge_type": "technosphere" if ((-1 if d else 1) * c) < 0 else "production",
                 "target_database": "mouse" if a == "d" else "cat",
                 "target_code": a,
                 "target_name": get_activity(code=a).get("name"),
-                "target_reference_product": None,
                 "target_location": get_activity(code=a).get("location"),
                 "target_unit": get_activity(code=a).get("unit"),
                 "target_type": get_activity(code=a).get("type") or 'process',
-                "source_id": id_map[b],
+                "target_reference_product": None,
                 "source_database": "mouse" if b == "d" else "cat",
                 "source_code": b,
                 "source_name": get_activity(code=b).get("name"),
-                "source_product": None,
                 "source_location": get_activity(code=b).get("location"),
                 "source_unit": get_activity(code=b).get("unit"),
                 "source_categories": None,
-                "edge_amount": c,
-                "edge_type": "technosphere" if ((-1 if d else 1) * c) < 0 else "production",
+                "source_product": None,
             }
             for b, a, c, d in tech_exchanges
         ]
         + [
             {
                 "target_id": id_map[a],
+                "source_id": id_map[b],
+                "edge_amount": c,
+                "edge_type": "biosphere",
                 "target_database": "mouse" if a == "d" else "cat",
                 "target_code": a,
                 "target_name": get_activity(code=a).get("name"),
-                "target_reference_product": None,
                 "target_location": get_activity(code=a).get("location"),
                 "target_unit": get_activity(code=a).get("unit"),
                 "target_type": get_activity(code=a).get("type") or 'process',
-                "source_id": id_map[b],
+                "target_reference_product": None,
                 "source_database": "mouse" if b == "d" else "cat",
                 "source_code": b,
                 "source_name": get_activity(code=b).get("name"),
-                "source_product": None,
                 "source_location": get_activity(code=b).get("location"),
                 "source_unit": get_activity(code=b).get("unit"),
                 "source_categories": None,
-                "edge_amount": c,
-                "edge_type": "biosphere",
+                "source_product": None,
             }
             for b, a, c, d in bio_exchanges
         ]
