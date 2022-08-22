@@ -16,7 +16,7 @@ from bw2data.serialization import CompoundJSONDict
 from bw2data.tests import bw2test
 from bw2data.validate import ia_validator, normalization_validator, weighting_validator
 from bw2data.weighting_normalization import Normalization, Weighting
-
+from bw2data.errors import UnknownObject
 
 class Metadata(CompoundJSONDict):
     filename = "mock-meta.json"
@@ -128,6 +128,48 @@ def test_method_processed_array(reset):
     indices = package.get_resource("a_method_matrix_data.indices")[0]
     assert np.allclose(indices["row"], get_id(("foo", "bar")))
     assert np.allclose(indices["col"], geomapping[config.global_location])
+
+
+@bw2test
+def test_method_missing_reference():
+    database = DatabaseChooser("foo")
+    database.write({("foo", "bar"): {}, ("foo", "baz"): {}})
+
+    method = Method(("a", "method"))
+    method.write([
+        [("foo", "bar"), 42],
+        [("foo", "baz"), 1]
+    ])
+
+    database.get(code="baz").delete()
+    with pytest.raises(UnknownObject):
+        method.process()
+
+
+@bw2test
+def test_method_missing_location():
+    database = DatabaseChooser("foo")
+    database.write({("foo", "bar"): {}, ("foo", "baz"): {}})
+
+    method = Method(("a", "method"))
+    method.write([[("foo", "bar"), 42, "somewhere"]])
+
+    del geomapping["somewhere"]
+    with pytest.raises(UnknownObject):
+        method.process()
+
+
+@bw2test
+def test_method_missing_global_location():
+    database = DatabaseChooser("foo")
+    database.write({("foo", "bar"): {}, ("foo", "baz"): {}})
+
+    method = Method(("a", "method"))
+    method.write([[("foo", "bar"), 42]])
+
+    del geomapping[config.global_location]
+    with pytest.raises(KeyError):
+        method.process()
 
 
 def test_method_base_class(reset):
