@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.DEV18 (2022-08-19)
+
+* Add `Exchanges.to_dataframe`
+
 ## 4.0.DEV17 (2022-08-18)
 
 * [PR #109: Export edges and activities to dataframes](https://github.com/brightway-lca/brightway2-data/pull/109)
