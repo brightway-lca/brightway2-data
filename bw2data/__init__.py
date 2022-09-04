@@ -42,7 +42,6 @@ from .meta import (
     calculation_setups,
     databases,
     geomapping,
-    methods,
     normalizations,
     preferences,
     weightings,
@@ -52,7 +51,6 @@ from .meta import (
 config.metadata.extend(
     [
         calculation_setups,
-        methods,
         normalizations,
         preferences,
         weightings,
@@ -79,3 +77,6 @@ from .updates import Updates
 from .parameters import parameters
 
 Updates.check_status()
+
+# Backwards compatibility
+methods = Method
