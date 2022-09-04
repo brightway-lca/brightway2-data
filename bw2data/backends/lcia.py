@@ -1,3 +1,5 @@
+import warnings
+
 from . import config, methods
 from .backends.schema import get_id
 from .utils import as_uncertainty_dict, get_geocollection
@@ -56,6 +58,22 @@ class Method(Model, ProcessedDataStore):
     def __str__(self):
         return "Brightway2 %s: %s" % (self.__class__.__name__, ": ".join(self.name))
 
+    @classmethod
+    def __contains__(cls, key):
+        return bool(cls.select().where(cls.name == key).count())
+
+    @classmethod
+    def __len__(cls):
+        return cls.select().count()
+
+    @classmethod
+    def __getitem__(cls, key):
+        warnings.warn("Compatibility shim for `methods.__getitem__()`. Deprecated, use `Method.get(name=something)` instead.", DeprecationWarning)
+        try:
+            return cls.get(name=key)
+        except DoesNotExist:
+            raise KeyError
+
     # def copy(self, name=None):
 
     # def register(self, **kwargs):
@@ -113,3 +131,13 @@ class Method(Model, ProcessedDataStore):
         except KeyError:
             raise KeyError("Can't find default global location! It's supposed to be `{}`, defined in `config`, but this isn't in `Location`".format(config.global_location))
         super().process(**extra_metadata)
+
+    # Compatibility
+    @classmethod
+    def flush(cls):
+        warnings.warn("Compatibility shim for `methods.flush()`. Deprecated no-op.", DeprecationWarning)
+
+    @classmethod
+    def list(cls):
+        warnings.warn("Compatibility shim for `methods.list()`. Deprecated, use `Method.select()` instead.", DeprecationWarning)
+        return sorted(obj.name for obj in cls)
