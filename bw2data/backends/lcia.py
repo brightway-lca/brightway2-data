@@ -100,10 +100,3 @@ class Method(Model, ProcessedDataStore):
     def process(self, **extra_metadata):
         extra_metadata["global_index"] = geomapping[config.global_location]
         super().process(**extra_metadata)
-
-
-class CharacterizationFactor(Model):
-    method = ForeignKeyField(Method, backref='cfs')
-    location = ForeignKeyField(Location, null=True, backref='cfs')
-    uncertainty = JSONField(default={})
-    value = FloatField(null=False)
