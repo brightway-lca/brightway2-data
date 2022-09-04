@@ -68,6 +68,13 @@ class Location(Model):
         else:
             return str(self) < str(other)
 
+    @classmethod
+    def __contains__(cls, key):
+        if isinstance(key, str):
+            return bool(cls.select().where((cls.name == key) & cls.geocollection.is_null()).count())
+        else:
+            return bool(cls.select().where((cls.name == key[0]) & (cls.geocollection == key[1])).count())
+
     class Meta:
         indexes = (
             (('geocollection', 'name'), True),
