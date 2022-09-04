@@ -182,4 +182,6 @@ normalizations = NormalizationMeta()
 preferences = Preferences()
 weightings = WeightingMeta()
 calculation_setups = CalculationSetups()
-dynamic_calculation_setups = DynamicCalculationSetups()
+
+
+# Compatibility

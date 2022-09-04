@@ -6,6 +6,7 @@
 * `projects.writable_project` is removed
 * `.filepath_intermediate` doesn't have any meaning for the data we use, and is removed
 * Database.get() changed to Database.get_activity
+* Removed `dynamic_calculation_setups`
 
 ## 4.0.DEV18 (2022-08-19)
 
