@@ -39,8 +39,6 @@ class Method(Model, ProcessedDataStore):
         * *name* (tuple): Name of impact assessment method to manage.
 
     """
-
-    validator = ia_validator
     matrix = "characterization_matrix"
 
     name = TupleJSONField(unique=True, null=False)

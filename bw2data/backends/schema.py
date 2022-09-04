@@ -88,7 +88,7 @@ class Location(Model):
     def from_key(cls, key):
         if isinstance(key, str):
             key = (None, key)
-        return cls.get(cls.geocollection == key[0], cls.name == key[1])
+        return cls.get((cls.geocollection == key[0]) & (cls.name == key[1]))
 
     @classmethod
     def add_many(cls, keys):
