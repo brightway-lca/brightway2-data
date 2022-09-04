@@ -1,18 +1,13 @@
 import warnings
 
-from . import config, methods
+from . import config
 from .backends.schema import get_id
 from .utils import as_uncertainty_dict, get_geocollection
 from .schema import Location
-
-
-from . import Location
 from ..data_store import ProcessedDataStore
-from ..validate import ia_validator
 from ..sqlite import TupleJSONField, JSONField
-from peewee import DoesNotExist, fn, SchemaManager, Model, TextField, DateTimeField, BooleanField, ForeignKeyField, FloatField
+from peewee import DoesNotExist, Model, TextField
 from ..utils import abbreviate
-import datetime
 from ..errors import UnknownObject
 
 
@@ -48,7 +43,6 @@ class Method(Model, ProcessedDataStore):
     name = TupleJSONField(unique=True, null=False)
     filename = TextField(null=True)
     metadata = JSONField(default={})
-    modified = DateTimeField(default=datetime.datetime.now)
 
     def save(self, *args, **kwargs):
         if not self.filename:
@@ -76,7 +70,10 @@ class Method(Model, ProcessedDataStore):
 
     # def copy(self, name=None):
 
-    # def register(self, **kwargs):
+    def register(self, **kwargs):
+        warnings.warn("`.register()` is deprecated, please set `.metadata` directly", DeprecationWarning)
+        self.metadata.update(**kwargs)
+        self.save()
 
     def add_geomappings(self, data):
         Location.add_many({x[2] for x in data if len(x) == 3})
@@ -132,7 +129,7 @@ class Method(Model, ProcessedDataStore):
             raise KeyError("Can't find default global location! It's supposed to be `{}`, defined in `config`, but this isn't in `Location`".format(config.global_location))
         super().process(**extra_metadata)
 
-    # Compatibility
+    # Backwards compatibility
     @classmethod
     def flush(cls):
         warnings.warn("Compatibility shim for `methods.flush()`. Deprecated no-op.", DeprecationWarning)
