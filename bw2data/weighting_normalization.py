@@ -1,7 +1,6 @@
 from .backends.schema import get_id
 from .ia_data_store import ImpactAssessmentDataStore
 from .meta import normalizations, weightings
-from .project import writable_project
 from .utils import as_uncertainty_dict
 from .validate import normalization_validator, weighting_validator
 
@@ -25,7 +24,6 @@ class Weighting(ImpactAssessmentDataStore):
     validator = weighting_validator
     matrix = "weighting_matrix"
 
-    @writable_project
     def write(self, data):
         """Because of DataStore assumptions, need a one-element list"""
         if self.name not in self._metadata:

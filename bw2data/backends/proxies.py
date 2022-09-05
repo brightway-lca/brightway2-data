@@ -7,7 +7,6 @@ import pandas as pd
 
 from .. import databases, geomapping
 from ..errors import ValidityError
-from ..project import writable_project
 from ..proxies import ActivityProxyBase, ExchangeProxyBase
 from ..search import IndexManager
 from . import sqlite3_lci_db
@@ -63,7 +62,6 @@ class Exchanges(Iterable):
     def filter(self, expr):
         self._args.append(expr)
 
-    @writable_project
     def delete(self):
         databases.set_dirty(self._key[0])
         ExchangeDataset.delete().where(*self._args).execute()
@@ -243,7 +241,6 @@ class Activity(ActivityProxyBase):
     def key(self):
         return (self.get("database"), self.get("code"))
 
-    @writable_project
     def delete(self):
         from .. import Database
         from ..parameters import ActivityParameter, ParameterizedExchange
@@ -263,7 +260,6 @@ class Activity(ActivityProxyBase):
         self._document.delete_instance()
         self = None
 
-    @writable_project
     def save(self):
         from .. import Database
 
@@ -427,7 +423,6 @@ class Activity(ActivityProxyBase):
             exc[key] = kwargs[key]
         return exc
 
-    @writable_project
     def copy(self, code=None, **kwargs):
         """Copy the activity. Returns a new `Activity`.
 
@@ -477,7 +472,6 @@ class Exchange(ExchangeProxyBase):
                 self._document.output_code,
             )
 
-    @writable_project
     def save(self):
         if not self.valid():
             raise ValidityError(
@@ -491,7 +485,6 @@ class Exchange(ExchangeProxyBase):
             setattr(self._document, key, value)
         self._document.save()
 
-    @writable_project
     def delete(self):
         from ..parameters import ParameterizedExchange
 
