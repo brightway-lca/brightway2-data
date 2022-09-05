@@ -408,7 +408,7 @@ class Database(Model):
             warnings.warn("This database is empty")
             return None
 
-    def get(self, code=None, **kwargs):
+    def get_node(self, code=None, **kwargs):
         kwargs["database"] = self.name
         if code is not None:
             kwargs["code"] = code

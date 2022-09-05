@@ -37,7 +37,7 @@ def test_change_code_not_unique_raises_error():
             },
         }
     )
-    act = database.get("foo")
+    act = database.get_node("foo")
     with pytest.raises(ValueError):
         act["code"] = "already there"
 
@@ -70,13 +70,13 @@ def activity():
             },
         }
     )
-    return database.get("foo")
+    return database.get_node("foo")
 
 
 def test_set_item(activity):
     activity["foo"] = "bar"
     activity.save()
-    act = DatabaseChooser("a database").get("foo")
+    act = DatabaseChooser("a database").get_node("foo")
     assert act["foo"] == "bar"
 
 
@@ -150,7 +150,7 @@ def test_delete_activity_only_self_references():
             'name': 'baz'
         },
     })
-    activity = database.get('foo')
+    activity = database.get_node('foo')
 
     assert ExchangeDataset.select().count() == 2
     assert ActivityDataset.select().count() == 1
