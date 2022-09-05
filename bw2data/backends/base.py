@@ -142,9 +142,9 @@ class Database(Model):
     def exists(cls, name):
         return bool(cls.select().where(cls.name == name).count())
 
-    def set_dirty(self):
-        self.dirty = True
-        self.save()
+    @classmethod
+    def set_dirty(cls, name):
+        cls.update(dirty=True).where(cls.name == name).execute()
 
     ### Generic LCI backend methods
     ###############################

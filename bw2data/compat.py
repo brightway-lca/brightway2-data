@@ -48,9 +48,9 @@ class databases:
         Database.clean_all()
 
     @staticmethod
-    def set_dirty(name):
-        warnings.warn("Use `Database(name).set_dirty()` instead of `databases.set_dirty(name)`", DeprecationWarning)
-        Database(name).set_dirty()
+    def set_dirty(self, name):
+        warnings.warn("Use `Database.set_dirty(name)` instead of `databases.set_dirty(name)`", DeprecationWarning)
+        Database.set_dirty(name)
 
     @staticmethod
     def __getitem__(name):

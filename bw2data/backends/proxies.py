@@ -65,7 +65,7 @@ class Exchanges(Iterable):
     @writable_project
     def delete(self):
         from . import Database
-        Database(self._key[0]).set_dirty()
+        Database().set_dirty(self._key[0])
         ExchangeDataset.delete().where(*self._args).execute()
 
     def _get_queryset(self):
@@ -274,8 +274,8 @@ class Activity(ActivityProxyBase):
                 "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
             )
 
+        Database.set_dirty(self["database"])
         db = Database(self["database"])
-        db.set_dirty()
 
         for key, value in dict_as_activitydataset(self._data).items():
             if key != "id":
