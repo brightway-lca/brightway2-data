@@ -8,15 +8,15 @@ import sqlite3
 import warnings
 from collections import defaultdict
 from typing import Callable, List, Optional
+import os
 
 import pandas
 import pyprind
-from bw_processing import clean_datapackage_name, create_datapackage
+from bw_processing import clean_datapackage_name, create_datapackage, load_datapackage, safe_filename
 from fs.zipfs import ZipFS
-from peewee import DoesNotExist, fn
+from peewee import DoesNotExist, fn, Model, TextField, DateTimeField, BooleanField
 
-from .. import config, databases, geomapping
-from ..data_store import ProcessedDataStore
+from .. import config, geomapping, projects
 from ..errors import (
     DuplicateNode,
     InvalidExchange,
@@ -24,7 +24,6 @@ from ..errors import (
     UntypedExchange,
     WrongDatabase,
 )
-from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
 from ..utils import as_uncertainty_dict, get_node, get_geocollection
@@ -38,11 +37,13 @@ from .utils import (
     get_csv_data_dict,
     retupleize_geo_strings,
 )
+from ..sqlite import JSONField
+from .iotable import IOTableActivity
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
 
-class SQLiteBackend(ProcessedDataStore):
+class Database(Model):
     """
     A base class for SQLite backends.
 
@@ -96,17 +97,44 @@ class SQLiteBackend(ProcessedDataStore):
         *name* (unicode string): Name of the database to manage.
 
     """
+    name = TextField(null=False, unique=True)
+    backend = TextField(null=False, default="sqlite")
+    depends = JSONField(null=False, default=[])
+    geocollections = JSONField(null=False, default=[])
+    modified = DateTimeField(default=datetime.datetime.now)
+    searchable = BooleanField(default=True)
 
-    _metadata = databases
     validator = None
-    backend = "sqlite"
-    node_class = Activity
 
     def __init__(self, *args, **kwargs):
-        super(SQLiteBackend, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._filters = {}
         self._order_by = None
+
+    def __str__(self):
+        return "Brightway2 Database: {} ({})".format(self.name, self.backend)
+
+    __repr__ = lambda self: str(self)
+
+    def _datapackage_modified_as_datetime(self):
+        return datetime.fromtimestamp(os.path.getmtime(self.filepath_processed()))
+
+    @property
+    def dirty(self):
+        return self.modified > self._datapackage_modified_as_datetime()
+
+    @property
+    def node_class(self):
+        CLASSES = {
+            'sqlite': Activity,
+            'iotable': IOTableActivity
+        }
+        return CLASSES[self.backend]
+
+    @classmethod
+    def exists(cls, name):
+        return bool(cls.select().where(cls.name == name).count())
 
     ### Generic LCI backend methods
     ###############################
@@ -120,7 +148,7 @@ class SQLiteBackend(ProcessedDataStore):
             * *name* (str): Name of the new database. Must not already exist.
 
         """
-        assert name not in databases, ValueError("This database exists")
+        assert not Database.exists(name), ValueError("This database exists")
         data = self.relabel_data(copy.deepcopy(self.load()), name)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -132,13 +160,28 @@ class SQLiteBackend(ProcessedDataStore):
         new_database.write(data)
         return new_database
 
+    def dirpath_processed(self):
+        return projects.dir / "processed"
+
     def filepath_intermediate(self):
+        warnings.warn("`filepath_intermediate` is deprecated", DeprecationWarning)
         raise NotImplementedError
 
+    @property
+    def filename(self):
+        """Remove filesystem-unsafe characters and perform unicode normalization on ``self.name`` using :func:`.filesystem.safe_filename`."""
+        return safe_filename(self.name)
+
+    def filename_processed(self):
+        return clean_datapackage_name(self.filename + ".zip")
+
     def filepath_processed(self):
-        if self.metadata.get("dirty"):
+        if self.dirty:
             self.process()
         return self.dirpath_processed() / self.filename_processed()
+
+    def datapackage(self):
+        return load_datapackage(ZipFS(self.filepath_processed()))
 
     def find_dependents(self, data=None, ignore=None):
         """Get sorted list of direct dependent databases (databases linked from exchanges).
@@ -176,7 +219,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         def extend(seeds):
             return set.union(
-                seeds, set.union(*[set(databases[obj]["depends"]) for obj in seeds])
+                seeds, set.union(*[set(Database(obj).depends) for obj in seeds])
             )
 
         seed, extended = {self.name}, extend({self.name})
@@ -187,26 +230,6 @@ class SQLiteBackend(ProcessedDataStore):
     def query(self, *queries):
         """Search through the database."""
         return Query(*queries)(self.load())
-
-    def register(self, write_empty=True, **kwargs):
-        """Register a database with the metadata store.
-
-        Databases must be registered before data can be written.
-
-        Writing data automatically sets the following metadata:
-            * *depends*: Names of the databases that this database references, e.g. "biosphere"
-            * *number*: Number of processes in this database.
-
-        Args:
-            * *format* (str, optional): Format that the database was converted from, e.g. "Ecospold"
-
-        """
-        if "depends" not in kwargs:
-            kwargs["depends"] = []
-        kwargs["backend"] = self.backend
-        super().register(**kwargs)
-        if write_empty:
-            self.write({})
 
     def relabel_data(self, data, new_name):
         """Relabel database keys and exchanges.
@@ -274,25 +297,24 @@ class SQLiteBackend(ProcessedDataStore):
         )
 
     def rename(self, name):
-        """Rename a database. Modifies exchanges to link to new name. Deregisters old database.
+        """Rename a database. Modifies exchanges to link to new name.
 
         Args:
             * *name* (str): New name.
 
         Returns:
-            New ``Database`` object.
+            self  # Backwards compatibility
 
         """
         old_name = self.name
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            new_db = self.__class__(name)
-            databases[name] = databases[old_name]
-        new_data = self.relabel_data(self.load(), name)
-        new_db.write(new_data)
-        del databases[old_name]
+        with sqlite3_lci_db.transaction():
+            ActivityDataset.update(database=name).where(ActivityDataset.database == old_name).execute()
+            ExchangeDataset.update(input_database=name).where(ExchangeDataset.input_database == old_name).execute()
+            ExchangeDataset.update(output_database=name).where(ExchangeDataset.output_database == old_name).execute()
         self.name = name
-        return new_db
+        self.save()
+        self.process()
+        return self
 
     ### Iteration, filtering, and ordering
     ######################################
@@ -308,10 +330,6 @@ class SQLiteBackend(ProcessedDataStore):
 
     def __contains__(self, obj):
         return self._get_queryset(filters={"code": obj[1]}).count() > 0
-
-    @property
-    def _searchable(self):
-        return databases.get(self.name, {}).get("searchable", False)
 
     def _get_queryset(self, random=False, filters=True):
         qs = ActivityDataset.select().where(ActivityDataset.database == self.name)
@@ -481,7 +499,6 @@ class SQLiteBackend(ProcessedDataStore):
 
     # Public API
 
-    @writable_project
     def write(self, data, process=True):
         """Write ``data`` to database.
 
@@ -492,8 +509,6 @@ class SQLiteBackend(ProcessedDataStore):
             }
 
         Writing a database will first deletes all existing data."""
-        if self.name not in databases:
-            self.register(write_empty=False)
         wrong_database = {key[0] for key in data}.difference({self.name})
         if wrong_database:
             raise WrongDatabase(
@@ -502,9 +517,6 @@ class SQLiteBackend(ProcessedDataStore):
                 )
             )
 
-        databases[self.name]["number"] = len(data)
-
-        databases.set_modified(self.name)
         geocollections = {
             get_geocollection(x.get("location"))
             for x in data.values()
@@ -515,8 +527,7 @@ class SQLiteBackend(ProcessedDataStore):
                 "Not able to determine geocollections for all datasets. This database is not ready for regionalization."
             )
             geocollections.discard(None)
-        databases[self.name]["geocollections"] = sorted(geocollections)
-        # processing will flush the database metadata
+        self.geocollections = sorted(geocollections)
 
         geomapping.add({x["location"] for x in data.values() if x.get("location")})
         if data:
@@ -528,6 +539,8 @@ class SQLiteBackend(ProcessedDataStore):
                 raise
 
         self.make_searchable(reset=True)
+
+        self.save()
 
         if process:
             self.process()
@@ -584,35 +597,22 @@ class SQLiteBackend(ProcessedDataStore):
         obj.update(kwargs)
         return obj
 
-    @writable_project
     def make_searchable(self, reset=False):
-        if self.name not in databases:
-            raise UnknownObject("This database is not yet registered")
-        if self._searchable and not reset:
+        if self.searchable and not reset:
             print("This database is already searchable")
             return
-        databases[self.name]["searchable"] = True
-        databases.flush()
         IndexManager(self.filename).delete_database()
         IndexManager(self.filename).add_datasets(self)
+        self.searchable = True
+        self.save()
 
-    @writable_project
     def make_unsearchable(self):
-        databases[self.name]["searchable"] = False
-        databases.flush()
         IndexManager(self.filename).delete_database()
+        self.searchable = False
+        self.save()
 
-    @writable_project
     def delete(self, keep_params=False, warn=True):
         """Delete all data from SQLite database and Whoosh index"""
-        if warn:
-            MESSAGE = """
-            Please use `del databases['{}']` instead.
-            Otherwise, the metadata and database get out of sync.
-            Call `.delete(warn=False)` to skip this message in the future.
-            """
-            warnings.warn(MESSAGE.format(self.name), UserWarning)
-
         vacuum_needed = len(self) > 500
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
@@ -701,8 +701,6 @@ class SQLiteBackend(ProcessedDataStore):
         Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         """
-        # Try to avoid race conditions - but no guarantee
-        self.metadata["processed"] = datetime.datetime.now().isoformat()
 
         # Get number of exchanges and processes to set
         # initial Numpy array size (still have to include)
@@ -823,9 +821,10 @@ class SQLiteBackend(ProcessedDataStore):
 
         dp.finalize_serialization()
 
-        self.metadata["depends"] = sorted(dependents)
-        self.metadata["dirty"] = False
-        self._metadata.flush()
+        # Remove any possibility of datetime being in different timezone or otherwise different than filesystem
+        self.modified = self._datapackage_modified_as_datetime() - datetime.timedelta(seconds=1)
+        self.depends = sorted(dependents)
+        self.save()
 
     def search(self, string, **kwargs):
         """Search this database for ``string``.
@@ -912,6 +911,20 @@ class SQLiteBackend(ProcessedDataStore):
                 for exc in lst[-1:0:-1]:
                     print("Deleting exchange:", exc)
                     exc.delete()
+
+    def backup(self):
+        """Save a backup to ``backups`` folder.
+
+        Returns:
+            File path of backup.
+
+        """
+        try:
+            from bw2io import BW2Package
+
+            return BW2Package.export_obj(self)
+        except ImportError:
+            print("bw2io not installed")
 
     def nodes_to_dataframe(
         self, columns: Optional[List[str]] = None, return_sorted: bool = True
@@ -1039,3 +1052,47 @@ class SQLiteBackend(ProcessedDataStore):
                     df[column] = df[column].astype("category")
 
         return df
+
+    # Retained for compatibility but do nothing
+
+    def validate(self, data):
+        warnings.warn("`Database.validate` is obsolete and does nothing", DeprecationWarning)
+        return True
+
+    def add_geomappings(self, data):
+        warnings.warn("`Database.add_geomappings` is obsolete and does nothing", DeprecationWarning)
+
+    @property
+    def metadata(self):
+        warnings.warn("Database.metadata` is deprecated, use `Database` object attributes directly", DeprecationWarning)
+        return {
+            'backend': self.backend,
+            'depends': self.depends,
+            'searchable': self.searchable,
+            'number': len(self),
+            'geocollections': self.geocollections,
+            'processed': self._datapackage_modified_as_datetime(),
+        }
+
+    @property
+    def registered(self):
+        warnings.warn("The concept of registration is obsolete, `registered` is deprecated", DeprecationWarning)
+        return True
+
+    def register(self, write_empty=True, **kwargs):
+        """Legacy method to register a database with the metadata store.
+        Writing data automatically sets the following metadata:
+            * *depends*: Names of the databases that this database references, e.g. "biosphere"
+            * *number*: Number of processes in this database.
+        """
+        warnings.warn("Registration is no longer necessary, save the metadata directly on the database object", DeprecationWarning)
+
+    def deregister(self):
+        """Legacy method to remove an object from the metadata store. Does not delete any data."""
+        warnings.warn("This method is obsolete; use `Database.delete_instance()` instead", DeprecationWarning)
+
+        if self.id is not None:
+            self.delete_instance()
+
+
+SQLiteBackend = Database

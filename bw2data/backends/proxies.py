@@ -174,6 +174,7 @@ class Exchanges(Iterable):
 
         return df
 
+
 class Activity(ActivityProxyBase):
     def __init__(self, document=None, **kwargs):
         """Create an `Activity` proxy object.
