@@ -124,6 +124,12 @@ class Database(Model):
 
     __repr__ = lambda self: str(self)
 
+    def __lt__(self, other):
+        if not isinstance(other, Database):
+            raise TypeError
+        else:
+            return self.name < other.name
+
     @property
     def node_class(self):
         CLASSES = {
