@@ -12,7 +12,6 @@ sqlite3_lci_db = SubstitutableDatabase(
 )
 
 from .proxies import Activity, Exchange
-from .utils import convert_backend
 from .lcia import Method
 
 config.sqlite3_databases.append(

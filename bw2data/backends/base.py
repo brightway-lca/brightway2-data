@@ -20,16 +20,13 @@ from ..data_store import ProcessedDataStore
 from ..errors import (
     DuplicateNode,
     InvalidExchange,
-    InvalidExchange,
     UnknownObject,
     UntypedExchange,
     WrongDatabase,
 )
-from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_node, get_activity, get_geocollection, MAX_SQLITE_PARAMETERS
-from . import sqlite3_lci_db
+from ..utils import as_uncertainty_dict, get_node, get_geocollection, MAX_SQLITE_PARAMETERS
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id, Location
 from .utils import (
@@ -100,12 +97,13 @@ class SQLiteBackend(ProcessedDataStore, Model):
 
     """
     validator = None
-    backend = "sqlite"
+    backend_string = "sqlite"
     node_class = Activity
 
     name = TextField(null=False, unique=True)
     backend = TextField(null=False)
     metadata = JSONField(null=False, default={})
+    depends = JSONField(null=False, default=[])
     modified = DateTimeField(default=datetime.datetime.now)
     dirty = BooleanField(default=True)
 
@@ -153,11 +151,10 @@ class SQLiteBackend(ProcessedDataStore, Model):
 
         """
         warnings.warn("Registration is no longer necessary, save the metadata directly on the database object", DeprecationWarning)
-        kwargs = {k: v for k, v in kwargs.items() if k not in ('dirty', 'modified', 'name')}
-        if "depends" not in kwargs:
-            kwargs["depends"] = []
-        kwargs["backend"] = self.backend
+        kwargs = {k: v for k, v in kwargs.items() if k not in ('dirty', 'modified', 'name', "depends", "backend")}
 
+        self.backend = kwargs.get("backend", self.backend_string)
+        self.depends = kwargs.get("depends", [])
         self.data = kwargs
         self.save()
 
@@ -238,7 +235,7 @@ class SQLiteBackend(ProcessedDataStore, Model):
 
         def extend(names):
             return set.union(
-                names, set.union(*[set(DatabaseChooser(name).metadata.get('depends', []) for name in names)])
+                names, set.union(*[set(DatabaseChooser(name).depends for name in names)])
             )
 
         seed, extended = {self.name}, extend({self.name})
@@ -806,7 +803,7 @@ class SQLiteBackend(ProcessedDataStore, Model):
 
         dp.finalize_serialization()
 
-        self.metadata["depends"] = sorted(dependents)
+        self.depends = sorted(dependents)
         self.modified = datetime.datetime.now()
         self.dirty = False
         self.save()
@@ -1025,3 +1022,7 @@ class SQLiteBackend(ProcessedDataStore, Model):
                     df[column] = df[column].astype("category")
 
         return df
+
+
+def sqlite_database_exists(name):
+    return bool(SQLiteBackend.select().where(SQLiteBackend.name == name).count())

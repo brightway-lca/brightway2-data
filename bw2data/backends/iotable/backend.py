@@ -1,14 +1,12 @@
 import datetime
 import functools
-import itertools
 
 import numpy as np
 import pandas as pd
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
-from tqdm import tqdm
 
-from ... import config, databases, geomapping
+from ... import config, geomapping
 from .. import SQLiteBackend
 from .proxies import IOTableActivity, IOTableExchanges
 
@@ -18,7 +16,7 @@ class IOTableBackend(SQLiteBackend):
 
     Activities will not seem to have any exchanges."""
 
-    backend = "iotable"
+    backend_string = "iotable"
     node_class = IOTableActivity
 
     def write(self, data):
@@ -104,11 +102,11 @@ class IOTableBackend(SQLiteBackend):
         print("Finalizing serialization")
         dp.finalize_serialization()
 
-        databases[self.name]["depends"] = sorted(
+        self.depends = sorted(
             set(dependents).difference({self.name})
         )
-        databases[self.name]["processed"] = datetime.datetime.now().isoformat()
-        databases.flush()
+        self.modified = datetime.datetime.now().isoformat()
+        self.save()
 
     def process(self):
         """No-op; no intermediate data to process"""

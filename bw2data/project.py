@@ -10,6 +10,8 @@ import appdirs
 from bw_processing import safe_filename
 from fasteners import InterProcessLock
 from peewee import BooleanField, DoesNotExist, Model, TextField
+import warnings
+import wrapt
 
 from . import config
 from .filesystem import create_dir
@@ -435,3 +437,9 @@ class ProjectManager(Iterable):
 
 
 projects = ProjectManager()
+
+
+@wrapt.decorator
+def writable_project(wrapped, instance, args, kwargs):
+    warnings.warn("`writable_project` is deprecated and does nothing", DeprecationWarning)
+    return wrapped(*args, **kwargs)

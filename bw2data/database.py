@@ -1,5 +1,5 @@
 from peewee import DoesNotExist
-from .backends import SQLiteBackend
+from .backends.base import SQLiteBackend
 from .backends.iotable import IOTableBackend
 
 

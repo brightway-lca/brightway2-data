@@ -3,10 +3,11 @@
 ### DEV
 
 * `SQLiteBackend.rename()` no longer returns anything, as we don't need to create a new `Database` object
-* `projects.writable_project` is removed
+* `projects.writable_project` is deprecated and a no-op
 * `.filepath_intermediate` doesn't have any meaning for the data we use, and is removed
 * Database.get() changed to Database.get_activity
 * Removed `dynamic_calculation_setups`
+* Removed utility function `convert_backend`
 
 ## 4.0.DEV18 (2022-08-19)
 

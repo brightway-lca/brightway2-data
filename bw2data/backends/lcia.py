@@ -1,8 +1,7 @@
 import warnings
 
-from . import config
-from .backends.schema import get_id
-from .utils import as_uncertainty_dict, get_geocollection
+from . import config, get_id
+from ..utils import as_uncertainty_dict, get_geocollection
 from .schema import Location
 from ..data_store import ProcessedDataStore
 from ..sqlite import TupleJSONField, JSONField

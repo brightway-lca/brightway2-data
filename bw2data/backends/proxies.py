@@ -5,11 +5,9 @@ from typing import Callable, List, Optional
 
 import pandas as pd
 
-from .. import databases, geomapping
 from ..errors import ValidityError
 from ..proxies import ActivityProxyBase, ExchangeProxyBase
 from ..search import IndexManager
-from . import sqlite3_lci_db
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset, dict_as_exchangedataset
 
@@ -63,7 +61,8 @@ class Exchanges(Iterable):
         self._args.append(expr)
 
     def delete(self):
-        databases.set_dirty(self._key[0])
+        from ..database import DatabaseChooser
+        DatabaseChooser(self._key[0]).set_dirty()
         ExchangeDataset.delete().where(*self._args).execute()
 
     def _get_queryset(self):
@@ -172,6 +171,7 @@ class Exchanges(Iterable):
 
         return df
 
+
 class Activity(ActivityProxyBase):
     def __init__(self, document=None, **kwargs):
         """Create an `Activity` proxy object.
@@ -242,7 +242,7 @@ class Activity(ActivityProxyBase):
         return (self.get("database"), self.get("code"))
 
     def delete(self):
-        from .. import Database
+        from .. import DatabaseChooser
         from ..parameters import ActivityParameter, ParameterizedExchange
 
         try:
@@ -255,13 +255,13 @@ class Activity(ActivityProxyBase):
             ).execute()
         except ActivityParameter.DoesNotExist:
             pass
-        IndexManager(Database(self["database"]).filename).delete_dataset(self._data)
+        IndexManager(DatabaseChooser(self["database"]).filename).delete_dataset(self._data)
         self.exchanges().delete()
         self._document.delete_instance()
         self = None
 
     def save(self):
-        from .. import Database
+        from . import Location
 
         if not self.valid():
             raise ValidityError(
@@ -269,20 +269,30 @@ class Activity(ActivityProxyBase):
                 "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        databases.set_dirty(self["database"])
+        db = self._get_database()
+        db.set_dirty()
 
         for key, value in dict_as_activitydataset(self._data).items():
             if key != "id":
                 setattr(self._document, key, value)
         self._document.save()
 
-        if self.get("location") and self["location"] not in geomapping:
-            geomapping.add([self["location"]])
+        if self.get("location") and self["location"] not in Location:
+            Location.add_many([self["location"]])
 
-        if databases[self["database"]].get("searchable", True):
-            IndexManager(Database(self["database"]).filename).update_dataset(self._data)
+        if db.metadata.get("searchable"):
+            IndexManager(db.filename).update_dataset(self._data)
+
+    def _get_database(self, label=None):
+        from .. import DatabaseChooser
+        db = DatabaseChooser(label or self["database"])
+        if not db.id:
+            db.save()
+        return db
 
     def _change_code(self, new_code):
+        from . import sqlite3_lci_db
+
         if self["code"] == new_code:
             return
 
@@ -298,7 +308,7 @@ class Activity(ActivityProxyBase):
                 "Activity database with code `{}` already exists".format(new_code)
             )
 
-        with sqlite3_lci_db.atomic() as txn:
+        with sqlite3_lci_db.atomic():
             ActivityDataset.update(code=new_code).where(
                 ActivityDataset.database == self["database"],
                 ActivityDataset.code == self["code"],
@@ -312,23 +322,25 @@ class Activity(ActivityProxyBase):
                 ExchangeDataset.input_code == self["code"],
             ).execute()
 
-        if databases[self["database"]].get("searchable"):
-            from .. import Database
+        db = self._get_database()
+        if db.metadata.get("searchable"):
 
-            IndexManager(Database(self["database"]).filename).delete_dataset(self)
+            IndexManager(db.filename).delete_dataset(self)
             self._data["code"] = new_code
-            IndexManager(Database(self["database"]).filename).add_datasets([self])
+            IndexManager(db.filename).add_datasets([self])
         else:
             self._data["code"] = new_code
 
     def _change_database(self, new_database):
+        from . import sqlite3_lci_db
+
         if self["database"] == new_database:
             return
 
-        if new_database not in databases:
-            raise ValueError("Database {} does not exist".format(new_database))
+        old_database_obj = self._get_database()
+        new_database_obj = self._get_database(new_database)
 
-        with sqlite3_lci_db.atomic() as txn:
+        with sqlite3_lci_db.atomic():
             ActivityDataset.update(database=new_database).where(
                 ActivityDataset.database == self["database"],
                 ActivityDataset.code == self["code"],
@@ -342,12 +354,10 @@ class Activity(ActivityProxyBase):
                 ExchangeDataset.input_code == self["code"],
             ).execute()
 
-        if databases[self["database"]].get("searchable"):
-            from .. import Database
-
-            IndexManager(Database(self["database"]).filename).delete_dataset(self)
+        if old_database_obj.get("searchable"):
+            IndexManager(old_database_obj.filename).delete_dataset(self)
             self._data["database"] = new_database
-            IndexManager(Database(self["database"]).filename).add_datasets([self])
+            IndexManager(new_database_obj.filename).add_datasets([self])
         else:
             self._data["database"] = new_database
 
@@ -473,13 +483,15 @@ class Exchange(ExchangeProxyBase):
             )
 
     def save(self):
+        from .. import DatabaseChooser
+
         if not self.valid():
             raise ValidityError(
                 "This exchange can't be saved for the "
                 "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        databases.set_dirty(self["output"][0])
+        DatabaseChooser(self["output"][0]).set_dirty()
 
         for key, value in dict_as_exchangedataset(self._data).items():
             setattr(self._document, key, value)
@@ -487,10 +499,11 @@ class Exchange(ExchangeProxyBase):
 
     def delete(self):
         from ..parameters import ParameterizedExchange
+        from .. import DatabaseChooser
 
         ParameterizedExchange.delete().where(
             ParameterizedExchange.exchange == self._document.id
         ).execute()
         self._document.delete_instance()
-        databases.set_dirty(self["output"][0])
+        DatabaseChooser(self["output"][0]).set_dirty()
         self = None

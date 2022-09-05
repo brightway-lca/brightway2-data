@@ -64,7 +64,6 @@ from .serialization import JsonWrapper
 from .database import DatabaseChooser as Database
 from .utils import get_activity, get_node
 from .data_store import DataStore, ProcessedDataStore
-from .method import Method
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
 from .backends import convert_backend, get_id, Node, Edge, Location, DatabaseMetadata
@@ -79,4 +78,5 @@ from .parameters import parameters
 Updates.check_status()
 
 # Backwards compatibility
+from .method import Method
 methods = Method
