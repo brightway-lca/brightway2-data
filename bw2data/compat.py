@@ -41,48 +41,42 @@ class Mapping:
         return AD.select().count()
 
 
-class databases:
-    @staticmethod
-    def clean():
+class _Databases:
+    def clean(self):
         warnings.warn("Use `Database.clean_all()` instead of `databases.clean()`", DeprecationWarning)
         Database.clean_all()
 
-    @staticmethod
     def set_dirty(self, name):
         warnings.warn("Use `Database.set_dirty(name)` instead of `databases.set_dirty(name)`", DeprecationWarning)
         Database.set_dirty(name)
 
-    @staticmethod
-    def __getitem__(name):
+    def __getitem__(self, name):
         warnings.warn("Use `Database` attributes directly instead of `databases[name]`", DeprecationWarning)
         return Database(name).metadata
 
-    @staticmethod
-    def __contains__(name):
+    def __contains__(self, name):
         warnings.warn("Use `Database.exists(name)` instead of `name in databases`", DeprecationWarning)
         return Database.exists(name)
 
-    @staticmethod
-    def __len__(name):
+    def __len__(self):
         warnings.warn("Use `Database.select().count()` instead of `len(databases)`", DeprecationWarning)
         return len(Database)
 
-    @staticmethod
-    def __iter__():
-        return Database.select()
-
-    @staticmethod
-    def __delitem__(name):
+    def __delitem__(self, name):
         warnings.warn("Use `Database(name).delete()` instead of `del databases[name]`", DeprecationWarning)
         Database(name).delete()
 
-    @staticmethod
-    def flush():
+    def __iter__(self):
+        return (obj.name for obj in Database.select())
+
+    def flush(self):
         warnings.warn("`databases.flush()` doesn't do anything. Modify `Database` attributes and call `.save()` instead.", DeprecationWarning)
 
-    @staticmethod
-    def __setitem__(*args, **kwargs):
+    def __setitem__(self, *args, **kwargs):
         warnings.warn("`databases[foo] = something` doesn't do anything. Modify `Database` attributes and call `.save()` instead.", DeprecationWarning)
+
+
+databases = _Databases()
 
 
 def unpack(dct):
