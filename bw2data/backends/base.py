@@ -110,6 +110,12 @@ class Database(Model):
     def __init__(self, name=None, *args, **kwargs):
         super().__init__(name=name, *args, **kwargs)
 
+        if name and not args and not kwargs and Database.exists(name):
+            # We want to maintain compatibility with `Database(name)`
+            other = Database.get(Database.name==name)
+            for field in ("id", "backend", "depends", "geocollections", "dirty", "searchable"):
+                setattr(self, field, getattr(other, field))
+
         self._filters = {}
         self._order_by = None
 
