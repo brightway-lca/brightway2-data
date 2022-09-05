@@ -15,7 +15,7 @@ from bw2data import (
     projects,
 )
 from bw2data.backends import Activity
-from bw2data.backends.iotable.proxies import (
+from bw2data.backends.iotable import (
     IOTableActivity,
     IOTableExchanges,
     ReadOnlyExchange,

@@ -1,4 +1,3 @@
-iotable.py
 import itertools
 from collections.abc import Iterable, Mapping
 from typing import Optional

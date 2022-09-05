@@ -5,12 +5,12 @@ import pytest
 from bw_processing import load_datapackage
 from fs.zipfs import ZipFS
 
-from bw2data import config, get_id
+from bw2data import config, get_id, databases
 from bw2data.backends.schema import ActivityDataset as AD
 from bw2data.database import DatabaseChooser
 from bw2data.ia_data_store import ImpactAssessmentDataStore as IADS
 from bw2data.ia_data_store import abbreviate
-from bw2data.meta import databases, geomapping, methods, normalizations, weightings
+from bw2data.meta import geomapping, methods, normalizations, weightings
 from bw2data.method import Method
 from bw2data.serialization import CompoundJSONDict
 from bw2data.tests import bw2test

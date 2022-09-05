@@ -3,7 +3,6 @@ from . import (
     Method,
     Normalization,
     Weighting,
-    databases,
     methods,
     normalizations,
     projects,
@@ -12,6 +11,7 @@ from . import (
 from .backends.schema import ActivityDataset as AD
 from .backends.schema import get_id
 from .errors import Brightway2Project
+import warnings
 
 
 class Mapping:
@@ -39,6 +39,50 @@ class Mapping:
 
     def __len__(self):
         return AD.select().count()
+
+
+class databases:
+    @staticmethod
+    def clean():
+        warnings.warn("Use `Database.clean_all()` instead of `databases.clean()`", DeprecationWarning)
+        Database.clean_all()
+
+    @staticmethod
+    def set_dirty(name):
+        warnings.warn("Use `Database(name).set_dirty()` instead of `databases.set_dirty(name)`", DeprecationWarning)
+        Database(name).set_dirty()
+
+    @staticmethod
+    def __getitem__(name):
+        warnings.warn("Use `Database` attributes directly instead of `databases[name]`", DeprecationWarning)
+        return Database(name).metadata
+
+    @staticmethod
+    def __contains__(name):
+        warnings.warn("Use `Database.exists(name)` instead of `name in databases`", DeprecationWarning)
+        return Database.exists(name)
+
+    @staticmethod
+    def __len__(name):
+        warnings.warn("Use `Database.select().count()` instead of `len(databases)`", DeprecationWarning)
+        return len(Database)
+
+    @staticmethod
+    def __iter__():
+        return Database.select()
+
+    @staticmethod
+    def __delitem__(name):
+        warnings.warn("Use `Database(name).delete()` instead of `del databases[name]`", DeprecationWarning)
+        Database(name).delete()
+
+    @staticmethod
+    def flush():
+        warnings.warn("`databases.flush()` doesn't do anything. Modify `Database` attributes and call `.save()` instead.", DeprecationWarning)
+
+    @staticmethod
+    def __setitem__(*args, **kwargs):
+        warnings.warn("`databases[foo] = something` doesn't do anything. Modify `Database` attributes and call `.save()` instead.", DeprecationWarning)
 
 
 def unpack(dct):

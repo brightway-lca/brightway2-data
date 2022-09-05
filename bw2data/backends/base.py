@@ -12,10 +12,11 @@ import os
 import functools
 
 import pandas as pd
+import numpy as np
 import pyprind
 from bw_processing import clean_datapackage_name, create_datapackage, load_datapackage, safe_filename
 from fs.zipfs import ZipFS
-from peewee import DoesNotExist, fn, Model, TextField, DateTimeField, BooleanField
+from peewee import DoesNotExist, fn, Model, TextField, BooleanField
 
 from .. import config, geomapping, projects
 from ..errors import (
@@ -28,7 +29,6 @@ from ..errors import (
 from ..query import Query
 from ..search import IndexManager, Searcher
 from ..utils import as_uncertainty_dict, get_node, get_geocollection
-from . import sqlite3_lci_db
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
 from .utils import (
@@ -39,7 +39,7 @@ from .utils import (
     retupleize_geo_strings,
 )
 from ..sqlite import JSONField
-from .iotable import IOTableActivity
+from .iotable import IOTableActivity, IOTableExchanges
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
@@ -102,13 +102,13 @@ class Database(Model):
     backend = TextField(null=False, default="sqlite")
     depends = JSONField(null=False, default=[])
     geocollections = JSONField(null=False, default=[])
-    modified = DateTimeField(default=datetime.datetime.now)
+    dirty = BooleanField(default=True)
     searchable = BooleanField(default=True)
 
     validator = None
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, name=None, *args, **kwargs):
+        super().__init__(name=name, *args, **kwargs)
 
         self._filters = {}
         self._order_by = None
@@ -117,13 +117,6 @@ class Database(Model):
         return "Brightway2 Database: {} ({})".format(self.name, self.backend)
 
     __repr__ = lambda self: str(self)
-
-    def _datapackage_modified_as_datetime(self):
-        return datetime.fromtimestamp(os.path.getmtime(self.filepath_processed()))
-
-    @property
-    def dirty(self):
-        return self.modified > self._datapackage_modified_as_datetime()
 
     @property
     def node_class(self):
@@ -136,6 +129,10 @@ class Database(Model):
     @classmethod
     def exists(cls, name):
         return bool(cls.select().where(cls.name == name).count())
+
+    def set_dirty(self):
+        self.dirty = True
+        self.save()
 
     ### Generic LCI backend methods
     ###############################
@@ -307,6 +304,8 @@ class Database(Model):
             self  # Backwards compatibility
 
         """
+        from . import sqlite3_lci_db
+
         old_name = self.name
         with sqlite3_lci_db.transaction():
             ActivityDataset.update(database=name).where(ActivityDataset.database == old_name).execute()
@@ -409,12 +408,16 @@ class Database(Model):
     # Private methods
 
     def _drop_indices(self):
+        from . import sqlite3_lci_db
+
         with sqlite3_lci_db.transaction():
             sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "activitydataset_key"')
             sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_input"')
             sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_output"')
 
     def _add_indices(self):
+        from . import sqlite3_lci_db
+
         with sqlite3_lci_db.transaction():
             sqlite3_lci_db.execute_sql(
                 'CREATE UNIQUE INDEX IF NOT EXISTS "activitydataset_key" ON "activitydataset" ("database", "code")'
@@ -460,13 +463,15 @@ class Database(Model):
         return exchanges, activities
 
     def _efficient_write_many_data(self, data, indices=True):
+        from . import sqlite3_lci_db
+
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
             self._drop_indices()
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
-            self.delete(keep_params=True, warn=False)
+            self.delete_data(keep_params=True, warn=False)
             exchanges, activities = [], []
 
             if not getattr(config, "is_test", None):
@@ -538,8 +543,7 @@ class Database(Model):
             try:
                 self._efficient_write_many_data(data)
             except:
-                # Purge all data from database, then reraise
-                self.delete(warn=False)
+                self.delete_data()
                 raise
 
         self.make_searchable(reset=True)
@@ -701,8 +705,14 @@ class Database(Model):
         self.searchable = False
         self.save()
 
-    def delete(self, keep_params=False, warn=True):
+    def delete_instance(self):
+        self.delete_data()
+        super().delete_instance()
+
+    def delete_data(self, keep_params=False, warn=True):
         """Delete all data from SQLite database and Whoosh index"""
+        from . import sqlite3_lci_db
+
         vacuum_needed = len(self) > 500
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
@@ -747,6 +757,8 @@ class Database(Model):
         ``flip`` means flip the numeric sign; see ``bw_processing`` docs.
 
         Uses raw sqlite3 to retrieve data for ~2x speed boost."""
+        from . import sqlite3_lci_db
+
         connection = sqlite3.connect(sqlite3_lci_db._filepath)
         cursor = connection.cursor()
         for line in cursor.execute(sql, (self.name,)):
@@ -781,6 +793,11 @@ class Database(Model):
                 "flip": flip,
             }
 
+    @classmethod
+    def clean_all(cls):
+        for db in cls.select().where(cls.dirty == True):
+            db.process()
+
     def process(self, csv=False):
         """Create structured arrays for the technosphere and biosphere matrices.
 
@@ -792,6 +809,8 @@ class Database(Model):
 
         """
         if self.backend == "iotable":
+            self.dirty = False
+            self.save()
             return
 
         # Get number of exchanges and processes to set
@@ -914,7 +933,7 @@ class Database(Model):
         dp.finalize_serialization()
 
         # Remove any possibility of datetime being in different timezone or otherwise different than filesystem
-        self.modified = self._datapackage_modified_as_datetime() - datetime.timedelta(seconds=1)
+        self.dirty = False
         self.depends = sorted(dependents)
         self.save()
 
@@ -1306,7 +1325,7 @@ class Database(Model):
             'searchable': self.searchable,
             'number': len(self),
             'geocollections': self.geocollections,
-            'processed': self._datapackage_modified_as_datetime(),
+            'processed': datetime.fromtimestamp(os.path.getmtime(self.filepath_processed())),
         }
 
     @property

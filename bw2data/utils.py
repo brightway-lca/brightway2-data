@@ -396,17 +396,17 @@ def create_in_memory_zipfile_from_directory(path):
 
 
 def get_node(**kwargs):
-    from . import databases
+    from . import Database
     from .backends import Activity
     from .backends import ActivityDataset as AD
-    from .backends.iotable.proxies import IOTableActivity
+    from .backends.iotable import IOTableActivity
 
     def node_class(database_name):
         mapping = {
             'sqlite': Activity,
             'iotable': IOTableActivity,
         }
-        return mapping[databases[database_name].get("backend", "sqlite")]
+        return mapping[Database(database_name).backend]
 
     mapping = {
         "id": AD.id,
