@@ -1,3 +1,4 @@
+iotable.py
 import itertools
 from collections.abc import Iterable, Mapping
 from typing import Optional
@@ -6,9 +7,9 @@ from warnings import warn
 import numpy as np
 from bw_processing import Datapackage
 
-from ...errors import InvalidDatapackage
-from ...utils import get_node
-from ..proxies import Activity, Exchange, Exchanges
+from ..errors import InvalidDatapackage
+from ..utils import get_node
+from .proxies import Activity, Exchange, Exchanges
 
 
 class ReadOnlyExchange(Mapping):
