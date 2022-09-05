@@ -1351,7 +1351,8 @@ class Database(Model):
             * *depends*: Names of the databases that this database references, e.g. "biosphere"
             * *number*: Number of processes in this database.
         """
-        warnings.warn("Registration is no longer necessary, save the metadata directly on the database object", DeprecationWarning)
+        warnings.warn("Registration is no longer necessary, set the metadata directly and save the database object", DeprecationWarning)
+        self.save()
 
     def deregister(self):
         """Legacy method to remove an object from the metadata store. Does not delete any data."""
