@@ -9,8 +9,9 @@ import warnings
 from collections import defaultdict
 from typing import Callable, List, Optional
 import os
+import functools
 
-import pandas
+import pandas as pd
 import pyprind
 from bw_processing import clean_datapackage_name, create_datapackage, load_datapackage, safe_filename
 from fs.zipfs import ZipFS
@@ -509,6 +510,9 @@ class Database(Model):
             }
 
         Writing a database will first deletes all existing data."""
+        if self.backend == "iotable":
+            process = False
+
         wrong_database = {key[0] for key in data}.difference({self.name})
         if wrong_database:
             raise WrongDatabase(
@@ -539,11 +543,97 @@ class Database(Model):
                 raise
 
         self.make_searchable(reset=True)
-
         self.save()
 
         if process:
             self.process()
+
+    def write_exchanges(self, technosphere, biosphere, dependents):
+        """
+
+        Write IO data directly to processed arrays.
+
+        Product data is stored in SQLite as normal activities.
+        Exchange data is written directly to NumPy structured arrays.
+
+        Technosphere and biosphere data has format ``(row id, col id, value, flip)``.
+
+        """
+        if self.backend != "iotable":
+            raise ValueError("Wrong kind of database")
+        print("Starting IO table write")
+
+        # create empty datapackage
+        dp = create_datapackage(
+            fs=ZipFS(str(self.filepath_processed()), write=True),
+            name=clean_datapackage_name(self.name),
+            sum_intra_duplicates=True,
+            sum_inter_duplicates=False,
+        )
+
+        # add geomapping
+        dp.add_persistent_vector_from_iterator(
+            dict_iterator=(
+                {
+                    "row": obj.id,
+                    "col": geomapping[
+                        obj.get("location", None) or config.global_location
+                    ],
+                    "amount": 1,
+                }
+                for obj in self
+            ),
+            matrix="inv_geomapping_matrix",
+            name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
+            nrows=len(self),
+        )
+
+        print("Adding technosphere matrix")
+        # if technosphere is a dictionary pass it's keys & values
+        if isinstance(technosphere, dict):
+            dp.add_persistent_vector(
+                matrix="technosphere_matrix",
+                name=clean_datapackage_name(self.name + " technosphere matrix"),
+                **technosphere,
+            )
+        # if it is an iterable, convert to right format
+        elif hasattr(technosphere, "__iter__"):
+            dp.add_persistent_vector_from_iterator(
+                matrix="technosphere_matrix",
+                name=clean_datapackage_name(self.name + " technosphere matrix"),
+                dict_iterator=technosphere,
+            )
+        else:
+            raise Exception(
+                f"Error: Unsupported technosphere type: {type(technosphere)}"
+            )
+
+        print("Adding biosphere matrix")
+        # if biosphere is a dictionary pass it's keys & values
+        if isinstance(biosphere, dict):
+            dp.add_persistent_vector(
+                matrix="biosphere_matrix",
+                name=clean_datapackage_name(self.name + " biosphere matrix"),
+                **biosphere,
+            )
+        # if it is an iterable, convert to right format
+        elif hasattr(biosphere, "__iter__"):
+            dp.add_persistent_vector_from_iterator(
+                matrix="biosphere_matrix",
+                name=clean_datapackage_name(self.name + " biosphere matrix"),
+                dict_iterator=biosphere,
+            )
+        else:
+            raise Exception(f"Error: Unsupported biosphere type: {type(technosphere)}")
+
+        # finalize
+        print("Finalizing serialization")
+        dp.finalize_serialization()
+
+        self.depends = sorted(
+            set(dependents).difference({self.name})
+        )
+        self.save()
 
     def load(self, *args, **kwargs):
         # Should not be used, in general; relatively slow
@@ -701,6 +791,8 @@ class Database(Model):
         Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         """
+        if self.backend == "iotable":
+            return
 
         # Get number of exchanges and processes to set
         # initial Numpy array size (still have to include)
@@ -806,7 +898,7 @@ class Database(Model):
             ),
         )
         if csv:
-            df = pandas.DataFrame([get_csv_data_dict(ds) for ds in self])
+            df = pd.DataFrame([get_csv_data_dict(ds) for ds in self])
             dp.add_csv_metadata(
                 dataframe=df,
                 valid_for=[
@@ -928,7 +1020,7 @@ class Database(Model):
 
     def nodes_to_dataframe(
         self, columns: Optional[List[str]] = None, return_sorted: bool = True
-    ) -> pandas.DataFrame:
+    ) -> pd.DataFrame:
         """Return a pandas DataFrame with all database nodes. Uses the provided node attributes by default,  such as name, unit, location.
 
         By default, returns a DataFrame sorted by name, reference product, location, and unit. Set ``return_sorted`` to ``False`` to skip sorting.
@@ -940,9 +1032,9 @@ class Database(Model):
         """
         if columns is None:
             # Feels like magic
-            df = pandas.DataFrame(self)
+            df = pd.DataFrame(self)
         else:
-            df = pandas.DataFrame(
+            df = pd.DataFrame(
                 [{field: obj.get(field) for field in columns} for obj in self]
             )
         if return_sorted:
@@ -954,7 +1046,7 @@ class Database(Model):
 
     def edges_to_dataframe(
         self, categorical: bool = True, formatters: Optional[List[Callable]] = None
-    ) -> pandas.DataFrame:
+    ) -> pd.DataFrame:
         """Return a pandas DataFrame with all database exchanges. Standard DataFrame columns are:
 
             target_id: int,
@@ -993,6 +1085,149 @@ class Database(Model):
         Returns a pandas ``DataFrame``.
 
         """
+        if self.backend == "sqlite":
+            return self._sqlite_edges_to_dataframe(categorical=categorical, formatters=formatters)
+        elif self.backend == "iotable":
+            self._iotable_edges_to_dataframe()
+
+    def _iotable_edges_to_dataframe(self) -> pd.DataFrame:
+        """Return a pandas DataFrame with all database exchanges. DataFrame columns are:
+
+            target_id: int,
+            target_database: str,
+            target_code: str,
+            target_name: Optional[str],
+            target_reference_product: Optional[str],
+            target_location: Optional[str],
+            target_unit: Optional[str],
+            target_type: Optional[str]
+            source_id: int,
+            source_database: str,
+            source_code: str,
+            source_name: Optional[str],
+            source_product: Optional[str],  # Note different label
+            source_location: Optional[str],
+            source_unit: Optional[str],
+            source_categories: Optional[str]  # Tuple concatenated with "::" as in `bw2io`
+            edge_amount: float,
+            edge_type: str,
+
+        Target is the node consuming the edge, source is the node or flow being consumed. The terms target and source were chosen because they also work well for biosphere edges.
+
+        As IO Tables are normally quite large, the DataFrame building will operate directly on Numpy arrays, and therefore special formatters are not supported in this function.
+
+        Returns a pandas ``DataFrame``.
+
+        """
+        from .. import get_activity
+
+        @functools.lru_cache(10000)
+        def cached_lookup(id_):
+            return get_activity(id=id_)
+
+        print("Retrieving metadata")
+        activities = {o.id: o for o in self}
+
+        def get(id_):
+            try:
+                return activities[id_]
+            except KeyError:
+                return cached_lookup(id_)
+
+        def metadata_dataframe(ids, prefix="target_"):
+            def dict_for_obj(obj, prefix):
+                dct = {
+                    f"{prefix}id": obj["id"],
+                    f"{prefix}database": obj["database"],
+                    f"{prefix}code": obj["code"],
+                    f"{prefix}name": obj.get("name"),
+                    f"{prefix}location": obj.get("location"),
+                    f"{prefix}unit": obj.get("unit"),
+                }
+                if prefix == "target_":
+                    dct["target_type"] = obj.get("type", "process")
+                    dct["target_reference_product"] = obj.get("reference product")
+                else:
+                    dct["source_categories"] = (
+                        "::".join(obj["categories"]) if obj.get("categories") else None
+                    )
+                    dct["source_product"] = obj.get("product")
+                return dct
+
+            return pd.DataFrame(
+                [dict_for_obj(get(id_), prefix) for id_ in np.unique(ids)]
+            )
+
+        def get_edge_types(exchanges):
+            arrays = []
+            for resource in exchanges.resources:
+                if resource["data"]["matrix"] == "biosphere_matrix":
+                    arrays.append(
+                        np.array(["biosphere"] * len(resource["data"]["array"]))
+                    )
+                else:
+                    arr = np.array(["technosphere"] * len(resource["data"]["array"]))
+                    arr[resource["flip"]["positive"]] = "production"
+                    arrays.append(arr)
+
+            return np.hstack(arrays)
+
+        print("Loading datapackage")
+        exchanges = IOTableExchanges(datapackage=self.datapackage())
+
+        target_ids = np.hstack(
+            [resource["indices"]["array"]["col"] for resource in exchanges.resources]
+        )
+        source_ids = np.hstack(
+            [resource["indices"]["array"]["row"] for resource in exchanges.resources]
+        )
+        edge_amounts = np.hstack(
+            [resource["data"]["array"] for resource in exchanges.resources]
+        )
+        edge_types = get_edge_types(exchanges)
+
+        print("Creating metadata dataframes")
+        target_metadata = metadata_dataframe(target_ids)
+        source_metadata = metadata_dataframe(source_ids, "source_")
+
+        print("Building merged dataframe")
+        df = pd.DataFrame(
+            {
+                "target_id": target_ids,
+                "source_id": source_ids,
+                "edge_amount": edge_amounts,
+                "edge_type": edge_types,
+            }
+        )
+        df = df.merge(target_metadata, on="target_id")
+        df = df.merge(source_metadata, on="source_id")
+
+        categorical_columns = [
+            "target_database",
+            "target_name",
+            "target_reference_product",
+            "target_location",
+            "target_unit",
+            "target_type",
+            "source_database",
+            "source_code",
+            "source_name",
+            "source_product",
+            "source_location",
+            "source_unit",
+            "source_categories",
+            "edge_type",
+        ]
+        print("Compressing DataFrame")
+        for column in categorical_columns:
+            if column in df.columns:
+                df[column] = df[column].astype("category")
+
+        return df
+
+    def _sqlite_edges_to_dataframe(
+        self, categorical: bool = True, formatters: Optional[List[Callable]] = None
+    ) -> pd.DataFrame:
         from .wurst_extraction import extract_brightway_databases
 
         result = []
@@ -1027,7 +1262,7 @@ class Database(Model):
                 result.append(row)
 
         print("Creating DataFrame")
-        df = pandas.DataFrame(result)
+        df = pd.DataFrame(result)
 
         if categorical:
             categorical_columns = [
