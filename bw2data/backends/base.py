@@ -1343,7 +1343,7 @@ class Database(Model):
     @property
     def registered(self):
         warnings.warn("The concept of registration is obsolete, `registered` is deprecated", DeprecationWarning)
-        return True
+        return bool(self.id)
 
     def register(self, write_empty=True, **kwargs):
         """Legacy method to register a database with the metadata store.
