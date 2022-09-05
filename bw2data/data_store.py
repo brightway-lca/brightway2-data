@@ -6,7 +6,6 @@ from fs.zipfs import ZipFS
 from . import projects
 from .errors import MissingIntermediateData, UnknownObject
 from .fatomic import open as atomic_open
-from .project import writable_project
 
 
 class DataStore:
@@ -37,7 +36,6 @@ class DataStore:
             )
         return self._metadata[self.name]
 
-    @writable_project
     def _set_metadata(self, value):
         self._get_metadata()
         self._metadata[self.name] = value
@@ -57,14 +55,12 @@ class DataStore:
     def register(self, **kwargs):
         """Register an object with the metadata store. Takes any number of keyword arguments."""
 
-        @writable_project
         def _register(kwargs):
             self._metadata[self.name] = kwargs
 
         if not self.registered:
             _register(kwargs)
 
-    @writable_project
     def deregister(self):
         """Remove an object from the metadata store. Does not delete any files."""
         del self._metadata[self.name]
@@ -88,7 +84,6 @@ class DataStore:
         except OSError:
             raise MissingIntermediateData("Can't load intermediate data")
 
-    @writable_project
     def copy(self, name):
         """Make a copy of this object with a new ``name``.
 
@@ -121,7 +116,6 @@ class DataStore:
         except ImportError:
             print("bw2io not installed")
 
-    @writable_project
     def write(self, data):
         """Serialize intermediate data to disk.
 
@@ -162,7 +156,6 @@ class ProcessedDataStore(DataStore):
     def datapackage(self):
         return load_datapackage(ZipFS(self.filepath_processed()))
 
-    @writable_project
     def write(self, data, process=True):
         """Serialize intermediate data to disk.
 

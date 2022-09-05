@@ -8,7 +8,6 @@ from time import time
 from . import projects
 from .errors import PickleError
 from .fatomic import open as atomic_open
-from .project import writable_project
 from .utils import maybe_path
 
 try:
@@ -131,7 +130,6 @@ class SerializedDict(MutableMapping):
             key = tuple(key)
         return self.data[key]
 
-    @writable_project
     def __setitem__(self, key, value):
         self.data[key] = value
         self.flush()
@@ -179,7 +177,6 @@ class SerializedDict(MutableMapping):
     def values(self):
         return self.data.values()
 
-    @writable_project
     def serialize(self, filepath=None):
         """Method to do the actual serialization. Can be replaced with other serialization formats.
 
@@ -220,7 +217,6 @@ class SerializedDict(MutableMapping):
 class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
 
-    @writable_project
     def serialize(self):
         with atomic_open(self.filepath, "wb") as f:
             pickle.dump(self.pack(self.data), f, protocol=4)

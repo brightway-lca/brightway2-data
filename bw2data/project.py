@@ -441,6 +441,5 @@ projects = ProjectManager()
 
 @wrapt.decorator
 def writable_project(wrapped, instance, args, kwargs):
-    if projects.read_only:
-        raise ReadOnlyProject(READ_ONLY_PROJECT)
+    warnings.warn("`writable_project` is obsolete and does nothing", DeprecationWarning)
     return wrapped(*args, **kwargs)
