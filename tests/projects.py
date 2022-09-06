@@ -12,6 +12,7 @@ from bw2data import (
     methods,
     preferences,
     projects,
+    Database,
 )
 from bw2data.project import ProjectDataset
 from bw2data.tests import bw2test
@@ -251,7 +252,7 @@ def test_set_readonly_project_first_time():
 
 @bw2test
 def test_set_current_reset_metadata():
-    databases["foo"] = "bar"
+    Database.create(name="foo")
     assert "foo" in databases
     projects.set_current("foo")
     assert "foo" not in databases
@@ -325,7 +326,7 @@ def test_copy_project():
     ds.data["this"] = "that"
     ds.save()
 
-    databases["foo"] = "bar"
+    Database.create(name="foo")
     projects.copy_project("another one", False)
     assert "another one" in projects
 
@@ -333,7 +334,7 @@ def test_copy_project():
     assert ds.data["this"] == "that"
 
     projects.set_current("another one")
-    assert databases["foo"] == "bar"
+    assert Database.get(Database.name=="foo").id
 
 
 @bw2test
