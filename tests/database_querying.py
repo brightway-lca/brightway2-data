@@ -104,7 +104,7 @@ class DatabaseQuerysetTest(BW2DataTest):
 
     def test_get_ignores_filters(self):
         self.db.filters = {"product": "giggles"}
-        self.assertEqual(self.db.get("fourth")["name"], "d")
+        self.assertEqual(self.db.get_node("fourth")["name"], "d")
 
     def test_filter(self):
         self.db.filters = {"product": "widget"}
