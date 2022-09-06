@@ -13,7 +13,6 @@ from fasteners import InterProcessLock
 from peewee import BooleanField, DoesNotExist, Model, TextField
 
 from . import config
-from .errors import ReadOnlyProject
 from .filesystem import create_dir
 from .sqlite import PickleField, SubstitutableDatabase
 from .utils import maybe_path
