@@ -61,7 +61,11 @@ class JSONField(TextField):
 
 class TupleJSONField(JSONField):
     def python_value(self, value):
-        data = json.loads(value)
-        if isinstance(data, list):
-            data = tuple(data)
-        return data
+        try:
+            data = json.loads(value)
+            if isinstance(data, list):
+                data = tuple(data)
+            return data
+        except json.decoder.JSONDecodeError:
+            # Plain string without enclosing quotes
+            return value
