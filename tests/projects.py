@@ -13,7 +13,6 @@ from bw2data import (
     preferences,
     projects,
 )
-from bw2data.errors import ReadOnlyProject
 from bw2data.project import ProjectDataset
 from bw2data.tests import bw2test
 
@@ -313,15 +312,6 @@ def test_create_lock_file():
 @bw2test
 def test_lockable_config_missing():
     assert "lockable" not in config.p
-
-
-@bw2test
-def test_read_only_cant_write():
-    projects.set_current("foo")
-    config.p["lockable"] = True
-    projects.set_current("foo", writable=False)
-    with pytest.raises(ReadOnlyProject):
-        databases["foo"] = "bar"
 
 
 ###
