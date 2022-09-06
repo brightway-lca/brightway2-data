@@ -14,7 +14,6 @@ from pathlib import Path
 
 import requests
 import stats_arrays as sa
-from peewee import DoesNotExist
 
 from . import config
 from .errors import MultipleResults, NotFound, UnknownObject, ValidityError, WebUIError
@@ -238,7 +237,6 @@ def merge_databases(parent_db, other):
     from .backends import (
         ActivityDataset,
         ExchangeDataset,
-        SQLiteBackend,
         sqlite3_lci_db,
     )
     from .database import Database
@@ -249,8 +247,8 @@ def merge_databases(parent_db, other):
     first = Database(parent_db)
     second = Database(other)
 
-    if type(first) != SQLiteBackend or type(second) != SQLiteBackend:
-        raise ValidityError("Both databases must be `SQLiteBackend`")
+    if first.backend != "sqlite" or second.backend != "sqlite":
+        raise ValidityError("Both database backends must be `sqlite`")
 
     first_codes = {
         obj.code

@@ -59,10 +59,10 @@ def iotable_fixture():
         ("d", "c", 2, False),
     ]
 
-    mouse = Database("mouse")
+    mouse = Database.create(name="mouse")
     mouse.write({("mouse", "d"): {"name": "squeak", "type": "emission"}})
 
-    cat = Database("cat", backend="iotable")
+    cat = Database.create(name="cat", backend="iotable")
     cat_data = {
         ("cat", "a"): {"name": "a", "unit": "meow", "location": "sunshine"},
         ("cat", "b"): {"name": "b", "unit": "purr", "location": "curled up"},
@@ -155,13 +155,14 @@ def test_iotable_matrix_construction(iotable_fixture):
 
 
 def test_iotable_process_method(iotable_fixture):
-    Database("cat").process()
+    Database.get(Database.name == "cat").process()
 
 
 def test_iotable_edges_to_dataframe(iotable_fixture):
-    df = Database("cat").edges_to_dataframe()
-    id_map = {obj["code"]: obj.id for obj in Database("cat")} | {
-        obj["code"]: obj.id for obj in Database("mouse")
+    df = Database.get(Database.name == "cat").edges_to_dataframe()
+    print(df)
+    id_map = {obj["code"]: obj.id for obj in Database.get(Database.name=="cat")} | {
+        obj["code"]: obj.id for obj in Database.get(Database.name=="mouse")
     }
 
     tech_exchanges = [
@@ -265,6 +266,8 @@ def test_iotable_nodes_to_dataframe(iotable_fixture):
                 "id": get_id(("cat", "a")),
                 "location": "sunshine",
                 "name": "a",
+                "reference product": None,
+                "type": "process",
                 "unit": "meow",
             },
             {
@@ -273,6 +276,8 @@ def test_iotable_nodes_to_dataframe(iotable_fixture):
                 "id": get_id(("cat", "b")),
                 "location": "curled up",
                 "name": "b",
+                "reference product": None,
+                "type": "process",
                 "unit": "purr",
             },
             {
@@ -281,6 +286,8 @@ def test_iotable_nodes_to_dataframe(iotable_fixture):
                 "id": get_id(("cat", "c")),
                 "location": "on lap",
                 "name": "c",
+                "reference product": None,
+                "type": "process",
                 "unit": "meow",
             },
         ]
@@ -298,7 +305,7 @@ def test_iotable_get_methods_correct_class(iotable_fixture):
     act = get_node(code="a")
     assert isinstance(act, IOTableActivity)
 
-    act = Database("cat").get(code="a")
+    act = Database.get(Database.name == "cat").get_node(code="a")
     assert isinstance(act, IOTableActivity)
 
     act = get_activity(("mouse", "d"))
@@ -307,7 +314,7 @@ def test_iotable_get_methods_correct_class(iotable_fixture):
     act = get_node(code="d")
     assert isinstance(act, Activity)
 
-    act = Database("mouse").get(code="d")
+    act = Database.get(Database.name == "mouse").get_node(code="d")
     assert isinstance(act, Activity)
 
 
