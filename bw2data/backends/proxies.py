@@ -63,8 +63,7 @@ class Exchanges(Iterable):
 
     def delete(self):
         from . import Database
-
-        Database().set_dirty(self._key[0])
+        Database().set_stale(self._key[0])
         ExchangeDataset.delete().where(*self._args).execute()
 
     def _get_queryset(self):
@@ -195,6 +194,7 @@ class Activity(ActivityProxyBase):
             self._data["type"] = self._document.type
             self._data["name"] = self._document.name
 
+
     @property
     def id(self):
         return self._document.id
@@ -207,7 +207,7 @@ class Activity(ActivityProxyBase):
         elif key in self._data:
             return self._data[key]
 
-        for section in ("classifications", "properties"):
+        for section in ('classifications', 'properties'):
             if section in self._data:
                 if isinstance(self._data[section], list):
                     try:
@@ -222,10 +222,10 @@ class Activity(ActivityProxyBase):
         except ValueError:
             raise KeyError
 
-        if key in rp.get("classifications", []):
-            return rp["classifications"][key]
-        if key in rp.get("properties", []):
-            return rp["properties"][key]
+        if key in rp.get('classifications', []):
+            return rp['classifications'][key]
+        if key in rp.get('properties', []):
+            return rp['properties'][key]
 
         raise KeyError
 
@@ -275,7 +275,7 @@ class Activity(ActivityProxyBase):
                 "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        Database.set_dirty(self["database"])
+        Database.set_stale(self["database"])
         db = Database(self["database"])
 
         for key, value in dict_as_activitydataset(self._data).items():
@@ -403,19 +403,11 @@ class Activity(ActivityProxyBase):
         candidates = list(self.production())
         if len(candidates) == 1:
             return candidates[0]
-        candidates2 = [
-            exc
-            for exc in candidates
-            if exc.input["name"] == self._data.get("reference product")
-        ]
+        candidates2 = [exc for exc in candidates if exc.input['name'] == self._data.get('reference product')]
         if len(candidates2) == 1:
             return candidates2[0]
         else:
-            raise ValueError(
-                "Can't find a single reference product exchange (found {} candidates)".format(
-                    len(candidates)
-                )
-            )
+            raise ValueError("Can't find a single reference product exchange (found {} candidates)".format(len(candidates)))
 
     def producers(self):
         return self.production()
@@ -483,7 +475,7 @@ class Exchange(ExchangeProxyBase):
         else:
             self._document = document
             self._data = self._document.data
-            self._data["type"] = self._document.type
+            self._data['type'] = self._document.type
             self._data["input"] = (
                 self._document.input_database,
                 self._document.input_code,
@@ -502,7 +494,7 @@ class Exchange(ExchangeProxyBase):
                 "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        Database.set_dirty(self["output"][0])
+        Database.set_stale(self["output"][0])
 
         for key, value in dict_as_exchangedataset(self._data).items():
             setattr(self._document, key, value)
@@ -516,5 +508,5 @@ class Exchange(ExchangeProxyBase):
             ParameterizedExchange.exchange == self._document.id
         ).execute()
         self._document.delete_instance()
-        Database.set_dirty(self["output"][0])
+        Database.set_stale(self["output"][0])
         self = None

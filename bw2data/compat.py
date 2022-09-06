@@ -52,10 +52,10 @@ class _Databases:
 
     def set_dirty(self, name):
         warnings.warn(
-            "Use `Database.set_dirty(name)` instead of `databases.set_dirty(name)`",
+            "Use `Database.set_stale(name)` instead of `databases.set_dirty(name)`",
             DeprecationWarning,
         )
-        Database.set_dirty(name)
+        Database.set_stale(name)
 
     def __getitem__(self, name):
         warnings.warn(

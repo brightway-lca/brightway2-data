@@ -108,7 +108,7 @@ class Database(Model):
     backend = TextField(null=False, default="sqlite")
     depends = JSONField(null=False, default=[])
     geocollections = JSONField(null=False, default=[])
-    dirty = BooleanField(default=True)
+    stale = BooleanField(default=True)
     searchable = BooleanField(default=True)
 
     validator = None
@@ -124,7 +124,7 @@ class Database(Model):
                 "backend",
                 "depends",
                 "geocollections",
-                "dirty",
+                "stale",
                 "searchable",
             ):
                 setattr(self, field, getattr(other, field))
@@ -153,8 +153,8 @@ class Database(Model):
         return bool(cls.select().where(cls.name == name).count())
 
     @classmethod
-    def set_dirty(cls, name):
-        cls.update(dirty=True).where(cls.name == name).execute()
+    def set_stale(cls, name):
+        cls.update(stale=True).where(cls.name == name).execute()
 
     ### Generic LCI backend methods
     ###############################
@@ -196,7 +196,7 @@ class Database(Model):
         return clean_datapackage_name(self.filename + ".zip")
 
     def filepath_processed(self, clean=True):
-        if self.dirty and clean:
+        if self.stale and clean:
             self.process()
         return self.dirpath_processed() / self.filename_processed()
 
@@ -846,7 +846,7 @@ class Database(Model):
 
     @classmethod
     def clean_all(cls):
-        for db in cls.select().where(cls.dirty == True):
+        for db in cls.select().where(cls.stale == True):
             db.process()
 
     def process(self, csv=False):
@@ -860,7 +860,7 @@ class Database(Model):
 
         """
         if self.backend == "iotable":
-            self.dirty = False
+            self.stale = False
             self.save()
             return
 
@@ -876,7 +876,7 @@ class Database(Model):
             ActivityDataset.database == self.name, ActivityDataset.type == "process"
         )
 
-        # self.filepath_processed checks if data is dirty,
+        # self.filepath_processed checks if data is stale,
         # and processes if it is. This causes an infinite loop.
         # So we construct the filepath ourselves.
         fp = str(self.dirpath_processed() / self.filename_processed())
@@ -984,7 +984,7 @@ class Database(Model):
         dp.finalize_serialization()
 
         # Remove any possibility of datetime being in different timezone or otherwise different than filesystem
-        self.dirty = False
+        self.stale = False
         self.depends = sorted(dependents)
         self.save()
 
@@ -1399,7 +1399,7 @@ class Database(Model):
             "searchable": obj.searchable,
             "number": len(obj),
             "geocollections": obj.geocollections,
-            "dirty": obj.dirty,
+            "stale": obj.stale,
             "processed": modified,
             "modified": modified,
         }

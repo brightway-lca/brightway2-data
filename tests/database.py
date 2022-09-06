@@ -279,8 +279,8 @@ def test_exchange_save():
     exc = [x for x in act.production()][0]
     exc["amount"] = 2
     exc.save()
-    assert database.metadata.get("dirty")
-    assert databases[database.name]["dirty"]
+    assert database.metadata.get("stale")
+    assert databases[database.name]["stale"]
     assert database.metadata["modified"] > then
 
     exc = [x for x in act.production()][0]
@@ -289,7 +289,7 @@ def test_exchange_save():
 
 @bw2test
 @pytest.mark.skip()
-def test_dirty_activities():
+def test_stale_activities():
     database = Database("testy")
     data = {
         ("testy", "A"): {},
@@ -307,9 +307,9 @@ def test_dirty_activities():
     exc = [x for x in act.production()][0]
     exc["amount"] = 2
     exc.save()
-    assert databases["testy"]["dirty"]
+    assert databases["testy"]["stale"]
     lca = act.lca()
-    assert not databases["testy"].get("dirty")
+    assert not databases["testy"].get("stale")
     assert lca.supply_array[lca.activity_dict[("testy", "A")]] == 0.5
 
 

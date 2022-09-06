@@ -847,7 +847,7 @@ class ActivityParameter(ParameterBase):
             exc.data["amount"] = interpreter(obj.formula)
             exc.save()
 
-        databases.set_dirty(ActivityParameter.get(group=group).database)
+        databases.set_stale(ActivityParameter.get(group=group).database)
 
     def save(self, *args, **kwargs):
         """Save this model instance"""
