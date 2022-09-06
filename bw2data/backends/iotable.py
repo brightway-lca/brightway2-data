@@ -253,18 +253,12 @@ class IOTableActivity(Activity):
         # See super.__getitem__ code for details
         raise ValueError("Not defined for IO Table activities")
 
-    def _get_correct_db_backend(self):
-        from ...database import DatabaseChooser
-
-        db = DatabaseChooser(self["database"])
-        if db.backend != "iotable":
-            raise ValueError(
-                "`IOTableActivity` must be used with IO Table backend activities"
-            )
-        return db
+    def _get_db(self):
+        from . import Database
+        return Database.get(Database.name == self["database"])
 
     def technosphere(self) -> IOTableExchanges:
-        db = self._get_correct_db_backend()
+        db = self._get_db()
         return IOTableExchanges(
             technosphere=True,
             biosphere=False,
@@ -274,7 +268,7 @@ class IOTableActivity(Activity):
         )
 
     def biosphere(self):
-        db = self._get_correct_db_backend()
+        db = self._get_db()
         return IOTableExchanges(
             technosphere=False,
             biosphere=True,
@@ -284,7 +278,7 @@ class IOTableActivity(Activity):
         )
 
     def production(self):
-        db = self._get_correct_db_backend()
+        db = self._get_db()
         return IOTableExchanges(
             technosphere=False,
             biosphere=False,
@@ -295,7 +289,7 @@ class IOTableActivity(Activity):
 
     def exchanges(self):
         # Order is production, technosphere, biosphere
-        db = self._get_correct_db_backend()
+        db = self._get_db()
         return IOTableExchanges(
             technosphere=True,
             biosphere=True,
