@@ -1134,7 +1134,7 @@ class Database(Model):
         if self.backend == "sqlite":
             return self._sqlite_edges_to_dataframe(categorical=categorical, formatters=formatters)
         elif self.backend == "iotable":
-            self._iotable_edges_to_dataframe()
+            return self._iotable_edges_to_dataframe()
 
     def _iotable_edges_to_dataframe(self) -> pd.DataFrame:
         """Return a pandas DataFrame with all database exchanges. DataFrame columns are:
