@@ -62,6 +62,8 @@ class JSONField(TextField):
 class TupleJSONField(JSONField):
     def python_value(self, value):
         try:
+            if value is None:
+                return value
             data = json.loads(value)
             if isinstance(data, list):
                 data = tuple(data)
