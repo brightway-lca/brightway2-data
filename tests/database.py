@@ -162,15 +162,14 @@ def test_relabel_data():
 
 ### Metadata
 
-
 @bw2test
 def test_find_graph_dependents():
-    databases["one"] = {"depends": ["two", "three"]}
-    databases["two"] = {"depends": ["four", "five"]}
-    databases["three"] = {"depends": ["four"]}
-    databases["four"] = {"depends": ["six"]}
-    databases["five"] = {"depends": ["two"]}
-    databases["six"] = {"depends": []}
+    Database(name="one", depends=["two", "three"]).save()
+    Database(name="two", depends=["four", "five"]).save()
+    Database(name="three", depends=["four"]).save()
+    Database(name="four", depends=["six"]).save()
+    Database(name="five", depends=["two"]).save()
+    Database(name="six", depends=[]).save()
     assert Database.get(Database.name == "one").find_graph_dependents() == {
         "one",
         "two",
@@ -245,9 +244,8 @@ def test_setup():
 
 @bw2test
 def test_rename():
-    d = Database("biosphere")
-    d.write(biosphere)
-    d = Database("food")
+    Database(name="biosphere").write(biosphere)
+    d = Database(name="food")
     d.write(copy.deepcopy(food_data))
     ndb = d.rename("buildings")
     ndb_data = ndb.load()
@@ -1059,6 +1057,7 @@ def test_nodes_to_dataframe_simple(df_fixture):
                 "id": get_id(("food", "2")),
                 "location": "CH",
                 "name": "dinner",
+                "reference product": None,
                 "type": "process",
                 "unit": "kg",
             },
@@ -1069,6 +1068,7 @@ def test_nodes_to_dataframe_simple(df_fixture):
                 "id": get_id(("food", "1")),
                 "location": "CA",
                 "name": "lunch",
+                "reference product": None,
                 "type": "process",
                 "unit": "kg",
             },
@@ -1104,4 +1104,4 @@ def test_nodes_to_dataframe_columns(df_fixture):
 
 def test_nodes_to_dataframe_unsorted(df_fixture):
     df = Database("food").nodes_to_dataframe()
-    assert df.shape == (2, 8)
+    assert df.shape == (2, 9)

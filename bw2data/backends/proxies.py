@@ -189,6 +189,11 @@ class Activity(ActivityProxyBase):
             self._data["code"] = self._document.code
             self._data["database"] = self._document.database
             self._data["id"] = self._document.id
+            self._data["location"] = self._document.location
+            self._data["reference product"] = self._document.product
+            self._data["type"] = self._document.type
+            self._data["name"] = self._document.name
+
 
     @property
     def id(self):
@@ -398,7 +403,7 @@ class Activity(ActivityProxyBase):
         candidates = list(self.production())
         if len(candidates) == 1:
             return candidates[0]
-        candidates2 = [exc for exc in candidates if exc.input._data.get('name') == self._data.get('reference product')]
+        candidates2 = [exc for exc in candidates if exc.input['name'] == self._data['reference product']]
         if len(candidates2) == 1:
             return candidates2[0]
         else:
@@ -470,6 +475,7 @@ class Exchange(ExchangeProxyBase):
         else:
             self._document = document
             self._data = self._document.data
+            self._data['type'] = self._document.type
             self._data["input"] = (
                 self._document.input_database,
                 self._document.input_code,

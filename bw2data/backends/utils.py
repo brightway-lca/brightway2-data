@@ -25,25 +25,31 @@ def check_exchange_amount(exc):
 
 
 def dict_as_activitydataset(ds):
+    ds = copy.copy(ds)
     return {
         "data": ds,
-        "database": ds["database"],
-        "code": ds["code"],
-        "location": ds.get("location"),
-        "name": ds.get("name"),
-        "product": ds.get("reference product"),
-        "type": ds.get("type", "process"),
+        "database": ds.pop("database"),
+        "code": ds.pop("code"),
+        "location": ds.pop("location", None),
+        "name": ds.pop("name", None),
+        "product": ds.pop("reference product", None),
+        "type": ds.pop("type", "process"),
     }
 
 
 def dict_as_exchangedataset(ds):
+    ds = copy.copy(ds)
+
+    input_ = ds.pop("input")
+    output_ = ds.pop("output")
+
     return {
         "data": ds,
-        "input_database": ds["input"][0],
-        "input_code": ds["input"][1],
-        "output_database": ds["output"][0],
-        "output_code": ds["output"][1],
-        "type": ds["type"],
+        "input_database": input_[0],
+        "input_code": input_[1],
+        "output_database": output_[0],
+        "output_code": output_[1],
+        "type": ds.pop("type"),
     }
 
 

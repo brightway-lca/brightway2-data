@@ -1,5 +1,5 @@
 import copy
-import datetime
+from datetime import datetime
 import itertools
 import pickle
 import pprint
@@ -653,19 +653,33 @@ class Database(Model):
 
     def load(self, *args, **kwargs):
         # Should not be used, in general; relatively slow
-        activities = [obj["data"] for obj in self._get_queryset().dicts()]
+        def act_formatter(dct):
+            data = dct['data']
+            COLUMNS = {'code', 'database', 'location', 'name', 'type'}
+            data.update({key: dct.get(key) for key in COLUMNS})
+            data['reference product'] = dct.get('product')
+            data['exchanges'] = []
+            return (dct['database'], dct['code']), data
 
         activities = dict(act_formatter(dct) for dct in self._get_queryset().dicts().iterator())
 
         exchange_qs = (
-            ExchangeDataset.select(ExchangeDataset.data)
+            ExchangeDataset.select()
             .where(ExchangeDataset.output_database == self.name)
             .dicts().iterator()
         )
 
+        def exc_formatter(exc):
+            data = exc['data']
+            data['type'] = exc['type']
+            data['input'] = (exc['input_database'], exc['input_code'])
+            data['output'] = (exc['output_database'], exc['output_code'])
+            return data
+
         for exc in exchange_qs:
+            exc = exc_formatter(exc)
             try:
-                activities[exc["data"]["output"]]["exchanges"].append(exc["data"])
+                activities[exc["output"]]["exchanges"].append(exc)
             except KeyError:
                 # This exchange not in the reduced set of activities returned
                 # by _get_queryset
