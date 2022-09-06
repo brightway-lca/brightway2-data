@@ -255,6 +255,7 @@ class IOTableActivity(Activity):
 
     def _get_db(self):
         from . import Database
+
         return Database.get(Database.name == self["database"])
 
     def technosphere(self) -> IOTableExchanges:

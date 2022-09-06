@@ -1,6 +1,11 @@
 import pickle
 
-from bw_processing import clean_datapackage_name, create_datapackage, safe_filename, load_datapackage
+from bw_processing import (
+    clean_datapackage_name,
+    create_datapackage,
+    load_datapackage,
+    safe_filename,
+)
 from fs.zipfs import ZipFS
 
 from . import projects

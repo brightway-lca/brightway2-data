@@ -1,22 +1,27 @@
 import copy
-from datetime import datetime
+import functools
 import itertools
+import os
 import pickle
 import pprint
 import random
 import sqlite3
 import warnings
 from collections import defaultdict
+from datetime import datetime
 from typing import Callable, List, Optional
-import os
-import functools
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pyprind
-from bw_processing import clean_datapackage_name, create_datapackage, load_datapackage, safe_filename
+from bw_processing import (
+    clean_datapackage_name,
+    create_datapackage,
+    load_datapackage,
+    safe_filename,
+)
 from fs.zipfs import ZipFS
-from peewee import DoesNotExist, fn, Model, TextField, BooleanField
+from peewee import BooleanField, DoesNotExist, Model, TextField, fn
 
 from .. import config, geomapping, projects
 from ..errors import (
@@ -28,7 +33,9 @@ from ..errors import (
 )
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_node, get_geocollection
+from ..sqlite import JSONField
+from ..utils import as_uncertainty_dict, get_geocollection, get_node
+from .iotable import IOTableActivity, IOTableExchanges
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
 from .utils import (
@@ -38,8 +45,6 @@ from .utils import (
     get_csv_data_dict,
     retupleize_geo_strings,
 )
-from ..sqlite import JSONField
-from .iotable import IOTableActivity, IOTableExchanges
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
@@ -98,6 +103,7 @@ class Database(Model):
         *name* (unicode string): Name of the database to manage.
 
     """
+
     name = TextField(null=False, unique=True)
     backend = TextField(null=False, default="sqlite")
     depends = JSONField(null=False, default=[])
@@ -112,8 +118,15 @@ class Database(Model):
 
         if name and not args and not kwargs and Database.exists(name):
             # We want to maintain compatibility with `Database(name)`
-            other = Database.get(Database.name==name)
-            for field in ("id", "backend", "depends", "geocollections", "dirty", "searchable"):
+            other = Database.get(Database.name == name)
+            for field in (
+                "id",
+                "backend",
+                "depends",
+                "geocollections",
+                "dirty",
+                "searchable",
+            ):
                 setattr(self, field, getattr(other, field))
 
         self._filters = {}
@@ -132,10 +145,7 @@ class Database(Model):
 
     @property
     def node_class(self):
-        CLASSES = {
-            'sqlite': Activity,
-            'iotable': IOTableActivity
-        }
+        CLASSES = {"sqlite": Activity, "iotable": IOTableActivity}
         return CLASSES[self.backend]
 
     @classmethod
@@ -229,7 +239,10 @@ class Database(Model):
 
         def extend(seeds):
             return set.union(
-                seeds, set.union(*[set(Database.get(Database.name == obj).depends) for obj in seeds])
+                seeds,
+                set.union(
+                    *[set(Database.get(Database.name == obj).depends) for obj in seeds]
+                ),
             )
 
         seed, extended = {self.name}, extend({self.name})
@@ -320,9 +333,15 @@ class Database(Model):
 
         old_name, new_name = self.name, name
         with sqlite3_lci_db.transaction():
-            ActivityDataset.update(database=new_name).where(ActivityDataset.database == old_name).execute()
-            ExchangeDataset.update(input_database=new_name).where(ExchangeDataset.input_database == old_name).execute()
-            ExchangeDataset.update(output_database=new_name).where(ExchangeDataset.output_database == old_name).execute()
+            ActivityDataset.update(database=new_name).where(
+                ActivityDataset.database == old_name
+            ).execute()
+            ExchangeDataset.update(input_database=new_name).where(
+                ExchangeDataset.input_database == old_name
+            ).execute()
+            ExchangeDataset.update(output_database=new_name).where(
+                ExchangeDataset.output_database == old_name
+            ).execute()
         self.name = new_name
         self.save()
         self.process()
@@ -397,7 +416,9 @@ class Database(Model):
         """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
             if true_random:
-                return self.node_class(self._get_queryset(random=True, filters=filters).get())
+                return self.node_class(
+                    self._get_queryset(random=True, filters=filters).get()
+                )
             else:
                 return self.node_class(
                     self._get_queryset(filters=filters)
@@ -646,34 +667,35 @@ class Database(Model):
         print("Finalizing serialization")
         dp.finalize_serialization()
 
-        self.depends = sorted(
-            set(dependents).difference({self.name})
-        )
+        self.depends = sorted(set(dependents).difference({self.name}))
         self.save()
 
     def load(self, *args, **kwargs):
         # Should not be used, in general; relatively slow
         def act_formatter(dct):
-            data = dct['data']
-            COLUMNS = {'code', 'database', 'location', 'name', 'type'}
+            data = dct["data"]
+            COLUMNS = {"code", "database", "location", "name", "type"}
             data.update({key: dct.get(key) for key in COLUMNS})
-            data['reference product'] = dct.get('product')
-            data['exchanges'] = []
-            return (dct['database'], dct['code']), data
+            data["reference product"] = dct.get("product")
+            data["exchanges"] = []
+            return (dct["database"], dct["code"]), data
 
-        activities = dict(act_formatter(dct) for dct in self._get_queryset().dicts().iterator())
+        activities = dict(
+            act_formatter(dct) for dct in self._get_queryset().dicts().iterator()
+        )
 
         exchange_qs = (
             ExchangeDataset.select()
             .where(ExchangeDataset.output_database == self.name)
-            .dicts().iterator()
+            .dicts()
+            .iterator()
         )
 
         def exc_formatter(exc):
-            data = exc['data']
-            data['type'] = exc['type']
-            data['input'] = (exc['input_database'], exc['input_code'])
-            data['output'] = (exc['output_database'], exc['output_code'])
+            data = exc["data"]
+            data["type"] = exc["type"]
+            data["input"] = (exc["input_database"], exc["input_code"])
+            data["output"] = (exc["output_database"], exc["output_code"])
             return data
 
         for exc in exchange_qs:
@@ -717,7 +739,9 @@ class Database(Model):
 
     def make_searchable(self, reset=False):
         if not self.id:
-            raise UnknownObject("This `Database` instance is not yet saved to the SQLite database")
+            raise UnknownObject(
+                "This `Database` instance is not yet saved to the SQLite database"
+            )
 
         if self.searchable and not reset:
             print("This database is already searchable")
@@ -1132,7 +1156,9 @@ class Database(Model):
 
         """
         if self.backend == "sqlite":
-            return self._sqlite_edges_to_dataframe(categorical=categorical, formatters=formatters)
+            return self._sqlite_edges_to_dataframe(
+                categorical=categorical, formatters=formatters
+            )
         elif self.backend == "iotable":
             return self._iotable_edges_to_dataframe()
 
@@ -1337,15 +1363,23 @@ class Database(Model):
     # Retained for compatibility but do nothing
 
     def validate(self, data):
-        warnings.warn("`Database.validate` is obsolete and does nothing", DeprecationWarning)
+        warnings.warn(
+            "`Database.validate` is obsolete and does nothing", DeprecationWarning
+        )
         return True
 
     def add_geomappings(self, data):
-        warnings.warn("`Database.add_geomappings` is obsolete and does nothing", DeprecationWarning)
+        warnings.warn(
+            "`Database.add_geomappings` is obsolete and does nothing",
+            DeprecationWarning,
+        )
 
     @property
     def metadata(self):
-        warnings.warn("Database.metadata` is deprecated, use `Database` object attributes directly", DeprecationWarning)
+        warnings.warn(
+            "Database.metadata` is deprecated, use `Database` object attributes directly",
+            DeprecationWarning,
+        )
 
         # This property exists for backwards compatibility for when this
         # data was stored in a separate file. To maintain the same behaviour,
@@ -1360,19 +1394,22 @@ class Database(Model):
         else:
             modified = None
         return {
-            'backend': obj.backend,
-            'depends': obj.depends,
-            'searchable': obj.searchable,
-            'number': len(obj),
-            'geocollections': obj.geocollections,
-            'dirty': obj.dirty,
-            'processed': modified,
-            'modified': modified,
+            "backend": obj.backend,
+            "depends": obj.depends,
+            "searchable": obj.searchable,
+            "number": len(obj),
+            "geocollections": obj.geocollections,
+            "dirty": obj.dirty,
+            "processed": modified,
+            "modified": modified,
         }
 
     @property
     def registered(self):
-        warnings.warn("The concept of registration is obsolete, `registered` is deprecated", DeprecationWarning)
+        warnings.warn(
+            "The concept of registration is obsolete, `registered` is deprecated",
+            DeprecationWarning,
+        )
         return bool(self.id)
 
     def register(self, write_empty=True, **kwargs):
@@ -1381,20 +1418,30 @@ class Database(Model):
             * *depends*: Names of the databases that this database references, e.g. "biosphere"
             * *number*: Number of processes in this database.
         """
-        warnings.warn("Registration is no longer necessary, set the metadata directly and save the database object", DeprecationWarning)
+        warnings.warn(
+            "Registration is no longer necessary, set the metadata directly and save the database object",
+            DeprecationWarning,
+        )
         self.save()
 
     def deregister(self):
         """Legacy method to remove an object from the metadata store. Does not delete any data."""
-        warnings.warn("This method is obsolete; use `Database.delete_instance()` instead", DeprecationWarning)
+        warnings.warn(
+            "This method is obsolete; use `Database.delete_instance()` instead",
+            DeprecationWarning,
+        )
 
         if self.id is not None:
             self.delete_instance()
 
     @property
     def _metadata(self):
-        warnings.warn("`Database._metadata` is very obsolete and should be immediately removed", DeprecationWarning)
+        warnings.warn(
+            "`Database._metadata` is very obsolete and should be immediately removed",
+            DeprecationWarning,
+        )
         from .. import databases
+
         return databases
 
 

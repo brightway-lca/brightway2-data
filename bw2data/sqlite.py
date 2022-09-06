@@ -1,5 +1,5 @@
-import pickle
 import json
+import pickle
 
 from peewee import BlobField, SqliteDatabase, TextField
 
@@ -51,6 +51,7 @@ class SubstitutableDatabase:
 
 class JSONField(TextField):
     """Simpler JSON field that doesn't support advanced querying and is human-readable"""
+
     def db_value(self, value):
         return super().db_value(json.dumps(value, ensure_ascii=False, indent=2))
 

@@ -15,11 +15,7 @@ from bw2data import (
     projects,
 )
 from bw2data.backends import Activity
-from bw2data.backends.iotable import (
-    IOTableActivity,
-    IOTableExchanges,
-    ReadOnlyExchange,
-)
+from bw2data.backends.iotable import IOTableActivity, IOTableExchanges, ReadOnlyExchange
 from bw2data.errors import InvalidDatapackage
 from bw2data.tests import bw2test
 
@@ -161,8 +157,8 @@ def test_iotable_process_method(iotable_fixture):
 def test_iotable_edges_to_dataframe(iotable_fixture):
     df = Database.get(Database.name == "cat").edges_to_dataframe()
     print(df)
-    id_map = {obj["code"]: obj.id for obj in Database.get(Database.name=="cat")} | {
-        obj["code"]: obj.id for obj in Database.get(Database.name=="mouse")
+    id_map = {obj["code"]: obj.id for obj in Database.get(Database.name == "cat")} | {
+        obj["code"]: obj.id for obj in Database.get(Database.name == "mouse")
     }
 
     tech_exchanges = [

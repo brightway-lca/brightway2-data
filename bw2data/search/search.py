@@ -97,10 +97,18 @@ class Searcher:
 
         if proxy and facet is not None:
             return {
-                key: [get_activity(key=(obj["database"], obj["code"]), node_class=node_class) for obj in value]
+                key: [
+                    get_activity(
+                        key=(obj["database"], obj["code"]), node_class=node_class
+                    )
+                    for obj in value
+                ]
                 for key, value in results.items()
             }
         elif proxy:
-            return [get_activity(key=(obj["database"], obj["code"]), node_class=node_class) for obj in results]
+            return [
+                get_activity(key=(obj["database"], obj["code"]), node_class=node_class)
+                for obj in results
+            ]
         else:
             return results

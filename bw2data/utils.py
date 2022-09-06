@@ -234,11 +234,7 @@ def merge_databases(parent_db, other):
 
     Doesn't return anything."""
     from . import databases
-    from .backends import (
-        ActivityDataset,
-        ExchangeDataset,
-        sqlite3_lci_db,
-    )
+    from .backends import ActivityDataset, ExchangeDataset, sqlite3_lci_db
     from .database import Database
 
     assert parent_db in databases
@@ -401,8 +397,8 @@ def get_node(**kwargs):
 
     def node_class(database_name):
         mapping = {
-            'sqlite': Activity,
-            'iotable': IOTableActivity,
+            "sqlite": Activity,
+            "iotable": IOTableActivity,
         }
         return mapping[Database(database_name).backend]
 

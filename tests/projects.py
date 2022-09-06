@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from bw2data import (
+    Database,
     config,
     databases,
     geomapping,
@@ -12,7 +13,6 @@ from bw2data import (
     methods,
     preferences,
     projects,
-    Database,
 )
 from bw2data.project import ProjectDataset
 from bw2data.tests import bw2test
@@ -334,7 +334,7 @@ def test_copy_project():
     assert ds.data["this"] == "that"
 
     projects.set_current("another one")
-    assert Database.get(Database.name=="foo").id
+    assert Database.get(Database.name == "foo").id
 
 
 @bw2test

@@ -1,4 +1,4 @@
-from bw2data import projects
+from bw2data import databases, projects
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import ActivityDataset
 from bw2data.backends import Exchange as PWExchange
@@ -12,7 +12,6 @@ from bw2data.errors import (
     ValidityError,
 )
 from bw2data.meta import geomapping, methods
-from bw2data import databases
 from bw2data.tests import BW2DataTest
 
 
