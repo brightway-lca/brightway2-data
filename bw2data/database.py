@@ -1,27 +1,25 @@
-from . import databases
-from .backends import SQLiteBackend
-from .backends.iotable import IOTableBackend
+import warnings
+
+from .backends import Database
+from .errors import UnknownObject
 
 
 def DatabaseChooser(name, backend=None):
-    """A method that returns a database class instance.
-
-    Database types are specified in `databases[database_name]['backend']`.
-
-    """
-    if name in databases:
-        backend = databases[name].get("backend", backend or "sqlite")
+    warnings.warn(
+        "`DatabaseChooser` is deprecated, use `Database` instead", DeprecationWarning
+    )
+    if Database.select().where(Database.name == name).count():
+        db = Database.get(Database.name == name)
+        if backend and db.backend != backend:
+            raise UnknownObject(
+                "Inconsistent backend: Database {} has backend {} but you gave {}".format(
+                    name, db.backend, backend
+                )
+            )
+        return db
     else:
-        backend = backend or "sqlite"
-
-    # Backwards compatibility
-    if backend == "sqlite":
-        return SQLiteBackend(name)
-    elif backend == "iotable":
-        return IOTableBackend(name)
-    else:
-        raise ValueError("Backend {} not found".format(backend))
-
-
-# Backwards compatibility
-Database = DatabaseChooser
+        db = Database()
+        db.name = name
+        if backend:
+            db.backend = backend
+        return db

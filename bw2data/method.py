@@ -1,9 +1,9 @@
 from . import config, geomapping, methods
 from .backends.schema import get_id
+from .errors import UnknownObject
 from .ia_data_store import ImpactAssessmentDataStore
 from .utils import as_uncertainty_dict, get_geocollection
 from .validate import ia_validator
-from .errors import UnknownObject
 
 
 class Method(ImpactAssessmentDataStore):
@@ -54,12 +54,24 @@ class Method(ImpactAssessmentDataStore):
                 ),
             }
         except UnknownObject:
-            raise UnknownObject("Can't find flow `{}`, specified in CF row `{}` for method `{}`".format({row[0]}, row, self.name))
+            raise UnknownObject(
+                "Can't find flow `{}`, specified in CF row `{}` for method `{}`".format(
+                    {row[0]}, row, self.name
+                )
+            )
         except KeyError:
             if len(row) >= 3 and row[2] not in geomapping:
-                raise UnknownObject("Can't find location `{}`, specified in CF row `{}` for method `{}`".format({row[2]}, row, self.name))
+                raise UnknownObject(
+                    "Can't find location `{}`, specified in CF row `{}` for method `{}`".format(
+                        {row[2]}, row, self.name
+                    )
+                )
             elif config.global_location not in geomapping:
-                raise UnknownObject("Can't find default global location! It's supposed to be `{}`, but this isn't in the `geomapping`".format(config.global_location))
+                raise UnknownObject(
+                    "Can't find default global location! It's supposed to be `{}`, but this isn't in the `geomapping`".format(
+                        config.global_location
+                    )
+                )
 
     def write(self, data, process=True):
         """Serialize intermediate data to disk.
@@ -86,5 +98,9 @@ class Method(ImpactAssessmentDataStore):
         try:
             extra_metadata["global_index"] = geomapping[config.global_location]
         except KeyError:
-            raise KeyError("Can't find default global location! It's supposed to be `{}`, defined in `config`, but this isn't in the `geomapping`".format(config.global_location))
+            raise KeyError(
+                "Can't find default global location! It's supposed to be `{}`, defined in `config`, but this isn't in the `geomapping`".format(
+                    config.global_location
+                )
+            )
         super().process(**extra_metadata)

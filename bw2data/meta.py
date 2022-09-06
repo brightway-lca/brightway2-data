@@ -1,6 +1,5 @@
 import datetime
 
-from .project import writable_project
 from .serialization import CompoundJSONDict, PickledDict, SerializedDict
 
 
@@ -19,7 +18,6 @@ class GeoMapping(PickledDict):
         if "GLO" not in self:
             self.add(["GLO"])
 
-    @writable_project
     def add(self, keys):
         """Add a set of keys. These keys can already be in the mapping; only new keys will be added.
 
@@ -59,7 +57,6 @@ class Databases(SerializedDict):
 
     filename = "databases.json"
 
-    @writable_project
     def increment_version(self, database, number=None):
         """Increment the ``database`` version. Returns the new version."""
         self.data[database]["version"] += 1
@@ -72,12 +69,10 @@ class Databases(SerializedDict):
         """Return the ``database`` version"""
         return self.data[database].get("version")
 
-    @writable_project
     def set_modified(self, database):
         self[database]["modified"] = datetime.datetime.now().isoformat()
         self.flush()
 
-    @writable_project
     def set_dirty(self, database):
         self.set_modified(database)
         if self[database].get("dirty"):
@@ -89,7 +84,6 @@ class Databases(SerializedDict):
     def clean(self):
         from . import Database
 
-        @writable_project
         def _clean():
             for x in self:
                 if self[x].get("dirty"):
@@ -102,7 +96,6 @@ class Databases(SerializedDict):
         else:
             return _clean()
 
-    @writable_project
     def __delitem__(self, name):
         from . import Database
 
@@ -169,7 +162,6 @@ class Preferences(PickledDict):
             self["use_cache"] = True
 
 
-databases = Databases()
 geomapping = GeoMapping()
 methods = Methods()
 normalizations = NormalizationMeta()

@@ -2,7 +2,6 @@ __all__ = [
     "dynamic_calculation_setups",
     "calculation_setups",
     "config",
-    "convert_backend",
     "Database",
     "databases",
     "DataStore",
@@ -39,7 +38,6 @@ from .utils import set_data_dir
 from .meta import (
     dynamic_calculation_setups,
     calculation_setups,
-    databases,
     geomapping,
     methods,
     normalizations,
@@ -52,7 +50,6 @@ config.metadata.extend(
     [
         dynamic_calculation_setups,
         calculation_setups,
-        databases,
         geomapping,
         methods,
         normalizations,
@@ -65,14 +62,14 @@ config.metadata.extend(
 config.p = preferences
 
 from .serialization import JsonWrapper
-from .database import DatabaseChooser as Database
+from .backends import Database
 from .utils import get_activity, get_node
 from .data_store import DataStore, ProcessedDataStore
 from .method import Method
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
-from .backends import convert_backend, get_id, Node, Edge
-from .compat import prepare_lca_inputs, Mapping
+from .backends import get_id, Node, Edge
+from .compat import prepare_lca_inputs, Mapping, databases
 from .backends.wurst_extraction import extract_brightway_databases
 
 mapping = Mapping()

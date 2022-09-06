@@ -1,17 +1,17 @@
 from peewee import DoesNotExist, Model, TextField
 
 from ..errors import UnknownObject
-from ..sqlite import PickleField
+from ..sqlite import PickleField, TupleJSONField
 
 
 class ActivityDataset(Model):
-    data = PickleField()  # Canonical, except for other C fields
-    code = TextField()  # Canonical
-    database = TextField()  # Canonical
-    location = TextField(null=True)  # Reset from `data`
-    name = TextField(null=True)  # Reset from `data`
-    product = TextField(null=True)  # Reset from `data`
-    type = TextField(null=True)  # Reset from `data`
+    data = PickleField()
+    code = TextField()
+    database = TextField()
+    location = TupleJSONField(null=True)
+    name = TextField(null=True)
+    product = TextField(null=True)
+    type = TextField(null=True)
 
     @property
     def key(self):
@@ -19,12 +19,12 @@ class ActivityDataset(Model):
 
 
 class ExchangeDataset(Model):
-    data = PickleField()  # Canonical, except for other C fields
-    input_code = TextField()  # Canonical
-    input_database = TextField()  # Canonical
-    output_code = TextField()  # Canonical
-    output_database = TextField()  # Canonical
-    type = TextField()  # Reset from `data`
+    data = PickleField()
+    input_code = TextField()
+    input_database = TextField()
+    output_code = TextField()
+    output_database = TextField()
+    type = TextField()
 
 
 def get_id(key):

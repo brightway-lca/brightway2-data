@@ -13,7 +13,6 @@ from fasteners import InterProcessLock
 from peewee import BooleanField, DoesNotExist, Model, TextField
 
 from . import config
-from .errors import ReadOnlyProject
 from .filesystem import create_dir
 from .sqlite import PickleField, SubstitutableDatabase
 from .utils import maybe_path
@@ -441,6 +440,5 @@ projects = ProjectManager()
 
 @wrapt.decorator
 def writable_project(wrapped, instance, args, kwargs):
-    if projects.read_only:
-        raise ReadOnlyProject(READ_ONLY_PROJECT)
+    warnings.warn("`writable_project` is obsolete and does nothing", DeprecationWarning)
     return wrapped(*args, **kwargs)

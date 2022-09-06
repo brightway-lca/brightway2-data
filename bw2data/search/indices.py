@@ -27,12 +27,12 @@ class IndexManager:
     def _format_dataset(self, ds):
         fl = lambda o: o[1].lower() if isinstance(o, tuple) else o.lower()
         return dict(
-            name=ds.get("name", "").lower(),
-            comment=ds.get("comment", "").lower(),
-            product=ds.get("reference product", "").lower(),
-            categories=u", ".join(ds.get("categories", [])).lower(),
-            synonyms=u", ".join(ds.get("synonyms", [])).lower(),
-            location=fl(ds.get("location", "")),
+            name=(ds.get("name") or "").lower(),
+            comment=(ds.get("comment") or "").lower(),
+            product=(ds.get("reference product") or "").lower(),
+            categories=", ".join(ds.get("categories") or []).lower(),
+            synonyms=", ".join(ds.get("synonyms") or []).lower(),
+            location=fl(ds.get("location") or ""),
             database=ds["database"],
             code=ds["code"],
         )
