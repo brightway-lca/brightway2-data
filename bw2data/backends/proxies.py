@@ -403,7 +403,7 @@ class Activity(ActivityProxyBase):
         candidates = list(self.production())
         if len(candidates) == 1:
             return candidates[0]
-        candidates2 = [exc for exc in candidates if exc.input['name'] == self._data['reference product']]
+        candidates2 = [exc for exc in candidates if exc.input['name'] == self._data.get('reference product')]
         if len(candidates2) == 1:
             return candidates2[0]
         else:
