@@ -141,7 +141,7 @@ def test_method_missing_reference():
         [("foo", "baz"), 1]
     ])
 
-    database.get(code="baz").delete()
+    database.get_node(code="baz").delete()
     with pytest.raises(UnknownObject):
         method.process()
 

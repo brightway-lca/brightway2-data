@@ -51,7 +51,7 @@ def activity():
             },
         }
     )
-    return database.get("a")
+    return database.get_node("a")
 
 
 @pytest.fixture
@@ -94,7 +94,7 @@ def activity_and_method():
     method = Method(("a method",))
     method.register()
     method.write(cfs)
-    return database.get("a"), method
+    return database.get_node("a"), method
 
 
 def test_setup_clean(activity):
@@ -263,7 +263,7 @@ def test_uncertainty():
         "maximum": 5,
         "negative": True,
     }
-    exchange = list(database.get("a").exchanges())[0]
+    exchange = list(database.get_node("a").exchanges())[0]
     assert exchange.uncertainty == expected
 
 
@@ -285,7 +285,7 @@ def test_uncertainty_type():
             }
         }
     )
-    exchange = list(database.get("a").exchanges())[0]
+    exchange = list(database.get_node("a").exchanges())[0]
     assert exchange.uncertainty_type.id == 1
     assert exchange.uncertainty_type == sa.NoUncertainty
 
@@ -307,7 +307,7 @@ def test_uncertainty_type_missing():
             }
         }
     )
-    exchange = list(database.get("a").exchanges())[0]
+    exchange = list(database.get_node("a").exchanges())[0]
     assert exchange.uncertainty_type.id == 0
     assert exchange.uncertainty_type == sa.UndefinedUncertainty
 
@@ -334,7 +334,7 @@ def test_random_sample():
             }
         }
     )
-    exchange = list(database.get("a").exchanges())[0]
+    exchange = list(database.get_node("a").exchanges())[0]
     assert (exchange.random_sample() > 0).sum() == 100
     assert exchange.random_sample().shape == (100,)
 
@@ -362,7 +362,7 @@ def test_random_sample_negative():
             }
         }
     )
-    exchange = list(database.get("a").exchanges())[0]
+    exchange = list(database.get_node("a").exchanges())[0]
     assert (exchange.random_sample() < 0).sum() == 100
     assert exchange.random_sample().shape == (100,)
 
