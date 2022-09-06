@@ -999,8 +999,8 @@ class Database(Model):
             )
             geocollections.discard(None)
         else:
-            self.metadata["geocollections"] = sorted(geocollections)
-            self._metadata.flush()
+            self.geocollections = sorted(geocollections)
+            self.save()
 
     def graph_technosphere(self, filename=None, **kwargs):
         from bw2analyzer.matrix_grapher import SparseMatrixGrapher
