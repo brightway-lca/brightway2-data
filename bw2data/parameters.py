@@ -17,7 +17,7 @@ from peewee import (
     TextField,
 )
 
-from . import config, databases, get_activity, projects
+from . import config, databases, get_activity, projects, Database
 from .backends.schema import ExchangeDataset
 from .sqlite import PickleField, SubstitutableDatabase
 
@@ -847,7 +847,7 @@ class ActivityParameter(ParameterBase):
             exc.data["amount"] = interpreter(obj.formula)
             exc.save()
 
-        databases.set_stale(ActivityParameter.get(group=group).database)
+        Database.set_stale(ActivityParameter.get(group=group).database)
 
     def save(self, *args, **kwargs):
         """Save this model instance"""
