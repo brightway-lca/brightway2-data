@@ -185,8 +185,8 @@ class Database(Model):
     def filename_processed(self):
         return clean_datapackage_name(self.filename + ".zip")
 
-    def filepath_processed(self):
-        if self.dirty:
+    def filepath_processed(self, clean=True):
+        if self.dirty and clean:
             self.process()
         return self.dirpath_processed() / self.filename_processed()
 
