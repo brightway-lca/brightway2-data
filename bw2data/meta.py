@@ -52,61 +52,6 @@ class GeoMapping(PickledDict):
         return len(self.data)
 
 
-class Databases(SerializedDict):
-    """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
-
-    filename = "databases.json"
-
-    def increment_version(self, database, number=None):
-        """Increment the ``database`` version. Returns the new version."""
-        self.data[database]["version"] += 1
-        if number is not None:
-            self.data[database]["number"] = number
-        self.flush()
-        return self.data[database]["version"]
-
-    def version(self, database):
-        """Return the ``database`` version"""
-        return self.data[database].get("version")
-
-    def set_modified(self, database):
-        self[database]["modified"] = datetime.datetime.now().isoformat()
-        self.flush()
-
-    def set_dirty(self, database):
-        self.set_modified(database)
-        if self[database].get("dirty"):
-            pass
-        else:
-            self[database]["dirty"] = True
-            self.flush()
-
-    def clean(self):
-        from . import Database
-
-        def _clean():
-            for x in self:
-                if self[x].get("dirty"):
-                    Database(x).process()
-                    del self[x]["dirty"]
-            self.flush()
-
-        if not any(self[x].get("dirty") for x in self):
-            return
-        else:
-            return _clean()
-
-    def __delitem__(self, name):
-        from . import Database
-
-        try:
-            Database(name).delete(warn=False)
-        except:
-            pass
-
-        super(Databases, self).__delitem__(name)
-
-
 class CalculationSetups(PickledDict):
     """A dictionary for calculation setups.
 
