@@ -1,3 +1,4 @@
+import json
 import warnings
 
 from . import (
@@ -99,6 +100,21 @@ class _Databases:
             "`databases[foo] = something` doesn't do anything. Modify `Database` attributes and call `.save()` instead.",
             DeprecationWarning,
         )
+
+    def migrate_to_sqlite(self):
+        from . import projects, Database
+
+        objs = json.load(open(projects.dir / "databases.json"))
+
+        for name, metadata in objs.items():
+            Database.create(
+                name=name,
+                backend=metadata.get('backend') or 'sqlite',
+                depends = metadata.get("depends") or [],
+                geocollections = metadata.get("geocollections") or [],
+                stale=True,
+                searchable = metadata.get("searchable", False),
+            )
 
 
 databases = _Databases()
