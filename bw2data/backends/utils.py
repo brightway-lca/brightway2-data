@@ -16,11 +16,9 @@ def get_csv_data_dict(ds):
     return dd
 
 
-def check_exchange(exc):
+def check_exchange_amount(exc):
     """Check exchange data validity when processing"""
-    if "type" not in exc:
-        raise UntypedExchange
-    if "amount" not in exc or "input" not in exc:
+    if "amount" not in exc:
         raise InvalidExchange
     if np.isnan(exc["amount"]) or np.isinf(exc["amount"]):
         raise ValueError("Invalid amount in exchange {}".format(exc))

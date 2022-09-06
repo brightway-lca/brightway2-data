@@ -32,7 +32,7 @@ from ..utils import as_uncertainty_dict, get_node, get_geocollection
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
 from .utils import (
-    check_exchange,
+    check_exchange_amount,
     dict_as_activitydataset,
     dict_as_exchangedataset,
     get_csv_data_dict,
@@ -787,7 +787,7 @@ class Database(Model):
             if input_database != output_database:
                 dependents.add(input_database)
             data = pickle.loads(bytes(data))
-            check_exchange(data)
+            check_exchange_amount(data)
             if row is None or col is None:
                 raise UnknownObject(
                     (
