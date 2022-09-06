@@ -655,14 +655,12 @@ class Database(Model):
         # Should not be used, in general; relatively slow
         activities = [obj["data"] for obj in self._get_queryset().dicts()]
 
-        activities = {(o["database"], o["code"]): o for o in activities}
-        for o in activities.values():
-            o["exchanges"] = []
+        activities = dict(act_formatter(dct) for dct in self._get_queryset().dicts().iterator())
 
         exchange_qs = (
             ExchangeDataset.select(ExchangeDataset.data)
             .where(ExchangeDataset.output_database == self.name)
-            .dicts()
+            .dicts().iterator()
         )
 
         for exc in exchange_qs:
