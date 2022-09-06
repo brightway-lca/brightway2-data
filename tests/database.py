@@ -52,7 +52,7 @@ def test_food(food):
 def test_get_code():
     d = Database("biosphere")
     d.write(biosphere)
-    activity = d.get("1")
+    activity = d.get_node("1")
     assert isinstance(activity, PWActivity)
     assert activity["name"] == "an emission"
     assert activity.id == 1
@@ -62,7 +62,7 @@ def test_get_code():
 def test_get_kwargs():
     d = Database("biosphere")
     d.write(biosphere)
-    activity = d.get(name="an emission")
+    activity = d.get_node(name="an emission")
     assert isinstance(activity, PWActivity)
     assert activity["name"] == "an emission"
     assert activity.id == 1
@@ -179,7 +179,7 @@ def test_find_graph_dependents():
     databases["four"] = {"depends": ["six"]}
     databases["five"] = {"depends": ["two"]}
     databases["six"] = {"depends": []}
-    assert Database("one").find_graph_dependents() == {
+    assert Database.get(Database.name == "one").find_graph_dependents() == {
         "one",
         "two",
         "three",
@@ -284,12 +284,12 @@ def test_exchange_save():
     }
     then = datetime.datetime.now().isoformat()
     database.write(data)
-    act = database.get("B")
+    act = database.get_node("B")
     exc = [x for x in act.production()][0]
     exc["amount"] = 2
     exc.save()
-    assert databases[database.name].get("dirty")
     assert database.metadata.get("dirty")
+    assert databases[database.name]["dirty"]
     assert database.metadata["modified"] > then
 
     exc = [x for x in act.production()][0]
@@ -312,7 +312,7 @@ def test_dirty_activities():
         },
     }
     database.write(data)
-    act = database.get("B")
+    act = database.get_node("B")
     exc = [x for x in act.production()][0]
     exc["amount"] = 2
     exc.save()
@@ -435,7 +435,6 @@ def test_processed_array():
         }
     )
     package = database.datapackage()
-    print(package.resources)
     array = package.get_resource("a_database_technosphere_matrix.data")[0]
 
     assert array.shape == (1,)
@@ -637,7 +636,7 @@ def test_new_node():
     act = database.new_node("foo", this="that", name="something")
     act.save()
 
-    act = database.get("foo")
+    act = database.get_node("foo")
     assert act["database"] == "a database"
     assert act["code"] == "foo"
     assert act["location"] == "GLO"
@@ -664,7 +663,7 @@ def test_new_activity():
     act = database.new_activity("foo", this="that", name="something")
     act.save()
 
-    act = database.get("foo")
+    act = database.get_node("foo")
     assert act["database"] == "a database"
     assert act["code"] == "foo"
     assert act["location"] == "GLO"

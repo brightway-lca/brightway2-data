@@ -52,7 +52,7 @@ class _Databases:
 
     def __getitem__(self, name):
         warnings.warn("Use `Database` attributes directly instead of `databases[name]`", DeprecationWarning)
-        return Database(name).metadata
+        return Database.get(Database.name == name).metadata
 
     def __contains__(self, name):
         warnings.warn("Use `Database.exists(name)` instead of `name in databases`", DeprecationWarning)
@@ -64,7 +64,7 @@ class _Databases:
 
     def __delitem__(self, name):
         warnings.warn("Use `Database(name).delete()` instead of `del databases[name]`", DeprecationWarning)
-        Database(name).delete()
+        Database.get(Database.name == name).delete_instance()
 
     def __iter__(self):
         return (obj.name for obj in Database.select())

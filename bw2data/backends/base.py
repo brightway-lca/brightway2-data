@@ -229,7 +229,7 @@ class Database(Model):
 
         def extend(seeds):
             return set.union(
-                seeds, set.union(*[set(Database(obj).depends) for obj in seeds])
+                seeds, set.union(*[set(Database.get(Database.name == obj).depends) for obj in seeds])
             )
 
         seed, extended = {self.name}, extend({self.name})
