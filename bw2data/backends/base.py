@@ -318,12 +318,12 @@ class Database(Model):
         """
         from . import sqlite3_lci_db
 
-        old_name = self.name
+        old_name, new_name = self.name, name
         with sqlite3_lci_db.transaction():
-            ActivityDataset.update(database=name).where(ActivityDataset.database == old_name).execute()
-            ExchangeDataset.update(input_database=name).where(ExchangeDataset.input_database == old_name).execute()
-            ExchangeDataset.update(output_database=name).where(ExchangeDataset.output_database == old_name).execute()
-        self.name = name
+            ActivityDataset.update(database=new_name).where(ActivityDataset.database == old_name).execute()
+            ExchangeDataset.update(input_database=new_name).where(ExchangeDataset.input_database == old_name).execute()
+            ExchangeDataset.update(output_database=new_name).where(ExchangeDataset.output_database == old_name).execute()
+        self.name = new_name
         self.save()
         self.process()
         return self
