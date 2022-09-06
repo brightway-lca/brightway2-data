@@ -558,8 +558,8 @@ class Database(Model):
                 self.delete_data()
                 raise
 
-        self.make_searchable(reset=True)
         self.save()
+        self.make_searchable(reset=True)
 
         if process:
             self.process()
@@ -716,6 +716,9 @@ class Database(Model):
         return obj
 
     def make_searchable(self, reset=False):
+        if not self.id:
+            raise UnknownObject("This `Database` instance is not yet saved to the SQLite database")
+
         if self.searchable and not reset:
             print("This database is already searchable")
             return
