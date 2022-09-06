@@ -1376,5 +1376,11 @@ class Database(Model):
         if self.id is not None:
             self.delete_instance()
 
+    @property
+    def _metadata(self):
+        warnings.warn("`Database._metadata` is very obsolete and should be immediately removed", DeprecationWarning)
+        from .. import databases
+        return databases
+
 
 SQLiteBackend = Database
