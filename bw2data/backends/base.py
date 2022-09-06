@@ -1331,13 +1331,28 @@ class Database(Model):
     @property
     def metadata(self):
         warnings.warn("Database.metadata` is deprecated, use `Database` object attributes directly", DeprecationWarning)
+
+        # This property exists for backwards compatibility for when this
+        # data was stored in a separate file. To maintain the same behaviour,
+        # where the data can be updated separate from the life cycle of this object,
+        # we get the current values from the database.
+        # This can be confusing, as these values could differ from
+        # what the user has set manually, but this method is deprecated in any case...
+        obj = Database.get(Database.name == self.name)
+        fp = obj.filepath_processed(clean=False)
+        if fp.exists():
+            modified = datetime.fromtimestamp(os.path.getmtime(fp)).isoformat()
+        else:
+            modified = None
         return {
-            'backend': self.backend,
-            'depends': self.depends,
-            'searchable': self.searchable,
-            'number': len(self),
-            'geocollections': self.geocollections,
-            'processed': datetime.fromtimestamp(os.path.getmtime(self.filepath_processed())),
+            'backend': obj.backend,
+            'depends': obj.depends,
+            'searchable': obj.searchable,
+            'number': len(obj),
+            'geocollections': obj.geocollections,
+            'dirty': obj.dirty,
+            'processed': modified,
+            'modified': modified,
         }
 
     @property
