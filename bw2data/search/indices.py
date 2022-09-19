@@ -32,7 +32,9 @@ class IndexManager:
             product=ds.get("reference product", "").lower(),
             categories=u", ".join(ds.get("categories", [])).lower(),
             synonyms=u", ".join(ds.get("synonyms", [])).lower(),
-            location=fl(ds.get("location", "")),
+            # The below line has been edited to convert {"location": None}
+            # to an empty string
+            location=fl(str(ds.get("location", "")).replace('None',"")),
             database=ds["database"],
             code=ds["code"],
         )
