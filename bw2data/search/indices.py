@@ -27,6 +27,7 @@ class IndexManager:
     def _format_dataset(self, ds):
         fl = lambda o: o[1].lower() if isinstance(o, tuple) else o.lower()
         return dict(
+
             name=(ds.get("name") or "").lower(),
             comment=(ds.get("comment") or "").lower(),
             product=(ds.get("reference product") or "").lower(),
