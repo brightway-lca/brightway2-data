@@ -45,7 +45,7 @@ class Mapping:
 
 class _Databases:
     def __init__(self):
-        from . import projects, Database
+        from . import Database, projects
 
         try:
             objs = json.load(open(projects.dir / "databases.json"))
@@ -71,8 +71,8 @@ class _Databases:
 
     def __repr__(self):
         return (
-            "The following databases are available in the SQLite database:\n\t" +
-            "\n\t".join((db.name) for db in Database.select().order_by(Database.name))
+            "The following databases are available in the SQLite database:\n\t"
+            + "\n\t".join((db.name) for db in Database.select().order_by(Database.name))
         )
 
     def __getitem__(self, name):
@@ -119,7 +119,7 @@ class _Databases:
         )
 
     def migrate_to_sqlite(self):
-        from . import projects, Database
+        from . import Database, projects
 
         objs = json.load(open(projects.dir / "databases.json"))
 

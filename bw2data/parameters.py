@@ -17,7 +17,7 @@ from peewee import (
     TextField,
 )
 
-from . import config, databases, get_activity, projects, Database
+from . import Database, config, databases, get_activity, projects
 from .backends.schema import ExchangeDataset
 from .sqlite import PickleField, SubstitutableDatabase
 

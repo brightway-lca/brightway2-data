@@ -641,7 +641,7 @@ def test_new_node_no_code():
     act.save()
 
     act = database.get_node(this="that")
-    assert len(act['code']) == 32
+    assert len(act["code"]) == 32
 
 
 @bw2test
