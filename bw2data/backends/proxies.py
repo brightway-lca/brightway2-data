@@ -210,6 +210,8 @@ class Activity(ActivityProxyBase):
         for section in ('classifications', 'properties'):
             if section in self._data:
                 if isinstance(self._data[section], list):
+                    # Only works on certain formatting, like found in ecoinvent imports
+                    # where the are lists of (type, value) tuples
                     try:
                         return {k: v for k, v in self._data[section]}[key]
                     except:
