@@ -58,6 +58,12 @@ class _Databases:
         )
         Database.set_stale(name)
 
+    def __repr__(self):
+        return (
+            "The following databases are available in the SQLite database:\n\t" +
+            "\n\t".join((db.name) for db in Database.select().order_by(Database.name))
+        )
+
     def __getitem__(self, name):
         warnings.warn(
             "Use `Database` attributes directly instead of `databases[name]`",
