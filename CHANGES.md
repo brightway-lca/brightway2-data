@@ -1,5 +1,10 @@
 # Changelog
 
+## DEV
+
+* `new_node` no longer requires a code argument
+* `repr(database)` returns something useful
+
 ## 4.0.DEV18 (2022-08-19)
 
 * Add `Exchanges.to_dataframe`
@@ -154,7 +159,7 @@ This change means that you **can no longer add exchanges or characterization fac
 ## Smaller changes
 
 * `IOTableBackend.write` arguments have changed to `(products, prod_exchanges, tech_exchanges, bio_exchanges)`.
-* `bw2data.utils.safe_filename` was moved to `bw_processing`
+* `bw2data.utils.safe_filename` was moved to `bw_processing`; a compatiblity stub is still there.
 * `Database.get` is removed (though `Database('foo').get()` still works). Use `get_activity` instead.
 
 ### 3.6.2 (2019-11-11)
