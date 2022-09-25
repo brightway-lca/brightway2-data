@@ -126,11 +126,12 @@ class _Databases:
         for name, metadata in objs.items():
             Database.create(
                 name=name,
-                backend=metadata.get('backend') or 'sqlite',
-                depends = metadata.get("depends") or [],
-                geocollections = metadata.get("geocollections") or [],
+                backend=metadata.pop("backend", None) or "sqlite",
+                depends=metadata.pop("depends", None) or [],
+                geocollections=metadata.pop("geocollections", None) or [],
                 stale=True,
-                searchable = metadata.get("searchable", False),
+                searchable=metadata.pop("searchable", False),
+                extra=metadata,
             )
 
 
