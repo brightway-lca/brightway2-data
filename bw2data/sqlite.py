@@ -53,7 +53,14 @@ class JSONField(TextField):
     """Simpler JSON field that doesn't support advanced querying and is human-readable"""
 
     def db_value(self, value):
-        return super().db_value(json.dumps(value, ensure_ascii=False, indent=2))
+        return super().db_value(
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                indent=2,
+                default=lambda x: x.isoformat() if hasattr(x, "isoformat") else x,
+            )
+        )
 
     def python_value(self, value):
         return json.loads(value)
