@@ -464,7 +464,6 @@ def test_processed_array_with_metadata():
     database.process(csv=True)
     package = database.datapackage()
     df = package.get_resource("a_database_activity_metadata")[0]
-    df.drop("Unnamed: 0", axis=1, inplace=True)
     expected = pd.DataFrame(
         [
             {

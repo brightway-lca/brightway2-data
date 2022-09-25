@@ -110,6 +110,7 @@ class Database(Model):
     geocollections = JSONField(null=False, default=[])
     stale = BooleanField(default=True)
     searchable = BooleanField(default=True)
+    extra = JSONField(null=False, default={})
 
     validator = None
 
@@ -126,6 +127,7 @@ class Database(Model):
                 "geocollections",
                 "stale",
                 "searchable",
+                "extra",
             ):
                 setattr(self, field, getattr(other, field))
 
