@@ -44,6 +44,17 @@ class Mapping:
 
 
 class _Databases:
+    def __init__(self):
+        from . import projects, Database
+
+        try:
+            objs = json.load(open(projects.dir / "databases.json"))
+        except:
+            objs = []
+
+        if objs and not Database.select().count():
+            print("Update needed; please run `bw2data.databases.migrate_to_sqlite()`")
+
     def clean(self):
         warnings.warn(
             "Use `Database.clean_all()` instead of `databases.clean()`",
