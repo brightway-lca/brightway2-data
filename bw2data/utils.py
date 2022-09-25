@@ -14,6 +14,7 @@ from pathlib import Path
 
 import requests
 import stats_arrays as sa
+from bw_processing import safe_filename as _safe_filename
 
 from . import config
 from .errors import MultipleResults, NotFound, UnknownObject, ValidityError, WebUIError
@@ -33,6 +34,7 @@ DOWNLOAD_URL = "https://brightway.dev/data/"
 
 def safe_filename(*args, **kwargs):
     raise DeprecationWarning("`safe_filename` has been moved to `bw_processing`")
+    return _safe_filename(*args, **kwargs)
 
 
 def maybe_path(x):
