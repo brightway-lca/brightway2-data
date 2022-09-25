@@ -634,6 +634,17 @@ def test_new_node():
 
 
 @bw2test
+def test_new_node_no_code():
+    database = Database("a database")
+    database.register()
+    act = database.new_node(this="that", name="something")
+    act.save()
+
+    act = database.get_node(this="that")
+    assert len(act['code']) == 32
+
+
+@bw2test
 def test_new_node_error():
     database = Database("a database")
     database.register()

@@ -6,6 +6,7 @@ import pickle
 import pprint
 import random
 import sqlite3
+import uuid
 import warnings
 from collections import defaultdict
 from datetime import datetime
@@ -713,10 +714,10 @@ class Database(Model):
     def new_activity(self, code, **kwargs):
         return self.new_node(code, **kwargs)
 
-    def new_node(self, code, **kwargs):
+    def new_node(self, code=None, **kwargs):
         obj = self.node_class()
         obj["database"] = self.name
-        obj["code"] = str(code)
+        obj["code"] = str(code or uuid.uuid4().hex)
 
         if (
             ActivityDataset.select()
