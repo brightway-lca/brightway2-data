@@ -172,11 +172,8 @@ class ProjectManager(Iterable):
         # for new metadata stores
         self.read_only = False
         self.create_project(name)
-        self.dataset = ProjectDataset.get(ProjectDataset.name == self._project_name)
         self._reset_meta()
         self._reset_sqlite3_databases()
-
-        self.dataset = ProjectDataset.get(name=name)
 
         if not lockable():
             pass
