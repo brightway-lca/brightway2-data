@@ -217,7 +217,7 @@ class IOTableExchanges(Iterable):
             )
 
     def _raw_technosphere_iterator(self, negative=True):
-        tm = lambda x: any(obj["matrix"] == "technosphere_matrix" for obj in x.values())
+        tm = lambda x: any(obj.get("matrix") == "technosphere_matrix" for obj in x.values())
         for resource in filter(tm, self.resources):
             for (row, col), value, positive_flag in zip(
                 resource["indices"]["array"],
