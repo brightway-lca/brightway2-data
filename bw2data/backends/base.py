@@ -176,7 +176,16 @@ class SQLiteBackend(ProcessedDataStore):
 
         def extend(seeds):
             return set.union(
-                seeds, set.union(*[set(databases[obj]["depends"]) for obj in seeds])
+                seeds,
+                set.union(
+                    *[
+                        set(
+                            list(databases[obj].get("depends", []))
+                            + list(databases[obj].get("manual_depends", []))
+                        )
+                        for obj in seeds
+                    ]
+                ),
             )
 
         seed, extended = {self.name}, extend({self.name})
@@ -367,7 +376,9 @@ class SQLiteBackend(ProcessedDataStore):
         """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
             if true_random:
-                return self.node_class(self._get_queryset(random=True, filters=filters).get())
+                return self.node_class(
+                    self._get_queryset(random=True, filters=filters).get()
+                )
             else:
                 return self.node_class(
                     self._get_queryset(filters=filters)

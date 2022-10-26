@@ -190,6 +190,45 @@ def test_find_graph_dependents():
 
 
 @bw2test
+def test_find_graph_dependents_manual():
+    databases["one"] = {"depends": ["two", "three"]}
+    databases["two"] = {"depends": ["four", "five"], "manual_depends": ["seven"]}
+    databases["three"] = {"depends": ["four"]}
+    databases["four"] = {"depends": ["six"]}
+    databases["five"] = {"depends": ["two"]}
+    databases["six"] = {"depends": []}
+    databases["seven"] = {"depends": []}
+    assert Database("one").find_graph_dependents() == {
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+    }
+
+
+@bw2test
+def test_find_graph_dependents_missing_depends_key():
+    databases["one"] = {"depends": ["two", "three"]}
+    databases["two"] = {"depends": ["four", "five"], "manual_depends": ["seven"]}
+    databases["three"] = {"depends": ["four"]}
+    databases["four"] = {"depends": ["six"]}
+    databases["five"] = {"depends": ["two"]}
+    databases["six"] = {}
+    databases["seven"] = {}
+    assert Database("one").find_graph_dependents() == {
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+    }
+
+@bw2test
 def test_register():
     database = Database("testy")
     database.register()
