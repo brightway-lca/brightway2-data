@@ -10,7 +10,7 @@ import appdirs
 import wrapt
 from bw_processing import safe_filename
 from fasteners import InterProcessLock
-from peewee import BooleanField, DoesNotExist, Model, TextField
+from peewee import BooleanField, DoesNotExist, Model, TextField, SQL
 
 from . import config
 from .filesystem import create_dir
@@ -36,7 +36,11 @@ def lockable():
 class ProjectDataset(Model):
     data = PickleField()
     name = TextField(index=True, unique=True)
-    full_hash = BooleanField(default=True)
+    # Peewee doesn't set defaults in the database but rather in Python.
+    # But for backwards compatibility we need a default `True` value
+    # and this hack is the recommended way to get this behaviour.
+    # See https://docs.peewee-orm.com/en/latest/peewee/models.html?highlight=table%20generation
+    full_hash = BooleanField(default=True, constraints=[SQL('DEFAULT 1')])
 
     def __str__(self):
         return "Project: {}".format(self.name)
