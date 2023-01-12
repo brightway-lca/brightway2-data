@@ -169,7 +169,7 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
         (numpy_string('shape'), np.float32),
         (numpy_string('minimum'), np.float32),
         (numpy_string('maximum'), np.float32),
-        (numpy_string('negative'), np.bool),
+        (numpy_string('negative'), bool),
     ]
 
     @property
