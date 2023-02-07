@@ -18,6 +18,7 @@ class Config(object):
     metadata = []
     sqlite3_databases = []
     _windows = platform.system() == "Windows"
+    use_pint_parameters = True
 
     @property
     def biosphere(self):

@@ -8,9 +8,8 @@ import itertools
 import os
 import re
 import uuid
+from warnings import warn
 
-import asteval
-from asteval import Interpreter
 from peewee import (
     BooleanField,
     Check,
@@ -21,13 +20,35 @@ from peewee import (
     TextField,
 )
 
-from bw2parameters import ParameterSet
 from bw2parameters.errors import MissingName
 from . import databases, projects, config, get_activity
-from .backends.peewee.schema import ExchangeDataset
+from .backends.peewee.schema import ExchangeDataset, ActivityDataset
 from .sqlite import PickleField, SubstitutableDatabase
 from .utils import python_2_unicode_compatible
 
+try:
+    if config.use_pint_parameters:
+        from bw2parameters import PintInterpreter as Interpreter
+        from bw2parameters import PintParameterSet as ParameterSet
+
+        try:
+            interpreter = Interpreter()
+            use_pint = True
+        except ImportError:
+            from bw2parameters import Interpreter, ParameterSet
+
+            interpreter = Interpreter()
+            use_pint = False
+            warn("Could not initialize pint. Using units in formulas will lead to"
+                 "errors and/or unexpected results. To suppress this warning, set "
+                 "`bw2data.parameters.ALLOW_PINT_UNITS = False`.")
+    else:
+        from bw2parameters import Interpreter, ParameterSet
+
+        interpreter = Interpreter()
+        use_pint = False
+except ImportError:
+    raise ImportError("Installed version of bw2parameters is outdated. Please install version > 1.0.0.")
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
 clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)
@@ -163,11 +184,21 @@ class ProjectParameter(ParameterBase):
     def static(ignored='project', only=None):
         """Get dictionary of ``{name: amount}`` for all project parameters.
 
-        ``only`` restricts returned names to ones found in ``only``. ``ignored`` included for API compatibility with other ``recalculate`` methods."""
-        result = dict(ProjectParameter.select(
-            ProjectParameter.name,
-            ProjectParameter.amount
-        ).tuples())
+        ``only`` restricts returned names to ones found in ``only``. ``ignored`` included for API \
+        compatibility with other ``recalculate`` methods."""
+        if use_pint:
+            result = Interpreter.parameter_list_to_dict(
+                ProjectParameter.select(
+                    ProjectParameter.name,
+                    ProjectParameter.amount,
+                    ProjectParameter.data
+                ).dicts()
+            )
+        else:
+            result = dict(ProjectParameter.select(
+                ProjectParameter.name,
+                ProjectParameter.amount
+            ).tuples())
         if only is not None:
             result = {k: v for k, v in result.items() if k in only}
         return result
@@ -190,11 +221,13 @@ class ProjectParameter(ParameterBase):
         data = ProjectParameter.load()
         if not data:
             return
+
         ParameterSet(data).evaluate_and_set_amount_field()
         with parameters.db.atomic() as _:
             for key, value in data.items():
                 ProjectParameter.update(
                     amount=value['amount'],
+                    data={"unit": value.get("unit")},
                 ).where(ProjectParameter.name == key).execute()
             Group.get_or_create(name='project')[0].freshen()
             ProjectParameter.expire_downstream('project')
@@ -330,10 +363,19 @@ class DatabaseParameter(ParameterBase):
     @staticmethod
     def static(database, only=None):
         """Return dictionary of {name: amount} for database group."""
-        result = dict(DatabaseParameter.select(
-            DatabaseParameter.name,
-            DatabaseParameter.amount
-        ).where(DatabaseParameter.database == database).tuples())
+        if use_pint:
+            result = Interpreter.parameter_list_to_dict(
+                DatabaseParameter.select(
+                    DatabaseParameter.name,
+                    DatabaseParameter.amount,
+                    DatabaseParameter.data,
+                ).where(DatabaseParameter.database == database).dicts()
+            )
+        else:
+            result = dict(DatabaseParameter.select(
+                DatabaseParameter.name,
+                DatabaseParameter.amount
+            ).where(DatabaseParameter.database == database).tuples())
         if only is not None:
             result = {k: v for k, v in result.items() if k in only}
         return result
@@ -380,6 +422,7 @@ class DatabaseParameter(ParameterBase):
             for key, value in data.items():
                 DatabaseParameter.update(
                     amount=value['amount'],
+                    data={"unit": value.get("unit")},
                 ).where(
                     DatabaseParameter.name == key,
                     DatabaseParameter.database == database,
@@ -627,11 +670,21 @@ class ActivityParameter(ParameterBase):
     def static(group, only=None, full=False):
         """Get dictionary of ``{name: amount}`` for parameters defined in ``group``.
 
-        ``only`` restricts returned names to ones found in ``only``. ``full`` returns all names, including those found in the dependency chain."""
-        result = dict(ActivityParameter.select(
-            ActivityParameter.name,
-            ActivityParameter.amount
-        ).where(ActivityParameter.group == group).tuples())
+        ``only`` restricts returned names to ones found in ``only``. ``full`` returns all names, including \
+        those found in the dependency chain."""
+        if use_pint:
+            result = Interpreter.parameter_list_to_dict(
+                ActivityParameter.select(
+                    ActivityParameter.name,
+                    ActivityParameter.amount,
+                    ActivityParameter.data,
+                ).where(ActivityParameter.group == group).dicts()
+            )
+        else:
+            result = dict(ActivityParameter.select(
+                ActivityParameter.name,
+                ActivityParameter.amount
+            ).where(ActivityParameter.group == group).tuples())
         if full:
             temp = ActivityParameter._static_dependencies(group)
             temp.update(result)
@@ -821,11 +874,13 @@ class ActivityParameter(ParameterBase):
             k: v for k, v in ActivityParameter._static_dependencies(group).items()
             if k not in data
         }
+
         ParameterSet(data, static).evaluate_and_set_amount_field()
         with parameters.db.atomic():
             for key, value in data.items():
                 ActivityParameter.update(
                     amount=value['amount'],
+                    data={"unit": value.get("unit")},
                 ).where(
                     ActivityParameter.name == key,
                     ActivityParameter.group == group,
@@ -841,14 +896,17 @@ class ActivityParameter(ParameterBase):
         if ActivityParameter.expired(group):
             return ActivityParameter.recalculate(group)
 
-        interpreter = Interpreter()
-        for k, v in ActivityParameter.static(group, full=True).items():
-            interpreter.symtable[k] = v
+        known_symbols = ActivityParameter.static(group, full=True)
         # TODO: Remove uncertainty from exchanges?
         for obj in ParameterizedExchange.select().where(
                 ParameterizedExchange.group == group):
             exc = ExchangeDataset.get(id=obj.exchange)
-            exc.data['amount'] = interpreter(obj.formula)
+            q = interpreter(obj.formula, known_symbols=known_symbols)
+            if exc.data.get("dummy input", False):
+                input_unit = None
+            else:
+                input_unit = ActivityDataset.get(code=exc.input_code, database=exc.input_database).data.get("unit")
+            interpreter.set_exchange_amount_unit(exchange=exc.data, quantity=q, to_unit=input_unit)
             exc.save()
 
         databases.set_dirty(ActivityParameter.get(group=group).database)
@@ -1565,9 +1623,9 @@ parameters = ParameterManager()
 
 
 def get_new_symbols(data, context=None):
-    interpreter = asteval.Interpreter()
-    BUILTIN_SYMBOLS = set(interpreter.symtable).union(set(context or set()))
-    found = set()
+    if data is None:
+        return set()
+    new_symbols = set()
     for ds in data:
         if isinstance(ds, str):
             formula = ds
@@ -1575,11 +1633,9 @@ def get_new_symbols(data, context=None):
             formula = ds['formula']
         else:
             continue
+        new_symbols.update(interpreter.get_unknown_symbols(formula, known_symbols=context, ignore_symtable=False))
 
-        nf = asteval.NameFinder()
-        nf.generic_visit(interpreter.parse(formula))
-        found.update(set(nf.names))
-    return found.difference(BUILTIN_SYMBOLS)
+    return new_symbols
 
 
 def alter_parameter_formula(parameter, old, new):
