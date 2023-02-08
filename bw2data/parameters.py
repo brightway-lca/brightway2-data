@@ -192,19 +192,13 @@ class ProjectParameter(ParameterBase):
 
         ``only`` restricts returned names to ones found in ``only``. ``ignored`` included for API \
         compatibility with other ``recalculate`` methods."""
-        if use_pint:
-            result = Interpreter.parameter_list_to_dict(
-                ProjectParameter.select(
-                    ProjectParameter.name,
-                    ProjectParameter.amount,
-                    ProjectParameter.data
-                ).dicts()
-            )
-        else:
-            result = dict(ProjectParameter.select(
-                ProjectParameter.name,
-                ProjectParameter.amount
-            ).tuples())
+        select_fields = [ProjectParameter.name, ProjectParameter.amount]
+        if config.use_pint_parameters:
+            # need data field to retrieve parameter (pint) unit
+            select_fields.append(ProjectParameter.data)
+        result = Interpreter.parameter_list_to_dict(
+            ProjectParameter.select(*select_fields).dicts()
+        )
         if only is not None:
             result = {k: v for k, v in result.items() if k in only}
         return result
@@ -369,19 +363,13 @@ class DatabaseParameter(ParameterBase):
     @staticmethod
     def static(database, only=None):
         """Return dictionary of {name: amount} for database group."""
-        if use_pint:
-            result = Interpreter.parameter_list_to_dict(
-                DatabaseParameter.select(
-                    DatabaseParameter.name,
-                    DatabaseParameter.amount,
-                    DatabaseParameter.data,
-                ).where(DatabaseParameter.database == database).dicts()
-            )
-        else:
-            result = dict(DatabaseParameter.select(
-                DatabaseParameter.name,
-                DatabaseParameter.amount
-            ).where(DatabaseParameter.database == database).tuples())
+        select_fields = [DatabaseParameter.name, DatabaseParameter.amount]
+        if config.use_pint_parameters:
+            # need data field to retrieve parameter (pint) unit
+            select_fields.append(DatabaseParameter.data)
+        result = Interpreter.parameter_list_to_dict(
+            DatabaseParameter.select(*select_fields).where(DatabaseParameter.database == database).dicts()
+        )
         if only is not None:
             result = {k: v for k, v in result.items() if k in only}
         return result
@@ -678,19 +666,13 @@ class ActivityParameter(ParameterBase):
 
         ``only`` restricts returned names to ones found in ``only``. ``full`` returns all names, including \
         those found in the dependency chain."""
-        if use_pint:
-            result = Interpreter.parameter_list_to_dict(
-                ActivityParameter.select(
-                    ActivityParameter.name,
-                    ActivityParameter.amount,
-                    ActivityParameter.data,
-                ).where(ActivityParameter.group == group).dicts()
-            )
-        else:
-            result = dict(ActivityParameter.select(
-                ActivityParameter.name,
-                ActivityParameter.amount
-            ).where(ActivityParameter.group == group).tuples())
+        select_fields = [ActivityParameter.name, ActivityParameter.amount]
+        if config.use_pint_parameters:
+            # need data field to retrieve parameter (pint) unit
+            select_fields.append(ActivityParameter.data)
+        result = Interpreter.parameter_list_to_dict(
+            ActivityParameter.select(*select_fields).where(ActivityParameter.group == group).dicts()
+        )
         if full:
             temp = ActivityParameter._static_dependencies(group)
             temp.update(result)
@@ -912,7 +894,7 @@ class ActivityParameter(ParameterBase):
                 input_unit = None
             else:
                 input_unit = ActivityDataset.get(code=exc.input_code, database=exc.input_database).data.get("unit")
-            interpreter.set_exchange_amount_unit(exchange=exc.data, quantity=q, to_unit=input_unit)
+            interpreter.set_amount_unit(obj=exc.data, quantity=q, to_unit=input_unit)
             exc.save()
 
         databases.set_dirty(ActivityParameter.get(group=group).database)
