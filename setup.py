@@ -29,7 +29,7 @@ setup(
         "fasteners",
         "future",
         "lxml",
-        "numpy==1.23",
+        "numpy",
         "peewee>=3.9.4",
         "psutil",
         "pyprind",
