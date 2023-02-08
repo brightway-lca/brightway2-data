@@ -9,9 +9,9 @@ Brightway2 data management
    :target: https://anaconda.org/conda-forge/bw2data
    :alt: conda-forge version
 
-.. image:: https://ci.appveyor.com/api/projects/status/uqixaochulbu6vjv?svg=true
-   :target: https://ci.appveyor.com/project/cmutel/brightway2-data
-   :alt: bw2data appveyor build status
+.. image:: https://dev.azure.com/mutel/Brightway%20CI/_apis/build/status/brightway-lca.brightway2-data?branchName=main
+   :target: https://dev.azure.com/mutel/Brightway%20CI/_build?definitionId=8&_a=summary&repositoryFilter=2&branchFilter=71%2C71%2C71%2C71
+   :alt: bw2data azure pipeline status
 
 .. image:: https://coveralls.io/repos/bitbucket/cmutel/brightway2-data/badge.svg?branch=master
     :target: https://coveralls.io/bitbucket/cmutel/brightway2-data?branch=default
