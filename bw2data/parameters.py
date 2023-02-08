@@ -139,6 +139,12 @@ class ParameterBase(Model):
             ).where(GroupDependency.depends == group)
         ).execute()
 
+    @classmethod
+    def get_data_dict(cls, d):
+        """Takes a dictionary and returns only those key-value-pairs which belong in the table's `data` field"""
+        d = d or dict()
+        return {k: v for k, v in d.items() if k not in cls._meta.fields.keys()}
+
 
 @python_2_unicode_compatible
 class ProjectParameter(ParameterBase):
@@ -227,7 +233,7 @@ class ProjectParameter(ParameterBase):
             for key, value in data.items():
                 ProjectParameter.update(
                     amount=value['amount'],
-                    data={"unit": value.get("unit")},
+                    data=ProjectParameter().get_data_dict(value),
                 ).where(ProjectParameter.name == key).execute()
             Group.get_or_create(name='project')[0].freshen()
             ProjectParameter.expire_downstream('project')
@@ -422,7 +428,7 @@ class DatabaseParameter(ParameterBase):
             for key, value in data.items():
                 DatabaseParameter.update(
                     amount=value['amount'],
-                    data={"unit": value.get("unit")},
+                    data=DatabaseParameter().get_data_dict(value),
                 ).where(
                     DatabaseParameter.name == key,
                     DatabaseParameter.database == database,
@@ -880,7 +886,7 @@ class ActivityParameter(ParameterBase):
             for key, value in data.items():
                 ActivityParameter.update(
                     amount=value['amount'],
-                    data={"unit": value.get("unit")},
+                    data=ActivityParameter().get_data_dict(value),
                 ).where(
                     ActivityParameter.name == key,
                     ActivityParameter.group == group,
