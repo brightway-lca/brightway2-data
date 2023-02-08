@@ -23,15 +23,12 @@ jobs:
 
   - bash: |
       conda config --set always_yes yes
-      conda config --set allow_conda_downgrades true
-      conda install conda=4.12.0 -y
-      conda install -q -c conda-forge mamba
-      mamba create -q --name bw2
+      conda create -q --name bw2
     displayName: Create Anaconda environment
 
   - bash: |
       source activate bw2
-      mamba install --yes --quiet -c defaults -c conda-forge -c cmutel --name bw2 bw_processing python=$PYTHON_VERSION peewee tqdm brightway25 pytest pytest-azurepipelines">=1.0" pytest-cov pip
+      conda install --quiet -c defaults -c conda-forge -c cmutel --name bw2 bw_processing python=$PYTHON_VERSION peewee tqdm brightway25 pytest pytest-azurepipelines">=1.0" pytest-cov pip
     displayName: Install Anaconda packages
 
   - bash: |
@@ -86,13 +83,12 @@ jobs:
 
   - bash: |
       conda config --set always_yes yes
-      conda install -q -c conda-forge mamba
-      mamba create -q --name bw2
+      conda create -q --name bw2
     displayName: Create Anaconda environment
 
   - bash: |
       source activate bw2
-      mamba install --yes -c defaults -c conda-forge -c cmutel --name bw2 python=$PYTHON_VERSION bw_processing pytest peewee tqdm brightway25 pytest-azurepipelines">=1.0" pip
+      conda install -c defaults -c conda-forge -c cmutel --name bw2 python=$PYTHON_VERSION bw_processing pytest peewee tqdm brightway25 pytest-azurepipelines">=1.0" pip
     displayName: Install Anaconda packages
 
   - bash: |
@@ -140,13 +136,12 @@ jobs:
 
   - bash: |
       conda config --set always_yes yes
-      conda install -q -c conda-forge mamba
-      mamba create -q --name bw2
+      conda create -q --name bw2
     displayName: Create Anaconda environment
 
   - bash: |
       source activate bw2
-      mamba install --yes -c defaults -c conda-forge -c cmutel --name bw2 python=$PYTHON_VERSION bw_processing pytest peewee tqdm brightway25 pytest-azurepipelines">=1.0" pip
+      conda install -c defaults -c conda-forge -c cmutel --name bw2 python=$PYTHON_VERSION bw_processing pytest peewee tqdm brightway25 pytest-azurepipelines">=1.0" pip
     displayName: Install Anaconda packages
 
   - bash: |
