@@ -33,12 +33,12 @@ try:
 
         try:
             interpreter = Interpreter()
-            use_pint = True
+            config.use_pint_parameters = True
         except ImportError:
             from bw2parameters import Interpreter, ParameterSet
 
             interpreter = Interpreter()
-            use_pint = False
+            config.use_pint_parameters = False
             warn("Could not initialize pint. Using units in formulas will lead to"
                  "errors and/or unexpected results. To suppress this warning, set "
                  "`bw2data.parameters.ALLOW_PINT_UNITS = False`.")
@@ -46,7 +46,7 @@ try:
         from bw2parameters import Interpreter, ParameterSet
 
         interpreter = Interpreter()
-        use_pint = False
+        config.use_pint_parameters = False
 except ImportError:
     raise ImportError("Installed version of bw2parameters is outdated. Please install version > 1.0.0.")
 
