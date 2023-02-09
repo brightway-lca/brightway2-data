@@ -114,6 +114,10 @@ class ParameterBase(Model):
             return self.name.lower() < other.name.lower()
 
     @classmethod
+    def names(cls):
+        return {p.name for p in cls.select(cls.name)}
+
+    @classmethod
     def create_table(cls):
         super(ParameterBase, cls).create_table()
         cls._meta.database.execute_sql(
@@ -255,7 +259,7 @@ class ProjectParameter(ParameterBase):
             return []
 
         # Parse all formulas, find missing variables
-        needed = get_new_symbols(data.values())
+        needed = get_new_symbols(data.values(), no_pint_units=set(data))
         if not needed:
             return []
 
@@ -388,9 +392,8 @@ class DatabaseParameter(ParameterBase):
             return
 
         # Parse all formulas, find missing variables
-        new_symbols = get_new_symbols(data.values(), set(data))
-        found_symbols = {x[0] for x in ProjectParameter.select(
-            ProjectParameter.name).tuples()}
+        found_symbols = ProjectParameter.names()
+        new_symbols = get_new_symbols(data.values(), context=set(data), no_pint_units=found_symbols)
         missing = new_symbols.difference(found_symbols)
         if missing:
             raise MissingName("The following variables aren't defined:\n{}".format("|".join(missing)))
@@ -449,7 +452,8 @@ class DatabaseParameter(ParameterBase):
 
         # Parse all formulas, find missing variables
         context = set(data) if not include_self else set()
-        needed = get_new_symbols(data.values(), context=context)
+        project_params = ProjectParameter.names()
+        needed = get_new_symbols(data.values(), context=context, no_pint_units=project_params)
         if not needed:
             return []
 
@@ -751,9 +755,11 @@ class ActivityParameter(ParameterBase):
 
         # Parse all formulas, find missing variables
         context = set(data) if not include_self else None
-        activity_needed = get_new_symbols(data.values(), context=context)
+        # todo: is it really okay to include ActivityParameters from other groups here?
+        known_names = ProjectParameter.names().union(ActivityParameter.names())
+        activity_needed = get_new_symbols(data.values(), context=context, no_pint_units=known_names)
         exchanges_needed = get_new_symbols(
-            ParameterizedExchange.load(group).values(), context=context
+            ParameterizedExchange.load(group).values(), context=context, no_pint_units=known_names
         )
         needed = activity_needed.union(exchanges_needed)
 
@@ -1610,7 +1616,7 @@ class ParameterManager(object):
 parameters = ParameterManager()
 
 
-def get_new_symbols(data, context=None):
+def get_new_symbols(data, context=None, no_pint_units=None):
     if data is None:
         return set()
     new_symbols = set()
@@ -1621,7 +1627,14 @@ def get_new_symbols(data, context=None):
             formula = ds['formula']
         else:
             continue
-        new_symbols.update(interpreter.get_unknown_symbols(formula, known_symbols=context, ignore_symtable=False))
+        new_symbols.update(
+            interpreter.get_unknown_symbols(
+                formula,
+                known_symbols=context,
+                ignore_symtable=False,
+                no_pint_units=no_pint_units
+            )
+        )
 
     return new_symbols
 
