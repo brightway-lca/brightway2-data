@@ -236,7 +236,7 @@ def test_project_parameter_dependency_chain_missing():
     ProjectParameter.create(
         name="baz",
         amount=8,
-        formula="foo * bar"
+        formula="foo * bar_"
     )
     with pytest.raises(MissingName):
         ProjectParameter.dependency_chain()
