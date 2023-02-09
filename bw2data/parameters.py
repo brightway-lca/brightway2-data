@@ -10,6 +10,7 @@ import re
 import uuid
 from warnings import warn
 
+from bw2parameters.errors import MissingName
 from peewee import (
     BooleanField,
     Check,
@@ -20,9 +21,8 @@ from peewee import (
     TextField,
 )
 
-from bw2parameters.errors import MissingName
-from . import databases, projects, config, get_activity
-from .backends.peewee.schema import ExchangeDataset, ActivityDataset
+from . import config, databases, get_activity, projects
+from .backends.peewee.schema import ActivityDataset, ExchangeDataset
 from .sqlite import PickleField, SubstitutableDatabase
 from .utils import python_2_unicode_compatible
 
@@ -39,20 +39,30 @@ try:
 
             interpreter = Interpreter()
             config.use_pint_parameters = False
-            warn("Could not initialize pint. Using units in formulas will lead to"
-                 "errors and/or unexpected results. To suppress this warning, set "
-                 "`bw2data.parameters.ALLOW_PINT_UNITS = False`.")
+            warn(
+                "Could not initialize pint. Using units in formulas will lead to"
+                "errors and/or unexpected results. To suppress this warning, set "
+                "`bw2data.parameters.ALLOW_PINT_UNITS = False`."
+            )
     else:
         from bw2parameters import Interpreter, ParameterSet
 
         interpreter = Interpreter()
         config.use_pint_parameters = False
 except ImportError:
-    raise ImportError("Installed version of bw2parameters is outdated. Please install version > 1.0.0.")
+    raise ImportError(
+        "Installed version of bw2parameters is outdated. Please install version > 1.0.0."
+    )
 
-# https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
-clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)
-nonempty = lambda dct: {k: v for k, v in dct.items() if v is not None}
+
+def clean(x):
+    # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
+    return re.sub(r"\W|^(?=\d)", "_", x)
+
+
+def nonempty(dct):
+    return {k: v for k, v in dct.items() if v is not None}
+
 
 """Autoupdate `updated` field in Group when parameters change"""
 AUTOUPDATE_TRIGGER = """CREATE TRIGGER IF NOT EXISTS {table}_{action}_trigger AFTER {action} ON {table} BEGIN
@@ -60,7 +70,8 @@ AUTOUPDATE_TRIGGER = """CREATE TRIGGER IF NOT EXISTS {table}_{action}_trigger AF
 END;"""
 
 """Activity parameter groups can't cross databases"""
-_CROSSDATABASE_TEMPLATE = """CREATE TRIGGER IF NOT EXISTS ap_crossdatabase_{action} BEFORE {action} ON activityparameter BEGIN
+_CROSSDATABASE_TEMPLATE = """CREATE TRIGGER IF NOT EXISTS ap_crossdatabase_{action} BEFORE {action} ON \
+activityparameter BEGIN
     SELECT CASE WHEN
         ((SELECT COUNT(*) FROM activityparameter WHERE "group" = NEW."group") > 0)
     AND (NEW.database NOT IN (SELECT DISTINCT "database" FROM activityparameter where "group" = NEW."group"))
@@ -84,7 +95,8 @@ CROSSGROUP_UPDATE_TRIGGER = _CROSSGROUP_TEMPLATE.format(action="UPDATE")
 
 """No circular dependences in activity parameter group dependencies"""
 _CLOSURE_TEMPLATE = """CREATE TRIGGER IF NOT EXISTS gd_circular_{action} BEFORE {action} ON groupdependency BEGIN
-    SELECT CASE WHEN EXISTS (SELECT * FROM groupdependency AS g WHERE g."group" = NEW.depends AND g.depends = NEW."group")
+    SELECT CASE WHEN EXISTS (SELECT * FROM groupdependency AS g WHERE g."group" = NEW.depends AND g.depends = \
+    NEW."group")
     THEN RAISE(ABORT,'Circular dependency')
     END;
 END;
@@ -105,7 +117,10 @@ PE_UPDATE_TRIGGER = _PE_GROUP_TEMPLATE.format(action="UPDATE")
 
 
 class ParameterBase(Model):
-    __repr__ = lambda x: str(x)
+
+    @staticmethod
+    def __repr__(x):
+        return str(x)
 
     def __lt__(self, other):
         if type(self) != type(other):
@@ -118,29 +133,28 @@ class ParameterBase(Model):
         return {p.name for p in cls.select(cls.name)}
 
     @classmethod
-    def create_table(cls):
-        super(ParameterBase, cls).create_table()
+    def create_table(cls, *args, **kwargs):
+        super(ParameterBase, cls).create_table(*args, **kwargs)
         cls._meta.database.execute_sql(
             AUTOUPDATE_TRIGGER.format(
-                action="INSERT",
-                name=cls._new_name,
-                table=cls._db_table
-            ))
+                action="INSERT", name=cls._new_name, table=cls._db_table
+            )
+        )
         for action in ("UPDATE", "DELETE"):
             cls._meta.database.execute_sql(
                 AUTOUPDATE_TRIGGER.format(
-                    action=action,
-                    name=cls._old_name,
-                    table=cls._db_table
-                ))
+                    action=action, name=cls._old_name, table=cls._db_table
+                )
+            )
 
     @staticmethod
     def expire_downstream(group):
         """Expire any activity parameters that depend on this group"""
         Group.update(fresh=False).where(
-            Group.name << GroupDependency.select(
-                GroupDependency.group
-            ).where(GroupDependency.depends == group)
+            Group.name
+            << GroupDependency.select(GroupDependency.group).where(
+                GroupDependency.depends == group
+            )
         ).execute()
 
     @classmethod
@@ -161,9 +175,11 @@ class ProjectParameter(ParameterBase):
         * amount: float, optional
         * data: object, optional. Used for any other metadata.
 
-    Note that there is no magic for reading and writing to ``data`` (unlike ``Activity`` objects) - it must be used directly.
+    Note that there is no magic for reading and writing to ``data`` (unlike ``Activity`` objects) - it must be used \
+    directly.
 
     """
+
     name = TextField(index=True, unique=True)
     formula = TextField(null=True)
     amount = FloatField(null=True)
@@ -177,21 +193,21 @@ class ProjectParameter(ParameterBase):
         return "Project parameter: {}".format(self.name)
 
     def save(self, *args, **kwargs):
-        Group.get_or_create(name='project')[0].expire()
+        Group.get_or_create(name="project")[0].expire()
         super(ProjectParameter, self).save(*args, **kwargs)
 
     @staticmethod
-    def load(group=None):
+    def load(group=None):  # noqa
         """Return dictionary of parameter data with names as keys and ``.dict()`` as values."""
 
         def reformat(o):
             o = o.dict
-            return (o.pop("name"), o)
+            return o.pop("name"), o
 
         return dict([reformat(o) for o in ProjectParameter.select()])
 
     @staticmethod
-    def static(ignored='project', only=None):
+    def static(only=None):
         """Get dictionary of ``{name: amount}`` for all project parameters.
 
         ``only`` restricts returned names to ones found in ``only``. ``ignored`` included for API \
@@ -211,15 +227,16 @@ class ProjectParameter(ParameterBase):
     def expired():
         """Return boolean - is this group expired?"""
         try:
-            return not Group.get(name='project').fresh
+            return not Group.get(name="project").fresh
         except Group.DoesNotExist:
             return False
 
     @staticmethod
-    def recalculate(ignored=None):
+    def recalculate(ignored=None):  # noqa
         """Recalculate all parameters.
 
-        ``ignored`` included for API compatibility with other ``recalculate`` methods - it will really be ignored."""
+        ``ignored`` included for API compatibility with other ``recalculate`` methods - it will really be ignored.
+        """
         if not ProjectParameter.expired():
             return
         data = ProjectParameter.load()
@@ -230,15 +247,15 @@ class ProjectParameter(ParameterBase):
         with parameters.db.atomic() as _:
             for key, value in data.items():
                 ProjectParameter.update(
-                    amount=value['amount'],
+                    amount=value["amount"],
                     data=ProjectParameter().get_data_dict(value),
                 ).where(ProjectParameter.name == key).execute()
-            Group.get_or_create(name='project')[0].freshen()
-            ProjectParameter.expire_downstream('project')
+            Group.get_or_create(name="project")[0].freshen()
+            ProjectParameter.expire_downstream("project")
 
     @staticmethod
     def dependency_chain():
-        """ Determine if ```ProjectParameter`` parameters have dependencies
+        """Determine if ```ProjectParameter`` parameters have dependencies
         within the group.
 
         Returns:
@@ -265,9 +282,11 @@ class ProjectParameter(ParameterBase):
 
         missing = needed.difference(data)
         if missing:
-            raise MissingName("The following variables aren't defined:\n{}".format("|".join(missing)))
+            raise MissingName(
+                "The following variables aren't defined:\n{}".format("|".join(missing))
+            )
 
-        return [{'kind': 'project', 'group': 'project', 'names': needed}]
+        return [{"kind": "project", "group": "project", "names": needed}]
 
     @staticmethod
     def is_dependency_within_group(name):
@@ -288,7 +307,7 @@ class ProjectParameter(ParameterBase):
 
     @classmethod
     def update_formula_parameter_name(cls, old, new):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         NOTE: Make sure to wrap this in an .atomic() statement!
         """
@@ -297,16 +316,18 @@ class ProjectParameter(ParameterBase):
             for p in cls.select().where(cls.formula.contains(old))
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
-        Group.get_or_create(name='project')[0].expire()
+        Group.get_or_create(name="project")[0].expire()
 
     @property
     def dict(self):
         """Parameter data as a standardized dictionary"""
-        obj = nonempty({
-            'name': self.name,
-            'formula': self.formula,
-            'amount': self.amount,
-        })
+        obj = nonempty(
+            {
+                "name": self.name,
+                "formula": self.formula,
+                "amount": self.amount,
+            }
+        )
         obj.update(self.data)
         return obj
 
@@ -323,9 +344,11 @@ class DatabaseParameter(ParameterBase):
         * amount: float, optional
         * data: object, optional. Used for any other metadata.
 
-    Note that there is no magic for reading and writing to ``data`` (unlike ``Activity`` objects) - it must be used directly.
+    Note that there is no magic for reading and writing to ``data`` (unlike ``Activity`` objects) - it must be used \
+    directly.
 
     """
+
     database = TextField(index=True)
     name = TextField(index=True)
     formula = TextField(null=True)
@@ -337,9 +360,7 @@ class DatabaseParameter(ParameterBase):
     _db_table = "databaseparameter"
 
     class Meta:
-        indexes = (
-            (('database', 'name'), True),
-        )
+        indexes = ((("database", "name"), True),)
         constraints = [Check("database != 'project'")]
 
     def __str__(self):
@@ -351,10 +372,16 @@ class DatabaseParameter(ParameterBase):
 
         def reformat(o):
             o = o.dict
-            return (o.pop("name"), o)
+            return o.pop("name"), o
 
-        return dict([reformat(o) for o in DatabaseParameter.select().where(
-            DatabaseParameter.database == database)])
+        return dict(
+            [
+                reformat(o)
+                for o in DatabaseParameter.select().where(
+                    DatabaseParameter.database == database
+                )
+            ]
+        )
 
     @staticmethod
     def expired(database):
@@ -372,7 +399,9 @@ class DatabaseParameter(ParameterBase):
             # need data field to retrieve parameter (pint) unit
             select_fields.append(DatabaseParameter.data)
         result = Interpreter.parameter_list_to_dict(
-            DatabaseParameter.select(*select_fields).where(DatabaseParameter.database == database).dicts()
+            DatabaseParameter.select(*select_fields)
+            .where(DatabaseParameter.database == database)
+            .dicts()
         )
         if only is not None:
             result = {k: v for k, v in result.items() if k in only}
@@ -393,23 +422,24 @@ class DatabaseParameter(ParameterBase):
 
         # Parse all formulas, find missing variables
         found_symbols = ProjectParameter.names()
-        new_symbols = get_new_symbols(data.values(), context=set(data), no_pint_units=found_symbols)
+        new_symbols = get_new_symbols(
+            data.values(), context=set(data), no_pint_units=found_symbols
+        )
         missing = new_symbols.difference(found_symbols)
         if missing:
-            raise MissingName("The following variables aren't defined:\n{}".format("|".join(missing)))
+            raise MissingName(
+                "The following variables aren't defined:\n{}".format("|".join(missing))
+            )
 
         # Add or delete `project` dependency if needed
         if new_symbols:
-            GroupDependency.get_or_create(
-                group=database,
-                depends="project"
-            )
+            GroupDependency.get_or_create(group=database, depends="project")
             # Load needed project variables as {'foo': 42} dict
             glo = ProjectParameter.static(only=new_symbols)
         else:
             GroupDependency.delete().where(
                 GroupDependency.group == database,
-                GroupDependency.depends == "project"
+                GroupDependency.depends == "project",
             ).execute()
             glo = None
 
@@ -418,7 +448,7 @@ class DatabaseParameter(ParameterBase):
         with parameters.db.atomic():
             for key, value in data.items():
                 DatabaseParameter.update(
-                    amount=value['amount'],
+                    amount=value["amount"],
                     data=DatabaseParameter().get_data_dict(value),
                 ).where(
                     DatabaseParameter.name == key,
@@ -453,7 +483,9 @@ class DatabaseParameter(ParameterBase):
         # Parse all formulas, find missing variables
         context = set(data) if not include_self else set()
         project_params = ProjectParameter.names()
-        needed = get_new_symbols(data.values(), context=context, no_pint_units=project_params)
+        needed = get_new_symbols(
+            data.values(), context=context, no_pint_units=project_params
+        )
         if not needed:
             return []
 
@@ -464,9 +496,7 @@ class DatabaseParameter(ParameterBase):
                 names.add(name)
                 needed.remove(name)
             if names:
-                chain.append(
-                    {'kind': 'database', 'group': group, 'names': names}
-                )
+                chain.append({"kind": "database", "group": group, "names": names})
 
         if needed:
             names = set()
@@ -474,20 +504,24 @@ class DatabaseParameter(ParameterBase):
                 names.add(name)
                 needed.remove(name)
             if names:
-                chain.insert(
-                    0, {'kind': 'project', 'group': 'project', 'names': names}
-                )
+                chain.insert(0, {"kind": "project", "group": "project", "names": names})
 
         if needed:
-            raise MissingName("The following variables aren't defined:\n{}".format("|".join(needed)))
+            raise MissingName(
+                "The following variables aren't defined:\n{}".format("|".join(needed))
+            )
 
         return chain
 
     @staticmethod
     def is_dependency_within_group(name, database):
         own_group = next(
-            (x for x in DatabaseParameter.dependency_chain(database, include_self=True)
-             if x.get("group") == database), {}
+            (
+                x
+                for x in DatabaseParameter.dependency_chain(database, include_self=True)
+                if x.get("group") == database
+            ),
+            {},
         )
         return True if name in own_group.get("names", set()) else False
 
@@ -508,13 +542,14 @@ class DatabaseParameter(ParameterBase):
 
     @staticmethod
     def is_dependent_on(name):
-        """ Test if any database parameters are dependent on the given
+        """Test if any database parameters are dependent on the given
         project parameter name.
         """
-        query = (GroupDependency
-                 .select(GroupDependency.group)
-                 .where(GroupDependency.depends == "project")
-                 .distinct())
+        query = (
+            GroupDependency.select(GroupDependency.group)
+            .where(GroupDependency.depends == "project")
+            .distinct()
+        )
 
         for row in query.execute():
             chain = DatabaseParameter.dependency_chain(row.group)
@@ -526,23 +561,28 @@ class DatabaseParameter(ParameterBase):
 
     @classmethod
     def update_formula_project_parameter_name(cls, old, new):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         This method specifically targets project parameters used in database
         formulas
         """
         data = (
             alter_parameter_formula(p, old, new)
-            for p in (cls.select()
-                      .join(GroupDependency, on=(GroupDependency.group == cls.database))
-                      .where(cls.formula.contains(old)))
+            for p in (
+                cls.select()
+                .join(GroupDependency, on=(GroupDependency.group == cls.database))
+                .where(cls.formula.contains(old))
+            )
             if not DatabaseParameter.is_dependency_within_group(old, p.database)
         )
         dbs = set(
-            p.database for p in (cls.select(cls.database)
-                                 .join(GroupDependency, on=(GroupDependency.group == cls.database))
-                                 .where(cls.formula.contains(old))
-                                 .distinct())
+            p.database
+            for p in (
+                cls.select(cls.database)
+                .join(GroupDependency, on=(GroupDependency.group == cls.database))
+                .where(cls.formula.contains(old))
+                .distinct()
+            )
             if not DatabaseParameter.is_dependency_within_group(old, p.database)
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
@@ -551,7 +591,7 @@ class DatabaseParameter(ParameterBase):
 
     @classmethod
     def update_formula_database_parameter_name(cls, old, new):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         This method specifically targets database parameters used in database
         formulas
@@ -562,9 +602,10 @@ class DatabaseParameter(ParameterBase):
             if DatabaseParameter.is_dependency_within_group(old, p.database)
         )
         dbs = set(
-            p.database for p in (cls.select(cls.database)
-                                 .where(cls.formula.contains(old))
-                                 .distinct())
+            p.database
+            for p in (
+                cls.select(cls.database).where(cls.formula.contains(old)).distinct()
+            )
             if DatabaseParameter.is_dependency_within_group(old, p.database)
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
@@ -574,12 +615,14 @@ class DatabaseParameter(ParameterBase):
     @property
     def dict(self):
         """Parameter data as a standardized dictionary"""
-        obj = nonempty({
-            'database': self.database,
-            'name': self.name,
-            'formula': self.formula,
-            'amount': self.amount,
-        })
+        obj = nonempty(
+            {
+                "database": self.database,
+                "name": self.name,
+                "formula": self.formula,
+                "amount": self.amount,
+            }
+        )
         obj.update(self.data)
         return obj
 
@@ -598,9 +641,12 @@ class ActivityParameter(ParameterBase):
         * amount: float, optional
         * data: object, optional. Used for any other metadata.
 
-    Activities can only have parameters in one group. Group names cannot be 'project' or the name of any existing database.
+    Activities can only have parameters in one group. Group names cannot be 'project' or the name of any existing \
+    database.
 
-    Activity parameter groups can depend on other activity parameter groups, so that a formula in group "a" can depend on a variable in group "b". This dependency information is stored in ``Group.order`` - in our small example, we could define the following:
+    Activity parameter groups can depend on other activity parameter groups, so that a formula in group "a" can \
+    depend on a variable in group "b". This dependency information is stored in ``Group.order`` - in our small \
+    example, we could define the following:
 
     .. code-block:: python
 
@@ -608,11 +654,14 @@ class ActivityParameter(ParameterBase):
         a.order = ["b", "c"]
         a.save()
 
-    In this case, a variable not found in "a" would be searched for in "b" and then "c", in that order. Database and then project parameters are also implicitly included at the end of ``Group.order``.
+    In this case, a variable not found in "a" would be searched for in "b" and then "c", in that order. Database \
+    and then project parameters are also implicitly included at the end of ``Group.order``.
 
-    Note that there is no magic for reading and writing to ``data`` (unlike ``Activity`` objects) - it must be used directly.
+    Note that there is no magic for reading and writing to ``data`` (unlike ``Activity`` objects) - it must be \
+    used directly.
 
     """
+
     group = TextField()
     database = TextField()
     code = TextField()
@@ -626,7 +675,7 @@ class ActivityParameter(ParameterBase):
     _db_table = "activityparameter"
 
     class Meta:
-        indexes = [(('group', 'name'), True)]
+        indexes = [(("group", "name"), True)]
         constraints = [Check("""("group" != 'project') AND ("group" != database)""")]
 
     def __str__(self):
@@ -659,10 +708,16 @@ class ActivityParameter(ParameterBase):
 
         def reformat(o):
             o = o.dict
-            return (o.pop("name"), o)
+            return o.pop("name"), o
 
-        return dict([reformat(o) for o in ActivityParameter.select().where(
-            ActivityParameter.group == group)])
+        return dict(
+            [
+                reformat(o)
+                for o in ActivityParameter.select().where(
+                    ActivityParameter.group == group
+                )
+            ]
+        )
 
     @staticmethod
     def static(group, only=None, full=False):
@@ -675,7 +730,9 @@ class ActivityParameter(ParameterBase):
             # need data field to retrieve parameter (pint) unit
             select_fields.append(ActivityParameter.data)
         result = Interpreter.parameter_list_to_dict(
-            ActivityParameter.select(*select_fields).where(ActivityParameter.group == group).dicts()
+            ActivityParameter.select(*select_fields)
+            .where(ActivityParameter.group == group)
+            .dicts()
         )
         if full:
             temp = ActivityParameter._static_dependencies(group)
@@ -689,15 +746,14 @@ class ActivityParameter(ParameterBase):
     def _static_dependencies(group):
         """Get dictionary of ``{name: amount}`` for all variables defined in dependency chain.
 
-        Be careful! This could have variables which overlap with local variable names. Designed for internal use."""
+        Be careful! This could have variables which overlap with local variable names. Designed for internal use.
+        """
         database = ActivityParameter.get(group=group).database
 
         chain = [
-                    ProjectParameter.static(),
-                    DatabaseParameter.static(database)
-                ] + [
-                    ActivityParameter.static(g) for g in Group.get(name=group).order[::-1]
-                ]
+            ProjectParameter.static(),
+            DatabaseParameter.static(database),
+        ] + [ActivityParameter.static(g) for g in Group.get(name=group).order[::-1]]
 
         result = {}
         for dct in chain:
@@ -707,17 +763,21 @@ class ActivityParameter(ParameterBase):
     @staticmethod
     def insert_dummy(group, activity):
         code, database = activity[1], activity[0]
-        if not ActivityParameter.select().where(
+        if (
+            not ActivityParameter.select()
+            .where(
                 ActivityParameter.group == group,
                 ActivityParameter.code == code,
                 ActivityParameter.database == database,
-        ).count():
+            )
+            .count()
+        ):
             ActivityParameter.create(
                 group=group,
                 name="__dummy_{}__".format(uuid.uuid4().hex),
                 code=code,
                 database=database,
-                amount=0
+                amount=0,
             )
 
     @staticmethod
@@ -757,9 +817,13 @@ class ActivityParameter(ParameterBase):
         context = set(data) if not include_self else None
         # todo: is it really okay to include ActivityParameters from other groups here?
         known_names = ProjectParameter.names().union(ActivityParameter.names())
-        activity_needed = get_new_symbols(data.values(), context=context, no_pint_units=known_names)
+        activity_needed = get_new_symbols(
+            data.values(), context=context, no_pint_units=known_names
+        )
         exchanges_needed = get_new_symbols(
-            ParameterizedExchange.load(group).values(), context=context, no_pint_units=known_names
+            ParameterizedExchange.load(group).values(),
+            context=context,
+            no_pint_units=known_names,
         )
         needed = activity_needed.union(exchanges_needed)
 
@@ -776,7 +840,7 @@ class ActivityParameter(ParameterBase):
                 names.add(name)
                 needed.remove(name)
             if names:
-                chain.append({'kind': 'activity', 'group': new_group, 'names': names})
+                chain.append({"kind": "activity", "group": new_group, "names": names})
 
         if needed and include_self:
             names = set()
@@ -785,7 +849,7 @@ class ActivityParameter(ParameterBase):
                 names.add(name)
                 needed.remove(name)
             if names:
-                chain.append({'kind': 'activity', 'group': group, 'names': names})
+                chain.append({"kind": "activity", "group": group, "names": names})
 
         if needed:
             database = ActivityParameter.get(group=group).database
@@ -794,24 +858,24 @@ class ActivityParameter(ParameterBase):
                 names.add(name)
                 needed.remove(name)
             if names:
-                chain.append({'kind': 'database', 'group': database,
-                              'names': names})
+                chain.append({"kind": "database", "group": database, "names": names})
         if needed:
             names = set()
             for name in ProjectParameter.static(only=needed):
                 names.add(name)
                 needed.remove(name)
             if names:
-                chain.append({'kind': 'project', 'group': 'project', 'names': names}
-                             )
+                chain.append({"kind": "project", "group": "project", "names": names})
         if needed:
-            raise MissingName("The following variables aren't defined:\n{}".format("|".join(needed)))
+            raise MissingName(
+                "The following variables aren't defined:\n{}".format("|".join(needed))
+            )
 
         return chain
 
     @staticmethod
     def is_dependency_within_group(name, group, include_order=False):
-        """ Determine if the given parameter `name` is a dependency within
+        """Determine if the given parameter `name` is a dependency within
         the given activity `group`.
 
         The optional ``include_order`` parameter will include dependencies
@@ -830,7 +894,8 @@ class ActivityParameter(ParameterBase):
 
     @staticmethod
     def recalculate(group):
-        """Recalculate all values for activity parameters in this group, and update their underlying `Activity` and `Exchange` values."""
+        """Recalculate all values for activity parameters in this group, and update their underlying \
+        `Activity` and `Exchange` values."""
         # Start by traversing and updating the list of dependencies
         if not ActivityParameter.expired(group):
             return
@@ -840,18 +905,18 @@ class ActivityParameter(ParameterBase):
         # Reset dependencies and dependency order
         if chain:
             obj = Group.get(name=group)
-            obj.order = [o['group'] for o in chain if o['kind'] == 'activity']
+            obj.order = [o["group"] for o in chain if o["kind"] == "activity"]
             obj.save()
             GroupDependency.delete().where(GroupDependency.group == group).execute()
             GroupDependency.insert_many(
-                [{'group': group, 'depends': o['group']} for o in chain]
+                [{"group": group, "depends": o["group"]} for o in chain]
             ).execute()
 
         # Update all upstream groups
         mapping = {
-            'project': ProjectParameter,
-            'database': DatabaseParameter,
-            'activity': ActivityParameter
+            "project": ProjectParameter,
+            "database": DatabaseParameter,
+            "activity": ActivityParameter,
         }
 
         # Not guaranteed to be the most efficient,
@@ -860,12 +925,13 @@ class ActivityParameter(ParameterBase):
         # Shouldn't be any race conditions because check for
         # circular dependencies
         for row in chain[::-1]:
-            mapping[row['kind']].recalculate(row['group'])
+            mapping[row["kind"]].recalculate(row["group"])
 
         # Update activity parameter values
         data = ActivityParameter.load(group)
         static = {
-            k: v for k, v in ActivityParameter._static_dependencies(group).items()
+            k: v
+            for k, v in ActivityParameter._static_dependencies(group).items()
             if k not in data
         }
 
@@ -873,7 +939,7 @@ class ActivityParameter(ParameterBase):
         with parameters.db.atomic():
             for key, value in data.items():
                 ActivityParameter.update(
-                    amount=value['amount'],
+                    amount=value["amount"],
                     data=ActivityParameter().get_data_dict(value),
                 ).where(
                     ActivityParameter.name == key,
@@ -893,13 +959,16 @@ class ActivityParameter(ParameterBase):
         known_symbols = ActivityParameter.static(group, full=True)
         # TODO: Remove uncertainty from exchanges?
         for obj in ParameterizedExchange.select().where(
-                ParameterizedExchange.group == group):
+            ParameterizedExchange.group == group
+        ):
             exc = ExchangeDataset.get(id=obj.exchange)
             q = interpreter(obj.formula, known_symbols=known_symbols)
             if exc.data.get("dummy input", False):
                 input_unit = None
             else:
-                input_unit = ActivityDataset.get(code=exc.input_code, database=exc.input_database).data.get("unit")
+                input_unit = ActivityDataset.get(
+                    code=exc.input_code, database=exc.input_database
+                ).data.get("unit")
             interpreter.set_amount_unit(obj=exc.data, quantity=q, to_unit=input_unit)
             exc.save()
 
@@ -922,13 +991,14 @@ class ActivityParameter(ParameterBase):
 
     @staticmethod
     def is_dependent_on(name, group):
-        """ Test if any activity parameters are dependent on the given
+        """Test if any activity parameters are dependent on the given
         parameter name from the given group.
         """
-        query = (GroupDependency
-                 .select(GroupDependency.group)
-                 .where(GroupDependency.depends == group)
-                 .distinct())
+        query = (
+            GroupDependency.select(GroupDependency.group)
+            .where(GroupDependency.depends == group)
+            .distinct()
+        )
 
         for row in query.execute():
             chain = ActivityParameter.dependency_chain(row.group)
@@ -940,35 +1010,47 @@ class ActivityParameter(ParameterBase):
 
     @classmethod
     def update_formula_project_parameter_name(cls, old, new):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         This method specifically targets project parameters used in activity
         formulas
         """
         data = (
             alter_parameter_formula(p, old, new)
-            for p in (cls.select()
-                      .join(GroupDependency, on=(GroupDependency.group == cls.group))
-                      .where((GroupDependency.depends == "project") &
-                             (cls.formula.contains(old))))
+            for p in (
+                cls.select()
+                .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                .where(
+                    (GroupDependency.depends == "project") & (cls.formula.contains(old))
+                )
+            )
             if not ActivityParameter.is_dependency_within_group(old, p.group)
         )
         group_parameters = itertools.chain(
-            (cls.select(cls.group)
-             .join(GroupDependency, on=(GroupDependency.group == cls.group))
-             .where((GroupDependency.depends == "project") &
-                    (cls.formula.contains(old)))
-             .distinct()),
-            (ParameterizedExchange.select(ParameterizedExchange.group)
-             .where(ParameterizedExchange.formula.contains(old)).distinct())
+            (
+                cls.select(cls.group)
+                .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                .where(
+                    (GroupDependency.depends == "project") & (cls.formula.contains(old))
+                )
+                .distinct()
+            ),
+            (
+                ParameterizedExchange.select(ParameterizedExchange.group)
+                .where(ParameterizedExchange.formula.contains(old))
+                .distinct()
+            ),
         )
         groups = set(
-            p.group for p in group_parameters
+            p.group
+            for p in group_parameters
             if not ActivityParameter.is_dependency_within_group(old, p.group)
         )
         exchanges = (
             alter_parameter_formula(p, old, new)
-            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+            for p in ParameterizedExchange.select().where(
+                ParameterizedExchange.group << groups
+            )
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         for param_exc in exchanges:
@@ -977,35 +1059,49 @@ class ActivityParameter(ParameterBase):
 
     @classmethod
     def update_formula_database_parameter_name(cls, old, new):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         This method specifically targets database parameters used in activity
         formulas
         """
         data = (
             alter_parameter_formula(p, old, new)
-            for p in (cls.select()
-                      .join(GroupDependency, on=(GroupDependency.group == cls.group))
-                      .where((GroupDependency.depends == cls.database) &
-                             (cls.formula.contains(old))))
+            for p in (
+                cls.select()
+                .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                .where(
+                    (GroupDependency.depends == cls.database)
+                    & (cls.formula.contains(old))
+                )
+            )
             if not ActivityParameter.is_dependency_within_group(old, p.group)
         )
         group_parameters = itertools.chain(
-            (cls.select(cls.group)
-             .join(GroupDependency, on=(GroupDependency.group == cls.group))
-             .where((GroupDependency.depends == cls.database) &
-                    (cls.formula.contains(old)))
-             .distinct()),
-            (ParameterizedExchange.select(ParameterizedExchange.group)
-             .where(ParameterizedExchange.formula.contains(old)).distinct())
+            (
+                cls.select(cls.group)
+                .join(GroupDependency, on=(GroupDependency.group == cls.group))
+                .where(
+                    (GroupDependency.depends == cls.database)
+                    & (cls.formula.contains(old))
+                )
+                .distinct()
+            ),
+            (
+                ParameterizedExchange.select(ParameterizedExchange.group)
+                .where(ParameterizedExchange.formula.contains(old))
+                .distinct()
+            ),
         )
         groups = set(
-            p.group for p in group_parameters
+            p.group
+            for p in group_parameters
             if not ActivityParameter.is_dependency_within_group(old, p.group)
         )
         exchanges = (
             alter_parameter_formula(p, old, new)
-            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+            for p in ParameterizedExchange.select().where(
+                ParameterizedExchange.group << groups
+            )
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         for param_exc in exchanges:
@@ -1014,7 +1110,7 @@ class ActivityParameter(ParameterBase):
 
     @classmethod
     def update_formula_activity_parameter_name(cls, old, new, include_order=False):
-        """ Performs an update of the formula of relevant parameters.
+        """Performs an update of the formula of relevant parameters.
 
         This method specifically targets activity parameters used in activity
         formulas
@@ -1026,16 +1122,22 @@ class ActivityParameter(ParameterBase):
         )
         group_parameters = itertools.chain(
             cls.select(cls.group).where(cls.formula.contains(old)).distinct(),
-            (ParameterizedExchange.select(ParameterizedExchange.group)
-             .where(ParameterizedExchange.formula.contains(old)).distinct())
+            (
+                ParameterizedExchange.select(ParameterizedExchange.group)
+                .where(ParameterizedExchange.formula.contains(old))
+                .distinct()
+            ),
         )
         groups = set(
-            p.group for p in group_parameters
+            p.group
+            for p in group_parameters
             if ActivityParameter.is_dependency_within_group(old, p.group, include_order)
         )
         exchanges = (
             alter_parameter_formula(p, old, new)
-            for p in ParameterizedExchange.select().where(ParameterizedExchange.group << groups)
+            for p in ParameterizedExchange.select().where(
+                ParameterizedExchange.group << groups
+            )
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         for param_exc in exchanges:
@@ -1053,13 +1155,15 @@ class ActivityParameter(ParameterBase):
     @property
     def dict(self):
         """Parameter data as a standardized dictionary"""
-        obj = nonempty({
-            'database': self.database,
-            'code': self.code,
-            'name': self.name,
-            'formula': self.formula,
-            'amount': self.amount,
-        })
+        obj = nonempty(
+            {
+                "database": self.database,
+                "code": self.code,
+                "name": self.name,
+                "formula": self.formula,
+                "amount": self.amount,
+            }
+        )
         obj.update(self.data)
         return obj
 
@@ -1089,8 +1193,8 @@ class ParameterizedExchange(Model):
         return super().get_or_none(*query, **filters)
 
     @classmethod
-    def create_table(cls):
-        super(ParameterizedExchange, cls).create_table()
+    def create_table(cls, *args, **kwargs):
+        super(ParameterizedExchange, cls).create_table(*args, **kwargs)
         cls._meta.database.execute_sql(PE_UPDATE_TRIGGER)
         cls._meta.database.execute_sql(PE_INSERT_TRIGGER)
 
@@ -1106,9 +1210,12 @@ class ParameterizedExchange(Model):
     @staticmethod
     def load(group):
         """Return dictionary of parameter data with names as keys and ``.dict()`` as values."""
-        return {o.exchange: o.formula
-                for o in ParameterizedExchange.select().where(
-                ParameterizedExchange.group == group)}
+        return {
+            o.exchange: o.formula
+            for o in ParameterizedExchange.select().where(
+                ParameterizedExchange.group == group
+            )
+        }
 
     @staticmethod
     def recalculate(group):
@@ -1143,7 +1250,7 @@ class Group(Model):
         super(Group, self).save(*args, **kwargs)
 
     def purge_order(self):
-        reserved = set(databases).union(set(['project']))
+        reserved = set(databases).union({"project"})
         self.order = [x for x in self.order if x not in reserved]
 
     class Meta:
@@ -1156,21 +1263,19 @@ class GroupDependency(Model):
     depends = TextField()
 
     class Meta:
-        indexes = (
-            (('group', 'depends'), True),
-        )
+        indexes = ((("group", "depends"), True),)
         constraints = [Check('"group" != depends')]
 
     def save(self, *args, **kwargs):
-        if self.group == 'project':
+        if self.group == "project":
             raise ValueError("`project` group can't have dependencies")
-        elif self.group in databases and self.depends != 'project':
+        elif self.group in databases and self.depends != "project":
             raise ValueError("Database groups can only depend on `project`")
         super(GroupDependency, self).save(*args, **kwargs)
 
     @classmethod
-    def create_table(cls):
-        super(GroupDependency, cls).create_table()
+    def create_table(cls, *args, **kwargs):
+        super(GroupDependency, cls).create_table(*args, **kwargs)
         cls._meta.database.execute_sql(GD_UPDATE_TRIGGER)
         cls._meta.database.execute_sql(GD_INSERT_TRIGGER)
 
@@ -1179,8 +1284,14 @@ class ParameterManager(object):
     def __init__(self):
         self.db = SubstitutableDatabase(
             os.path.join(projects.dir, "parameters.db"),
-            [DatabaseParameter, ProjectParameter, ActivityParameter,
-             ParameterizedExchange, Group, GroupDependency]
+            [
+                DatabaseParameter,
+                ProjectParameter,
+                ActivityParameter,
+                ParameterizedExchange,
+                Group,
+                GroupDependency,
+            ],
         )
         config.sqlite3_databases.append(("parameters.db", self.db))
 
@@ -1245,29 +1356,31 @@ class ParameterManager(object):
         """
 
         def drop_fields(dct):
-            dct = {k: v for k, v in dct.items()
-                   if k not in ('database', 'code')}
-            return dct.pop('name'), dct
+            dct = {k: v for k, v in dct.items() if k not in ("database", "code")}
+            return dct.pop("name"), dct
 
         activity = get_activity((activity[0], activity[1]))
-        activity['parameters'] = dict([
-            drop_fields(o.dict)
-            for o in ActivityParameter.select().where(
-                ActivityParameter.database == activity[0],
-                ActivityParameter.code == activity[1]
-            )
-        ])
+        activity["parameters"] = dict(
+            [
+                drop_fields(o.dict)
+                for o in ActivityParameter.select().where(
+                    ActivityParameter.database == activity[0],
+                    ActivityParameter.code == activity[1],
+                )
+            ]
+        )
 
         with self.db.atomic():
             self.remove_exchanges_from_group(group, activity, restore_amounts)
             ActivityParameter.delete().where(
                 ActivityParameter.database == activity[0],
-                ActivityParameter.code == activity[1]
+                ActivityParameter.code == activity[1],
             ).execute()
             activity.save()
 
-    def add_exchanges_to_group(self, group, activity):
-        """ Add exchanges with formulas from ``activity`` to ``group``.
+    @staticmethod
+    def add_exchanges_to_group(group, activity):
+        """Add exchanges with formulas from ``activity`` to ``group``.
 
         Every exchange with a formula field will have its original `amount`
         value stored as `original_amount`. This original value can be
@@ -1276,30 +1389,35 @@ class ParameterManager(object):
 
         """
         count = 0
-        if not ActivityParameter.select().where(
+        if (
+            not ActivityParameter.select()
+            .where(
                 ActivityParameter.database == activity[0],
                 ActivityParameter.code == activity[1],
-        ).count():
+            )
+            .count()
+        ):
             ActivityParameter.insert_dummy(group, activity)
 
         for exc in get_activity((activity[0], activity[1])).exchanges():
-            if 'formula' in exc:
+            if "formula" in exc:
                 try:
                     obj = ParameterizedExchange.get(exchange=exc._document.id)
                 except ParameterizedExchange.DoesNotExist:
                     obj = ParameterizedExchange(exchange=exc._document.id)
                 obj.group = group
-                obj.formula = exc['formula']
+                obj.formula = exc["formula"]
                 obj.save()
-                if 'original_amount' not in exc:
+                if "original_amount" not in exc:
                     exc["original_amount"] = exc["amount"]
                     exc.save()
                 count += 1
 
         return count
 
-    def remove_exchanges_from_group(self, group, activity, restore_original=True):
-        """ Takes a group and activity and removes all ``ParameterizedExchange``
+    @staticmethod
+    def remove_exchanges_from_group(group, activity, restore_original=True):
+        """Takes a group and activity and removes all ``ParameterizedExchange``
         objects from the group.
 
         The ``restore_original`` parameter determines if the original amount
@@ -1308,18 +1426,20 @@ class ParameterManager(object):
 
         """
         if restore_original:
-            for exc in (ex for ex in activity.exchanges() if 'original_amount' in ex):
+            for exc in (ex for ex in activity.exchanges() if "original_amount" in ex):
                 exc["amount"] = exc["original_amount"]
                 del exc["original_amount"]
                 exc.save()
 
         ParameterizedExchange.delete().where(
-            ParameterizedExchange.group == group).execute()
+            ParameterizedExchange.group == group
+        ).execute()
 
     def new_project_parameters(self, data, overwrite=True):
         """Efficiently and correctly enter multiple parameters.
 
-        Will overwrite existing project parameters with the same name, unless ``overwrite`` is false, in which case a ``ValueError`` is raised.
+        Will overwrite existing project parameters with the same name, unless ``overwrite`` is false, \
+        in which case a ``ValueError`` is raised.
 
         ``data`` should be a list of dictionaries:
 
@@ -1333,43 +1453,51 @@ class ParameterManager(object):
             }]
 
         """
-        potentially_non_unique_names = [ds['name'] for ds in data]
+        potentially_non_unique_names = [ds["name"] for ds in data]
         unique_names = list(set(potentially_non_unique_names))
-        assert len(unique_names) == len(potentially_non_unique_names), "Nonunique names: {}".format(
-            [p for p in unique_names
-             if potentially_non_unique_names.count(p) > 1]
+        assert len(unique_names) == len(
+            potentially_non_unique_names
+        ), "Nonunique names: {}".format(
+            [p for p in unique_names if potentially_non_unique_names.count(p) > 1]
         )
 
         def reformat(ds):
             return {
-                'name': ds.pop('name'),
-                'amount': ds.pop('amount', 0),
-                'formula': ds.pop('formula', None),
-                'data': ds
+                "name": ds.pop("name"),
+                "amount": ds.pop("amount", 0),
+                "formula": ds.pop("formula", None),
+                "data": ds,
             }
 
         data = [reformat(ds) for ds in data]
-        new = {o['name'] for o in data}
-        existing = {o[0] for o in ProjectParameter.select(ProjectParameter.name).tuples()}
+        new = {o["name"] for o in data}
+        existing = {
+            o[0] for o in ProjectParameter.select(ProjectParameter.name).tuples()
+        }
 
         if new.intersection(existing) and not overwrite:
             raise ValueError(
                 "The following parameters already exist:\n{}".format(
-                    "|".join(new.intersection(existing)))
+                    "|".join(new.intersection(existing))
+                )
             )
 
         with self.db.atomic():
             # Remove existing values
-            ProjectParameter.delete().where(ProjectParameter.name << tuple(new)).execute()
+            ProjectParameter.delete().where(
+                ProjectParameter.name << tuple(new)
+            ).execute()
             for idx in range(0, len(data), 100):
-                ProjectParameter.insert_many(data[idx:idx + 100]).execute()
-            Group.get_or_create(name='project')[0].expire()
+                ProjectParameter.insert_many(data[idx: idx + 100]).execute()
+            Group.get_or_create(name="project")[0].expire()
             ProjectParameter.recalculate()
 
     def new_database_parameters(self, data, database, overwrite=True):
-        """Efficiently and correctly enter multiple parameters. Deletes **all** existing database parameters for this database.
+        """Efficiently and correctly enter multiple parameters. Deletes **all** existing database parameters for \
+        this database.
 
-        Will overwrite existing database parameters with the same name, unless ``overwrite`` is false, in which case a ``ValueError`` is raised.
+        Will overwrite existing database parameters with the same name, unless ``overwrite`` is false, in which \
+        case a ``ValueError`` is raised.
 
         ``database`` should be an existing database. ``data`` should be a list of dictionaries:
 
@@ -1385,49 +1513,56 @@ class ParameterManager(object):
         """
         assert database in databases, "Unknown database"
 
-        potentially_non_unique_names = [ds['name'] for ds in data]
+        potentially_non_unique_names = [ds["name"] for ds in data]
         unique_names = list(set(potentially_non_unique_names))
-        assert len(unique_names) == len(potentially_non_unique_names), "Nonunique names: {}".format(
-            [p for p in unique_names
-             if potentially_non_unique_names.count(p) > 1]
+        assert len(unique_names) == len(
+            potentially_non_unique_names
+        ), "Nonunique names: {}".format(
+            [p for p in unique_names if potentially_non_unique_names.count(p) > 1]
         )
 
         def reformat(ds):
             return {
-                'database': database,
-                'name': ds.pop('name'),
-                'amount': ds.pop('amount', 0),
-                'formula': ds.pop('formula', None),
-                'data': ds
+                "database": database,
+                "name": ds.pop("name"),
+                "amount": ds.pop("amount", 0),
+                "formula": ds.pop("formula", None),
+                "data": ds,
             }
 
         data = [reformat(ds) for ds in data]
-        new = {o['name'] for o in data}
-        existing = {o[0] for o in
-                    DatabaseParameter.select(DatabaseParameter.name).where(
-                        DatabaseParameter.database == database).tuples()}
+        new = {o["name"] for o in data}
+        existing = {
+            o[0]
+            for o in DatabaseParameter.select(DatabaseParameter.name)
+            .where(DatabaseParameter.database == database)
+            .tuples()
+        }
 
         if new.intersection(existing) and not overwrite:
             raise ValueError(
                 "The following parameters already exist:\n{}".format(
-                    "|".join(new.intersection(existing)))
+                    "|".join(new.intersection(existing))
+                )
             )
 
         with self.db.atomic():
             # Remove existing values
             DatabaseParameter.delete().where(
                 DatabaseParameter.database == database,
-                DatabaseParameter.name << tuple(new)
+                DatabaseParameter.name << tuple(new),
             ).execute()
             for idx in range(0, len(data), 100):
-                DatabaseParameter.insert_many(data[idx:idx + 100]).execute()
+                DatabaseParameter.insert_many(data[idx: idx + 100]).execute()
             Group.get_or_create(name=database)[0].expire()
             DatabaseParameter.recalculate(database)
 
     def new_activity_parameters(self, data, group, overwrite=True):
-        """Efficiently and correctly enter multiple parameters. Deletes **all** existing activity parameters for this group.
+        """Efficiently and correctly enter multiple parameters. Deletes **all** existing activity parameters for \
+        this group.
 
-        Will overwrite existing parameters in the same group with the same name, unless ``overwrite`` is false, in which case a ``ValueError`` is raised.
+        Will overwrite existing parameters in the same group with the same name, unless ``overwrite`` is false, \
+        in which case a ``ValueError`` is raised.
 
         Input parameters must refer to a single, existing database.
 
@@ -1445,55 +1580,59 @@ class ParameterManager(object):
             }]
 
         """
-        database = {o['database'] for o in data}
+        database = {o["database"] for o in data}
         assert len(database) == 1, "Multiple databases"
         assert database.pop() in databases, "Unknown database"
 
-        potentially_non_unique_names = [o['name'] for o in data]
+        potentially_non_unique_names = [o["name"] for o in data]
         unique_names = list(set(potentially_non_unique_names))
-        assert len(unique_names) == len(potentially_non_unique_names), "Nonunique names: {}".format(
-            [p for p in unique_names
-             if potentially_non_unique_names.count(p) > 1]
+        assert len(unique_names) == len(
+            potentially_non_unique_names
+        ), "Nonunique names: {}".format(
+            [p for p in unique_names if potentially_non_unique_names.count(p) > 1]
         )
 
         Group.get_or_create(name=group)
 
         def reformat(ds):
             return {
-                'group': group,
-                'database': ds.pop('database'),
-                'code': ds.pop('code'),
-                'name': ds.pop('name'),
-                'formula': ds.pop('formula', None),
-                'amount': ds.pop('amount', 0),
-                'data': ds
+                "group": group,
+                "database": ds.pop("database"),
+                "code": ds.pop("code"),
+                "name": ds.pop("name"),
+                "formula": ds.pop("formula", None),
+                "amount": ds.pop("amount", 0),
+                "data": ds,
             }
 
         data = [reformat(ds) for ds in data]
-        new = {o['name'] for o in data}
-        existing = {o[0] for o in
-                    ActivityParameter.select(ActivityParameter.name).where(
-                        ActivityParameter.group == group).tuples()}
+        new = {o["name"] for o in data}
+        existing = {
+            o[0]
+            for o in ActivityParameter.select(ActivityParameter.name)
+            .where(ActivityParameter.group == group)
+            .tuples()
+        }
 
         if new.intersection(existing) and not overwrite:
             raise ValueError(
                 "The following parameters already exist:\n{}".format(
-                    "|".join(new.intersection(existing)))
+                    "|".join(new.intersection(existing))
+                )
             )
 
         with self.db.atomic():
             # Remove existing values
             ActivityParameter.delete().where(
-                ActivityParameter.group == group,
-                ActivityParameter.name << new
+                ActivityParameter.group == group, ActivityParameter.name << new
             ).execute()
             for idx in range(0, len(data), 100):
-                ActivityParameter.insert_many(data[idx:idx + 100]).execute()
+                ActivityParameter.insert_many(data[idx: idx + 100]).execute()
             Group.get_or_create(name=group)[0].expire()
             ActivityParameter.recalculate(group)
 
     def rename_project_parameter(self, parameter, new_name, update_dependencies=False):
-        """ Given a parameter and a new name, safely update the parameter.
+        """Given a parameter and a new name, safely update the parameter.
 
         Will raise a TypeError if the given parameter is of the incorrect type.
         Will raise a ValueError if other parameters depend on the given one
@@ -1511,22 +1650,28 @@ class ParameterManager(object):
 
         if not update_dependencies and any([project, database, activity]):
             raise ValueError(
-                "Parameter '{}' is used in other (downstream) formulas".format(parameter.name)
+                "Parameter '{}' is used in other (downstream) formulas".format(
+                    parameter.name
+                )
             )
 
         with self.db.atomic():
             if project:
                 ProjectParameter.update_formula_parameter_name(parameter.name, new_name)
             if database:
-                DatabaseParameter.update_formula_project_parameter_name(parameter.name, new_name)
+                DatabaseParameter.update_formula_project_parameter_name(
+                    parameter.name, new_name
+                )
             if activity:
-                ActivityParameter.update_formula_project_parameter_name(parameter.name, new_name)
+                ActivityParameter.update_formula_project_parameter_name(
+                    parameter.name, new_name
+                )
             parameter.name = new_name
             parameter.save()
             self.recalculate()
 
     def rename_database_parameter(self, parameter, new_name, update_dependencies=False):
-        """ Given a parameter and a new name, safely update the parameter.
+        """Given a parameter and a new name, safely update the parameter.
 
         Will raise a TypeError if the given parameter is of the incorrect type.
         Will raise a ValueError if other parameters depend on the given one
@@ -1545,20 +1690,26 @@ class ParameterManager(object):
 
         if not update_dependencies and any([database, activity]):
             raise ValueError(
-                "Parameter '{}' is used in other (downstream) formulas".format(parameter.name)
+                "Parameter '{}' is used in other (downstream) formulas".format(
+                    parameter.name
+                )
             )
 
         with self.db.atomic():
             if database:
-                DatabaseParameter.update_formula_database_parameter_name(parameter.name, new_name)
+                DatabaseParameter.update_formula_database_parameter_name(
+                    parameter.name, new_name
+                )
             if activity:
-                ActivityParameter.update_formula_database_parameter_name(parameter.name, new_name)
+                ActivityParameter.update_formula_database_parameter_name(
+                    parameter.name, new_name
+                )
             parameter.name = new_name
             parameter.save()
             self.recalculate()
 
     def rename_activity_parameter(self, parameter, new_name, update_dependencies=False):
-        """ Given a parameter and a new name, safely update the parameter.
+        """Given a parameter and a new name, safely update the parameter.
 
         Will raise a TypeError if the given parameter is of the incorrect type.
         Will raise a ValueError if other parameters depend on the given one
@@ -1570,15 +1721,20 @@ class ParameterManager(object):
         if parameter.name == new_name:
             return
 
-        activity = any([
-            ActivityParameter.is_dependency_within_group(
-                parameter.name, parameter.group, include_order=True),
-            ActivityParameter.is_dependent_on(parameter.name, parameter.group)
-        ])
+        activity = any(
+            [
+                ActivityParameter.is_dependency_within_group(
+                    parameter.name, parameter.group, include_order=True
+                ),
+                ActivityParameter.is_dependent_on(parameter.name, parameter.group),
+            ]
+        )
 
         if not update_dependencies and activity:
             raise ValueError(
-                "Parameter '{}' is used in other (downstream) formulas".format(parameter.name)
+                "Parameter '{}' is used in other (downstream) formulas".format(
+                    parameter.name
+                )
             )
 
         with self.db.atomic():
@@ -1590,24 +1746,27 @@ class ParameterManager(object):
             parameter.save()
             self.recalculate()
 
-    def recalculate(self):
+    @staticmethod
+    def recalculate():
         """Recalculate all expired project, database, and activity parameters, as well as exchanges."""
         if ProjectParameter.expired():
             ProjectParameter.recalculate()
         for db in databases:
             if DatabaseParameter.expired(db):
                 DatabaseParameter.recalculate(db)
-        for obj in Group.select().where(
-                Group.fresh == False):
+        for obj in Group.select().where(Group.fresh == False):  # noqa
             # Shouldn't be possible? Maybe concurrent access?
-            if obj.name in databases or obj.name == 'project':
+            if obj.name in databases or obj.name == "project":
                 continue
             ActivityParameter.recalculate(obj.name)
             ActivityParameter.recalculate_exchanges(obj.name)
 
     def __len__(self):
-        return (DatabaseParameter.select().count() + ProjectParameter.select().count() +
-                ActivityParameter.select().count())
+        return (
+            DatabaseParameter.select().count()
+            + ProjectParameter.select().count()
+            + ActivityParameter.select().count()
+        )
 
     def __repr__(self):
         return "Parameters manager with {} objects".format(len(self))
@@ -1623,8 +1782,8 @@ def get_new_symbols(data, context=None, no_pint_units=None):
     for ds in data:
         if isinstance(ds, str):
             formula = ds
-        elif 'formula' in ds:
-            formula = ds['formula']
+        elif "formula" in ds:
+            formula = ds["formula"]
         else:
             continue
         new_symbols.update(
@@ -1632,7 +1791,7 @@ def get_new_symbols(data, context=None, no_pint_units=None):
                 formula,
                 known_symbols=context,
                 ignore_symtable=False,
-                no_pint_units=no_pint_units
+                no_pint_units=no_pint_units,
             )
         )
 
@@ -1640,7 +1799,7 @@ def get_new_symbols(data, context=None, no_pint_units=None):
 
 
 def alter_parameter_formula(parameter, old, new):
-    """ Replace the `old` part with `new` in the formula field and return
+    """Replace the `old` part with `new` in the formula field and return
     the parameter itself.
     """
     if hasattr(parameter, "formula"):

@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, unicode_literals
-from eight import *
 
-from . import config, databases, methods, mapping, geomapping
-from .project import projects
-from .parameters import parameters
+import atexit
 import shutil
 import unittest
-import atexit
+
 import wrapt
+
+from . import config, databases, geomapping, mapping, methods
+from .parameters import parameters
+from .project import projects
 
 
 class BW2DataTest(unittest.TestCase):
