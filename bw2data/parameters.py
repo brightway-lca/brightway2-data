@@ -40,7 +40,7 @@ try:
             interpreter = Interpreter()
             config.use_pint_parameters = False
             warn(
-                "Could not initialize pint. Using units in formulas will lead to"
+                "Could not initialize pint. Using units in formulas will lead to "
                 "errors and/or unexpected results. To suppress this warning, set "
                 "`bw2data.parameters.ALLOW_PINT_UNITS = False`."
             )
