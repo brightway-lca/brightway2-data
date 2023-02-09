@@ -969,7 +969,7 @@ class ActivityParameter(ParameterBase):
                 input_unit = ActivityDataset.get(
                     code=exc.input_code, database=exc.input_database
                 ).data.get("unit")
-            interpreter.set_amount_unit(obj=exc.data, quantity=q, to_unit=input_unit)
+            interpreter.set_amount_and_unit(obj=exc.data, quantity=q, to_unit=input_unit)
             exc.save()
 
         databases.set_dirty(ActivityParameter.get(group=group).database)
