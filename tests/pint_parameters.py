@@ -1,19 +1,23 @@
 import pytest
 
-from bw2data.tests import bw2test
 from bw2data.parameters import (
     ActivityParameter,
     DatabaseParameter,
     ProjectParameter,
     Interpreter,
-    ParameterSet
+    ParameterManager,
 )
-from bw2data import config
+from bw2data import config, Database, projects
+import shutil
 
 bw2parameters = pytest.importorskip("bw2parameters", "1.0.0")
 
+# repeat tests in tests/parameters.py with PintInterpreter and PintParameterSet
+if bw2parameters.PintWrapper.pint_installed:
+    config.use_pint_parameters = True
+    from .parameters import *  # noqa
 
-@bw2test
+
 def test_config():
     config.use_pint_parameters = True
     i = Interpreter()
@@ -26,7 +30,6 @@ def test_config():
     assert i.__class__ == bw2parameters.DefaultInterpreter
 
 
-@bw2test
 def test_get_data_dict():
     param_data = {
         "name": "A",
@@ -64,3 +67,9 @@ def test_get_data_dict():
     ap_result = ActivityParameter().get_data_dict(param_data)
     ap_expected = {"maximum": 2, "unit": "kg", "random field": None}
     assert ap_result == ap_expected
+
+
+# repeat tests in tests/parameters.py with PintInterpreter and PintParameterSet
+if bw2parameters.PintWrapper.pint_installed:
+    config.use_pint_parameters = True
+    from .parameters import *  # noqa
