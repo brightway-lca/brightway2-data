@@ -8,7 +8,6 @@ import itertools
 import os
 import re
 import uuid
-from warnings import warn
 
 from bw2parameters.errors import MissingName
 from peewee import (
@@ -27,28 +26,7 @@ from .sqlite import PickleField, SubstitutableDatabase
 from .utils import python_2_unicode_compatible
 
 try:
-    if config.use_pint_parameters:
-        from bw2parameters import PintInterpreter as Interpreter
-        from bw2parameters import PintParameterSet as ParameterSet
-
-        try:
-            interpreter = Interpreter()
-            config.use_pint_parameters = True
-        except ImportError:
-            from bw2parameters import Interpreter, ParameterSet
-
-            interpreter = Interpreter()
-            config.use_pint_parameters = False
-            warn(
-                "Could not initialize pint. Using units in formulas will lead to "
-                "errors and/or unexpected results. To suppress this warning, set "
-                "`bw2data.parameters.ALLOW_PINT_UNITS = False`."
-            )
-    else:
-        from bw2parameters import Interpreter, ParameterSet
-
-        interpreter = Interpreter()
-        config.use_pint_parameters = False
+    from bw2parameters import Interpreter, ParameterSet, config
 except ImportError:
     raise ImportError(
         "Installed version of bw2parameters is outdated. Please install version > 1.0.0."
@@ -216,7 +194,7 @@ class ProjectParameter(ParameterBase):
         if config.use_pint_parameters:
             # need data field to retrieve parameter (pint) unit
             select_fields.append(ProjectParameter.data)
-        result = Interpreter.parameter_list_to_dict(
+        result = Interpreter().parameter_list_to_dict(
             ProjectParameter.select(*select_fields).dicts()
         )
         if only is not None:
@@ -398,7 +376,7 @@ class DatabaseParameter(ParameterBase):
         if config.use_pint_parameters:
             # need data field to retrieve parameter (pint) unit
             select_fields.append(DatabaseParameter.data)
-        result = Interpreter.parameter_list_to_dict(
+        result = Interpreter().parameter_list_to_dict(
             DatabaseParameter.select(*select_fields)
             .where(DatabaseParameter.database == database)
             .dicts()
@@ -729,7 +707,7 @@ class ActivityParameter(ParameterBase):
         if config.use_pint_parameters:
             # need data field to retrieve parameter (pint) unit
             select_fields.append(ActivityParameter.data)
-        result = Interpreter.parameter_list_to_dict(
+        result = Interpreter().parameter_list_to_dict(
             ActivityParameter.select(*select_fields)
             .where(ActivityParameter.group == group)
             .dicts()
@@ -962,14 +940,14 @@ class ActivityParameter(ParameterBase):
             ParameterizedExchange.group == group
         ):
             exc = ExchangeDataset.get(id=obj.exchange)
-            q = interpreter(obj.formula, known_symbols=known_symbols)
+            q = Interpreter().eval(obj.formula, known_symbols=known_symbols)
             if exc.data.get("dummy input", False):
                 input_unit = None
             else:
                 input_unit = ActivityDataset.get(
                     code=exc.input_code, database=exc.input_database
                 ).data.get("unit")
-            interpreter.set_amount_and_unit(obj=exc.data, quantity=q, to_unit=input_unit)
+            Interpreter().set_amount_and_unit(obj=exc.data, quantity=q, to_unit=input_unit)
             exc.save()
 
         databases.set_dirty(ActivityParameter.get(group=group).database)
@@ -1787,7 +1765,7 @@ def get_new_symbols(data, context=None, no_pint_units=None):
         else:
             continue
         new_symbols.update(
-            interpreter.get_unknown_symbols(
+            Interpreter().get_unknown_symbols(
                 formula,
                 known_symbols=context,
                 ignore_symtable=False,
