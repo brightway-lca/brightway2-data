@@ -26,7 +26,7 @@ from .sqlite import PickleField, SubstitutableDatabase
 from .utils import python_2_unicode_compatible
 
 try:
-    from bw2parameters import Interpreter, ParameterSet, config
+    from bw2parameters import Interpreter, ParameterSet
 except ImportError:
     raise ImportError(
         "Installed version of bw2parameters is outdated. Please install version > 1.0.0."

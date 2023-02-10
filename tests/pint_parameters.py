@@ -5,6 +5,8 @@ from bw2data.parameters import (
     ActivityParameter,
     DatabaseParameter,
     ProjectParameter,
+    Interpreter,
+    ParameterSet
 )
 from bw2data import config
 
@@ -12,10 +14,16 @@ bw2parameters = pytest.importorskip("bw2parameters", "1.0.0")
 
 
 @bw2test
-def test_warning_no_pint():
-    if not bw2parameters.PintWrapper.pint_installed and config.use_pint_parameters:
-        with pytest.warns():
-            import bw2data.parameters  # noqa
+def test_config():
+    config.use_pint_parameters = True
+    i = Interpreter()
+    if bw2parameters.PintWrapper.pint_installed:
+        assert i.__class__ == bw2parameters.PintInterpreter
+    else:
+        assert i.__class__ == bw2parameters.DefaultInterpreter
+    config.use_pint_parameters = False
+    i = Interpreter()
+    assert i.__class__ == bw2parameters.DefaultInterpreter
 
 
 @bw2test

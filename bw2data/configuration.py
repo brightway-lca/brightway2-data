@@ -8,6 +8,13 @@ import eight
 # os.getenv returns unicode in Py2
 eight.wrap_os_environ_io()
 
+try:
+    from bw2parameters import config as bw2parameters_config
+except ImportError:
+    raise ImportError(
+        "Installed version of bw2parameters is outdated. Please install version > 1.0.0."
+    )
+
 
 class Config(object):
     """A singleton that stores configuration settings"""
@@ -18,7 +25,6 @@ class Config(object):
     metadata = []
     sqlite3_databases = []
     _windows = platform.system() == "Windows"
-    use_pint_parameters = True
 
     @property
     def biosphere(self):
@@ -35,6 +41,14 @@ class Config(object):
         Default name is ``GLO``; change this by changing ``config.p["global_location"]``.
         """
         return self.p.get("global_location", "GLO")
+
+    @property
+    def use_pint_parameters(self):
+        return bw2parameters_config.use_pint
+
+    @use_pint_parameters.setter
+    def use_pint_parameters(self, value):
+        bw2parameters_config.use_pint = value
 
 
 config = Config()
