@@ -6,6 +6,7 @@ from bw2data.parameters import (
     ProjectParameter,
     Interpreter,
     ParameterManager,
+    Group
 )
 from bw2data import config, Database, projects
 import shutil
@@ -171,6 +172,42 @@ def test_mix_parameters_with_and_without_units(use_pint):
     obj.save()
     with pytest.raises(bw2parameters.PintWrapper.DimensionalityError):
         DatabaseParameter.recalculate("some_db")
+
+
+def test_mix_parameters_optional_units(use_pint):
+    # delete existing project parameters because some of them contain units
+    ProjectParameter.delete().execute()
+    # define parameters
+    ProjectParameter.create(
+        name="p_proj3",
+        amount=1,
+        data={"unit": "kilogram"},
+    )
+    ProjectParameter.create(
+        name="p_proj4",
+        amount=200,
+        data={"unit": "gram"},
+    )
+    ProjectParameter.create(
+        name="p_proj5",
+        formula="p_proj3 + p_proj4",
+    )
+    # solve with pint
+    config.use_pint_parameters = True
+    ProjectParameter.recalculate()
+    obj = ProjectParameter.get(name="p_proj5")
+    assert obj.amount == 1.2
+    assert obj.dict["unit"] == "kilogram"
+    # solve without pint
+    config.use_pint_parameters = False
+    group = Group.get(name="project")
+    group.fresh = False
+    group.save()
+    ProjectParameter.recalculate()
+    obj = ProjectParameter.get(name="p_proj5")
+    assert obj.amount == 201
+    assert obj.dict["unit"] == "kilogram"
+    config.use_pint_parameters = True
 
 
 def test_error_if_recalculated_without_pint(use_pint):
