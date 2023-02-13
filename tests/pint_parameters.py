@@ -147,6 +147,13 @@ def test_parameterized_exchange_recalculate(use_pint):
     assert obj["unit"] == "second"
 
 
+def test_error_if_recalculated_without_pint(use_pint):
+    config.use_pint_parameters = False
+    with pytest.raises(bw2parameters.MissingName):
+        ActivityParameter.recalculate_exchanges("some_group")
+    config.use_pint_parameters = True
+
+
 def test_mix_parameters_with_and_without_units(use_pint):
     ProjectParameter.create(
         name="p_proj2",
@@ -207,12 +214,5 @@ def test_mix_parameters_optional_units(use_pint):
     obj = ProjectParameter.get(name="p_proj5")
     assert obj.amount == 201
     assert obj.dict["unit"] == "kilogram"
-    config.use_pint_parameters = True
-
-
-def test_error_if_recalculated_without_pint(use_pint):
-    config.use_pint_parameters = False
-    with pytest.raises(bw2parameters.MissingName):
-        ActivityParameter.recalculate_exchanges("some_group")
     config.use_pint_parameters = True
 
