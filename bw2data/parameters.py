@@ -1209,6 +1209,13 @@ class Group(Model):
     order = PickleField(default=[])
 
     @staticmethod
+    def remove_empty_groups():
+        used_groups = {t[0] for t in ActivityParameter.select(ActivityParameter.group).tuples()}.union({"project"})
+        all_groups = {t[0] for t in Group.select(Group.name).tuples()}
+        unused_groups = all_groups.difference(used_groups)
+        Group.delete().where(Group.name << unused_groups).execute()
+
+    @staticmethod
     def make_default_group_name(activity):
         return f'{activity["database"]}:{activity["code"]}'
 
