@@ -6,6 +6,7 @@ from . import databases, projects, config, get_activity
 from .backends.peewee.schema import ExchangeDataset
 from .sqlite import PickleField, SubstitutableDatabase
 from .utils import python_2_unicode_compatible
+from .proxies import ExchangeProxyBase, ActivityProxyBase
 from asteval import Interpreter
 from collections import defaultdict
 from bw2parameters import ParameterSet
@@ -584,6 +585,27 @@ class ActivityParameter(ParameterBase):
     def __str__(self):
         return "Activity parameter: {}:{}".format(self.group, self.name)
 
+    @classmethod
+    def get(cls, *query, **filters):
+        """
+        Wrapper to make sure one can pass an actual activity object to retrieve an ActivityParameter.
+        """
+        if isinstance(filters.get("activity"), ActivityProxyBase):
+            act = filters.pop("activity")
+            filters["database"] = act["database"]
+            filters["code"] = act["code"]
+        return super().get(*query, **filters)
+
+    @classmethod
+    def get_or_none(cls, *query, **filters):
+        """
+        Wrapper to make sure one can pass an actual activity object to retrieve an ActivityParameter.
+        """
+        if isinstance(filters.get("activity"), ActivityProxyBase):
+            filters["database"] = filters["activity"]["database"]
+            filters["code"] = filters["activity"]["code"]
+        return super().get_or_none(*query, **filters)
+
     @staticmethod
     def load(group):
         """Return dictionary of parameter data with names as keys and ``.dict()`` as values."""
@@ -987,6 +1009,24 @@ class ParameterizedExchange(Model):
     group = TextField()
     exchange = IntegerField(unique=True)
     formula = TextField()
+
+    @classmethod
+    def get(cls, *query, **filters):
+        """
+        Wrapper to make sure one can pass an actual exchange object to retrieve a ParameterizedExchange.
+        """
+        if isinstance(filters.get("exchange"), ExchangeProxyBase):
+            filters["exchange"] = filters["exchange"]._document.id
+        return super().get(*query, **filters)
+
+    @classmethod
+    def get_or_none(cls, *query, **filters):
+        """
+        Wrapper to make sure one can pass an actual exchange object to retrieve a ParameterizedExchange.
+        """
+        if isinstance(filters.get("exchange"), ExchangeProxyBase):
+            filters["exchange"] = filters["exchange"]._document.id
+        return super().get_or_none(*query, **filters)
 
     @classmethod
     def create_table(cls):
