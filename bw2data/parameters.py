@@ -1284,7 +1284,8 @@ class ParameterManager(object):
         Group.get_or_create(name=group)
 
         activity = get_activity((activity[0], activity[1]))
-        if 'parameters' not in activity:
+        formula_exchanges = [e for e in activity.exchanges() if "formula" in e]
+        if 'parameters' not in activity and not any(formula_exchanges):
             return
 
         # Avoid duplicate by deleting existing parameters
@@ -1311,10 +1312,14 @@ class ParameterManager(object):
                 ActivityParameter.create(**row)
 
         # Parameters are now "active", remove from `Activity`
-        del activity['parameters']
-        activity.save()
+        if "parameters" in activity:
+            del activity['parameters']
+            activity.save()
 
         self.add_exchanges_to_group(group, activity)
+
+        # make sure group is re-calculated
+        Group.get(name=group).expire()
 
         return ActivityParameter.select().where(
             ActivityParameter.database == activity['database'],
