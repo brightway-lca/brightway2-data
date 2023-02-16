@@ -1063,6 +1063,10 @@ class Group(Model):
     updated = DateTimeField(default=datetime.datetime.now)
     order = PickleField(default=[])
 
+    @staticmethod
+    def make_default_group_name(activity):
+        return f'{activity["database"]}:{activity["code"]}'
+
     def expire(self):
         """Set ``fresh`` to ``False``"""
         self.fresh = False
