@@ -1,11 +1,11 @@
+import numpy as np
 import pytest
 import stats_arrays as sa
-import numpy as np
 
 from bw2data import Database, Method, methods
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends.schema import ActivityDataset as AD
-from bw2data.errors import ValidityError, MultipleResults, UnknownObject
+from bw2data.errors import MultipleResults, UnknownObject, ValidityError
 from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
     as_uncertainty_dict,
@@ -32,8 +32,7 @@ class UtilsTest(BW2DataTest):
         self.assertTrue(isinstance(s, str))
 
     def test_combine_methods(self):
-        d = Database("biosphere")
-        d.register(depends=[])
+        d = Database.create(name="biosphere")
         d.write(biosphere)
         m1 = Method(("test method 1",))
         m1.register(unit="p")
@@ -148,7 +147,7 @@ class UncertainifyTestCase(BW2DataTest):
         self.assertEqual(data[1]["exchanges"][0], new_dict)
 
     def test_get_activity_peewee(self):
-        database = Database("a database", "sqlite")
+        database = Database.create(name="a database", backend="sqlite")
         database.write(
             {
                 ("a database", "foo"): {
@@ -206,7 +205,7 @@ def test_as_uncertainty_dict_set_negative():
 
 @bw2test
 def test_get_node_normal():
-    Database("biosphere").write(biosphere)
+    Database.create(name="biosphere").write(biosphere)
     node = get_node(name="an emission")
     assert node.id == 1
     assert isinstance(node, PWActivity)
@@ -214,7 +213,7 @@ def test_get_node_normal():
 
 @bw2test
 def test_get_node_multiple_filters():
-    Database("biosphere").write(biosphere)
+    Database.create(name="biosphere").write(biosphere)
     node = get_node(name="an emission", type="emission")
     assert node.id == 1
     assert isinstance(node, PWActivity)
@@ -222,14 +221,14 @@ def test_get_node_multiple_filters():
 
 @bw2test
 def test_get_node_nonunique():
-    Database("biosphere").write(biosphere)
+    Database.create(name="biosphere").write(biosphere)
     with pytest.raises(MultipleResults):
         get_node(type="emission")
 
 
 @bw2test
 def test_get_node_no_node():
-    Database("biosphere").write(biosphere)
+    Database.create(name="biosphere").write(biosphere)
     with pytest.raises(UnknownObject):
         get_node(type="product")
 
@@ -255,7 +254,7 @@ def test_get_node_extended_search():
             "foo": "bar",
         },
     }
-    Database("biosphere").write(data)
+    Database.create(name="biosphere").write(data)
     with pytest.warns(UserWarning):
         node = get_node(unit="kg", foo="bar")
     assert node["code"] == "2"
@@ -263,7 +262,7 @@ def test_get_node_extended_search():
 
 @bw2test
 def test_get_activity_activity():
-    Database("biosphere").write(biosphere)
+    Database.create(name="biosphere").write(biosphere)
     node = get_node(id=1)
     found = get_activity(node)
     assert found is node
@@ -271,7 +270,7 @@ def test_get_activity_activity():
 
 @bw2test
 def test_get_activity_id():
-    Database("biosphere").write(biosphere)
+    Database.create(name="biosphere").write(biosphere)
     node = get_activity(1)
     assert node.id == 1
     assert isinstance(node, PWActivity)
@@ -279,7 +278,7 @@ def test_get_activity_id():
 
 @bw2test
 def test_get_activity_id_different_ints():
-    Database("biosphere").write(biosphere)
+    Database.create(name="biosphere").write(biosphere)
     different_ints = [
         int(1),
         np.int0(1),
@@ -296,7 +295,7 @@ def test_get_activity_id_different_ints():
 
 @bw2test
 def test_get_activity_key():
-    Database("biosphere").write(biosphere)
+    Database.create(name="biosphere").write(biosphere)
     node = get_activity(("biosphere", "1"))
     assert node.id == 1
     assert isinstance(node, PWActivity)
@@ -304,7 +303,7 @@ def test_get_activity_key():
 
 @bw2test
 def test_get_activity_kwargs():
-    Database("biosphere").write(biosphere)
+    Database.create(name="biosphere").write(biosphere)
     node = get_activity(name="an emission", type="emission")
     assert node.id == 1
     assert isinstance(node, PWActivity)
@@ -312,7 +311,7 @@ def test_get_activity_kwargs():
 
 @bw2test
 def test_merge_databases_nonunique_activity_codes():
-    first = Database("a database")
+    first = Database.create(name="a database")
     first.write(
         {
             ("a database", "foo"): {
@@ -328,7 +327,7 @@ def test_merge_databases_nonunique_activity_codes():
             },
         }
     )
-    second = Database("another database")
+    second = Database.create(name="another database")
     second.write(
         {
             ("another database", "foo"): {
@@ -350,7 +349,7 @@ def test_merge_databases_nonunique_activity_codes():
 
 @bw2test
 def test_merge_databases_wrong_backend():
-    first = Database("a database", "iotable")
+    first = Database.create(name="a database", backend="iotable")
     first.write(
         {
             ("a database", "foo"): {
@@ -366,7 +365,7 @@ def test_merge_databases_wrong_backend():
             },
         },
     )
-    second = Database("another database")
+    second = Database.create(name="another database")
     second.write(
         {
             ("another database", "bar"): {
@@ -390,7 +389,7 @@ def test_merge_databases_wrong_backend():
 
 @bw2test
 def test_merge_databases_nonexistent():
-    first = Database("a database")
+    first = Database.create(name="a database")
     first.write(
         {
             ("a database", "foo"): {

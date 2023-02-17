@@ -2,7 +2,7 @@ import pytest
 
 from bw2data.backends import ActivityDataset, ExchangeDataset
 from bw2data.database import DatabaseChooser
-from bw2data.errors import ValidityError, UnknownObject
+from bw2data.errors import UnknownObject, ValidityError
 from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
 from bw2data.tests import bw2test
 from bw2data.utils import get_activity
@@ -37,7 +37,7 @@ def test_change_code_not_unique_raises_error():
             },
         }
     )
-    act = database.get("foo")
+    act = database.get_node("foo")
     with pytest.raises(ValueError):
         act["code"] = "already there"
 
@@ -70,13 +70,13 @@ def activity():
             },
         }
     )
-    return database.get("foo")
+    return database.get_node("foo")
 
 
 def test_set_item(activity):
     activity["foo"] = "bar"
     activity.save()
-    act = DatabaseChooser("a database").get("foo")
+    act = DatabaseChooser("a database").get_node("foo")
     assert act["foo"] == "bar"
 
 
@@ -132,25 +132,31 @@ def test_delete(activity):
     assert ExchangeDataset.select().count() == 0
     assert ActivityDataset.select().count() == 0
 
+
 @bw2test
 def test_delete_activity_only_self_references():
     database = DatabaseChooser("a database")
-    database.write({
-        ("a database", "foo"): {
-            'exchanges': [{
-                'input': ("a database", "foo"),
-                'amount': 1,
-                'type': 'production',
-            }, {
-                'input': ("a database", "foo"),
-                'amount': 0.1,
-                'type': 'technosphere',
-            }],
-            'location': 'bar',
-            'name': 'baz'
-        },
-    })
-    activity = database.get('foo')
+    database.write(
+        {
+            ("a database", "foo"): {
+                "exchanges": [
+                    {
+                        "input": ("a database", "foo"),
+                        "amount": 1,
+                        "type": "production",
+                    },
+                    {
+                        "input": ("a database", "foo"),
+                        "amount": 0.1,
+                        "type": "technosphere",
+                    },
+                ],
+                "location": "bar",
+                "name": "baz",
+            },
+        }
+    )
+    activity = database.get_node("foo")
 
     assert ExchangeDataset.select().count() == 2
     assert ActivityDataset.select().count() == 1
@@ -269,10 +275,10 @@ def test_get_classifications_ref_product():
         amount=1,
         input=b,
         type="production",
-        classifications={'CPC': ['17300: Steam and hot water']},
+        classifications={"CPC": ["17300: Steam and hot water"]},
     ).save()
 
-    assert a['CPC'] == ['17300: Steam and hot water']
+    assert a["CPC"] == ["17300: Steam and hot water"]
 
 
 @bw2test
@@ -280,15 +286,20 @@ def test_get_classifications_main_activity_dict():
     db = DatabaseChooser("example")
     db.register()
 
-    a = db.new_activity(code="A", name="An activity", classifications={
-                        'EcoSpold01Categories': 'transport systems/train',
-                        'ISIC rev.4 ecoinvent': '4912:Freight rail transport',
-                        'CPC': '6512: Railway transport services of freight'})
+    a = db.new_activity(
+        code="A",
+        name="An activity",
+        classifications={
+            "EcoSpold01Categories": "transport systems/train",
+            "ISIC rev.4 ecoinvent": "4912:Freight rail transport",
+            "CPC": "6512: Railway transport services of freight",
+        },
+    )
     a.save()
 
-    assert a['CPC'] == '6512: Railway transport services of freight'
-    assert a['ISIC rev.4 ecoinvent'] == '4912:Freight rail transport'
-    assert a['EcoSpold01Categories'] == 'transport systems/train'
+    assert a["CPC"] == "6512: Railway transport services of freight"
+    assert a["ISIC rev.4 ecoinvent"] == "4912:Freight rail transport"
+    assert a["EcoSpold01Categories"] == "transport systems/train"
 
 
 @bw2test
@@ -296,14 +307,20 @@ def test_get_classifications_main_activity_list():
     db = DatabaseChooser("example")
     db.register()
 
-    a = db.new_activity(code="A", name="An activity", classifications=[('EcoSpold01Categories', 'transport systems/train'),
- ('ISIC rev.4 ecoinvent', '4912:Freight rail transport'),
- ('CPC', '6512: Railway transport services of freight')])
+    a = db.new_activity(
+        code="A",
+        name="An activity",
+        classifications=[
+            ("EcoSpold01Categories", "transport systems/train"),
+            ("ISIC rev.4 ecoinvent", "4912:Freight rail transport"),
+            ("CPC", "6512: Railway transport services of freight"),
+        ],
+    )
     a.save()
 
-    assert a['CPC'] == '6512: Railway transport services of freight'
-    assert a['ISIC rev.4 ecoinvent'] == '4912:Freight rail transport'
-    assert a['EcoSpold01Categories'] == 'transport systems/train'
+    assert a["CPC"] == "6512: Railway transport services of freight"
+    assert a["ISIC rev.4 ecoinvent"] == "4912:Freight rail transport"
+    assert a["EcoSpold01Categories"] == "transport systems/train"
 
 
 @bw2test
@@ -311,7 +328,7 @@ def test_get_classifications_also_in_activity():
     db = DatabaseChooser("example")
     db.register()
 
-    a = db.new_activity(code="A", name="An activity", CPC='foo')
+    a = db.new_activity(code="A", name="An activity", CPC="foo")
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
@@ -319,10 +336,10 @@ def test_get_classifications_also_in_activity():
         amount=1,
         input=b,
         type="production",
-        classifications={'CPC': ['17300: Steam and hot water']},
+        classifications={"CPC": ["17300: Steam and hot water"]},
     ).save()
 
-    assert a['CPC'] == 'foo'
+    assert a["CPC"] == "foo"
 
 
 @bw2test
@@ -338,10 +355,10 @@ def test_get_properties_ref_product():
         amount=1,
         input=b,
         type="production",
-        properties={'corresponding fuel use, propane, furnace >100kW': 7}
+        properties={"corresponding fuel use, propane, furnace >100kW": 7},
     ).save()
 
-    assert a['corresponding fuel use, propane, furnace >100kW'] == 7
+    assert a["corresponding fuel use, propane, furnace >100kW"] == 7
 
 
 @bw2test
@@ -357,11 +374,11 @@ def test_get_properties_missing_property():
         amount=1,
         input=b,
         type="production",
-        properties={'corresponding fuel use, propane, furnace >100kW': 7}
+        properties={"corresponding fuel use, propane, furnace >100kW": 7},
     ).save()
 
     with pytest.raises(KeyError):
-        a['CPC']
+        a["CPC"]
 
 
 @bw2test
@@ -375,7 +392,7 @@ def test_get_properties_no_rp_exchange():
     b.save()
 
     with pytest.raises(KeyError):
-        a['CPC']
+        a["CPC"]
 
 
 @bw2test
@@ -384,7 +401,7 @@ def test_rp_exchange_single_production_wrong_rp_name():
     db.register()
 
     a = db.new_activity(code="A", name="An activity")
-    a['reference product'] = 'something'
+    a["reference product"] = "something"
     a.save()
     b = db.new_activity(code="B", name="else")
     b.save()
@@ -404,7 +421,7 @@ def test_rp_exchange_multiple_produuction_match_rp_name():
     db.register()
 
     a = db.new_activity(code="A", name="An activity")
-    a['reference product'] = 'something'
+    a["reference product"] = "something"
     a.save()
     b = db.new_activity(code="B", name="else")
     b.save()
@@ -463,6 +480,7 @@ def test_rp_exchange_value_error_no_production():
 
     with pytest.raises(ValueError):
         a.rp_exchange()
+
 
 @bw2test
 def test_rp_exchange_value_error_only_substitution():

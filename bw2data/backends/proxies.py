@@ -5,12 +5,10 @@ from typing import Callable, List, Optional
 
 import pandas as pd
 
-from .. import databases, geomapping
+from .. import geomapping
 from ..errors import ValidityError
-from ..project import writable_project
 from ..proxies import ActivityProxyBase, ExchangeProxyBase
 from ..search import IndexManager
-from . import sqlite3_lci_db
 from .schema import ActivityDataset, ExchangeDataset
 from .utils import dict_as_activitydataset, dict_as_exchangedataset
 
@@ -63,9 +61,10 @@ class Exchanges(Iterable):
     def filter(self, expr):
         self._args.append(expr)
 
-    @writable_project
     def delete(self):
-        databases.set_dirty(self._key[0])
+        from . import Database
+
+        Database().set_dirty(self._key[0])
         ExchangeDataset.delete().where(*self._args).execute()
 
     def _get_queryset(self):
@@ -174,6 +173,7 @@ class Exchanges(Iterable):
 
         return df
 
+
 class Activity(ActivityProxyBase):
     def __init__(self, document=None, **kwargs):
         """Create an `Activity` proxy object.
@@ -190,6 +190,10 @@ class Activity(ActivityProxyBase):
             self._data["code"] = self._document.code
             self._data["database"] = self._document.database
             self._data["id"] = self._document.id
+            self._data["location"] = self._document.location
+            self._data["reference product"] = self._document.product
+            self._data["type"] = self._document.type
+            self._data["name"] = self._document.name
 
     @property
     def id(self):
@@ -203,9 +207,11 @@ class Activity(ActivityProxyBase):
         elif key in self._data:
             return self._data[key]
 
-        for section in ('classifications', 'properties'):
+        for section in ("classifications", "properties"):
             if section in self._data:
                 if isinstance(self._data[section], list):
+                    # Only works on certain formatting, like found in ecoinvent imports
+                    # where the are lists of (type, value) tuples
                     try:
                         return {k: v for k, v in self._data[section]}[key]
                     except:
@@ -218,10 +224,10 @@ class Activity(ActivityProxyBase):
         except ValueError:
             raise KeyError
 
-        if key in rp.get('classifications', []):
-            return rp['classifications'][key]
-        if key in rp.get('properties', []):
-            return rp['properties'][key]
+        if key in rp.get("classifications", []):
+            return rp["classifications"][key]
+        if key in rp.get("properties", []):
+            return rp["properties"][key]
 
         raise KeyError
 
@@ -243,7 +249,6 @@ class Activity(ActivityProxyBase):
     def key(self):
         return (self.get("database"), self.get("code"))
 
-    @writable_project
     def delete(self):
         from .. import Database
         from ..parameters import ActivityParameter, ParameterizedExchange
@@ -263,9 +268,8 @@ class Activity(ActivityProxyBase):
         self._document.delete_instance()
         self = None
 
-    @writable_project
     def save(self):
-        from .. import Database
+        from . import Database
 
         if not self.valid():
             raise ValidityError(
@@ -273,7 +277,8 @@ class Activity(ActivityProxyBase):
                 "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        databases.set_dirty(self["database"])
+        Database.set_dirty(self["database"])
+        db = Database(self["database"])
 
         for key, value in dict_as_activitydataset(self._data).items():
             if key != "id":
@@ -283,10 +288,12 @@ class Activity(ActivityProxyBase):
         if self.get("location") and self["location"] not in geomapping:
             geomapping.add([self["location"]])
 
-        if databases[self["database"]].get("searchable", True):
-            IndexManager(Database(self["database"]).filename).update_dataset(self._data)
+        if db.searchable:
+            IndexManager(db.filename).update_dataset(self._data)
 
     def _change_code(self, new_code):
+        from . import Database, sqlite3_lci_db
+
         if self["code"] == new_code:
             return
 
@@ -302,7 +309,7 @@ class Activity(ActivityProxyBase):
                 "Activity database with code `{}` already exists".format(new_code)
             )
 
-        with sqlite3_lci_db.atomic() as txn:
+        with sqlite3_lci_db.atomic():
             ActivityDataset.update(code=new_code).where(
                 ActivityDataset.database == self["database"],
                 ActivityDataset.code == self["code"],
@@ -316,42 +323,45 @@ class Activity(ActivityProxyBase):
                 ExchangeDataset.input_code == self["code"],
             ).execute()
 
-        if databases[self["database"]].get("searchable"):
-            from .. import Database
-
-            IndexManager(Database(self["database"]).filename).delete_dataset(self)
+        db = Database(self["database"])
+        if db.searchable:
+            IndexManager(db.filename).delete_dataset(self)
             self._data["code"] = new_code
-            IndexManager(Database(self["database"]).filename).add_datasets([self])
+            IndexManager(db.filename).add_datasets([self])
         else:
             self._data["code"] = new_code
 
     def _change_database(self, new_database):
-        if self["database"] == new_database:
+        from . import Database, sqlite3_lci_db
+
+        old_database = self["database"]
+
+        if old_database == new_database:
             return
 
-        if new_database not in databases:
-            raise ValueError("Database {} does not exist".format(new_database))
+        if not Database.exists(new_database):
+            raise ValueError(f"Database {new_database} does not exist")
 
-        with sqlite3_lci_db.atomic() as txn:
+        with sqlite3_lci_db.atomic():
             ActivityDataset.update(database=new_database).where(
-                ActivityDataset.database == self["database"],
+                ActivityDataset.database == old_database,
                 ActivityDataset.code == self["code"],
             ).execute()
             ExchangeDataset.update(output_database=new_database).where(
-                ExchangeDataset.output_database == self["database"],
+                ExchangeDataset.output_database == old_database,
                 ExchangeDataset.output_code == self["code"],
             ).execute()
             ExchangeDataset.update(input_database=new_database).where(
-                ExchangeDataset.input_database == self["database"],
+                ExchangeDataset.input_database == old_database,
                 ExchangeDataset.input_code == self["code"],
             ).execute()
 
-        if databases[self["database"]].get("searchable"):
-            from .. import Database
+        db = Database(old_database)
 
-            IndexManager(Database(self["database"]).filename).delete_dataset(self)
+        if db.searchable:
+            IndexManager(db.filename).delete_dataset(self)
             self._data["database"] = new_database
-            IndexManager(Database(self["database"]).filename).add_datasets([self])
+            IndexManager(db.filename).add_datasets([self])
         else:
             self._data["database"] = new_database
 
@@ -395,11 +405,19 @@ class Activity(ActivityProxyBase):
         candidates = list(self.production())
         if len(candidates) == 1:
             return candidates[0]
-        candidates2 = [exc for exc in candidates if exc.input._data.get('name') == self._data.get('reference product')]
+        candidates2 = [
+            exc
+            for exc in candidates
+            if exc.input["name"] == self._data.get("reference product")
+        ]
         if len(candidates2) == 1:
             return candidates2[0]
         else:
-            raise ValueError("Can't find a single reference product exchange (found {} candidates)".format(len(candidates)))
+            raise ValueError(
+                "Can't find a single reference product exchange (found {} candidates)".format(
+                    len(candidates)
+                )
+            )
 
     def producers(self):
         return self.production()
@@ -427,7 +445,6 @@ class Activity(ActivityProxyBase):
             exc[key] = kwargs[key]
         return exc
 
-    @writable_project
     def copy(self, code=None, **kwargs):
         """Copy the activity. Returns a new `Activity`.
 
@@ -468,6 +485,7 @@ class Exchange(ExchangeProxyBase):
         else:
             self._document = document
             self._data = self._document.data
+            self._data["type"] = self._document.type
             self._data["input"] = (
                 self._document.input_database,
                 self._document.input_code,
@@ -477,27 +495,28 @@ class Exchange(ExchangeProxyBase):
                 self._document.output_code,
             )
 
-    @writable_project
     def save(self):
+        from . import Database
+
         if not self.valid():
             raise ValidityError(
                 "This exchange can't be saved for the "
                 "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
             )
 
-        databases.set_dirty(self["output"][0])
+        Database.set_dirty(self["output"][0])
 
         for key, value in dict_as_exchangedataset(self._data).items():
             setattr(self._document, key, value)
         self._document.save()
 
-    @writable_project
     def delete(self):
         from ..parameters import ParameterizedExchange
+        from . import Database
 
         ParameterizedExchange.delete().where(
             ParameterizedExchange.exchange == self._document.id
         ).execute()
         self._document.delete_instance()
-        databases.set_dirty(self["output"][0])
+        Database.set_dirty(self["output"][0])
         self = None
