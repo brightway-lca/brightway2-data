@@ -162,14 +162,14 @@ Subclasses should also override ``add_mappings``. This method takes the entire d
     dtype_fields = None
     # Numpy columns names can't be unicode
     base_uncertainty_fields = [
-        (numpy_string('uncertainty_type'), np.uint8),
-        (numpy_string('amount'), np.float32),
-        (numpy_string('loc'), np.float32),
-        (numpy_string('scale'), np.float32),
-        (numpy_string('shape'), np.float32),
-        (numpy_string('minimum'), np.float32),
-        (numpy_string('maximum'), np.float32),
-        (numpy_string('negative'), np.bool),
+        (numpy_string('uncertainty_type'), int),
+        (numpy_string('amount'), float),
+        (numpy_string('loc'), float),
+        (numpy_string('scale'), float),
+        (numpy_string('shape'), float),
+        (numpy_string('minimum'), float),
+        (numpy_string('maximum'), float),
+        (numpy_string('negative'), bool),
     ]
 
     @property

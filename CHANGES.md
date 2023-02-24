@@ -1,6 +1,12 @@
 # Changelog
 
-### 3.6.5 (2023-05-23)
+### 3.6.6 (2023-02-08)
+
+* Fix `numpy.bool` error (and other depreciated numpy types) by replacing with corresponding native types
+* Fix tests
+* Fix azure pipelines
+
+### 3.6.5 (2022-05-23)
 
 * Add ``Activity.rp_exchange`` for easier access to reference product exchange
 * ``Activity['foo']`` will now also lookup reference product classifications and properties
