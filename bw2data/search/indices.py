@@ -25,12 +25,16 @@ class IndexManager:
         return index.create_in(self.path, bw2_schema)
 
     def _format_dataset(self, ds):
-        def fix_location(string):
-            string = string.strip()
-            if string.lower() == "none" or not string:
-                return ""
+        def _fix_location(string):
+            if isinstance(string, tuple):
+                string = string[1]
+            if isinstance(string, str):
+                if string.lower() == "none":
+                    return ""
+                else:
+                    return string.lower().strip()
             else:
-                return string
+                return ""
 
         return dict(
 
@@ -39,7 +43,7 @@ class IndexManager:
             product=(ds.get("reference product") or "").lower(),
             categories=", ".join(ds.get("categories") or []).lower(),
             synonyms=", ".join(ds.get("synonyms") or []).lower(),
-            location=fix_location(ds.get("location")),
+            location=_fix_location(ds.get("location") or ""),
             database=ds["database"],
             code=ds["code"],
         )
