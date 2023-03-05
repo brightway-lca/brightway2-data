@@ -33,6 +33,8 @@ class IndexManager:
                     return ""
                 else:
                     return string.lower().strip()
+            else:
+                return ""
 
         return dict(
             name=(ds.get("name") or "").lower(),
