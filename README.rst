@@ -1,7 +1,13 @@
 Brightway2 data management
 ==========================
 
+.. image:: https://img.shields.io/pypi/v/bw2data.svg
+   :target: https://pypi.org/project/bw2data/
+   :alt: pypi version
 
+.. image:: https://img.shields.io/conda/vn/conda-forge/bw2data.svg
+   :target: https://anaconda.org/conda-forge/bw2data
+   :alt: conda-forge version
 
 .. image:: https://dev.azure.com/mutel/Brightway%20CI/_apis/build/status/brightway-lca.brightway2-data?branchName=bw2legacy
    :target: https://dev.azure.com/mutel/Brightway%20CI/_build?definitionId=8&_a=summary&repositoryFilter=2&branchFilter=114
