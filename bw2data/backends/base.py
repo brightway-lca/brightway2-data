@@ -482,6 +482,8 @@ class SQLiteBackend(ProcessedDataStore):
             if exchanges:
                 ExchangeDataset.insert_many(exchanges).execute()
             sqlite3_lci_db.db.commit()
+            if len(self) > 500:
+                sqlite3_lci_db.vacuum()
         except:
             sqlite3_lci_db.db.rollback()
             raise
@@ -624,8 +626,6 @@ class SQLiteBackend(ProcessedDataStore):
             """
             warnings.warn(MESSAGE.format(self.name), UserWarning)
 
-        vacuum_needed = len(self) > 500
-
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
         ExchangeDataset.delete().where(
             ExchangeDataset.output_database == self.name
@@ -656,9 +656,6 @@ class SQLiteBackend(ProcessedDataStore):
             DatabaseParameter.delete().where(
                 DatabaseParameter.database == self.name
             ).execute()
-
-        if vacuum_needed:
-            sqlite3_lci_db.vacuum()
 
     def exchange_data_iterator(self, sql, dependents, flip=False):
         """Iterate over exchanges and format for ``bw_processing`` arrays.
