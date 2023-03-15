@@ -1,10 +1,10 @@
 # Changelog
 
-### 3.6.6 (2023-02-08)
+### 3.6.6 (2023-02-24)
 
-* Fix `numpy.bool` error (and other depreciated numpy types) by replacing with corresponding native types
-* Fix tests
-* Fix azure pipelines
+* [#129](https://github.com/brightway-lca/brightway2-data/pull/123): Fix errors in parameter tests
+* [#129](https://github.com/brightway-lca/brightway2-data/pull/123): Update Azure pipelines machines
+* [#129](https://github.com/brightway-lca/brightway2-data/pull/123): Compatibility with `numpy` 1.24
 
 ### 3.6.5 (2022-05-23)
 
