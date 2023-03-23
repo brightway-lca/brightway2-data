@@ -214,6 +214,10 @@ class SQLiteBackend(LCIBackend):
             if exchanges:
                 ExchangeDataset.insert_many(exchanges).execute()
             sqlite3_lci_db.db.commit()
+            if len(self) > 500:
+                sqlite3_lci_db.vacuum()
+
+
         except:
             sqlite3_lci_db.db.rollback()
             raise
@@ -327,8 +331,6 @@ class SQLiteBackend(LCIBackend):
             """
             warnings.warn(MESSAGE.format(self.name), UserWarning)
 
-        vacuum_needed = len(self) > 500
-
         ActivityDataset.delete().where(ActivityDataset.database== self.name).execute()
         ExchangeDataset.delete().where(ExchangeDataset.output_database== self.name).execute()
         IndexManager(self.filename).delete_database()
@@ -344,9 +346,6 @@ class SQLiteBackend(LCIBackend):
                 ParameterizedExchange.group << groups).execute()
             ActivityParameter.delete().where(ActivityParameter.database == self.name).execute()
             DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
-
-        if vacuum_needed:
-            sqlite3_lci_db.vacuum()
 
     def process(self):
         """
