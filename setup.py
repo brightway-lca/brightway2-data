@@ -31,7 +31,6 @@ setup(
         "appdirs",
         "bw2parameters",
         "bw_processing",
-        "docopt",
         "fasteners",
         "lxml",
         "numpy",
@@ -50,11 +49,6 @@ setup(
     long_description=open('README.rst').read(),
     description=('Tools for the management of inventory databases '
                  'and impact assessment methods. Part of the Brightway2 LCA Framework'),
-    entry_points = {
-        'console_scripts': [
-            'bw2-uptodate = bw2data.bin.bw2_uptodate:main',
-        ]
-    },
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: End Users/Desktop',

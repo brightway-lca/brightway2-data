@@ -4,7 +4,8 @@
 
 * `new_node` no longer requires a code argument
 * `repr(database)` returns something useful
-* Remove fasteners and write locks
+* Remove `fasteners` and write locks
+* Remove `docopt` and `bw2-uptodate.py`
 
 ## 4.0.DEV18 (2022-08-19)
 

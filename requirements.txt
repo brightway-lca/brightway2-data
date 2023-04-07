@@ -1,7 +1,6 @@
 appdirs
 bw2parameters
 bw_processing
-docopt
 fasteners
 lxml
 numpy
