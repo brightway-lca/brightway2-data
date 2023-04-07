@@ -5,10 +5,10 @@ import warnings
 from collections.abc import Iterable
 from pathlib import Path
 
-import appdirs
-import wrapt
 from bw_processing import safe_filename
 from peewee import BooleanField, DoesNotExist, Model, TextField, SQL
+from platformdirs import PlatformDirs
+import wrapt
 
 from . import config
 from .filesystem import create_dir
@@ -145,9 +145,9 @@ class ProjectManager(Iterable):
                 create_dir(logs_dir)
                 return envvar, logs_dir
 
-        LABEL = "Brightway3"
-        data_dir = Path(appdirs.user_data_dir(LABEL, "pylca"))
-        logs_dir = Path(appdirs.user_log_dir(LABEL, "pylca"))
+        dirs = PlatformDirs("Brightway3", "pylca")
+        data_dir = Path(dirs.user_data_dir)
+        logs_dir = Path(dirs.user_log_dir)
         return data_dir, logs_dir
 
     def _create_base_directories(self):
