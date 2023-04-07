@@ -6,7 +6,6 @@ fasteners
 lxml
 numpy
 peewee>=3
-psutil
 pyprind
 pytest
 pytest-cov

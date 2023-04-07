@@ -39,6 +39,13 @@ from .utils import (
     retupleize_geo_strings,
 )
 
+try:
+    import psutil
+    monitor = True
+except ImportError:
+    monitor = False
+
+
 _VALID_KEYS = {"location", "name", "product", "type"}
 
 
@@ -454,7 +461,7 @@ class SQLiteBackend(ProcessedDataStore):
                 self.pbar = pyprind.ProgBar(
                     len(data),
                     title="Writing activities to SQLite3 database:",
-                    monitor=True,
+                    monitor=monitor,
                 )
 
             for index, (key, ds) in enumerate(data.items()):
