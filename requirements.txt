@@ -1,10 +1,10 @@
-appdirs
 bw2parameters
 bw_processing
 fasteners
 lxml
 numpy
 peewee>=3.9.4
+platformdirs
 pyprind
 requests>=1.1.0
 scipy

@@ -6,6 +6,8 @@
 * `repr(database)` returns something useful
 * Remove `fasteners` and write locks
 * Remove `docopt` and `bw2-uptodate.py`
+* Substitute `platformdirs` for `appdirs`
+* Remove `psutil` dependency
 
 ## 4.0.DEV18 (2022-08-19)
 
