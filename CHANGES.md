@@ -1,5 +1,9 @@
 # data Changelog
 
+## DEV
+
+* Remove fasteners and write locks
+
 ## 4.0.DEV18 (2022-08-19)
 
 * Add `Exchanges.to_dataframe`
