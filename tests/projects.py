@@ -239,7 +239,6 @@ def test_set_project_writable_even_if_writable_false():
 def test_set_readonly_project():
     projects.set_current("foo")
     assert not projects.read_only
-    config.p["lockable"] = True
     projects.set_current("foo", writable=False)
     assert projects.read_only
 
@@ -247,7 +246,7 @@ def test_set_readonly_project():
 @bw2test
 def test_set_readonly_project_first_time():
     projects.set_current("foo", writable=False)
-    assert not projects.read_only
+    assert projects.read_only
 
 
 @bw2test
@@ -290,29 +289,6 @@ def test_iterating_over_projects_no_error():
     projects.set_current("baz")
     for x in projects:
         projects.set_current(x.name)
-
-
-###
-### Read-only constraints
-###
-
-
-@bw2test
-def test_create_lock_file():
-    projects.set_current("foo")
-    config.p["lockable"] = True
-    projects.set_current("foo", writable=False)
-    assert not os.path.isfile(os.path.join(projects.dir, "write-lock"))
-    projects.set_current("bar")
-    assert not os.path.isfile(os.path.join(projects.dir, "write-lock"))
-    config.p["lockable"] = True
-    projects.set_current("bar")
-    assert os.path.isfile(os.path.join(projects.dir, "write-lock"))
-
-
-@bw2test
-def test_lockable_config_missing():
-    assert "lockable" not in config.p
 
 
 ###

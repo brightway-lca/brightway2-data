@@ -4,12 +4,10 @@ import tempfile
 import warnings
 from collections.abc import Iterable
 from pathlib import Path
-from threading import ThreadError
 
 import appdirs
 import wrapt
 from bw_processing import safe_filename
-from fasteners import InterProcessLock
 from peewee import BooleanField, DoesNotExist, Model, TextField, SQL
 
 from . import config
@@ -30,7 +28,7 @@ This project is being used by another process and no writes can be made until:
 
 
 def lockable():
-    return hasattr(config, "p") and config.p.get("lockable")
+    return False
 
 
 class ProjectDataset(Model):
@@ -165,11 +163,6 @@ class ProjectManager(Iterable):
         return bool(self.dataset.data.get("25"))
 
     def set_current(self, name, writable=True, update=True):
-        if not self.read_only and lockable() and hasattr(self, "_lock"):
-            try:
-                self._lock.release()
-            except (RuntimeError, ThreadError):
-                pass
         self._project_name = str(name)
 
         # Need to allow writes when creating a new project
@@ -179,14 +172,7 @@ class ProjectManager(Iterable):
         self._reset_meta()
         self._reset_sqlite3_databases()
 
-        if not lockable():
-            pass
-        elif writable:
-            self._lock = InterProcessLock(self.dir / "write-lock")
-            self.read_only = not self._lock.acquire(timeout=0.05)
-            if self.read_only:
-                warnings.warn(READ_ONLY_PROJECT)
-        else:
+        if not writable:
             self.read_only = True
 
         if not self.read_only and update:
@@ -268,7 +254,7 @@ class ProjectManager(Iterable):
         ProjectDataset.create(
             data=project_data, name=new_name, full_hash=self.dataset.full_hash
         )
-        shutil.copytree(self.dir, fp, ignore=lambda x, y: ["write-lock"])
+        shutil.copytree(self.dir, fp)
         create_dir(self._base_logs_dir / safe_filename(new_name))
         if switch:
             self.set_current(new_name)
