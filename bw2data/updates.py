@@ -24,6 +24,13 @@ from . import (
 )
 from .backends import sqlite3_lci_db
 
+try:
+    import psutil
+    monitor = True
+except ImportError:
+    monitor = False
+
+
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
 
@@ -247,7 +254,7 @@ class Updates:
                 print("Updating all %s" % name)
 
                 pbar = pyprind.ProgBar(
-                    len(meta), title="Brightway2 {} objects:".format(name), monitor=True
+                    len(meta), title="Brightway2 {} objects:".format(name), monitor=monitor
                 )
 
                 for index, key in enumerate(meta):
