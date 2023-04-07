@@ -27,7 +27,7 @@ from .backends import sqlite3_lci_db
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
 
-UPTODATE_WARNING = "\n\nYour data needs to be updated. Please run the following program on the command line:\n\n\tbw2-uptodate\n"
+UPDATE_WARNING = "\n\nYour data needs to be updated.\n\n"
 
 UPDATE_ACTIVITYDATASET = """
 BEGIN;
@@ -145,7 +145,7 @@ class Updates:
             ]
         )
         if updates and verbose:
-            warnings.warn(UPTODATE_WARNING)
+            warnings.warn(UPDATE_WARNING)
         return updates
 
     @classmethod
