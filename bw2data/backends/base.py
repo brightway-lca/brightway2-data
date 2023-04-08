@@ -202,6 +202,9 @@ class LCIBackend(ProcessedDataStore):
         """
         raise NotImplementedError
 
+    def search(self, *args, **kwargs):
+        raise NotImplementedError
+
     def process(self, *args, **kwargs):
         """
 Process inventory documents.
