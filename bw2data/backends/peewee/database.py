@@ -336,7 +336,7 @@ class SQLiteBackend(LCIBackend):
         IndexManager(self.filename).delete_database()
 
         if not keep_params:
-            from ...parameters import DatabaseParameter, ActivityParameter, ParameterizedExchange
+            from ...parameters import DatabaseParameter, ActivityParameter, ParameterizedExchange, Group
             groups = tuple({
                 o[0] for o in ActivityParameter.select(
                 ActivityParameter.group).where(
@@ -346,6 +346,7 @@ class SQLiteBackend(LCIBackend):
                 ParameterizedExchange.group << groups).execute()
             ActivityParameter.delete().where(ActivityParameter.database == self.name).execute()
             DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
+            Group.delete().where(Group.name << groups).execute()
 
     def process(self):
         """
