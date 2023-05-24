@@ -1,7 +1,6 @@
 bw2io
 bw2parameters
 bw_processing
-fasteners
 lxml
 numpy
 peewee>=3
