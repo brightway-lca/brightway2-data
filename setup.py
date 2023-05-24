@@ -30,7 +30,6 @@ setup(
     install_requires=[
         "bw2parameters",
         "bw_processing",
-        "fasteners",
         "lxml",
         "numpy",
         "peewee>=3.9.4",
