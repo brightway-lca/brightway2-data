@@ -158,25 +158,25 @@ class IOTableExchanges(Iterable):
             resources = [
                 resource
                 for resource in resources
-                if resource["data"]["matrix"] == "technosphere_matrix"
+                if resource["data"].get("matrix") == "technosphere_matrix"
             ]
         elif not (technosphere or production):
             resources = [
                 resource
                 for resource in resources
-                if resource["data"]["matrix"] == "biosphere_matrix"
+                if resource["data"].get("matrix") == "biosphere_matrix"
             ]
         else:
             resources = [
                 resource
                 for resource in resources
-                if resource["data"]["matrix"]
+                if resource["data"].get("matrix")
                 in ("biosphere_matrix", "technosphere_matrix")
             ]
 
         if technosphere != production:
             for resource in resources:
-                if resource["data"]["matrix"] != "technosphere_matrix":
+                if resource["data"].get("matrix") != "technosphere_matrix":
                     continue
                 elif technosphere:
                     self._mask_resource_arrays(resource, ~resource["flip"]["positive"])
