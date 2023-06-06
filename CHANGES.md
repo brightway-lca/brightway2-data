@@ -1,6 +1,6 @@
 # data Changelog
 
-## DEV
+## 4.0.DEV19 (2023-06-06)
 
 * `new_node` no longer requires a code argument
 * `repr(database)` returns something useful
