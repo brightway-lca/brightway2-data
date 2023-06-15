@@ -5,6 +5,33 @@ from bw2data.tests import bw2test
 
 
 @bw2test
+def test_search_single_char():
+    """Check we can disambiguate between "system 1", "system 2" and "system 3" """
+    im = IndexManager("foo")
+    for i in [1, 2, 3]:
+        im.add_dataset(
+            {
+                "database": "foo",
+                "code": "bar",
+                "name": "Milk organic system %s" % i,
+            }
+        )
+    with Searcher("foo") as s:
+        assert s.search("milk organic system 2", proxy=False) == [
+            {
+                "comment": "",
+                "product": "",
+                "name": "milk organic system 2",
+                "database": "foo",
+                "location": "",
+                "code": "bar",
+                "categories": "",
+                "synonyms": "",
+            }
+        ]
+
+
+@bw2test
 def test_search_dataset_containing_stop_word():
     im = IndexManager("foo")
     im.add_dataset(
