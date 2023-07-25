@@ -458,7 +458,7 @@ class SQLiteBackend(ProcessedDataStore):
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
-            self.delete(keep_params=True, warn=False)
+            self.delete_data(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
             for index, (key, ds) in enumerate(tqdm_wrapper(data.items(), getattr(config, "is_test"))):
@@ -471,6 +471,7 @@ class SQLiteBackend(ProcessedDataStore):
             if exchanges:
                 ExchangeDataset.insert_many(exchanges).execute()
             sqlite3_lci_db.db.commit()
+            sqlite3_lci_db.vacuum()
         except:
             sqlite3_lci_db.db.rollback()
             raise
@@ -613,7 +614,7 @@ class SQLiteBackend(ProcessedDataStore):
             """
             warnings.warn(MESSAGE.format(self.name), UserWarning)
 
-        vacuum_needed = len(self) > 500
+        vacuum_needed = len(self) > 500 and vacuum
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
         ExchangeDataset.delete().where(
