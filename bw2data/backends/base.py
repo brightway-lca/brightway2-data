@@ -514,7 +514,7 @@ class Database(Model):
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
-            self.delete_data(keep_params=True, warn=False)
+            self.delete_data(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
             if not getattr(config, "is_test", None):
@@ -538,6 +538,7 @@ class Database(Model):
             if exchanges:
                 ExchangeDataset.insert_many(exchanges).execute()
             sqlite3_lci_db.db.commit()
+            sqlite3_lci_db.vacuum()
         except:
             sqlite3_lci_db.db.rollback()
             raise
@@ -770,11 +771,11 @@ class Database(Model):
         self.delete_data()
         super().delete_instance()
 
-    def delete_data(self, keep_params=False, warn=True):
+    def delete_data(self, keep_params=False, warn=True, vacuum=True):
         """Delete all data from SQLite database and Whoosh index"""
         from . import sqlite3_lci_db
 
-        vacuum_needed = len(self) > 500
+        vacuum_needed = len(self) > 500 and vacuum
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
         ExchangeDataset.delete().where(
