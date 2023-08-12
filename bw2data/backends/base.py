@@ -39,12 +39,6 @@ from .utils import (
     retupleize_geo_strings,
 )
 
-try:
-    import psutil
-    monitor = True
-except ImportError:
-    monitor = False
-
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
