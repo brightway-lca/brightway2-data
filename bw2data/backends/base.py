@@ -10,7 +10,7 @@ from collections import defaultdict
 from typing import Callable, List, Optional
 
 import pandas
-import pyprind
+from tqdm import tqdm
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
@@ -47,6 +47,13 @@ except ImportError:
 
 
 _VALID_KEYS = {"location", "name", "product", "type"}
+
+
+def tqdm_wrapper(iterable, is_test):
+    if is_test:
+        return iterable
+    else:
+        return tqdm(iterable)
 
 
 class SQLiteBackend(ProcessedDataStore):
@@ -442,9 +449,6 @@ class SQLiteBackend(ProcessedDataStore):
             ActivityDataset.insert_many(activities).execute()
             activities = []
 
-        if not getattr(config, "is_test", None):
-            self.pbar.update()
-
         return exchanges, activities
 
     def _efficient_write_many_data(self, data, indices=True):
@@ -457,21 +461,10 @@ class SQLiteBackend(ProcessedDataStore):
             self.delete(keep_params=True, warn=False)
             exchanges, activities = [], []
 
-            if not getattr(config, "is_test", None):
-                self.pbar = pyprind.ProgBar(
-                    len(data),
-                    title="Writing activities to SQLite3 database:",
-                    monitor=monitor,
-                )
-
-            for index, (key, ds) in enumerate(data.items()):
+            for index, (key, ds) in enumerate(tqdm_wrapper(data.items(), getattr(config, "is_test"))):
                 exchanges, activities = self._efficient_write_dataset(
                     index, key, ds, exchanges, activities
                 )
-
-            if not getattr(config, "is_test", None):
-                print(self.pbar)
-                del self.pbar
 
             if activities:
                 ActivityDataset.insert_many(activities).execute()

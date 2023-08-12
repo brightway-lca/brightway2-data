@@ -5,7 +5,6 @@ lxml
 numpy
 peewee>=3
 platformdirs
-pyprind
 pytest
 pytest-cov
 python-coveralls

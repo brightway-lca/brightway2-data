@@ -7,8 +7,8 @@ import warnings
 from pathlib import Path
 
 import numpy as np
-import pyprind
 from bw_processing import safe_filename
+from tqdm import tqdm
 
 from . import (
     Database,
@@ -23,12 +23,6 @@ from . import (
     weightings,
 )
 from .backends import sqlite3_lci_db
-
-try:
-    import psutil
-    monitor = True
-except ImportError:
-    monitor = False
 
 
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
@@ -253,15 +247,8 @@ class Updates:
             if meta.list:
                 print("Updating all %s" % name)
 
-                pbar = pyprind.ProgBar(
-                    len(meta), title="Brightway2 {} objects:".format(name), monitor=monitor
-                )
-
-                for index, key in enumerate(meta):
+                for index, key in tqdm(enumerate(meta)):
                     obj = klass(key)
                     obj.process()
                     # Free memory
                     obj = None
-
-                    pbar.update()
-                print(pbar)

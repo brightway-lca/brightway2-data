@@ -1,5 +1,9 @@
 # data Changelog
 
+## 4.0.DEV21 (2023-XX-XX)
+
+* #140: Search for single characters
+
 ## 4.0.DEV20 (2023-07-25)
 
 * Remove `fasteners` and write locks
