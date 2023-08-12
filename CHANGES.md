@@ -3,6 +3,7 @@
 ## 4.0.DEV21 (2023-XX-XX)
 
 * #140: Search for single characters
+* Purge `pyprind` and `psutil`
 
 ## 4.0.DEV20 (2023-07-25)
 
