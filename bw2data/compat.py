@@ -1,9 +1,10 @@
+import warnings
+
 from . import (
     Database,
     Method,
     Normalization,
     Weighting,
-    databases,
     methods,
     normalizations,
     projects,
@@ -39,6 +40,68 @@ class Mapping:
 
     def __len__(self):
         return AD.select().count()
+
+
+class _Databases:
+    def clean(self):
+        warnings.warn(
+            "Use `Database.clean_all()` instead of `databases.clean()`",
+            DeprecationWarning,
+        )
+        Database.clean_all()
+
+    def set_dirty(self, name):
+        warnings.warn(
+            "Use `Database.set_dirty(name)` instead of `databases.set_dirty(name)`",
+            DeprecationWarning,
+        )
+        Database.set_dirty(name)
+
+    def __getitem__(self, name):
+        warnings.warn(
+            "Use `Database` attributes directly instead of `databases[name]`",
+            DeprecationWarning,
+        )
+        return Database.get(Database.name == name).metadata
+
+    def __contains__(self, name):
+        warnings.warn(
+            "Use `Database.exists(name)` instead of `name in databases`",
+            DeprecationWarning,
+        )
+        return Database.exists(name)
+
+    def __len__(self):
+        warnings.warn(
+            "Use `Database.select().count()` instead of `len(databases)`",
+            DeprecationWarning,
+        )
+        return len(Database)
+
+    def __delitem__(self, name):
+        warnings.warn(
+            "Use `Database(name).delete()` instead of `del databases[name]`",
+            DeprecationWarning,
+        )
+        Database.get(Database.name == name).delete_instance()
+
+    def __iter__(self):
+        return (obj.name for obj in Database.select())
+
+    def flush(self):
+        warnings.warn(
+            "`databases.flush()` doesn't do anything. Modify `Database` attributes and call `.save()` instead.",
+            DeprecationWarning,
+        )
+
+    def __setitem__(self, *args, **kwargs):
+        warnings.warn(
+            "`databases[foo] = something` doesn't do anything. Modify `Database` attributes and call `.save()` instead.",
+            DeprecationWarning,
+        )
+
+
+databases = _Databases()
 
 
 def unpack(dct):

@@ -3,9 +3,8 @@ import warnings
 
 import numpy as np
 
-from .. import config
 from ..errors import InvalidExchange, UntypedExchange
-from ..meta import databases, methods
+from ..meta import methods
 from ..method import Method
 from .schema import get_id
 
@@ -17,69 +16,40 @@ def get_csv_data_dict(ds):
     return dd
 
 
-def convert_backend(database_name, backend):
-    """Convert a Database to another backend.
-
-    bw2data currently supports the `default` and `json` backends.
-
-    Args:
-        * `database_name` (unicode): Name of database.
-        * `backend` (unicode): Type of database. `backend` should be recoginized by `DatabaseChooser`.
-
-    Returns `False` if the old and new backend are the same. Otherwise returns an instance of the new Database object."""
-    if database_name not in databases:
-        print("Can't find database {}".format(database_name))
-
-    from ..database import Database
-
-    db = Database(database_name)
-    if db.backend == backend:
-        return False
-    # Needed to convert from async json dict
-    data = db.load(as_dict=True)
-    if database_name in config.cache:
-        del config.cache[database_name]
-    metadata = copy.deepcopy(db.metadata)
-    metadata["backend"] = str(backend)
-    del databases[database_name]
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        new_db = Database(database_name, backend)
-        new_db.register(**metadata)
-    new_db.write(data)
-    return new_db
-
-
-def check_exchange(exc):
+def check_exchange_amount(exc):
     """Check exchange data validity when processing"""
-    if "type" not in exc:
-        raise UntypedExchange
-    if "amount" not in exc or "input" not in exc:
+    if "amount" not in exc:
         raise InvalidExchange
     if np.isnan(exc["amount"]) or np.isinf(exc["amount"]):
         raise ValueError("Invalid amount in exchange {}".format(exc))
 
 
 def dict_as_activitydataset(ds):
+    ds = copy.copy(ds)
     return {
         "data": ds,
-        "database": ds["database"],
-        "code": ds["code"],
-        "location": ds.get("location"),
-        "name": ds.get("name"),
-        "product": ds.get("reference product"),
-        "type": ds.get("type", "process"),
+        "database": ds.pop("database"),
+        "code": ds.pop("code"),
+        "location": ds.pop("location", None),
+        "name": ds.pop("name", None),
+        "product": ds.pop("reference product", None),
+        "type": ds.pop("type", "process"),
     }
 
 
 def dict_as_exchangedataset(ds):
+    ds = copy.copy(ds)
+
+    input_ = ds.pop("input")
+    output_ = ds.pop("output")
+
     return {
         "data": ds,
-        "input_database": ds["input"][0],
-        "input_code": ds["input"][1],
-        "output_database": ds["output"][0],
-        "output_code": ds["output"][1],
-        "type": ds["type"],
+        "input_database": input_[0],
+        "input_code": input_[1],
+        "output_database": output_[0],
+        "output_code": output_[1],
+        "type": ds.pop("type"),
     }
 
 

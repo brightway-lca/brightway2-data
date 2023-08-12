@@ -162,7 +162,6 @@ class Preferences(PickledDict):
             self["use_cache"] = True
 
 
-databases = Databases()
 geomapping = GeoMapping()
 methods = Methods()
 normalizations = NormalizationMeta()

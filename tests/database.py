@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal, assert_series_equal
 
-from bw2data import geomapping, get_id, databases, Database, get_activity
+from bw2data import Database, databases, geomapping, get_activity, get_id
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import Database
@@ -52,7 +52,7 @@ def test_food(food):
 def test_get_code():
     d = Database("biosphere")
     d.write(biosphere)
-    activity = d.get("1")
+    activity = d.get_node("1")
     assert isinstance(activity, PWActivity)
     assert activity["name"] == "an emission"
     assert activity.id == 1
@@ -62,7 +62,7 @@ def test_get_code():
 def test_get_kwargs():
     d = Database("biosphere")
     d.write(biosphere)
-    activity = d.get(name="an emission")
+    activity = d.get_node(name="an emission")
     assert isinstance(activity, PWActivity)
     assert activity["name"] == "an emission"
     assert activity.id == 1
@@ -139,14 +139,6 @@ def test_deletes_from_database():
 
 
 @bw2test
-def test_delete_warning():
-    d = Database("biosphere")
-    d.write(biosphere)
-    with pytest.warns(UserWarning):
-        d.delete()
-
-
-@bw2test
 def test_relabel_data():
     old_data = {
         ("old and boring", "1"): {
@@ -173,13 +165,13 @@ def test_relabel_data():
 
 @bw2test
 def test_find_graph_dependents():
-    databases["one"] = {"depends": ["two", "three"]}
-    databases["two"] = {"depends": ["four", "five"]}
-    databases["three"] = {"depends": ["four"]}
-    databases["four"] = {"depends": ["six"]}
-    databases["five"] = {"depends": ["two"]}
-    databases["six"] = {"depends": []}
-    assert Database("one").find_graph_dependents() == {
+    Database(name="one", depends=["two", "three"]).save()
+    Database(name="two", depends=["four", "five"]).save()
+    Database(name="three", depends=["four"]).save()
+    Database(name="four", depends=["six"]).save()
+    Database(name="five", depends=["two"]).save()
+    Database(name="six", depends=[]).save()
+    assert Database.get(Database.name == "one").find_graph_dependents() == {
         "one",
         "two",
         "three",
@@ -253,9 +245,8 @@ def test_setup():
 
 @bw2test
 def test_rename():
-    d = Database("biosphere")
-    d.write(biosphere)
-    d = Database("food")
+    Database(name="biosphere").write(biosphere)
+    d = Database(name="food")
     d.write(copy.deepcopy(food_data))
     ndb = d.rename("buildings")
     ndb_data = ndb.load()
@@ -284,12 +275,12 @@ def test_exchange_save():
     }
     then = datetime.datetime.now().isoformat()
     database.write(data)
-    act = database.get("B")
+    act = database.get_node("B")
     exc = [x for x in act.production()][0]
     exc["amount"] = 2
     exc.save()
-    assert databases[database.name].get("dirty")
     assert database.metadata.get("dirty")
+    assert databases[database.name]["dirty"]
     assert database.metadata["modified"] > then
 
     exc = [x for x in act.production()][0]
@@ -312,7 +303,7 @@ def test_dirty_activities():
         },
     }
     database.write(data)
-    act = database.get("B")
+    act = database.get_node("B")
     exc = [x for x in act.production()][0]
     exc["amount"] = 2
     exc.save()
@@ -435,7 +426,6 @@ def test_processed_array():
         }
     )
     package = database.datapackage()
-    print(package.resources)
     array = package.get_resource("a_database_technosphere_matrix.data")[0]
 
     assert array.shape == (1,)
@@ -476,6 +466,7 @@ def test_processed_array_with_metadata():
     df = package.get_resource("a_database_activity_metadata")[0]
     if "Unnamed: 0" in df.columns:
         df.drop("Unnamed: 0", axis=1, inplace=True)
+
     expected = pd.DataFrame(
         [
             {
@@ -638,11 +629,22 @@ def test_new_node():
     act = database.new_node("foo", this="that", name="something")
     act.save()
 
-    act = database.get("foo")
+    act = database.get_node("foo")
     assert act["database"] == "a database"
     assert act["code"] == "foo"
     assert act["location"] == "GLO"
     assert act["this"] == "that"
+
+
+@bw2test
+def test_new_node_no_code():
+    database = Database("a database")
+    database.register()
+    act = database.new_node(this="that", name="something")
+    act.save()
+
+    act = database.get_node(this="that")
+    assert len(act['code']) == 32
 
 
 @bw2test
@@ -665,7 +667,7 @@ def test_new_activity():
     act = database.new_activity("foo", this="that", name="something")
     act.save()
 
-    act = database.get("foo")
+    act = database.get_node("foo")
     assert act["database"] == "a database"
     assert act["code"] == "foo"
     assert act["location"] == "GLO"
@@ -1069,6 +1071,7 @@ def test_nodes_to_dataframe_simple(df_fixture):
                 "id": get_id(("food", "2")),
                 "location": "CH",
                 "name": "dinner",
+                "reference product": None,
                 "type": "process",
                 "unit": "kg",
             },
@@ -1079,6 +1082,7 @@ def test_nodes_to_dataframe_simple(df_fixture):
                 "id": get_id(("food", "1")),
                 "location": "CA",
                 "name": "lunch",
+                "reference product": None,
                 "type": "process",
                 "unit": "kg",
             },
@@ -1114,4 +1118,4 @@ def test_nodes_to_dataframe_columns(df_fixture):
 
 def test_nodes_to_dataframe_unsorted(df_fixture):
     df = Database("food").nodes_to_dataframe()
-    assert df.shape == (2, 8)
+    assert df.shape == (2, 9)

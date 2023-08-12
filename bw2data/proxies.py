@@ -3,7 +3,6 @@ from numbers import Number
 
 from stats_arrays import uncertainty_choices
 
-from . import databases
 from .errors import InvalidExchange
 from .utils import get_activity
 
@@ -86,10 +85,12 @@ class ActivityProxyBase(ProxyBase):
         del self._data[key]
 
     def valid(self, why=False):
+        from . import Database
+
         errors = []
         if not self.get("database"):
             errors.append("Missing field ``database``")
-        elif self.get("database") not in databases:
+        elif not Database.exists(self.get("database")):
             errors.append("``database`` refers to unknown database")
         if not self.get("code"):
             errors.append("Missing field ``code``")
@@ -192,12 +193,14 @@ class ExchangeProxyBase(ProxyBase):
             self._data[key] = value
 
     def valid(self, why=False):
+        from . import Database
+
         errors = []
         if not self.get("input"):
             errors.append("Missing field ``input``")
         elif not isinstance(self["input"], tuple):
             errors.append("Field ``input`` must be a tuple")
-        elif self["input"][0] not in databases:
+        elif not Database.exists(self["input"][0]):
             errors.append(
                 "Input database ``{}`` doesn't exist".format(self["input"][0])
             )
@@ -206,7 +209,7 @@ class ExchangeProxyBase(ProxyBase):
             errors.append("Missing field ``output``")
         elif not isinstance(self["output"], tuple):
             errors.append("Field ``output`` must be a tuple")
-        elif self["output"][0] not in databases:
+        elif not Database.exists(self["output"][0]):
             errors.append(
                 "Output database ``{}`` doesn't exist".format(self["output"][0])
             )

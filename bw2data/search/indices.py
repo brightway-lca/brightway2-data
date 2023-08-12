@@ -37,7 +37,6 @@ class IndexManager:
                 return ""
 
         return dict(
-
             name=(ds.get("name") or "").lower(),
             comment=(ds.get("comment") or "").lower(),
             product=(ds.get("reference product") or "").lower(),

@@ -6,9 +6,9 @@ from warnings import warn
 import numpy as np
 from bw_processing import Datapackage
 
-from ...errors import InvalidDatapackage
-from ...utils import get_node
-from ..proxies import Activity, Exchange, Exchanges
+from ..errors import InvalidDatapackage
+from ..utils import get_node
+from .proxies import Activity, Exchange, Exchanges
 
 
 class ReadOnlyExchange(Mapping):
@@ -158,25 +158,25 @@ class IOTableExchanges(Iterable):
             resources = [
                 resource
                 for resource in resources
-                if resource["data"]["matrix"] == "technosphere_matrix"
+                if resource["data"].get("matrix") == "technosphere_matrix"
             ]
         elif not (technosphere or production):
             resources = [
                 resource
                 for resource in resources
-                if resource["data"]["matrix"] == "biosphere_matrix"
+                if resource["data"].get("matrix") == "biosphere_matrix"
             ]
         else:
             resources = [
                 resource
                 for resource in resources
-                if resource["data"]["matrix"]
+                if resource["data"].get("matrix")
                 in ("biosphere_matrix", "technosphere_matrix")
             ]
 
         if technosphere != production:
             for resource in resources:
-                if resource["data"]["matrix"] != "technosphere_matrix":
+                if resource["data"].get("matrix") != "technosphere_matrix":
                     continue
                 elif technosphere:
                     self._mask_resource_arrays(resource, ~resource["flip"]["positive"])
@@ -253,18 +253,13 @@ class IOTableActivity(Activity):
         # See super.__getitem__ code for details
         raise ValueError("Not defined for IO Table activities")
 
-    def _get_correct_db_backend(self):
-        from ...database import DatabaseChooser
+    def _get_db(self):
+        from . import Database
 
-        db = DatabaseChooser(self["database"])
-        if db.backend != "iotable":
-            raise ValueError(
-                "`IOTableActivity` must be used with IO Table backend activities"
-            )
-        return db
+        return Database.get(Database.name == self["database"])
 
     def technosphere(self) -> IOTableExchanges:
-        db = self._get_correct_db_backend()
+        db = self._get_db()
         return IOTableExchanges(
             technosphere=True,
             biosphere=False,
@@ -274,7 +269,7 @@ class IOTableActivity(Activity):
         )
 
     def biosphere(self):
-        db = self._get_correct_db_backend()
+        db = self._get_db()
         return IOTableExchanges(
             technosphere=False,
             biosphere=True,
@@ -284,7 +279,7 @@ class IOTableActivity(Activity):
         )
 
     def production(self):
-        db = self._get_correct_db_backend()
+        db = self._get_db()
         return IOTableExchanges(
             technosphere=False,
             biosphere=False,
@@ -295,7 +290,7 @@ class IOTableActivity(Activity):
 
     def exchanges(self):
         # Order is production, technosphere, biosphere
-        db = self._get_correct_db_backend()
+        db = self._get_db()
         return IOTableExchanges(
             technosphere=True,
             biosphere=True,

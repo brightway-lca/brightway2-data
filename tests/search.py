@@ -262,7 +262,7 @@ def test_copy_save_propogates_to_search_index():
     ds = {("foo", "bar"): {"database": "foo", "code": "bar", "name": "lollipop"}}
     db.write(ds)
     assert db.search("lollipop")
-    cp = db.get("bar").copy(code="baz")
+    cp = db.get_node("bar").copy(code="baz")
     cp["name"] = "candy"
     cp.save()
     assert db.search("candy")

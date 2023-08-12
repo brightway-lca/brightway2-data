@@ -1,9 +1,8 @@
-from bw2data import projects
+from bw2data import databases, projects
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import ActivityDataset
 from bw2data.backends import Exchange as PWExchange
 from bw2data.backends import ExchangeDataset
-from bw2data.backends.utils import convert_backend
 from bw2data.database import DatabaseChooser
 from bw2data.errors import (
     InvalidExchange,
@@ -12,7 +11,7 @@ from bw2data.errors import (
     UntypedExchange,
     ValidityError,
 )
-from bw2data.meta import databases, geomapping, methods
+from bw2data.meta import geomapping, methods
 from bw2data.tests import BW2DataTest
 
 
@@ -104,7 +103,7 @@ class DatabaseQuerysetTest(BW2DataTest):
 
     def test_get_ignores_filters(self):
         self.db.filters = {"product": "giggles"}
-        self.assertEqual(self.db.get("fourth")["name"], "d")
+        self.assertEqual(self.db.get_node("fourth")["name"], "d")
 
     def test_filter(self):
         self.db.filters = {"product": "widget"}
@@ -147,41 +146,3 @@ class DatabaseQuerysetTest(BW2DataTest):
         db = DatabaseChooser("mysterious")
         with self.assertRaises(UnknownObject):
             db.make_searchable()
-
-    def test_convert_same_backend(self):
-        database = DatabaseChooser("a database")
-        database.write(
-            {
-                ("a database", "foo"): {
-                    "exchanges": [
-                        {
-                            "input": ("a database", "foo"),
-                            "amount": 1,
-                            "type": "production",
-                        }
-                    ],
-                    "location": "bar",
-                    "name": "baz",
-                },
-            }
-        )
-        self.assertFalse(convert_backend("a database", "sqlite"))
-
-    def test_convert_backend(self):
-        self.maxDiff = None
-        database = DatabaseChooser("a database")
-        database.write(
-            {
-                ("a database", "foo"): {
-                    "exchanges": [
-                        {
-                            "input": ("a database", "foo"),
-                            "amount": 1,
-                            "type": "production",
-                        }
-                    ],
-                    "location": "bar",
-                    "name": "baz",
-                },
-            }
-        )

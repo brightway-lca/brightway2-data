@@ -1,22 +1,32 @@
 import copy
-import datetime
+import functools
 import itertools
+import os
 import pickle
 import pprint
 import random
 import sqlite3
+import uuid
 import warnings
 from collections import defaultdict
+from datetime import datetime
 from typing import Callable, List, Optional
 
 import pandas
 from tqdm import tqdm
-from bw_processing import clean_datapackage_name, create_datapackage
+import numpy as np
+import pandas as pd
+import pyprind
+from bw_processing import (
+    clean_datapackage_name,
+    create_datapackage,
+    load_datapackage,
+    safe_filename,
+)
 from fs.zipfs import ZipFS
-from peewee import DoesNotExist, fn
+from peewee import BooleanField, DoesNotExist, Model, TextField, fn
 
-from .. import config, databases, geomapping
-from ..data_store import ProcessedDataStore
+from .. import config, geomapping, projects
 from ..errors import (
     DuplicateNode,
     InvalidExchange,
@@ -24,15 +34,15 @@ from ..errors import (
     UntypedExchange,
     WrongDatabase,
 )
-from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_node, get_geocollection
-from . import sqlite3_lci_db
+from ..sqlite import JSONField
+from ..utils import as_uncertainty_dict, get_geocollection, get_node
+from .iotable import IOTableActivity, IOTableExchanges
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
 from .utils import (
-    check_exchange,
+    check_exchange_amount,
     dict_as_activitydataset,
     dict_as_exchangedataset,
     get_csv_data_dict,
@@ -105,16 +115,59 @@ class SQLiteBackend(ProcessedDataStore):
 
     """
 
-    _metadata = databases
-    validator = None
-    backend = "sqlite"
-    node_class = Activity
+    name = TextField(null=False, unique=True)
+    backend = TextField(null=False, default="sqlite")
+    depends = JSONField(null=False, default=[])
+    geocollections = JSONField(null=False, default=[])
+    dirty = BooleanField(default=True)
+    searchable = BooleanField(default=True)
+    extra = JSONField(null=False, default={})
 
-    def __init__(self, *args, **kwargs):
-        super(SQLiteBackend, self).__init__(*args, **kwargs)
+    validator = None
+
+    def __init__(self, name=None, *args, **kwargs):
+        super().__init__(name=name, *args, **kwargs)
+
+        if name and not args and not kwargs and Database.exists(name):
+            # We want to maintain compatibility with `Database(name)`
+            other = Database.get(Database.name == name)
+            for field in (
+                "id",
+                "backend",
+                "depends",
+                "geocollections",
+                "dirty",
+                "searchable",
+                "extra",
+            ):
+                setattr(self, field, getattr(other, field))
 
         self._filters = {}
         self._order_by = None
+
+    def __str__(self):
+        return "Brightway2 Database: {} ({})".format(self.name, self.backend)
+
+    __repr__ = lambda self: str(self)
+
+    def __lt__(self, other):
+        if not isinstance(other, Database):
+            raise TypeError
+        else:
+            return self.name < other.name
+
+    @property
+    def node_class(self):
+        CLASSES = {"sqlite": Activity, "iotable": IOTableActivity}
+        return CLASSES[self.backend]
+
+    @classmethod
+    def exists(cls, name):
+        return bool(cls.select().where(cls.name == name).count())
+
+    @classmethod
+    def set_dirty(cls, name):
+        cls.update(dirty=True).where(cls.name == name).execute()
 
     ### Generic LCI backend methods
     ###############################
@@ -128,7 +181,7 @@ class SQLiteBackend(ProcessedDataStore):
             * *name* (str): Name of the new database. Must not already exist.
 
         """
-        assert name not in databases, ValueError("This database exists")
+        assert not Database.exists(name), ValueError("This database exists")
         data = self.relabel_data(copy.deepcopy(self.load()), name)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -140,13 +193,28 @@ class SQLiteBackend(ProcessedDataStore):
         new_database.write(data)
         return new_database
 
+    def dirpath_processed(self):
+        return projects.dir / "processed"
+
     def filepath_intermediate(self):
+        warnings.warn("`filepath_intermediate` is deprecated", DeprecationWarning)
         raise NotImplementedError
 
-    def filepath_processed(self):
-        if self.metadata.get("dirty"):
+    @property
+    def filename(self):
+        """Remove filesystem-unsafe characters and perform unicode normalization on ``self.name`` using :func:`.filesystem.safe_filename`."""
+        return safe_filename(self.name)
+
+    def filename_processed(self):
+        return clean_datapackage_name(self.filename + ".zip")
+
+    def filepath_processed(self, clean=True):
+        if self.dirty and clean:
             self.process()
         return self.dirpath_processed() / self.filename_processed()
+
+    def datapackage(self):
+        return load_datapackage(ZipFS(self.filepath_processed()))
 
     def find_dependents(self, data=None, ignore=None):
         """Get sorted list of direct dependent databases (databases linked from exchanges).
@@ -184,7 +252,10 @@ class SQLiteBackend(ProcessedDataStore):
 
         def extend(seeds):
             return set.union(
-                seeds, set.union(*[set(databases[obj]["depends"]) for obj in seeds])
+                seeds,
+                set.union(
+                    *[set(Database.get(Database.name == obj).depends) for obj in seeds]
+                ),
             )
 
         seed, extended = {self.name}, extend({self.name})
@@ -195,26 +266,6 @@ class SQLiteBackend(ProcessedDataStore):
     def query(self, *queries):
         """Search through the database."""
         return Query(*queries)(self.load())
-
-    def register(self, write_empty=True, **kwargs):
-        """Register a database with the metadata store.
-
-        Databases must be registered before data can be written.
-
-        Writing data automatically sets the following metadata:
-            * *depends*: Names of the databases that this database references, e.g. "biosphere"
-            * *number*: Number of processes in this database.
-
-        Args:
-            * *format* (str, optional): Format that the database was converted from, e.g. "Ecospold"
-
-        """
-        if "depends" not in kwargs:
-            kwargs["depends"] = []
-        kwargs["backend"] = self.backend
-        super().register(**kwargs)
-        if write_empty:
-            self.write({})
 
     def relabel_data(self, data, new_name):
         """Relabel database keys and exchanges.
@@ -282,25 +333,32 @@ class SQLiteBackend(ProcessedDataStore):
         )
 
     def rename(self, name):
-        """Rename a database. Modifies exchanges to link to new name. Deregisters old database.
+        """Rename a database. Modifies exchanges to link to new name.
 
         Args:
             * *name* (str): New name.
 
         Returns:
-            New ``Database`` object.
+            self  # Backwards compatibility
 
         """
-        old_name = self.name
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            new_db = self.__class__(name)
-            databases[name] = databases[old_name]
-        new_data = self.relabel_data(self.load(), name)
-        new_db.write(new_data)
-        del databases[old_name]
-        self.name = name
-        return new_db
+        from . import sqlite3_lci_db
+
+        old_name, new_name = self.name, name
+        with sqlite3_lci_db.transaction():
+            ActivityDataset.update(database=new_name).where(
+                ActivityDataset.database == old_name
+            ).execute()
+            ExchangeDataset.update(input_database=new_name).where(
+                ExchangeDataset.input_database == old_name
+            ).execute()
+            ExchangeDataset.update(output_database=new_name).where(
+                ExchangeDataset.output_database == old_name
+            ).execute()
+        self.name = new_name
+        self.save()
+        self.process()
+        return self
 
     ### Iteration, filtering, and ordering
     ######################################
@@ -316,10 +374,6 @@ class SQLiteBackend(ProcessedDataStore):
 
     def __contains__(self, obj):
         return self._get_queryset(filters={"code": obj[1]}).count() > 0
-
-    @property
-    def _searchable(self):
-        return databases.get(self.name, {}).get("searchable", False)
 
     def _get_queryset(self, random=False, filters=True):
         qs = ActivityDataset.select().where(ActivityDataset.database == self.name)
@@ -375,7 +429,9 @@ class SQLiteBackend(ProcessedDataStore):
         """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
             if true_random:
-                return self.node_class(self._get_queryset(random=True, filters=filters).get())
+                return self.node_class(
+                    self._get_queryset(random=True, filters=filters).get()
+                )
             else:
                 return self.node_class(
                     self._get_queryset(filters=filters)
@@ -386,7 +442,7 @@ class SQLiteBackend(ProcessedDataStore):
             warnings.warn("This database is empty")
             return None
 
-    def get(self, code=None, **kwargs):
+    def get_node(self, code=None, **kwargs):
         kwargs["database"] = self.name
         if code is not None:
             kwargs["code"] = code
@@ -398,12 +454,16 @@ class SQLiteBackend(ProcessedDataStore):
     # Private methods
 
     def _drop_indices(self):
+        from . import sqlite3_lci_db
+
         with sqlite3_lci_db.transaction():
             sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "activitydataset_key"')
             sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_input"')
             sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_output"')
 
     def _add_indices(self):
+        from . import sqlite3_lci_db
+
         with sqlite3_lci_db.transaction():
             sqlite3_lci_db.execute_sql(
                 'CREATE UNIQUE INDEX IF NOT EXISTS "activitydataset_key" ON "activitydataset" ("database", "code")'
@@ -446,6 +506,8 @@ class SQLiteBackend(ProcessedDataStore):
         return exchanges, activities
 
     def _efficient_write_many_data(self, data, indices=True):
+        from . import sqlite3_lci_db
+
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
             self._drop_indices()
@@ -476,7 +538,6 @@ class SQLiteBackend(ProcessedDataStore):
 
     # Public API
 
-    @writable_project
     def write(self, data, process=True):
         """Write ``data`` to database.
 
@@ -487,8 +548,9 @@ class SQLiteBackend(ProcessedDataStore):
             }
 
         Writing a database will first deletes all existing data."""
-        if self.name not in databases:
-            self.register(write_empty=False)
+        if self.backend == "iotable":
+            process = False
+
         wrong_database = {key[0] for key in data}.difference({self.name})
         if wrong_database:
             raise WrongDatabase(
@@ -497,9 +559,6 @@ class SQLiteBackend(ProcessedDataStore):
                 )
             )
 
-        databases[self.name]["number"] = len(data)
-
-        databases.set_modified(self.name)
         geocollections = {
             get_geocollection(x.get("location"))
             for x in data.values()
@@ -510,40 +569,139 @@ class SQLiteBackend(ProcessedDataStore):
                 "Not able to determine geocollections for all datasets. This database is not ready for regionalization."
             )
             geocollections.discard(None)
-        databases[self.name]["geocollections"] = sorted(geocollections)
-        # processing will flush the database metadata
+        self.geocollections = sorted(geocollections)
 
         geomapping.add({x["location"] for x in data.values() if x.get("location")})
         if data:
             try:
                 self._efficient_write_many_data(data)
             except:
-                # Purge all data from database, then reraise
-                self.delete(warn=False)
+                self.delete_data()
                 raise
 
+        self.save()
         self.make_searchable(reset=True)
 
         if process:
             self.process()
 
-    def load(self, *args, **kwargs):
-        # Should not be used, in general; relatively slow
-        activities = [obj["data"] for obj in self._get_queryset().dicts()]
+    def write_exchanges(self, technosphere, biosphere, dependents):
+        """
 
-        activities = {(o["database"], o["code"]): o for o in activities}
-        for o in activities.values():
-            o["exchanges"] = []
+        Write IO data directly to processed arrays.
 
-        exchange_qs = (
-            ExchangeDataset.select(ExchangeDataset.data)
-            .where(ExchangeDataset.output_database == self.name)
-            .dicts()
+        Product data is stored in SQLite as normal activities.
+        Exchange data is written directly to NumPy structured arrays.
+
+        Technosphere and biosphere data has format ``(row id, col id, value, flip)``.
+
+        """
+        if self.backend != "iotable":
+            raise ValueError("Wrong kind of database")
+        print("Starting IO table write")
+
+        # create empty datapackage
+        dp = create_datapackage(
+            fs=ZipFS(str(self.filepath_processed()), write=True),
+            name=clean_datapackage_name(self.name),
+            sum_intra_duplicates=True,
+            sum_inter_duplicates=False,
         )
 
+        # add geomapping
+        dp.add_persistent_vector_from_iterator(
+            dict_iterator=(
+                {
+                    "row": obj.id,
+                    "col": geomapping[
+                        obj.get("location", None) or config.global_location
+                    ],
+                    "amount": 1,
+                }
+                for obj in self
+            ),
+            matrix="inv_geomapping_matrix",
+            name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
+            nrows=len(self),
+        )
+
+        print("Adding technosphere matrix")
+        # if technosphere is a dictionary pass it's keys & values
+        if isinstance(technosphere, dict):
+            dp.add_persistent_vector(
+                matrix="technosphere_matrix",
+                name=clean_datapackage_name(self.name + " technosphere matrix"),
+                **technosphere,
+            )
+        # if it is an iterable, convert to right format
+        elif hasattr(technosphere, "__iter__"):
+            dp.add_persistent_vector_from_iterator(
+                matrix="technosphere_matrix",
+                name=clean_datapackage_name(self.name + " technosphere matrix"),
+                dict_iterator=technosphere,
+            )
+        else:
+            raise Exception(
+                f"Error: Unsupported technosphere type: {type(technosphere)}"
+            )
+
+        print("Adding biosphere matrix")
+        # if biosphere is a dictionary pass it's keys & values
+        if isinstance(biosphere, dict):
+            dp.add_persistent_vector(
+                matrix="biosphere_matrix",
+                name=clean_datapackage_name(self.name + " biosphere matrix"),
+                **biosphere,
+            )
+        # if it is an iterable, convert to right format
+        elif hasattr(biosphere, "__iter__"):
+            dp.add_persistent_vector_from_iterator(
+                matrix="biosphere_matrix",
+                name=clean_datapackage_name(self.name + " biosphere matrix"),
+                dict_iterator=biosphere,
+            )
+        else:
+            raise Exception(f"Error: Unsupported biosphere type: {type(technosphere)}")
+
+        # finalize
+        print("Finalizing serialization")
+        dp.finalize_serialization()
+
+        self.depends = sorted(set(dependents).difference({self.name}))
+        self.save()
+
+    def load(self, *args, **kwargs):
+        # Should not be used, in general; relatively slow
+        def act_formatter(dct):
+            data = dct["data"]
+            COLUMNS = {"code", "database", "location", "name", "type"}
+            data.update({key: dct.get(key) for key in COLUMNS})
+            data["reference product"] = dct.get("product")
+            data["exchanges"] = []
+            return (dct["database"], dct["code"]), data
+
+        activities = dict(
+            act_formatter(dct) for dct in self._get_queryset().dicts().iterator()
+        )
+
+        exchange_qs = (
+            ExchangeDataset.select()
+            .where(ExchangeDataset.output_database == self.name)
+            .dicts()
+            .iterator()
+        )
+
+        def exc_formatter(exc):
+            data = exc["data"]
+            data["type"] = exc["type"]
+            data["input"] = (exc["input_database"], exc["input_code"])
+            data["output"] = (exc["output_database"], exc["output_code"])
+            return data
+
         for exc in exchange_qs:
+            exc = exc_formatter(exc)
             try:
-                activities[exc["data"]["output"]]["exchanges"].append(exc["data"])
+                activities[exc["output"]]["exchanges"].append(exc)
             except KeyError:
                 # This exchange not in the reduced set of activities returned
                 # by _get_queryset
@@ -553,10 +711,10 @@ class SQLiteBackend(ProcessedDataStore):
     def new_activity(self, code, **kwargs):
         return self.new_node(code, **kwargs)
 
-    def new_node(self, code, **kwargs):
+    def new_node(self, code=None, **kwargs):
         obj = self.node_class()
         obj["database"] = self.name
-        obj["code"] = str(code)
+        obj["code"] = str(code or uuid.uuid4().hex)
 
         if (
             ActivityDataset.select()
@@ -579,34 +737,32 @@ class SQLiteBackend(ProcessedDataStore):
         obj.update(kwargs)
         return obj
 
-    @writable_project
     def make_searchable(self, reset=False):
-        if self.name not in databases:
-            raise UnknownObject("This database is not yet registered")
-        if self._searchable and not reset:
+        if not self.id:
+            raise UnknownObject(
+                "This `Database` instance is not yet saved to the SQLite database"
+            )
+
+        if self.searchable and not reset:
             print("This database is already searchable")
             return
-        databases[self.name]["searchable"] = True
-        databases.flush()
         IndexManager(self.filename).delete_database()
         IndexManager(self.filename).add_datasets(self)
+        self.searchable = True
+        self.save()
 
-    @writable_project
     def make_unsearchable(self):
-        databases[self.name]["searchable"] = False
-        databases.flush()
         IndexManager(self.filename).delete_database()
+        self.searchable = False
+        self.save()
 
-    @writable_project
-    def delete(self, keep_params=False, warn=True):
+    def delete_instance(self):
+        self.delete_data()
+        super().delete_instance()
+
+    def delete_data(self, keep_params=False, warn=True):
         """Delete all data from SQLite database and Whoosh index"""
-        if warn:
-            MESSAGE = """
-            Please use `del databases['{}']` instead.
-            Otherwise, the metadata and database get out of sync.
-            Call `.delete(warn=False)` to skip this message in the future.
-            """
-            warnings.warn(MESSAGE.format(self.name), UserWarning)
+        from . import sqlite3_lci_db
 
         vacuum_needed = len(self) > 500 and vacuum
 
@@ -652,6 +808,8 @@ class SQLiteBackend(ProcessedDataStore):
         ``flip`` means flip the numeric sign; see ``bw_processing`` docs.
 
         Uses raw sqlite3 to retrieve data for ~2x speed boost."""
+        from . import sqlite3_lci_db
+
         connection = sqlite3.connect(sqlite3_lci_db._filepath)
         cursor = connection.cursor()
         for line in cursor.execute(sql, (self.name,)):
@@ -668,7 +826,7 @@ class SQLiteBackend(ProcessedDataStore):
             if input_database != output_database:
                 dependents.add(input_database)
             data = pickle.loads(bytes(data))
-            check_exchange(data)
+            check_exchange_amount(data)
             if row is None or col is None:
                 raise UnknownObject(
                     (
@@ -686,6 +844,11 @@ class SQLiteBackend(ProcessedDataStore):
                 "flip": flip,
             }
 
+    @classmethod
+    def clean_all(cls):
+        for db in cls.select().where(cls.dirty == True):
+            db.process()
+
     def process(self, csv=False):
         """Create structured arrays for the technosphere and biosphere matrices.
 
@@ -696,8 +859,10 @@ class SQLiteBackend(ProcessedDataStore):
         Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
 
         """
-        # Try to avoid race conditions - but no guarantee
-        self.metadata["processed"] = datetime.datetime.now().isoformat()
+        if self.backend == "iotable":
+            self.dirty = False
+            self.save()
+            return
 
         # Get number of exchanges and processes to set
         # initial Numpy array size (still have to include)
@@ -803,7 +968,7 @@ class SQLiteBackend(ProcessedDataStore):
             ),
         )
         if csv:
-            df = pandas.DataFrame([get_csv_data_dict(ds) for ds in self])
+            df = pd.DataFrame([get_csv_data_dict(ds) for ds in self])
             dp.add_csv_metadata(
                 dataframe=df,
                 valid_for=[
@@ -818,9 +983,10 @@ class SQLiteBackend(ProcessedDataStore):
 
         dp.finalize_serialization()
 
-        self.metadata["depends"] = sorted(dependents)
-        self.metadata["dirty"] = False
-        self._metadata.flush()
+        # Remove any possibility of datetime being in different timezone or otherwise different than filesystem
+        self.dirty = False
+        self.depends = sorted(dependents)
+        self.save()
 
     def search(self, string, **kwargs):
         """Search this database for ``string``.
@@ -872,8 +1038,8 @@ class SQLiteBackend(ProcessedDataStore):
             )
             geocollections.discard(None)
         else:
-            self.metadata["geocollections"] = sorted(geocollections)
-            self._metadata.flush()
+            self.geocollections = sorted(geocollections)
+            self.save()
 
     def graph_technosphere(self, filename=None, **kwargs):
         from bw2analyzer.matrix_grapher import SparseMatrixGrapher
@@ -908,9 +1074,23 @@ class SQLiteBackend(ProcessedDataStore):
                     print("Deleting exchange:", exc)
                     exc.delete()
 
+    def backup(self):
+        """Save a backup to ``backups`` folder.
+
+        Returns:
+            File path of backup.
+
+        """
+        try:
+            from bw2io import BW2Package
+
+            return BW2Package.export_obj(self)
+        except ImportError:
+            print("bw2io not installed")
+
     def nodes_to_dataframe(
         self, columns: Optional[List[str]] = None, return_sorted: bool = True
-    ) -> pandas.DataFrame:
+    ) -> pd.DataFrame:
         """Return a pandas DataFrame with all database nodes. Uses the provided node attributes by default,  such as name, unit, location.
 
         By default, returns a DataFrame sorted by name, reference product, location, and unit. Set ``return_sorted`` to ``False`` to skip sorting.
@@ -922,9 +1102,9 @@ class SQLiteBackend(ProcessedDataStore):
         """
         if columns is None:
             # Feels like magic
-            df = pandas.DataFrame(self)
+            df = pd.DataFrame(self)
         else:
-            df = pandas.DataFrame(
+            df = pd.DataFrame(
                 [{field: obj.get(field) for field in columns} for obj in self]
             )
         if return_sorted:
@@ -936,7 +1116,7 @@ class SQLiteBackend(ProcessedDataStore):
 
     def edges_to_dataframe(
         self, categorical: bool = True, formatters: Optional[List[Callable]] = None
-    ) -> pandas.DataFrame:
+    ) -> pd.DataFrame:
         """Return a pandas DataFrame with all database exchanges. Standard DataFrame columns are:
 
             target_id: int,
@@ -975,6 +1155,151 @@ class SQLiteBackend(ProcessedDataStore):
         Returns a pandas ``DataFrame``.
 
         """
+        if self.backend == "sqlite":
+            return self._sqlite_edges_to_dataframe(
+                categorical=categorical, formatters=formatters
+            )
+        elif self.backend == "iotable":
+            return self._iotable_edges_to_dataframe()
+
+    def _iotable_edges_to_dataframe(self) -> pd.DataFrame:
+        """Return a pandas DataFrame with all database exchanges. DataFrame columns are:
+
+            target_id: int,
+            target_database: str,
+            target_code: str,
+            target_name: Optional[str],
+            target_reference_product: Optional[str],
+            target_location: Optional[str],
+            target_unit: Optional[str],
+            target_type: Optional[str]
+            source_id: int,
+            source_database: str,
+            source_code: str,
+            source_name: Optional[str],
+            source_product: Optional[str],  # Note different label
+            source_location: Optional[str],
+            source_unit: Optional[str],
+            source_categories: Optional[str]  # Tuple concatenated with "::" as in `bw2io`
+            edge_amount: float,
+            edge_type: str,
+
+        Target is the node consuming the edge, source is the node or flow being consumed. The terms target and source were chosen because they also work well for biosphere edges.
+
+        As IO Tables are normally quite large, the DataFrame building will operate directly on Numpy arrays, and therefore special formatters are not supported in this function.
+
+        Returns a pandas ``DataFrame``.
+
+        """
+        from .. import get_activity
+
+        @functools.lru_cache(10000)
+        def cached_lookup(id_):
+            return get_activity(id=id_)
+
+        print("Retrieving metadata")
+        activities = {o.id: o for o in self}
+
+        def get(id_):
+            try:
+                return activities[id_]
+            except KeyError:
+                return cached_lookup(id_)
+
+        def metadata_dataframe(ids, prefix="target_"):
+            def dict_for_obj(obj, prefix):
+                dct = {
+                    f"{prefix}id": obj["id"],
+                    f"{prefix}database": obj["database"],
+                    f"{prefix}code": obj["code"],
+                    f"{prefix}name": obj.get("name"),
+                    f"{prefix}location": obj.get("location"),
+                    f"{prefix}unit": obj.get("unit"),
+                }
+                if prefix == "target_":
+                    dct["target_type"] = obj.get("type", "process")
+                    dct["target_reference_product"] = obj.get("reference product")
+                else:
+                    dct["source_categories"] = (
+                        "::".join(obj["categories"]) if obj.get("categories") else None
+                    )
+                    dct["source_product"] = obj.get("product")
+                return dct
+
+            return pd.DataFrame(
+                [dict_for_obj(get(id_), prefix) for id_ in np.unique(ids)]
+            )
+
+        def get_edge_types(exchanges):
+            arrays = []
+            for resource in exchanges.resources:
+                if resource["data"]["matrix"] == "biosphere_matrix":
+                    arrays.append(
+                        np.array(["biosphere"] * len(resource["data"]["array"]))
+                    )
+                else:
+                    arr = np.array(["technosphere"] * len(resource["data"]["array"]))
+                    arr[resource["flip"]["positive"]] = "production"
+                    arrays.append(arr)
+
+            return np.hstack(arrays)
+
+        print("Loading datapackage")
+        exchanges = IOTableExchanges(datapackage=self.datapackage())
+
+        target_ids = np.hstack(
+            [resource["indices"]["array"]["col"] for resource in exchanges.resources]
+        )
+        source_ids = np.hstack(
+            [resource["indices"]["array"]["row"] for resource in exchanges.resources]
+        )
+        edge_amounts = np.hstack(
+            [resource["data"]["array"] for resource in exchanges.resources]
+        )
+        edge_types = get_edge_types(exchanges)
+
+        print("Creating metadata dataframes")
+        target_metadata = metadata_dataframe(target_ids)
+        source_metadata = metadata_dataframe(source_ids, "source_")
+
+        print("Building merged dataframe")
+        df = pd.DataFrame(
+            {
+                "target_id": target_ids,
+                "source_id": source_ids,
+                "edge_amount": edge_amounts,
+                "edge_type": edge_types,
+            }
+        )
+        df = df.merge(target_metadata, on="target_id")
+        df = df.merge(source_metadata, on="source_id")
+
+        categorical_columns = [
+            "target_database",
+            "target_name",
+            "target_reference_product",
+            "target_location",
+            "target_unit",
+            "target_type",
+            "source_database",
+            "source_code",
+            "source_name",
+            "source_product",
+            "source_location",
+            "source_unit",
+            "source_categories",
+            "edge_type",
+        ]
+        print("Compressing DataFrame")
+        for column in categorical_columns:
+            if column in df.columns:
+                df[column] = df[column].astype("category")
+
+        return df
+
+    def _sqlite_edges_to_dataframe(
+        self, categorical: bool = True, formatters: Optional[List[Callable]] = None
+    ) -> pd.DataFrame:
         from .wurst_extraction import extract_brightway_databases
 
         result = []
@@ -1009,7 +1334,7 @@ class SQLiteBackend(ProcessedDataStore):
                 result.append(row)
 
         print("Creating DataFrame")
-        df = pandas.DataFrame(result)
+        df = pd.DataFrame(result)
 
         if categorical:
             categorical_columns = [
@@ -1034,3 +1359,90 @@ class SQLiteBackend(ProcessedDataStore):
                     df[column] = df[column].astype("category")
 
         return df
+
+    # Retained for compatibility but do nothing
+
+    def validate(self, data):
+        warnings.warn(
+            "`Database.validate` is obsolete and does nothing", DeprecationWarning
+        )
+        return True
+
+    def add_geomappings(self, data):
+        warnings.warn(
+            "`Database.add_geomappings` is obsolete and does nothing",
+            DeprecationWarning,
+        )
+
+    @property
+    def metadata(self):
+        warnings.warn(
+            "Database.metadata` is deprecated, use `Database` object attributes directly",
+            DeprecationWarning,
+        )
+
+        # This property exists for backwards compatibility for when this
+        # data was stored in a separate file. To maintain the same behaviour,
+        # where the data can be updated separate from the life cycle of this object,
+        # we get the current values from the database.
+        # This can be confusing, as these values could differ from
+        # what the user has set manually, but this method is deprecated in any case...
+        obj = Database.get(Database.name == self.name)
+        fp = obj.filepath_processed(clean=False)
+        if fp.exists():
+            modified = datetime.fromtimestamp(os.path.getmtime(fp)).isoformat()
+        else:
+            modified = None
+        return {
+            "backend": obj.backend,
+            "depends": obj.depends,
+            "searchable": obj.searchable,
+            "number": len(obj),
+            "geocollections": obj.geocollections,
+            "dirty": obj.dirty,
+            "processed": modified,
+            "modified": modified,
+        }
+
+    @property
+    def registered(self):
+        warnings.warn(
+            "The concept of registration is obsolete, `registered` is deprecated",
+            DeprecationWarning,
+        )
+        return bool(self.id)
+
+    def register(self, write_empty=True, **kwargs):
+        """Legacy method to register a database with the metadata store.
+        Writing data automatically sets the following metadata:
+            * *depends*: Names of the databases that this database references, e.g. "biosphere"
+            * *number*: Number of processes in this database.
+        """
+        warnings.warn(
+            "Registration is no longer necessary, set the metadata directly and save the database object",
+            DeprecationWarning,
+        )
+        self.save()
+
+    def deregister(self):
+        """Legacy method to remove an object from the metadata store. Does not delete any data."""
+        warnings.warn(
+            "This method is obsolete; use `Database.delete_instance()` instead",
+            DeprecationWarning,
+        )
+
+        if self.id is not None:
+            self.delete_instance()
+
+    @property
+    def _metadata(self):
+        warnings.warn(
+            "`Database._metadata` is very obsolete and should be immediately removed",
+            DeprecationWarning,
+        )
+        from .. import databases
+
+        return databases
+
+
+SQLiteBackend = Database
