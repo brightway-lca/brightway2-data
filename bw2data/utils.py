@@ -1,3 +1,5 @@
+from io import StringIO
+from pathlib import Path
 import collections
 import itertools
 import numbers
@@ -9,8 +11,6 @@ import urllib
 import warnings
 import webbrowser
 import zipfile
-from io import StringIO
-from pathlib import Path
 
 import requests
 import stats_arrays as sa
