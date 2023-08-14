@@ -1,6 +1,11 @@
 # data Changelog
 
-## DEV
+## 4.0.DEV21 (2023-XX-XX)
+
+* #140: Search for single characters
+* Purge `pyprind` and `psutil`
+
+## 4.0.DEV20 (2023-07-25)
 
 * `new_node` no longer requires a code argument
 * `repr(database)` returns something useful
@@ -8,6 +13,10 @@
 * Remove `docopt` and `bw2-uptodate.py`
 * Substitute `platformdirs` for `appdirs`
 * Remove `psutil` dependency
+
+## 4.0.DEV19 (2023-06-06)
+
+* Yanked due to insufficient testing and documentation
 
 ## 4.0.DEV18 (2022-08-19)
 

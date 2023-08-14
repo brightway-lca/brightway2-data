@@ -4,6 +4,7 @@ from .errors import UnknownObject
 from .ia_data_store import ImpactAssessmentDataStore
 from .utils import as_uncertainty_dict, get_geocollection
 from .validate import ia_validator
+from .errors import UnknownObject
 
 
 class Method(ImpactAssessmentDataStore):

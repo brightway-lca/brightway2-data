@@ -12,6 +12,8 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Callable, List, Optional
 
+import pandas
+from tqdm import tqdm
 import numpy as np
 import pandas as pd
 import pyprind
@@ -47,17 +49,18 @@ from .utils import (
     retupleize_geo_strings,
 )
 
-try:
-    import psutil
-    monitor = True
-except ImportError:
-    monitor = False
-
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
 
-class Database(Model):
+def tqdm_wrapper(iterable, is_test):
+    if is_test:
+        return iterable
+    else:
+        return tqdm(iterable)
+
+
+class SQLiteBackend(ProcessedDataStore):
     """
     A base class for SQLite backends.
 
@@ -500,9 +503,6 @@ class Database(Model):
             ActivityDataset.insert_many(activities).execute()
             activities = []
 
-        if not getattr(config, "is_test", None):
-            self.pbar.update()
-
         return exchanges, activities
 
     def _efficient_write_many_data(self, data, indices=True):
@@ -514,30 +514,20 @@ class Database(Model):
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
-            self.delete_data(keep_params=True, warn=False)
+            self.delete_data(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
-            if not getattr(config, "is_test", None):
-                self.pbar = pyprind.ProgBar(
-                    len(data),
-                    title="Writing activities to SQLite3 database:",
-                    monitor=monitor,
-                )
-
-            for index, (key, ds) in enumerate(data.items()):
+            for index, (key, ds) in enumerate(tqdm_wrapper(data.items(), getattr(config, "is_test"))):
                 exchanges, activities = self._efficient_write_dataset(
                     index, key, ds, exchanges, activities
                 )
-
-            if not getattr(config, "is_test", None):
-                print(self.pbar)
-                del self.pbar
 
             if activities:
                 ActivityDataset.insert_many(activities).execute()
             if exchanges:
                 ExchangeDataset.insert_many(exchanges).execute()
             sqlite3_lci_db.db.commit()
+            sqlite3_lci_db.vacuum()
         except:
             sqlite3_lci_db.db.rollback()
             raise
@@ -774,7 +764,7 @@ class Database(Model):
         """Delete all data from SQLite database and Whoosh index"""
         from . import sqlite3_lci_db
 
-        vacuum_needed = len(self) > 500
+        vacuum_needed = len(self) > 500 and vacuum
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
         ExchangeDataset.delete().where(

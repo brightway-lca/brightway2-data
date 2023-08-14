@@ -16,8 +16,11 @@ from bw2data.method import Method
 from bw2data.serialization import CompoundJSONDict
 from bw2data.validate import ia_validator, normalization_validator, weighting_validator
 from bw2data.weighting_normalization import Normalization, Weighting
+from bw2data.errors import UnknownObject
 
 from .fixtures import bw2test
+
+
 class Metadata(CompoundJSONDict):
     filename = "mock-meta.json"
 
@@ -136,9 +139,12 @@ def test_method_missing_reference():
     database.write({("foo", "bar"): {}, ("foo", "baz"): {}})
 
     method = Method(("a", "method"))
-    method.write([[("foo", "bar"), 42], [("foo", "baz"), 1]])
+    method.write([
+        [("foo", "bar"), 42],
+        [("foo", "baz"), 1]
+    ])
 
-    database.get_node(code="baz").delete()
+    database.get(code="baz").delete()
     with pytest.raises(UnknownObject):
         method.process()
 
