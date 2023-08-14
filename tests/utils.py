@@ -6,7 +6,6 @@ from bw2data import Database, Method, methods
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends.schema import ActivityDataset as AD
 from bw2data.errors import MultipleResults, UnknownObject, ValidityError
-from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
     as_uncertainty_dict,
     combine_methods,
@@ -18,7 +17,7 @@ from bw2data.utils import (
     uncertainify,
 )
 
-from .fixtures import biosphere
+from .fixtures import BW2DataTest, bw2test, biosphere
 
 
 class UtilsTest(BW2DataTest):

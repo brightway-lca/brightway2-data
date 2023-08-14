@@ -198,7 +198,7 @@ class Updates:
 
     @classmethod
     def processed_data_format_change_23(cls):
-        processed_dir = projects.dir / "processed"
+        processed_dir = projects.data_dir / "processed"
         for filename in os.listdir(processed_dir):
             fp = processed_dir / filename
             if fp.is_dir():

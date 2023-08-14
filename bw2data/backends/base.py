@@ -194,7 +194,7 @@ class SQLiteBackend(ProcessedDataStore):
         return new_database
 
     def dirpath_processed(self):
-        return projects.dir / "processed"
+        return projects.data_dir / "processed"
 
     def filepath_intermediate(self):
         warnings.warn("`filepath_intermediate` is deprecated", DeprecationWarning)

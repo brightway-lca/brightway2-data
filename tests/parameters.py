@@ -15,8 +15,8 @@ from bw2data.parameters import (
     ProjectParameter,
     parameters,
 )
-from bw2data.tests import bw2test
 
+from .fixtures import bw2test
 # Regex to search for UUID: https://stackoverflow.com/a/18359032
 uuid4hex = re.compile(
     r"[0-9a-f]{8}[0-9a-f]{4}4[0-9a-f]{3}[89ab][0-9a-f]{3}[0-9a-f]{12}", re.I

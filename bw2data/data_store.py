@@ -82,7 +82,7 @@ class DataStore:
         try:
             return pickle.load(
                 open(
-                    projects.dir / "intermediate" / (self.filename + ".pickle"),
+                    projects.data_dir / "intermediate" / (self.filename + ".pickle"),
                     "rb",
                 )
             )
@@ -129,7 +129,7 @@ class DataStore:
 
         """
         self.register()
-        filepath = projects.dir / self._intermediate_dir / (self.filename + ".pickle")
+        filepath = projects.data_dir / self._intermediate_dir / (self.filename + ".pickle")
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=4)
 
@@ -150,7 +150,7 @@ class ProcessedDataStore(DataStore):
     matrix = "unknown"
 
     def dirpath_processed(self):
-        return projects.dir / "processed"
+        return projects.data_dir / "processed"
 
     def filename_processed(self):
         return clean_datapackage_name(self.filename + ".zip")
@@ -170,7 +170,7 @@ class ProcessedDataStore(DataStore):
         """
         self.register()
         self.add_geomappings(data)
-        filepath = projects.dir / self._intermediate_dir / (self.filename + ".pickle")
+        filepath = projects.data_dir / self._intermediate_dir / (self.filename + ".pickle")
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=4)
         if process:

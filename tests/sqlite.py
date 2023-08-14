@@ -3,8 +3,8 @@ from copy import copy
 from bw2data import projects
 from bw2data.backends import sqlite3_lci_db as db
 from bw2data.database import DatabaseChooser
-from bw2data.tests import bw2test
 
+from .fixtures import bw2test
 
 @bw2test
 def test_switch_project_correctly_switches_database_objects():
@@ -26,6 +26,6 @@ def test_switch_project_correctly_switches_database_objects():
     current_db_location = copy(db.db.database)
     assert table.select().count()
 
-    projects.set_current("new one")
+    projects.create_project("new one", activate=True, exist_ok=True)
     assert not table.select().count()
     assert current_db_location != db.db.database

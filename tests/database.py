@@ -24,8 +24,8 @@ from bw2data.parameters import (
     ParameterizedExchange,
     parameters,
 )
-from bw2data.tests import bw2test
 
+from .fixtures import bw2test
 from .fixtures import biosphere
 from .fixtures import food as food_data
 from .fixtures import get_naughty

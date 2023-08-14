@@ -17,8 +17,8 @@ from bw2data import (
 from bw2data.backends import Activity
 from bw2data.backends.iotable import IOTableActivity, IOTableExchanges, ReadOnlyExchange
 from bw2data.errors import InvalidDatapackage
-from bw2data.tests import bw2test
 
+from .fixtures import bw2test
 
 @pytest.fixture
 @bw2test
