@@ -6,14 +6,11 @@ from bw2data.backends import ExchangeDataset
 from bw2data.backends.utils import convert_backend
 from bw2data.database import DatabaseChooser
 from bw2data.errors import (
-    InvalidExchange,
-    MissingIntermediateData,
     UnknownObject,
-    UntypedExchange,
-    ValidityError,
 )
-from bw2data.meta import databases, geomapping, methods
-from bw2data.tests import BW2DataTest
+from bw2data.meta import geomapping, methods
+
+from .fixtures import BW2DataTest
 
 
 class DatabaseQuerysetTest(BW2DataTest):

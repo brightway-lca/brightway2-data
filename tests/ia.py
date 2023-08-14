@@ -13,10 +13,12 @@ from bw2data.ia_data_store import abbreviate
 from bw2data.meta import databases, geomapping, methods, normalizations, weightings
 from bw2data.method import Method
 from bw2data.serialization import CompoundJSONDict
-from bw2data.tests import bw2test
 from bw2data.validate import ia_validator, normalization_validator, weighting_validator
 from bw2data.weighting_normalization import Normalization, Weighting
 from bw2data.errors import UnknownObject
+
+from .fixtures import bw2test
+
 
 class Metadata(CompoundJSONDict):
     filename = "mock-meta.json"

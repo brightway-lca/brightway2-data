@@ -6,8 +6,8 @@ from bw_processing import load_datapackage
 from fs.zipfs import ZipFS
 
 from bw2data import Database, Method, config, geomapping, get_id, projects
-from bw2data.tests import bw2test
 
+from .fixtures import bw2test
 from .fixtures import biosphere, food
 
 

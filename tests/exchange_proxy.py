@@ -1,7 +1,6 @@
 from bw2data import Method, databases, geomapping, get_activity, methods, projects, get_node
 from bw2data.database import DatabaseChooser
 from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
-from bw2data.tests import bw2test
 
 try:
     import bw2calc
@@ -13,7 +12,7 @@ import pytest
 import stats_arrays as sa
 from pandas.testing import assert_frame_equal
 
-
+from .fixtures import bw2test
 @pytest.fixture
 @bw2test
 def activity():

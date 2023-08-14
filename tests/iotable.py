@@ -21,8 +21,8 @@ from bw2data.backends.iotable.proxies import (
     ReadOnlyExchange,
 )
 from bw2data.errors import InvalidDatapackage
-from bw2data.tests import bw2test
 
+from .fixtures import bw2test
 
 @pytest.fixture
 @bw2test

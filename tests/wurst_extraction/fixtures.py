@@ -1,6 +1,9 @@
-from bw2data.tests import bw2test
+# from bw2data.tests import bw2test
 from bw2data import Database
 import pytest
+
+from tests.fixtures import bw2test
+
 
 biosphere = {
     ("biosphere", "1"): {

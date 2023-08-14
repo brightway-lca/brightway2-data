@@ -15,7 +15,7 @@ from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
 
-from .. import config, databases, geomapping
+from .. import config, databases, geomapping, projects
 from ..data_store import ProcessedDataStore
 from ..errors import (
     DuplicateNode,
@@ -139,6 +139,9 @@ class SQLiteBackend(ProcessedDataStore):
 
         new_database.write(data)
         return new_database
+
+    def dirpath_processed(self):
+        return projects.data_dir / "processed"
 
     def filepath_intermediate(self):
         raise NotImplementedError
