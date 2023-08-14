@@ -10,7 +10,7 @@ from .base import (  # SQLiteBackend just for backwards compatibility
 from .schema import ActivityDataset, ExchangeDataset, get_id
 
 sqlite3_lci_db = SubstitutableDatabase(
-    projects.dir / "lci" / "databases.db",
+    projects.data_dir / "lci" / "databases.db",
     [ActivityDataset, ExchangeDataset, Database],
 )
 

@@ -104,7 +104,7 @@ class SerializedDict(MutableMapping):
             raise NotImplementedError(
                 "SerializedDict must be subclassed, and the filename must be set."
             )
-        self.filepath = (maybe_path(dirpath) or projects.dir) / self.filename
+        self.filepath = (maybe_path(dirpath) or projects.data_dir) / self.filename
         self.load()
 
     def load(self):
@@ -209,7 +209,7 @@ class SerializedDict(MutableMapping):
     def backup(self):
         """Write a backup version of the data to the ``backups`` directory."""
         filepath = os.path.join(
-            projects.dir, "backups", self.filename + ".%s.backup" % int(time())
+            projects.data_dir, "backups", self.filename + ".%s.backup" % int(time())
         )
         self.serialize(filepath)
 

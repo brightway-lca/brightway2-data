@@ -128,12 +128,6 @@ def prepare_lca_inputs(
     remapping=True,
     demand_database_last=True,
 ):
-    """Prepare LCA input arguments in Brightway 2.5 style."""
-    if not projects.dataset.data.get("25"):
-        raise Brightway2Project(
-            "Please use `projects.migrate_project_25` before calculating using Brightway 2.5"
-        )
-
     databases.clean()
     data_objs = []
     remapping_dicts = None

@@ -1,7 +1,8 @@
 import random
 
 from bw2data import Updates, config
-from bw2data.tests import BW2DataTest
+
+from .fixtures import BW2DataTest
 
 
 class UpdatesTest(BW2DataTest):

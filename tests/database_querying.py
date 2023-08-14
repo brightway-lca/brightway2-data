@@ -12,7 +12,8 @@ from bw2data.errors import (
     ValidityError,
 )
 from bw2data.meta import geomapping, methods
-from bw2data.tests import BW2DataTest
+
+from .fixtures import BW2DataTest
 
 
 class DatabaseQuerysetTest(BW2DataTest):

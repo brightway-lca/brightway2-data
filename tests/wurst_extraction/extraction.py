@@ -2,7 +2,8 @@ import pytest
 from fixtures import test_bw2_database
 
 from bw2data import extract_brightway_databases
-from bw2data.tests import bw2test
+
+from tests.fixtures import bw2test
 
 
 def test_extraction(test_bw2_database):

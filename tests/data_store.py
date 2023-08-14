@@ -12,8 +12,8 @@ from bw2data import projects
 from bw2data.data_store import DataStore, ProcessedDataStore
 from bw2data.errors import UnknownObject
 from bw2data.serialization import SerializedDict
-from bw2data.tests import bw2test
 
+from .fixtures import bw2test
 
 class Metadata(SerializedDict):
     filename = "mock-meta.json"
@@ -83,7 +83,7 @@ def test_data_store_write_load(reset):
     d = MockDS("full moon")
     d.write(range(10))
     data = pickle.load(
-        open(os.path.join(projects.dir, "intermediate", d.filename + ".pickle"), "rb")
+        open(os.path.join(projects.data_dir, "intermediate", d.filename + ".pickle"), "rb")
     )
     assert list(data) == list(range(10))
 
