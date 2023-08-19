@@ -81,5 +81,6 @@ class BW2DataProjectManager(ProjectsManager):
         projects.create_project("default", activate=True, exist_ok=True)
         return temp_dir
 
+
 projects = BW2DataProjectManager()
 projects.create_project("default", activate=True, exist_ok=True)
