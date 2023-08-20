@@ -26,6 +26,6 @@ def test_switch_project_correctly_switches_database_objects():
     current_db_location = copy(db.db.database)
     assert table.select().count()
 
-    projects.set_current("new one")
+    projects.create_project("new one", activate=True, exist_ok=True)
     assert not table.select().count()
     assert current_db_location != db.db.database
