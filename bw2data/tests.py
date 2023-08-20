@@ -43,7 +43,7 @@ def bw2test(wrapped, instance, args, kwargs):
     projects.create_project(
         "".join(random.choices(string.ascii_lowercase, k=18)),
         activate=True,
-        exist_ok=True
+        exist_ok=True,
     )
     atexit.register(shutil.rmtree, tempdir)
     return wrapped(*args, **kwargs)

@@ -1,5 +1,3 @@
-from io import StringIO
-from pathlib import Path
 import collections
 import itertools
 import numbers
@@ -11,6 +9,8 @@ import urllib
 import warnings
 import webbrowser
 import zipfile
+from io import StringIO
+from pathlib import Path
 
 import requests
 import stats_arrays as sa
@@ -379,8 +379,8 @@ def get_node(**kwargs):
 
     def node_class(database_name):
         mapping = {
-            'sqlite': Activity,
-            'iotable': IOTableActivity,
+            "sqlite": Activity,
+            "iotable": IOTableActivity,
         }
         return mapping[databases[database_name].get("backend", "sqlite")]
 

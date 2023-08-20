@@ -8,7 +8,8 @@ class GeoMapping(PickledDict):
 
     File data is stored in ``geomapping.pickle``.
 
-    This dictionary does not support setting items directly; instead, use the ``add`` method to add multiple keys."""
+    This dictionary does not support setting items directly; instead, use the ``add`` method to add multiple keys.
+    """
 
     filename = "geomapping.pickle"
 

@@ -31,8 +31,8 @@ __all__ = [
     "weightings",
 ]
 
-from typing import Union
 import importlib.metadata
+from typing import Union
 
 
 def get_version_tuple() -> tuple:
@@ -43,28 +43,25 @@ def get_version_tuple() -> tuple:
             return x
 
     return tuple(
-        as_integer(v)
-        for v in importlib.metadata.version("bw2data")
-        .strip()
-        .split(".")
+        as_integer(v) for v in importlib.metadata.version("bw2data").strip().split(".")
     )
 
 
 __version__ = get_version_tuple()
 
 from .configuration import config
-from .project import projects
-from .utils import set_data_dir
 from .meta import (
-    dynamic_calculation_setups,
     calculation_setups,
     databases,
+    dynamic_calculation_setups,
     geomapping,
     methods,
     normalizations,
     preferences,
     weightings,
 )
+from .project import projects
+from .utils import set_data_dir
 
 # Add metadata class instances to global list of serialized metadata
 config.metadata.extend(
@@ -96,7 +93,7 @@ from .backends.wurst_extraction import extract_brightway_databases
 
 mapping = Mapping()
 
-from .updates import Updates
 from .parameters import parameters
+from .updates import Updates
 
 Updates.check_status()

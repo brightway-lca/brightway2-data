@@ -1,7 +1,5 @@
 from whoosh.analysis import StandardAnalyzer
 from whoosh.fields import ID, TEXT, Schema
-from whoosh.fields import TEXT, ID, Schema
-
 
 bw2_schema = Schema(
     name=TEXT(

@@ -1,6 +1,11 @@
 import pickle
 
-from bw_processing import clean_datapackage_name, create_datapackage, safe_filename, load_datapackage
+from bw_processing import (
+    clean_datapackage_name,
+    create_datapackage,
+    load_datapackage,
+    safe_filename,
+)
 from fs.zipfs import ZipFS
 
 from . import projects
@@ -124,7 +129,9 @@ class DataStore:
 
         """
         self.register()
-        filepath = projects.data_dir / self._intermediate_dir / (self.filename + ".pickle")
+        filepath = (
+            projects.data_dir / self._intermediate_dir / (self.filename + ".pickle")
+        )
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=4)
 
@@ -165,7 +172,9 @@ class ProcessedDataStore(DataStore):
         """
         self.register()
         self.add_geomappings(data)
-        filepath = projects.data_dir / self._intermediate_dir / (self.filename + ".pickle")
+        filepath = (
+            projects.data_dir / self._intermediate_dir / (self.filename + ".pickle")
+        )
         with atomic_open(filepath, "wb") as f:
             pickle.dump(data, f, protocol=4)
         if process:
@@ -174,7 +183,8 @@ class ProcessedDataStore(DataStore):
     def process_row(self, row):
         """Translate data into a dictionary suitable for array inputs.
 
-        See `bw_processing documentation <https://github.com/brightway-lca/bw_processing>`__."""
+        See `bw_processing documentation <https://github.com/brightway-lca/bw_processing>`__.
+        """
         raise NotImplementedError
 
     def process(self, **extra_metadata):

@@ -26,7 +26,8 @@ def convert_backend(database_name, backend):
         * `database_name` (unicode): Name of database.
         * `backend` (unicode): Type of database. `backend` should be recoginized by `DatabaseChooser`.
 
-    Returns `False` if the old and new backend are the same. Otherwise returns an instance of the new Database object."""
+    Returns `False` if the old and new backend are the same. Otherwise returns an instance of the new Database object.
+    """
     if database_name not in databases:
         print("Can't find database {}".format(database_name))
 

@@ -172,13 +172,15 @@ class Exchanges(Iterable):
 
         return df
 
+
 class Activity(ActivityProxyBase):
     def __init__(self, document=None, **kwargs):
         """Create an `Activity` proxy object.
 
         If this is a new activity, can pass `kwargs`.
 
-        If the activity exists in the database, `document` should be an `ActivityDataset`."""
+        If the activity exists in the database, `document` should be an `ActivityDataset`.
+        """
         if document is None:
             self._document = ActivityDataset()
             self._data = kwargs
@@ -201,7 +203,7 @@ class Activity(ActivityProxyBase):
         elif key in self._data:
             return self._data[key]
 
-        for section in ('classifications', 'properties'):
+        for section in ("classifications", "properties"):
             if section in self._data:
                 if isinstance(self._data[section], list):
                     try:
@@ -216,10 +218,10 @@ class Activity(ActivityProxyBase):
         except ValueError:
             raise KeyError
 
-        if key in rp.get('classifications', []):
-            return rp['classifications'][key]
-        if key in rp.get('properties', []):
-            return rp['properties'][key]
+        if key in rp.get("classifications", []):
+            return rp["classifications"][key]
+        if key in rp.get("properties", []):
+            return rp["properties"][key]
 
         raise KeyError
 
@@ -391,11 +393,19 @@ class Activity(ActivityProxyBase):
         candidates = list(self.production())
         if len(candidates) == 1:
             return candidates[0]
-        candidates2 = [exc for exc in candidates if exc.input._data.get('name') == self._data.get('reference product')]
+        candidates2 = [
+            exc
+            for exc in candidates
+            if exc.input._data.get("name") == self._data.get("reference product")
+        ]
         if len(candidates2) == 1:
             return candidates2[0]
         else:
-            raise ValueError("Can't find a single reference product exchange (found {} candidates)".format(len(candidates)))
+            raise ValueError(
+                "Can't find a single reference product exchange (found {} candidates)".format(
+                    len(candidates)
+                )
+            )
 
     def producers(self):
         return self.production()
@@ -456,7 +466,8 @@ class Exchange(ExchangeProxyBase):
 
         If this is a new exchange, can pass `kwargs`.
 
-        If the exchange exists in the database, `document` should be an `ExchangeDataset`."""
+        If the exchange exists in the database, `document` should be an `ExchangeDataset`.
+        """
         if document is None:
             self._document = ExchangeDataset()
             self._data = kwargs

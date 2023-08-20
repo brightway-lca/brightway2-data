@@ -143,7 +143,8 @@ class ExchangeProxyBase(ProxyBase):
 
         When getting, returns an `Activity` - this will raise an error if the linked activity doesn't yet exist.
 
-        When setting, either an `Activity` or a tuple can be given. The linked activity does not have to exist yet."""
+        When setting, either an `Activity` or a tuple can be given. The linked activity does not have to exist yet.
+        """
         if not self.get("input"):
             raise InvalidExchange("Missing valid data for `input` field")
         elif not hasattr(self, "_input"):
@@ -164,7 +165,8 @@ class ExchangeProxyBase(ProxyBase):
 
         When getting, returns an `Activity` - this will raise an error if the linked activity doesn't yet exist.
 
-        When setting, either an `Activity` or a tuple can be given. The linked activity does not have to exist yet."""
+        When setting, either an `Activity` or a tuple can be given. The linked activity does not have to exist yet.
+        """
         if not self.get("output"):
             raise InvalidExchange("Missing valid data for `output` field")
         elif not hasattr(self, "_output"):
@@ -227,7 +229,8 @@ class ExchangeProxyBase(ProxyBase):
     def unit(self):
         """Get exchange unit.
 
-        Separate property because the unit is a property of the input, not the exchange itself."""
+        Separate property because the unit is a property of the input, not the exchange itself.
+        """
         return self.input.get("unit")
 
     @property

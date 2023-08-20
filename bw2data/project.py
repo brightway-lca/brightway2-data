@@ -3,7 +3,8 @@ import tempfile
 from pathlib import Path
 from typing import Callable, Dict, List, NoReturn
 
-from bw_projects import Configuration as PMConfiguration, ProjectsManager
+from bw_projects import Configuration as PMConfiguration
+from bw_projects import ProjectsManager
 
 from . import config
 from .filesystem import create_dir
@@ -35,10 +36,12 @@ class BW2DataProjectManager(ProjectsManager):
     ) -> None:
         if callbacks_activate_project is None:
             callbacks_activate_project = []
-        callbacks_activate_project.extend([
-            BW2DataProjectManager._reset_meta,
-            self._reset_sqlite3_databases,
-        ])
+        callbacks_activate_project.extend(
+            [
+                BW2DataProjectManager._reset_meta,
+                self._reset_sqlite3_databases,
+            ]
+        )
         super().__init__(
             dir_base_data,
             dir_base_logs,
@@ -76,7 +79,7 @@ class BW2DataProjectManager(ProjectsManager):
         temp_dir = Path(tempfile.mkdtemp())
         dir_base_data = temp_dir / "data"
         dir_base_logs = temp_dir / "logs"
-        #self.db.change_path(":memory:")
+        # self.db.change_path(":memory:")
         projects = BW2DataProjectManager(dir_base_data, dir_base_logs, ":memory:")
         projects.create_project("default", activate=True, exist_ok=True)
         return temp_dir

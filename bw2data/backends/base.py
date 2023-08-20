@@ -10,10 +10,10 @@ from collections import defaultdict
 from typing import Callable, List, Optional
 
 import pandas
-from tqdm import tqdm
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
+from tqdm import tqdm
 
 from .. import config, databases, geomapping, projects
 from ..data_store import ProcessedDataStore
@@ -26,7 +26,7 @@ from ..errors import (
 )
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_node, get_geocollection
+from ..utils import as_uncertainty_dict, get_geocollection, get_node
 from . import sqlite3_lci_db
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
@@ -37,7 +37,6 @@ from .utils import (
     get_csv_data_dict,
     retupleize_geo_strings,
 )
-
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
@@ -377,7 +376,9 @@ class SQLiteBackend(ProcessedDataStore):
         """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
             if true_random:
-                return self.node_class(self._get_queryset(random=True, filters=filters).get())
+                return self.node_class(
+                    self._get_queryset(random=True, filters=filters).get()
+                )
             else:
                 return self.node_class(
                     self._get_queryset(filters=filters)
@@ -457,7 +458,9 @@ class SQLiteBackend(ProcessedDataStore):
             self.delete(keep_params=True, warn=False)
             exchanges, activities = [], []
 
-            for index, (key, ds) in enumerate(tqdm_wrapper(data.items(), getattr(config, "is_test"))):
+            for index, (key, ds) in enumerate(
+                tqdm_wrapper(data.items(), getattr(config, "is_test"))
+            ):
                 exchanges, activities = self._efficient_write_dataset(
                     index, key, ds, exchanges, activities
                 )
@@ -885,7 +888,8 @@ class SQLiteBackend(ProcessedDataStore):
     def delete_duplicate_exchanges(self, fields=["amount", "type"]):
         """Delete exchanges which are exact duplicates. Useful if you accidentally ran your input data notebook twice.
 
-        To determine uniqueness, we look at the exchange input and output nodes, and at the exchanges values for fields ``fields``."""
+        To determine uniqueness, we look at the exchange input and output nodes, and at the exchanges values for fields ``fields``.
+        """
 
         def get_uniqueness_key(exchange, fields):
             lst = [exchange.input.key, exchange.output.key]
