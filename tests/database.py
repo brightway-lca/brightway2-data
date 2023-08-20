@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal, assert_series_equal
 
-from bw2data import geomapping, get_id, databases, Database, get_activity
+from bw2data import Database, databases, geomapping, get_activity, get_id
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
 from bw2data.errors import (

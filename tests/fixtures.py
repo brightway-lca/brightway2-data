@@ -1,6 +1,5 @@
 import os
 
-
 biosphere = {
     ("biosphere", "1"): {
         "categories": ["things"],
@@ -20,10 +19,7 @@ biosphere = {
     },
 }
 
-lcia = [
-    (("biosphere", "1"), 10),
-    (("biosphere", "2"), 1000)
-]
+lcia = [(("biosphere", "1"), 10), (("biosphere", "2"), 1000)]
 
 food = {
     ("food", "1"): {

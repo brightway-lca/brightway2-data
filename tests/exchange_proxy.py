@@ -1,4 +1,12 @@
-from bw2data import Method, databases, geomapping, get_activity, methods, projects, get_node
+from bw2data import (
+    Method,
+    databases,
+    geomapping,
+    get_activity,
+    get_node,
+    methods,
+    projects,
+)
 from bw2data.database import DatabaseChooser
 from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
 
@@ -232,6 +240,7 @@ def test_exchanges_to_dataframe(activity):
         expected.sort_values(["target_id", "source_id"]).reset_index(drop=True),
         check_dtype=False,
     )
+
 
 @bw2test
 def test_uncertainty():

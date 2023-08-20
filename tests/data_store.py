@@ -80,7 +80,10 @@ def test_data_store_write_load(reset):
     d = MockDS("full moon")
     d.write(range(10))
     data = pickle.load(
-        open(os.path.join(projects.data_dir, "intermediate", d.filename + ".pickle"), "rb")
+        open(
+            os.path.join(projects.data_dir, "intermediate", d.filename + ".pickle"),
+            "rb",
+        )
     )
     assert list(data) == list(range(10))
 

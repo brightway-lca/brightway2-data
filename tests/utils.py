@@ -1,10 +1,10 @@
+import numpy as np
 import pytest
 import stats_arrays as sa
-import numpy as np
 
 from bw2data import Database, Method, methods
 from bw2data.backends import Activity as PWActivity
-from bw2data.errors import ValidityError, MultipleResults, UnknownObject
+from bw2data.errors import MultipleResults, UnknownObject, ValidityError
 from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
     as_uncertainty_dict,
@@ -44,7 +44,10 @@ def test_combine_methods():
     m2.write([(("biosphere", 2), 10, "GLO")])
     combine_methods(("test method 3",), ("test method 1",), ("test method 2",))
     cm = Method(("test method 3",))
-    assert sorted(cm.load()) == [(("biosphere", 1), 1, "GLO"), (("biosphere", 2), 12, "GLO")]
+    assert sorted(cm.load()) == [
+        (("biosphere", 1), 1, "GLO"),
+        (("biosphere", 2), 12, "GLO"),
+    ]
     assert methods[["test method 3"]]["unit"] == "p"
 
 

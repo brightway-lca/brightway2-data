@@ -5,7 +5,6 @@ import pytest
 from bw2parameters.errors import MissingName
 from peewee import IntegrityError
 
-from bw2data.tests import bw2test
 from bw2data import Database, get_activity, parameters
 from bw2data.parameters import (
     ActivityParameter,
@@ -16,6 +15,7 @@ from bw2data.parameters import (
     ProjectParameter,
     parameters,
 )
+from bw2data.tests import bw2test
 
 # Regex to search for UUID: https://stackoverflow.com/a/18359032
 uuid4hex = re.compile(

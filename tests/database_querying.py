@@ -1,11 +1,10 @@
-from bw2data import projects, databases, geomapping, methods
+import pytest
+
+from bw2data import databases, geomapping, methods, projects
 from bw2data.backends.utils import convert_backend
 from bw2data.database import DatabaseChooser
-from bw2data.errors import (
-    UnknownObject,
-)
+from bw2data.errors import UnknownObject
 from bw2data.tests import bw2test
-import pytest
 
 
 @pytest.fixture
