@@ -12,7 +12,9 @@ import pytest
 import stats_arrays as sa
 from pandas.testing import assert_frame_equal
 
-from .fixtures import bw2test
+from bw2data.tests import bw2test
+
+
 @pytest.fixture
 @bw2test
 def activity():

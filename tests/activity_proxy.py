@@ -5,8 +5,7 @@ from bw2data.database import DatabaseChooser
 from bw2data.errors import ValidityError, UnknownObject
 from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
 from bw2data.utils import get_activity
-
-from .fixtures import bw2test
+from bw2data.tests import bw2test
 
 
 @bw2test

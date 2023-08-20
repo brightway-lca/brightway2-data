@@ -10,7 +10,6 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 from bw2data import geomapping, get_id, databases, Database, get_activity
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
-from bw2data.database import Database
 from bw2data.errors import (
     DuplicateNode,
     InvalidExchange,
@@ -24,8 +23,8 @@ from bw2data.parameters import (
     ParameterizedExchange,
     parameters,
 )
+from bw2data.tests import bw2test
 
-from .fixtures import bw2test
 from .fixtures import biosphere
 from .fixtures import food as food_data
 from .fixtures import get_naughty

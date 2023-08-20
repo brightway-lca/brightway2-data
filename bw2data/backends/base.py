@@ -454,7 +454,7 @@ class SQLiteBackend(ProcessedDataStore):
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
-            self.delete_data(keep_params=True, warn=False, vacuum=False)
+            self.delete(keep_params=True, warn=False)
             exchanges, activities = [], []
 
             for index, (key, ds) in enumerate(tqdm_wrapper(data.items(), getattr(config, "is_test"))):

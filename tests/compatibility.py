@@ -1,5 +1,3 @@
-import pytest
-
 from bw2data import (
     Database,
     DataStore,
@@ -12,8 +10,9 @@ from bw2data import (
     projects,
     weightings,
 )
+from bw2data.tests import bw2test
 
-from .fixtures import bw2test, biosphere, food, lcia
+from .fixtures import biosphere, food, lcia
 
 
 @bw2test

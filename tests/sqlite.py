@@ -3,8 +3,8 @@ from copy import copy
 from bw2data import projects
 from bw2data.backends import sqlite3_lci_db as db
 from bw2data.database import DatabaseChooser
+from bw2data.tests import bw2test
 
-from .fixtures import bw2test
 
 @bw2test
 def test_switch_project_correctly_switches_database_objects():

@@ -1,8 +1,8 @@
 from bw2data import databases
 from bw2data.backends import SQLiteBackend
 from bw2data.search import IndexManager, Searcher
+from bw2data.tests import bw2test
 
-from .fixtures import bw2test
 
 @bw2test
 def test_search_dataset_containing_stop_word():
