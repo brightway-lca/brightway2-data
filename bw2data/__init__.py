@@ -50,6 +50,8 @@ def get_version_tuple() -> tuple:
 __version__ = get_version_tuple()
 
 from .configuration import config
+from .project import projects
+from .utils import set_data_dir
 from .meta import (
     calculation_setups,
     databases,
@@ -60,8 +62,6 @@ from .meta import (
     preferences,
     weightings,
 )
-from .project import projects
-from .utils import set_data_dir
 
 # Add metadata class instances to global list of serialized metadata
 config.metadata.extend(
