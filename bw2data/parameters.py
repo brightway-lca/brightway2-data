@@ -22,7 +22,6 @@ from .backends.schema import ExchangeDataset
 from .sqlite import PickleField, SubstitutableDatabase
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
-clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)
 nonempty = lambda dct: {k: v for k, v in dct.items() if v is not None}
 
 """Autoupdate `updated` field in Group when parameters change"""
