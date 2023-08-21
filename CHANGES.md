@@ -1,8 +1,13 @@
 # data Changelog
 
-## 4.0.DEV21 (2023-XX-XX)
+## 4.0.DEV22 (2023-08-21)
 
-* #140: Search for single characters
+* [PR #142: Add and use `bw_projects`](https://github.com/brightway-lca/brightway2-data/pull/142)
+* Switch to modern packaging
+
+## 4.0.DEV21 (2023-08-12)
+
+* [PR #140: Search for single characters](https://github.com/brightway-lca/brightway2-data/pull/140)
 * Purge `pyprind` and `psutil`
 
 ## 4.0.DEV20 (2023-07-25)
