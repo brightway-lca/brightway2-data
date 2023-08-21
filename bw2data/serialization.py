@@ -58,42 +58,6 @@ class JsonWrapper:
             return json.loads(data)
 
 
-class JsonSanitizer:
-    @classmethod
-    def sanitize(cls, data):
-        if isinstance(data, tuple):
-            return {"__tuple__": True, "data": [cls.sanitize(x) for x in data]}
-        elif isinstance(data, dict):
-            return {
-                "__dict__": True,
-                "keys": [cls.sanitize(x) for x in data.keys()],
-                "values": [cls.sanitize(x) for x in data.values()],
-            }
-        elif isinstance(data, list):
-            return [cls.sanitize(x) for x in data]
-        else:
-            return data
-
-    @classmethod
-    def load(cls, data):
-        if isinstance(data, dict):
-            if "__tuple__" in data:
-                return tuple([cls.load(x) for x in data["data"]])
-            elif "__dict__" in data:
-                return dict(
-                    zip(
-                        [cls.load(x) for x in data["keys"]],
-                        [cls.load(x) for x in data["values"]],
-                    )
-                )
-            else:
-                raise ValueError
-        elif isinstance(data, list):
-            return [cls.load(x) for x in data]
-        else:
-            return data
-
-
 class SerializedDict(MutableMapping):
     """Base class for dictionary that can be `serialized <http://en.wikipedia.org/wiki/Serialization>`_ to or unserialized from disk. Uses JSON as its storage format. Has most of the methods of a dictionary.
 
