@@ -380,9 +380,7 @@ class DatabaseParameter(ParameterBase):
         ParameterSet(data, glo).evaluate_and_set_amount_field()
         with parameters.db.atomic():
             for key, value in data.items():
-                DatabaseParameter.update(
-                    amount=value["amount"],
-                ).where(
+                DatabaseParameter.update(amount=value["amount"],).where(
                     DatabaseParameter.name == key,
                     DatabaseParameter.database == database,
                 ).execute()
@@ -827,9 +825,7 @@ class ActivityParameter(ParameterBase):
         ParameterSet(data, static).evaluate_and_set_amount_field()
         with parameters.db.atomic():
             for key, value in data.items():
-                ActivityParameter.update(
-                    amount=value["amount"],
-                ).where(
+                ActivityParameter.update(amount=value["amount"],).where(
                     ActivityParameter.name == key,
                     ActivityParameter.group == group,
                 ).execute()
