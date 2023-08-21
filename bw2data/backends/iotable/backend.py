@@ -1,12 +1,10 @@
 import datetime
 import functools
-import itertools
 
 import numpy as np
 import pandas as pd
 from bw_processing import clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
-from tqdm import tqdm
 
 from ... import config, databases, geomapping
 from .. import SQLiteBackend
