@@ -81,8 +81,7 @@ class BW2DataProjectManager(ProjectsManager):
         dir_base_data.mkdir(parents=True, exist_ok=True)
         dir_base_logs = temp_dir / "logs"
         dir_base_logs.mkdir(parents=True, exist_ok=True)
-        # self.db.change_path(":memory:")
-        projects = BW2DataProjectManager(dir_base_data, dir_base_logs, ":memory:")
+        projects = BW2DataProjectManager(dir_base_data, dir_base_logs)
         projects.create_project("default", activate=True, exist_ok=True)
         return temp_dir
 
