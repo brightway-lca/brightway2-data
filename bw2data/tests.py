@@ -11,6 +11,7 @@ from bw2data.parameters import parameters
 from bw2data.project import projects
 
 
+# Note: `BW2DataTest` is deprecated, please only use `bw2test` in the future
 class BW2DataTest(unittest.TestCase):
     _multiprocess_can_split_ = True
 
