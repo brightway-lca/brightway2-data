@@ -6,12 +6,10 @@ from . import (
     databases,
     methods,
     normalizations,
-    projects,
     weightings,
 )
 from .backends.schema import ActivityDataset as AD
 from .backends.schema import get_id
-from .errors import Brightway2Project
 
 
 class Mapping:
