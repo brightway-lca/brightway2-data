@@ -1,4 +1,5 @@
 """Manages Brightway2 projects."""
+import os
 import tempfile
 from pathlib import Path
 from typing import Callable, Dict, List, NoReturn
@@ -7,7 +8,6 @@ from bw_projects import Configuration as PMConfiguration
 from bw_projects import ProjectsManager
 
 from . import config
-from .filesystem import create_dir
 
 
 class BW2DataProjectManager(ProjectsManager):
@@ -68,7 +68,7 @@ class BW2DataProjectManager(ProjectsManager):
         """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
         Returns ``False`` if directory can't be created."""
         abs_path = self.data_dir / str(name)
-        create_dir(abs_path)
+        os.makedirs(abs_path, exist_ok=True)
         if not abs_path.is_dir():
             return False
         return abs_path
