@@ -1,3 +1,36 @@
+"""bw2data."""
+import importlib.metadata
+from typing import Union
+
+from .configuration import config
+from .project import projects
+from .meta import (
+    calculation_setups,
+    databases,
+    dynamic_calculation_setups,
+    geomapping,
+    methods,
+    normalizations,
+    preferences,
+    weightings,
+)
+from .utils import set_data_dir
+
+from .serialization import JsonWrapper
+from .database import DatabaseChooser as Database
+from .utils import get_activity, get_node
+from .data_store import DataStore, ProcessedDataStore
+from .method import Method
+from .search import Searcher, IndexManager
+from .weighting_normalization import Weighting, Normalization
+from .backends import convert_backend, get_id, Node, Edge
+from .compat import prepare_lca_inputs, Mapping
+from .backends.wurst_extraction import extract_brightway_databases
+
+from .parameters import parameters
+from .updates import Updates
+
+
 __all__ = [
     "dynamic_calculation_setups",
     "calculation_setups",
@@ -31,37 +64,25 @@ __all__ = [
     "weightings",
 ]
 
-import importlib.metadata
-from typing import Union
-
 
 def get_version_tuple() -> tuple:
-    def as_integer(x: str) -> Union[int, str]:
+    """Returns version as (major, minor, micro)."""
+
+    def as_integer(version: str) -> Union[int, str]:
+        """Tries parsing version else returns as is."""
         try:
-            return int(x)
-        except ValueError:
-            return x
+            return int(version)
+        except ValueError:  # pragma: no cover
+            return version  # pragma: no cover
 
     return tuple(
-        as_integer(v) for v in importlib.metadata.version("bw2data").strip().split(".")
+        as_integer(v)
+        for v in importlib.metadata.version("bw_projects").strip().split(".")
     )
 
 
 __version__ = get_version_tuple()
 
-from .configuration import config
-from .project import projects
-from .utils import set_data_dir
-from .meta import (
-    calculation_setups,
-    databases,
-    dynamic_calculation_setups,
-    geomapping,
-    methods,
-    normalizations,
-    preferences,
-    weightings,
-)
 
 # Add metadata class instances to global list of serialized metadata
 config.metadata.extend(
@@ -80,20 +101,6 @@ config.metadata.extend(
 # Backwards compatibility - preferable to access ``preferences`` directly
 config.p = preferences
 
-from .serialization import JsonWrapper
-from .database import DatabaseChooser as Database
-from .utils import get_activity, get_node
-from .data_store import DataStore, ProcessedDataStore
-from .method import Method
-from .search import Searcher, IndexManager
-from .weighting_normalization import Weighting, Normalization
-from .backends import convert_backend, get_id, Node, Edge
-from .compat import prepare_lca_inputs, Mapping
-from .backends.wurst_extraction import extract_brightway_databases
-
 mapping = Mapping()
-
-from .parameters import parameters
-from .updates import Updates
 
 Updates.check_status()
