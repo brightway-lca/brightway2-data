@@ -48,13 +48,6 @@ def unpack(dct):
             yield obj
 
 
-def translate_key(key):
-    if isinstance(key, int):
-        return key
-    else:
-        return AD.get(AD.database == key[0], AD.code == key[1]).id
-
-
 def prepare_lca_inputs(
     demand=None,
     method=None,
@@ -129,11 +122,3 @@ def prepare_lca_inputs(
         indexed_demand = None
 
     return indexed_demand, data_objs, remapping_dicts
-
-
-def get_database_filepath(functional_unit):
-    """Get filepaths for all databases in supply chain of `functional_unit`"""
-    dbs = set.union(
-        *[Database(key[0]).find_graph_dependents() for key in functional_unit]
-    )
-    return [Database(obj).filepath_processed() for obj in dbs]
