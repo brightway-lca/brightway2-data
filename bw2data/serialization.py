@@ -8,7 +8,6 @@ from time import time
 from . import projects
 from .errors import PickleError
 from .fatomic import open as atomic_open
-from .utils import maybe_path
 
 try:
     import anyjson
@@ -68,7 +67,7 @@ class SerializedDict(MutableMapping):
             raise NotImplementedError(
                 "SerializedDict must be subclassed, and the filename must be set."
             )
-        self.filepath = (maybe_path(dirpath) or projects.data_dir) / self.filename
+        self.filepath = (dirpath or projects.data_dir) / self.filename
         self.load()
 
     def load(self):
