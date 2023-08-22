@@ -24,7 +24,6 @@ from ..errors import (
     UntypedExchange,
     WrongDatabase,
 )
-from ..query import Query
 from ..search import IndexManager, Searcher
 from ..utils import as_uncertainty_dict, get_geocollection, get_node
 from . import sqlite3_lci_db
@@ -192,10 +191,6 @@ class SQLiteBackend(ProcessedDataStore):
         while extended != seed:
             seed, extended = extended, extend(extended)
         return extended
-
-    def query(self, *queries):
-        """Search through the database."""
-        return Query(*queries)(self.load())
 
     def register(self, write_empty=True, **kwargs):
         """Register a database with the metadata store.
