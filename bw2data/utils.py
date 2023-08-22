@@ -1,10 +1,7 @@
 import collections
 import itertools
 import numbers
-import os
 import warnings
-import zipfile
-from io import StringIO
 
 import requests
 import stats_arrays as sa
@@ -182,22 +179,6 @@ def download_file(filename, directory="downloads", url=None):
                 break
             f.write(segment)
     return filepath
-
-
-def create_in_memory_zipfile_from_directory(path):
-    # Based on http://stackoverflow.com/questions/2463770/python-in-memory-zip-library
-    memory_obj = StringIO()
-    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
-    zf = zipfile.ZipFile(memory_obj, "a", zipfile.ZIP_DEFLATED, False)
-    for filename in files:
-        zf.writestr(filename, open(os.path.join(path, filename)).read())
-    # Mark the files as having been created on Windows so that
-    # Unix permissions are not inferred as 0000
-    for zfile in zf.filelist:
-        zfile.create_system = 0
-    zf.close()
-    memory_obj.seek(0)
-    return memory_obj
 
 
 def get_node(**kwargs):
