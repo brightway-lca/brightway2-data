@@ -105,7 +105,10 @@ class ActivityProxyBase(ProxyBase):
 
     def lca(self, method=None, amount=1.0):
         """Shortcut to construct an LCA object for this activity."""
-        from bw2calc import LCA
+        try:
+            from bw2calc import LCA
+        except ImportError:
+            raise ImportError("This method requires `bw2calc`")
 
         lca = LCA({self: amount}, method=method)
         lca.lci()
@@ -266,7 +269,10 @@ class ExchangeProxyBase(ProxyBase):
         """Shortcut to construct an LCA object for this exchange **input**.
 
         Uses the exchange amount if no other amount is provided."""
-        from bw2calc import LCA
+        try:
+            from bw2calc import LCA
+        except ImportError:
+            raise ImportError("This method requires `bw2calc`")
 
         if amount is None:
             amount = self["amount"]

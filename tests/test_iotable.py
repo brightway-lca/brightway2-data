@@ -1,8 +1,12 @@
 import numpy as np
 import pandas as pd
 import pytest
-from bw2calc import LCA
 from pandas.testing import assert_frame_equal
+
+try:
+    from bw2calc import LCA
+except ImportError:
+    LCA = None
 
 from bw2data import (
     Database,
@@ -105,6 +109,7 @@ def test_iotable_setup_clean(iotable_fixture):
     assert "default" in projects
 
 
+@pytest.mark.skipif(LCA is None, reason="requires bw2calc")
 def test_iotable_matrix_construction(iotable_fixture):
     lca = LCA({("cat", "a"): 1}, ("a method",))
     lca.lci()
@@ -431,6 +436,7 @@ def test_substitution(iotable_fixture):
     assert len(list(act.substitution())) == 0
 
 
+@pytest.mark.skipif(LCA is None, reason="requires bw2calc")
 def test_iotabe_readonlyexchange(iotable_fixture):
     a = get_node(code="b")
     exc = next(iter(a.technosphere()))

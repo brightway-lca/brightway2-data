@@ -876,8 +876,11 @@ class SQLiteBackend(ProcessedDataStore):
             self._metadata.flush()
 
     def graph_technosphere(self, filename=None, **kwargs):
-        from bw2analyzer.matrix_grapher import SparseMatrixGrapher
-        from bw2calc import LCA
+        try:
+            from bw2analyzer.matrix_grapher import SparseMatrixGrapher
+            from bw2calc import LCA
+        except ImportError:
+            raise ImportError("This method requires `bw2analyzer` and `bw2calc`")
 
         lca = LCA({self.random(): 1})
         lca.lci()
