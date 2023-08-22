@@ -12,17 +12,11 @@ from bw2data.utils import (
     get_activity,
     get_node,
     merge_databases,
-    natural_sort,
     random_string,
     uncertainify,
 )
 
 from .fixtures import biosphere
-
-
-def test_natural_sort():
-    data = ["s100", "s2", "s1"]
-    assert ["s1", "s2", "s100"] == natural_sort(data)
 
 
 def test_random_string():
