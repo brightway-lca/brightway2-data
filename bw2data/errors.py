@@ -29,12 +29,20 @@ class UntypedExchange(BW2Exception):
     """Exchange doesn't have 'type' attribute"""
 
 
+class WebUIError(BW2Exception):
+    """Can't find running instance of bw2-web"""
+
+
 class ValidityError(BW2Exception):
     """The activity or exchange dataset does not have all the required fields"""
 
 
 class WrongDatabase(BW2Exception):
     """Can't save activities from database `x` to database `y`."""
+
+
+class NotFound(BW2Exception):
+    """Requested web resource not found"""
 
 
 class PickleError(BW2Exception):
