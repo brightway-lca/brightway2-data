@@ -34,21 +34,6 @@ def safe_filename(*args, **kwargs):
     raise DeprecationWarning("`safe_filename` has been moved to `bw_processing`")
 
 
-def random_string(length=8):
-    """Generate a random string of letters and numbers.
-
-    Args:
-        * *length* (int): Length of string, default is 8
-
-    Returns:
-        A string (not unicode)
-
-    """
-    return "".join(
-        random.choice(string.ascii_letters + string.digits) for i in range(length)
-    )
-
-
 def combine_methods(name, *ms):
     """Combine LCIA methods by adding duplicate characterization factors.
 

@@ -12,17 +12,10 @@ from bw2data.utils import (
     get_activity,
     get_node,
     merge_databases,
-    random_string,
     uncertainify,
 )
 
 from .fixtures import biosphere
-
-
-def test_random_string():
-    s = random_string(10)
-    assert len(s) == 10
-    assert isinstance(s, str)
 
 
 @bw2test
