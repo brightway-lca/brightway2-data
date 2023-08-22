@@ -2,9 +2,12 @@ import atexit
 import random
 import shutil
 import string
+import unittest
 
 import wrapt
-from bw2data import config
+
+from bw2data import config, databases, geomapping, methods
+from bw2data.parameters import parameters
 from bw2data.project import projects
 
 
