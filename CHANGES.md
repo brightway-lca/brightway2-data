@@ -1,5 +1,9 @@
 # data Changelog
 
+## 4.0.DEV23 (2023-08-22)
+
+* Remove dependency on `bw2calc`
+
 ## 4.0.DEV22 (2023-08-21)
 
 * [PR #142: Add and use `bw_projects`](https://github.com/brightway-lca/brightway2-data/pull/142)
