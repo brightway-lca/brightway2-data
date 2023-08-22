@@ -4,11 +4,6 @@ from whoosh.query import And, Term
 from .indices import IndexManager
 
 
-def keysplit(strng):
-    """Split an activity key joined into a single string using the magic sequence `⊡|⊡`"""
-    return tuple(strng.split("⊡|⊡"))
-
-
 class Searcher:
     def __init__(self, database):
         self._database = database
