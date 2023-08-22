@@ -5,9 +5,10 @@ import warnings
 
 import requests
 import stats_arrays as sa
+from atomicwrites import atomic_write
 
 from .errors import MultipleResults, NotFound, UnknownObject
-from .fatomic import open
+
 
 # Type of technosphere/biosphere exchanges used in processed Databases
 TYPE_DICTIONARY = {
@@ -172,7 +173,7 @@ def download_file(filename, directory="downloads", url=None):
         )
     download = request.raw
     chunk = 128 * 1024
-    with open(filepath, "wb") as f:
+    with atomic_write(filepath, mode="wb", overwrite=True) as f:
         while True:
             segment = download.read(chunk)
             if not segment:

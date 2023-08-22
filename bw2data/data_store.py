@@ -1,5 +1,6 @@
 import pickle
 
+from atomicwrites import atomic_write
 from bw_processing import (
     clean_datapackage_name,
     create_datapackage,
@@ -10,7 +11,6 @@ from fs.zipfs import ZipFS
 
 from . import projects
 from .errors import MissingIntermediateData, UnknownObject
-from .fatomic import open as atomic_open
 
 
 class DataStore:
@@ -132,7 +132,7 @@ class DataStore:
         filepath = (
             projects.data_dir / self._intermediate_dir / (self.filename + ".pickle")
         )
-        with atomic_open(filepath, "wb") as f:
+        with atomic_write(filepath, mode="wb", overwrite=True) as f:
             pickle.dump(data, f, protocol=4)
 
     def validate(self, data):
@@ -175,7 +175,7 @@ class ProcessedDataStore(DataStore):
         filepath = (
             projects.data_dir / self._intermediate_dir / (self.filename + ".pickle")
         )
-        with atomic_open(filepath, "wb") as f:
+        with atomic_write(filepath, mode="wb", overwrite=True) as f:
             pickle.dump(data, f, protocol=4)
         if process:
             self.process()
