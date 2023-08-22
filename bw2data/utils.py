@@ -184,21 +184,6 @@ def download_file(filename, directory="downloads", url=None):
     return filepath
 
 
-def set_data_dir(dirpath, permanent=True):
-    """Set the Brightway2 data directory to ``dirpath``.
-
-    If ``permanent`` is ``True``, then set ``dirpath`` as the default data directory.
-
-    Creates ``dirpath`` if needed. Also creates basic directories, and resets metadata.
-
-    """
-    warnings.warn(
-        "`set_data_dir` is deprecated; use `projects.create_project('my "
-        "project name', activate=True, exist_ok=True)` for a new project space.",
-        DeprecationWarning,
-    )
-
-
 def create_in_memory_zipfile_from_directory(path):
     # Based on http://stackoverflow.com/questions/2463770/python-in-memory-zip-library
     memory_obj = StringIO()

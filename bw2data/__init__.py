@@ -14,7 +14,6 @@ from .meta import (
     preferences,
     weightings,
 )
-from .utils import set_data_dir
 
 from .serialization import JsonWrapper
 from .database import DatabaseChooser as Database
@@ -59,7 +58,6 @@ __all__ = [
     "ProcessedDataStore",
     "projects",
     "Searcher",
-    "set_data_dir",
     "Weighting",
     "weightings",
 ]
