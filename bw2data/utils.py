@@ -152,58 +152,6 @@ def recursive_str_to_unicode(data, encoding="utf8"):
         return data
 
 
-def merge_databases(parent_db, other):
-    """Merge ``other`` into ``parent_db``, including updating exchanges.
-
-    All databases must be SQLite databases.
-
-    ``parent_db`` and ``other`` should be the names of databases.
-
-    Doesn't return anything."""
-    from . import databases
-    from .backends import (
-        ActivityDataset,
-        ExchangeDataset,
-        SQLiteBackend,
-        sqlite3_lci_db,
-    )
-    from .database import Database
-
-    assert parent_db in databases
-    assert other in databases
-
-    first = Database(parent_db)
-    second = Database(other)
-
-    if type(first) != SQLiteBackend or type(second) != SQLiteBackend:
-        raise ValidityError("Both databases must be `SQLiteBackend`")
-
-    first_codes = {
-        obj.code
-        for obj in ActivityDataset.select().where(ActivityDataset.database == parent_db)
-    }
-    second_codes = {
-        obj.code
-        for obj in ActivityDataset.select().where(ActivityDataset.database == other)
-    }
-    if first_codes.intersection(second_codes):
-        raise ValidityError("Duplicate codes - can't merge databases")
-
-    with sqlite3_lci_db.atomic():
-        ActivityDataset.update(database=parent_db).where(
-            ActivityDataset.database == other
-        ).execute()
-        ExchangeDataset.update(input_database=parent_db).where(
-            ExchangeDataset.input_database == other
-        ).execute()
-        ExchangeDataset.update(output_database=parent_db).where(
-            ExchangeDataset.output_database == other
-        ).execute()
-
-    Database(parent_db).process()
-    del databases[other]
-
-
 def download_file(filename, directory="downloads", url=None):
     """Download a file and write it to disk in ``downloads`` directory.
 
