@@ -2,20 +2,14 @@ import collections
 import itertools
 import numbers
 import os
-import random
-import re
-import string
-import urllib
 import warnings
-import webbrowser
 import zipfile
 from io import StringIO
 
 import requests
 import stats_arrays as sa
 
-from . import config
-from .errors import MultipleResults, NotFound, UnknownObject, ValidityError, WebUIError
+from .errors import MultipleResults, NotFound, UnknownObject
 from .fatomic import open
 
 # Type of technosphere/biosphere exchanges used in processed Databases
@@ -188,31 +182,6 @@ def download_file(filename, directory="downloads", url=None):
                 break
             f.write(segment)
     return filepath
-
-
-def web_ui_accessible():
-    """Test if ``bw2-web`` is running and accessible. Returns ``True`` or ``False``."""
-    base_url = config.p.get("web_ui_address", "http://127.0.0.1:5000") + "/ping"
-    try:
-        response = requests.get(base_url)
-    except requests.ConnectionError:
-        return False
-    return response.text == "pong"
-
-
-def open_activity_in_webbrowser(activity):
-    """Open a dataset document in the Brightway2 web UI. Requires ``bw2-web`` to be running.
-
-    ``activity`` is a dataset key, e.g. ``("foo", "bar")``."""
-    base_url = config.p.get("web_ui_address", "http://127.0.0.1:5000")
-    if not web_ui_accessible():
-        raise WebUIError("Can't find bw2-web UI (tried %s)" % base_url)
-    url = base_url + "/view/%s/%s" % (
-        urllib.quote(activity[0]),
-        urllib.quote(activity[1]),
-    )
-    webbrowser.open_new_tab(url)
-    return url
 
 
 def set_data_dir(dirpath, permanent=True):

@@ -29,10 +29,6 @@ class UntypedExchange(BW2Exception):
     """Exchange doesn't have 'type' attribute"""
 
 
-class WebUIError(BW2Exception):
-    """Can't find running instance of bw2-web"""
-
-
 class ValidityError(BW2Exception):
     """The activity or exchange dataset does not have all the required fields"""
 
