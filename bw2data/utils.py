@@ -34,17 +34,6 @@ def safe_filename(*args, **kwargs):
     raise DeprecationWarning("`safe_filename` has been moved to `bw_processing`")
 
 
-def clean_exchanges(data):
-    """Make sure all exchange inputs are tuples, not lists."""
-
-    def tupleize(value):
-        for exc in value.get("exchanges", []):
-            exc["input"] = tuple(exc["input"])
-        return value
-
-    return {key: tupleize(value) for key, value in data.items()}
-
-
 POSITIVE_DISTRIBUTIONS = {2, 6, 8, 9, 10}
 
 
