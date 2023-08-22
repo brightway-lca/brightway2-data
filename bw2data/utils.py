@@ -34,35 +34,6 @@ def safe_filename(*args, **kwargs):
     raise DeprecationWarning("`safe_filename` has been moved to `bw_processing`")
 
 
-def combine_methods(name, *ms):
-    """Combine LCIA methods by adding duplicate characterization factors.
-
-    Args:
-        * *ms* (one or more method id tuples): Any number of method ids, e.g. ``("my method", "wow"), ("another method", "wheee")``.
-
-    Returns:
-        The new Method instance.
-
-    """
-    from . import Method, methods
-
-    data = {}
-    units = set([methods[tuple(x)]["unit"] for x in ms])
-    for m in ms:
-        for key, cf, geo in Method(m).load():
-            data[(key, geo)] = data.get((key, geo), 0) + cf
-    meta = {
-        "description": "Combination of the following methods: "
-        + ", ".join([str(x) for x in ms]),
-        "unit": list(units)[0] if len(units) == 1 else "Unknown",
-    }
-    data = [(key, cf, geo) for (key, geo), cf in data.items()]
-    method = Method(name)
-    method.register(**meta)
-    method.write(data)
-    return method
-
-
 def clean_exchanges(data):
     """Make sure all exchange inputs are tuples, not lists."""
 

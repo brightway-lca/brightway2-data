@@ -8,7 +8,6 @@ from bw2data.errors import MultipleResults, UnknownObject, ValidityError
 from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
     as_uncertainty_dict,
-    combine_methods,
     get_activity,
     get_node,
     merge_databases,
@@ -16,26 +15,6 @@ from bw2data.utils import (
 )
 
 from .fixtures import biosphere
-
-
-@bw2test
-def test_combine_methods():
-    d = Database("biosphere")
-    d.register(depends=[])
-    d.write(biosphere)
-    m1 = Method(("test method 1",))
-    m1.register(unit="p")
-    m1.write([(("biosphere", 1), 1, "GLO"), (("biosphere", 2), 2, "GLO")])
-    m2 = Method(("test method 2",))
-    m2.register(unit="p")
-    m2.write([(("biosphere", 2), 10, "GLO")])
-    combine_methods(("test method 3",), ("test method 1",), ("test method 2",))
-    cm = Method(("test method 3",))
-    assert sorted(cm.load()) == [
-        (("biosphere", 1), 1, "GLO"),
-        (("biosphere", 2), 12, "GLO"),
-    ]
-    assert methods[["test method 3"]]["unit"] == "p"
 
 
 def test_wrong_distribution():
