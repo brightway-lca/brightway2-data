@@ -10,7 +10,6 @@ import warnings
 import webbrowser
 import zipfile
 from io import StringIO
-from pathlib import Path
 
 import requests
 import stats_arrays as sa
@@ -33,10 +32,6 @@ DOWNLOAD_URL = "https://brightway.dev/data/"
 
 def safe_filename(*args, **kwargs):
     raise DeprecationWarning("`safe_filename` has been moved to `bw_processing`")
-
-
-def maybe_path(x):
-    return Path(x) if x else x
 
 
 def natural_sort(l):
