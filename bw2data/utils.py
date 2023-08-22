@@ -152,11 +152,6 @@ def recursive_str_to_unicode(data, encoding="utf8"):
         return data
 
 
-def combine_databases(name, *dbs):
-    """Combine databases into new database called ``name``."""
-    pass
-
-
 def merge_databases(parent_db, other):
     """Merge ``other`` into ``parent_db``, including updating exchanges.
 
