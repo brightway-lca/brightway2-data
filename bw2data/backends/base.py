@@ -455,7 +455,7 @@ class SQLiteBackend(ProcessedDataStore):
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
-            self.delete(keep_params=True, warn=False)
+            self.delete(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
             for index, (key, ds) in enumerate(
@@ -598,7 +598,7 @@ class SQLiteBackend(ProcessedDataStore):
         databases.flush()
         IndexManager(self.filename).delete_database()
 
-    def delete(self, keep_params=False, warn=True):
+    def delete(self, keep_params=False, warn=True, vacuum=True):
         """Delete all data from SQLite database and Whoosh index"""
         if warn:
             MESSAGE = """
