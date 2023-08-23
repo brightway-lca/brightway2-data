@@ -598,7 +598,7 @@ class SQLiteBackend(ProcessedDataStore):
         databases.flush()
         IndexManager(self.filename).delete_database()
 
-    def delete(self, keep_params=False, warn=True):
+    def delete(self, keep_params=False, warn=True, vacuum=True):
         """Delete all data from SQLite database and Whoosh index"""
         if warn:
             MESSAGE = """
