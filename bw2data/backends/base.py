@@ -455,7 +455,7 @@ class SQLiteBackend(ProcessedDataStore):
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
-            self.delete(keep_params=True, warn=False)
+            self.delete(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
             for index, (key, ds) in enumerate(
