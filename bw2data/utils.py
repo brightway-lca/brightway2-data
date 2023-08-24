@@ -296,7 +296,7 @@ def download_file(filename, directory="downloads", url=None):
 
     assert isinstance(directory, str), "`directory` must be a string"
     dirpath = projects.request_directory(directory)
-    filepath = os.path.join(dirpath, filename)
+    filepath = dirpath / filename
     download_path = (url if url is not None else DOWNLOAD_URL) + filename
     with urllib.request.urlopen(download_path) as response, open(filepath, 'wb') as out_file:
         if response.status != 200:
@@ -310,30 +310,6 @@ def download_file(filename, directory="downloads", url=None):
                 break
             out_file.write(segment)
     return filepath
-
-
-def web_ui_accessible():
-    """Test if ``bw2-web`` is running and accessible. Returns ``True`` or ``False``."""
-    base_url = config.p.get("web_ui_address", "http://127.0.0.1:5000") + "/ping"
-    try:
-        response = urllib.request.urlopen(base_url)
-    except urllib.error.URLError:
-        return False
-    return response.read().decode('utf-8') == "pong"
-
-def open_activity_in_webbrowser(activity):
-    """Open a dataset document in the Brightway2 web UI. Requires ``bw2-web`` to be running.
-
-    ``activity`` is a dataset key, e.g. ``("foo", "bar")``."""
-    base_url = config.p.get("web_ui_address", "http://127.0.0.1:5000")
-    if not web_ui_accessible():
-        raise WebUIError("Can't find bw2-web UI (tried %s)" % base_url)
-    url = base_url + "/view/%s/%s" % (
-        urllib.quote(activity[0]),
-        urllib.quote(activity[1]),
-    )
-    webbrowser.open_new_tab(url)
-    return url
 
 
 def set_data_dir(dirpath, permanent=True):
