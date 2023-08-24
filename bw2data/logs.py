@@ -4,7 +4,6 @@ import logging
 import uuid
 from logging.handlers import RotatingFileHandler
 
-import requests
 
 from . import config, projects
 from .utils import create_in_memory_zipfile_from_directory, random_string
@@ -96,7 +95,10 @@ def upload_logs_to_server(metadata={}):
     files = {"file": (uuid.uuid4().hex + ".zip", zip_fo.read())}
     metadata["json"] = "native" if anyjson is None else anyjson.implementation.name
     metadata["windows"] = config._windows
-    return requests.post(url, data=metadata, files=files)
+    data = urllib.parse.urlencode(metadata).encode('utf-8')
+    req = urllib.request.Request(url, data=data, files=files)
+    response = urllib.request.urlopen(req)
+    return response.read()
 
 
 def close_log(log):

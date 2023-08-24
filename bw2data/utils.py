@@ -12,7 +12,6 @@ import zipfile
 from io import StringIO
 from pathlib import Path
 
-import requests
 import stats_arrays as sa
 
 from . import config
@@ -297,21 +296,19 @@ def download_file(filename, directory="downloads", url=None):
 
     assert isinstance(directory, str), "`directory` must be a string"
     dirpath = projects.request_directory(directory)
-    filepath = dirpath / filename
+    filepath = os.path.join(dirpath, filename)
     download_path = (url if url is not None else DOWNLOAD_URL) + filename
-    request = requests.get(download_path, stream=True)
-    if request.status_code != 200:
-        raise NotFound(
-            "URL {} returns status code {}.".format(download_path, request.status_code)
-        )
-    download = request.raw
-    chunk = 128 * 1024
-    with open(filepath, "wb") as f:
+    with urllib.request.urlopen(download_path) as response, open(filepath, 'wb') as out_file:
+        if response.status != 200:
+            raise NotFound(
+                "URL {} returns status code {}.".format(download_path, response.status)
+            )
+        chunk = 128 * 1024
         while True:
-            segment = download.read(chunk)
+            segment = response.read(chunk)
             if not segment:
                 break
-            f.write(segment)
+            out_file.write(segment)
     return filepath
 
 
@@ -319,11 +316,10 @@ def web_ui_accessible():
     """Test if ``bw2-web`` is running and accessible. Returns ``True`` or ``False``."""
     base_url = config.p.get("web_ui_address", "http://127.0.0.1:5000") + "/ping"
     try:
-        response = requests.get(base_url)
-    except requests.ConnectionError:
+        response = urllib.request.urlopen(base_url)
+    except urllib.error.URLError:
         return False
-    return response.text == "pong"
-
+    return response.read().decode('utf-8') == "pong"
 
 def open_activity_in_webbrowser(activity):
     """Open a dataset document in the Brightway2 web UI. Requires ``bw2-web`` to be running.
