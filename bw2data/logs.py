@@ -4,7 +4,6 @@ import logging
 import uuid
 from logging.handlers import RotatingFileHandler
 
-import requests
 
 from . import config, projects
 from .utils import create_in_memory_zipfile_from_directory, random_string
@@ -88,15 +87,6 @@ Message:
     logger.addHandler(handler)
     return logger
 
-
-def upload_logs_to_server(metadata={}):
-    # Hardcoded for now
-    url = "http://reports.brightway.dev/logs"
-    zip_fo = create_in_memory_zipfile_from_directory(projects.logs_dir)
-    files = {"file": (uuid.uuid4().hex + ".zip", zip_fo.read())}
-    metadata["json"] = "native" if anyjson is None else anyjson.implementation.name
-    metadata["windows"] = config._windows
-    return requests.post(url, data=metadata, files=files)
 
 
 def close_log(log):
