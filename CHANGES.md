@@ -1,5 +1,9 @@
 # data Changelog
 
+## 4.0.DEV24 (2023-08-24)
+
+* Replace `requests` with `urllib` functions.
+
 ## 4.0.DEV23 (2023-08-22)
 
 * Remove dependency on `bw2calc`
