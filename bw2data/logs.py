@@ -88,18 +88,6 @@ Message:
     return logger
 
 
-def upload_logs_to_server(metadata={}):
-    # Hardcoded for now
-    url = "http://reports.brightway.dev/logs"
-    zip_fo = create_in_memory_zipfile_from_directory(projects.logs_dir)
-    files = {"file": (uuid.uuid4().hex + ".zip", zip_fo.read())}
-    metadata["json"] = "native" if anyjson is None else anyjson.implementation.name
-    metadata["windows"] = config._windows
-    data = urllib.parse.urlencode(metadata).encode('utf-8')
-    req = urllib.request.Request(url, data=data, files=files)
-    response = urllib.request.urlopen(req)
-    return response.read()
-
 
 def close_log(log):
     """Detach log handlers; flush to disk"""
