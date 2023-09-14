@@ -1,4 +1,4 @@
-# data Changelog
+# `bw2data` Changelog
 
 ## 4.0.DEV24 (2023-08-24)
 
