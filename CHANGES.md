@@ -1,5 +1,9 @@
 # data Changelog
 
+## 4.0.DEV28 (2023-09-17)
+
+* Make adding data to search index optional when writing
+
 ## 4.0.DEV27 (2023-09-17)
 
 * Fix bug from withdrawn DEV22-24 line
