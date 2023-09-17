@@ -1,6 +1,14 @@
 # data Changelog
 
-## 4.0.DEV21 (2023-XX-XX)
+## 4.0.DEV26 (2023-09-17)
+
+* Allow writing databases without touching search index
+
+## 4.0.DEV25 (2023-09-15)
+
+* Remove `requests` for easier WASM packaging
+
+## 4.0.DEV21 (2023-08-12)
 
 * #140: Search for single characters
 * Purge `pyprind` and `psutil`
