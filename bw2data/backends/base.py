@@ -477,7 +477,7 @@ class SQLiteBackend(ProcessedDataStore):
     # Public API
 
     @writable_project
-    def write(self, data, process=True):
+    def write(self, data, process=True, searchable=True):
         """Write ``data`` to database.
 
         ``data`` must be a dictionary of the form::
@@ -522,7 +522,8 @@ class SQLiteBackend(ProcessedDataStore):
                 self.delete(warn=False)
                 raise
 
-        self.make_searchable(reset=True)
+        if searchable:
+            self.make_searchable(reset=True)
 
         if process:
             self.process()
