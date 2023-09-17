@@ -452,7 +452,7 @@ class SQLiteBackend(ProcessedDataStore):
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
-            self.delete_data(keep_params=True, warn=False, vacuum=False)
+            self.delete(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
             for index, (key, ds) in enumerate(tqdm_wrapper(data.items(), getattr(config, "is_test"))):
@@ -599,7 +599,7 @@ class SQLiteBackend(ProcessedDataStore):
         IndexManager(self.filename).delete_database()
 
     @writable_project
-    def delete(self, keep_params=False, warn=True):
+    def delete(self, keep_params=False, warn=True, vacuum=True):
         """Delete all data from SQLite database and Whoosh index"""
         if warn:
             MESSAGE = """
