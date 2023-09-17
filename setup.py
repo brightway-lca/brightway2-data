@@ -23,7 +23,7 @@ setup(
     name='bw2data',
     version=version,
     packages=packages,
-    python_requires='>=3.5',
+    python_requires='>=3.9',
     author="Chris Mutel",
     author_email="cmutel@gmail.com",
     license="3-clause BSD",
