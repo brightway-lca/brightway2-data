@@ -1,5 +1,9 @@
 # data Changelog
 
+## 4.0.DEV27 (2023-09-17)
+
+* Fix bug from withdrawn DEV22-24 line
+
 ## 4.0.DEV26 (2023-09-17)
 
 * Allow writing databases without touching search index
