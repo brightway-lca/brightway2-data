@@ -137,7 +137,10 @@ class SQLiteBackend(ProcessedDataStore):
                 format="Brightway2 copy",
             )
 
-        new_database.write(data)
+        new_database.write(
+            data,
+            searchable=databases[name].get("searchable")
+        )
         return new_database
 
     def filepath_intermediate(self):
@@ -214,7 +217,7 @@ class SQLiteBackend(ProcessedDataStore):
         kwargs["backend"] = self.backend
         super().register(**kwargs)
         if write_empty:
-            self.write({})
+            self.write({}, searchable=False)
 
     def relabel_data(self, data, new_name):
         """Relabel database keys and exchanges.
@@ -297,7 +300,10 @@ class SQLiteBackend(ProcessedDataStore):
             new_db = self.__class__(name)
             databases[name] = databases[old_name]
         new_data = self.relabel_data(self.load(), name)
-        new_db.write(new_data)
+        new_db.write(
+            new_data,
+            searchable=databases[name].get("searchable")
+        )
         del databases[old_name]
         self.name = name
         return new_db

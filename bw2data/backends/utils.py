@@ -46,7 +46,10 @@ def convert_backend(database_name, backend):
         warnings.simplefilter("ignore")
         new_db = Database(database_name, backend)
         new_db.register(**metadata)
-    new_db.write(data)
+        new_db.write(
+            data,
+            searchable=databases[database_name].get("searchable")
+        )
     return new_db
 
 
