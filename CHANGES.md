@@ -1,5 +1,9 @@
 # data Changelog
 
+## 4.0.DEV29 (2023-09-18)
+
+* Fix for https://github.com/brightway-lca/brightway-live/issues/39
+
 ## 4.0.DEV28 (2023-09-17)
 
 * Make adding data to search index optional when writing
