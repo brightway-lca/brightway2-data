@@ -461,7 +461,7 @@ class SQLiteBackend(ProcessedDataStore):
             self.delete(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
-            for index, (key, ds) in enumerate(tqdm_wrapper(data.items(), getattr(config, "is_test"))):
+            for index, (key, ds) in enumerate(tqdm_wrapper(data.items(), getattr(config, "is_test", False))):
                 exchanges, activities = self._efficient_write_dataset(
                     index, key, ds, exchanges, activities
                 )
