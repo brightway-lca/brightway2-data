@@ -5,7 +5,7 @@ import pytest
 from bw_processing import load_datapackage
 from fs.zipfs import ZipFS
 
-from bw2data import config, get_id
+from bw2data import config, get_id, get_node
 from bw2data.backends.schema import ActivityDataset as AD
 from bw2data.database import DatabaseChooser
 from bw2data.ia_data_store import ImpactAssessmentDataStore as IADS
@@ -279,3 +279,19 @@ def test_method_geocollection_warning():
         ]
     )
     assert m.metadata["geocollections"] == []
+
+
+def test_method_pass_id_processed_array(reset):
+    database = DatabaseChooser("foo")
+    database.write({("foo", "bar"): {}})
+    node = get_node(code="bar")
+
+    method = Method(("a", "method"))
+    method.write([[node.id, 42]])
+    package = load_datapackage(ZipFS(method.filepath_processed()))
+    data = package.get_resource("a_method_matrix_data.data")[0]
+    assert np.allclose(data, [42])
+
+    indices = package.get_resource("a_method_matrix_data.indices")[0]
+    assert np.allclose(indices["row"], node.id)
+    assert np.allclose(indices["col"], geomapping[config.global_location])
