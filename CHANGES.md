@@ -1,5 +1,9 @@
 # data Changelog
 
+## 4.0.DEV31 (2023-10-10)
+
+* Fix a missing test clause for optional dependencies
+
 ## 4.0.DEV30 (2023-10-10)
 
 * Add warnings for common activity and exchange typos
