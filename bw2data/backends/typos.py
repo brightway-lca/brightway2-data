@@ -76,7 +76,7 @@ def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:
     if not Levenshtein:
         return
 
-    if type_value and type_value not in valid:
+    if type_value and type_value not in valid and isinstance(type_value, str):
         possibles = sorted(
             [
                 (Levenshtein.distance(type_value, possible), possible)
