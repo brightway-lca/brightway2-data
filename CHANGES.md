@@ -1,5 +1,9 @@
 # data Changelog
 
+## 4.0.DEV30 (2023-10-10)
+
+* Add warnings for common activity and exchange typos
+
 ## 4.0.DEV29 (2023-09-18)
 
 * Fix for https://github.com/brightway-lca/brightway-live/issues/39
