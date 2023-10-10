@@ -490,14 +490,29 @@ def test_rp_exchange_value_error_only_substitution():
 
 @pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
 @bw2test
-def test_warning_on_test_typo():
+def test_warning_on_type_typo():
     database = DatabaseChooser("a database")
     database.register()
 
-    expected = "Possible typo found: Given type `prcess` but `process` is more common"
+    expected = "Possible typo found: Given activity type `prcess` but `process` is more common"
     with pytest.warns(UserWarning, match=expected):
         database.new_node(code="foo", name="bar", type="prcess", exchanges=[]).save()
 
-    expected = "Possible typo found: Given type `emision` but `emission` is more common"
+    expected = "Possible typo found: Given activity type `emision` but `emission` is more common"
     with pytest.warns(UserWarning, match=expected):
         database.new_node(code="fooz", name="barz", type="emision", exchanges=[]).save()
+
+
+@pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
+@bw2test
+def test_warning_on_key_typo():
+    database = DatabaseChooser("a database")
+    database.register()
+
+    expected = "Possible incorrect activity key found: Given `nme` but `name` is more common"
+    with pytest.warns(UserWarning, match=expected):
+        database.new_node(code="foo", name="s", nme="bar", type="process", exchanges=[]).save()
+
+    expected = "Possible incorrect activity key found: Given `reference_product` but `reference product` is more common"
+    with pytest.warns(UserWarning, match=expected):
+        database.new_node(code="fooz", name="barz", reference_product="candy", exchanges=[]).save()

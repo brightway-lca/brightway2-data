@@ -37,9 +37,13 @@ from .utils import (
     dict_as_exchangedataset,
     get_csv_data_dict,
     retupleize_geo_strings,
-    check_activity_type,
 )
-
+from .typos import (
+    check_activity_type,
+    check_activity_keys,
+    check_exchange_keys,
+    check_exchange_type,
+)
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
@@ -428,6 +432,10 @@ class SQLiteBackend(ProcessedDataStore):
                 raise InvalidExchange
             if "type" not in exchange:
                 raise UntypedExchange
+
+            check_exchange_type(exchange.get('type'))
+            check_exchange_keys(exchange)
+
             exchange["output"] = key
             exchanges.append(dict_as_exchangedataset(exchange))
 
@@ -445,6 +453,7 @@ class SQLiteBackend(ProcessedDataStore):
         ds["code"] = key[1]
 
         check_activity_type(ds.get('type'))
+        check_activity_keys(ds)
 
         activities.append(dict_as_activitydataset(ds))
 

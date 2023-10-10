@@ -11,7 +11,13 @@ from ..proxies import ActivityProxyBase, ExchangeProxyBase
 from ..search import IndexManager
 from . import sqlite3_lci_db
 from .schema import ActivityDataset, ExchangeDataset
-from .utils import dict_as_activitydataset, dict_as_exchangedataset, check_activity_type
+from .utils import dict_as_activitydataset, dict_as_exchangedataset
+from .typos import (
+    check_activity_type,
+    check_activity_keys,
+    check_exchange_type,
+    check_exchange_keys,
+)
 
 
 class Exchanges(Iterable):
@@ -273,6 +279,7 @@ class Activity(ActivityProxyBase):
         databases.set_dirty(self["database"])
 
         check_activity_type(self._data.get("type"))
+        check_activity_keys(self)
 
         for key, value in dict_as_activitydataset(self._data).items():
             if key != "id":
@@ -491,6 +498,9 @@ class Exchange(ExchangeProxyBase):
             )
 
         databases.set_dirty(self["output"][0])
+
+        check_exchange_type(self._data.get("type"))
+        check_exchange_keys(self)
 
         for key, value in dict_as_exchangedataset(self._data).items():
             setattr(self._document, key, value)

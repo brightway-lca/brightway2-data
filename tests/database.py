@@ -1124,7 +1124,7 @@ def test_nodes_to_dataframe_unsorted(df_fixture):
 
 @pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
 @bw2test
-def test_warn_activity_type(capsys):
+def test_warn_activity_type():
     db = Database("test-case")
     data = {
         ("test-case", "1"): {
@@ -1134,6 +1134,76 @@ def test_warn_activity_type(capsys):
             "type": "prcess"
         }
     }
-    expected = "Possible typo found: Given type `prcess` but `process` is more common"
+    expected = "Possible typo found: Given activity type `prcess` but `process` is more common"
+    with pytest.warns(UserWarning, match=expected):
+        db.write(data)
+
+
+@pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
+@bw2test
+def test_warn_activity_key():
+    db = Database("test-case")
+    data = {
+        ("test-case", "1"): {
+            "exchanges": [],
+            "location": "somewhere",
+            "name": "c",
+            "type": "process",
+            "reference_product": "something",
+        }
+    }
+
+    expected = "Possible incorrect activity key found: Given `reference_product` but `reference product` is more common"
+    with pytest.warns(UserWarning, match=expected):
+        db.write(data)
+
+
+@pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
+@bw2test
+def test_warn_exchange_type():
+    db = Database("test-case")
+    data = {
+        ("test-case", "0"): {
+            "name": "foo",
+            "exchanges": [],
+        },
+        ("test-case", "1"): {
+            "exchanges": [{
+                'input': ("test-case", "0"),
+                'amount': 7,
+                'type': 'technsphere',
+            }],
+            "location": "somewhere",
+            "name": "c",
+            "type": "prcess"
+        }
+    }
+    expected = "Possible typo found: Given exchange type `technsphere` but `technosphere` is more common"
+    with pytest.warns(UserWarning, match=expected):
+        db.write(data)
+
+
+@pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
+@bw2test
+def test_warn_exchange_key():
+    db = Database("test-case")
+    data = {
+        ("test-case", "0"): {
+            "name": "foo",
+            "exchanges": [],
+        },
+        ("test-case", "1"): {
+            "exchanges": [{
+                'input': ("test-case", "0"),
+                'amount': 7,
+                'type': 'technosphere',
+                'temporal_distrbution': [],
+            }],
+            "location": "somewhere",
+            "name": "c",
+            "type": "process"
+        }
+    }
+    expected = 'Possible incorrect exchange key found: Given `temporal_distrbution` but `temporal_distribution` is more common'
     with pytest.warns(UserWarning, match=expected):
         db.write(data)
