@@ -30,6 +30,11 @@ from .fixtures import biosphere
 from .fixtures import food as food_data
 from .fixtures import get_naughty
 
+try:
+    import Levenshtein
+except ImportError:
+    Levenshtein = None
+
 
 @pytest.fixture
 @bw2test
@@ -1115,3 +1120,20 @@ def test_nodes_to_dataframe_columns(df_fixture):
 def test_nodes_to_dataframe_unsorted(df_fixture):
     df = Database("food").nodes_to_dataframe()
     assert df.shape == (2, 8)
+
+
+@pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
+@bw2test
+def test_warn_activity_type(capsys):
+    db = Database("test-case")
+    data = {
+        ("test-case", "1"): {
+            "exchanges": [],
+            "location": "somewhere",
+            "name": "c",
+            "type": "prcess"
+        }
+    }
+    expected = "Possible typo found: Given type `prcess` but `process` is more common"
+    with pytest.warns(UserWarning, match=expected):
+        db.write(data)

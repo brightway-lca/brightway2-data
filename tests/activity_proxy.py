@@ -7,6 +7,11 @@ from bw2data.parameters import ActivityParameter, ParameterizedExchange, paramet
 from bw2data.tests import bw2test
 from bw2data.utils import get_activity
 
+try:
+    import Levenshtein
+except ImportError:
+    Levenshtein = None
+
 
 @bw2test
 def test_change_code_not_unique_raises_error():
@@ -481,3 +486,18 @@ def test_rp_exchange_value_error_only_substitution():
 
     with pytest.raises(ValueError):
         a.rp_exchange()
+
+
+@pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
+@bw2test
+def test_warning_on_test_typo():
+    database = DatabaseChooser("a database")
+    database.register()
+
+    expected = "Possible typo found: Given type `prcess` but `process` is more common"
+    with pytest.warns(UserWarning, match=expected):
+        database.new_node(code="foo", name="bar", type="prcess", exchanges=[]).save()
+
+    expected = "Possible typo found: Given type `emision` but `emission` is more common"
+    with pytest.warns(UserWarning, match=expected):
+        database.new_node(code="fooz", name="barz", type="emision", exchanges=[]).save()

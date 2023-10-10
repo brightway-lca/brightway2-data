@@ -11,7 +11,7 @@ from ..proxies import ActivityProxyBase, ExchangeProxyBase
 from ..search import IndexManager
 from . import sqlite3_lci_db
 from .schema import ActivityDataset, ExchangeDataset
-from .utils import dict_as_activitydataset, dict_as_exchangedataset
+from .utils import dict_as_activitydataset, dict_as_exchangedataset, check_activity_type
 
 
 class Exchanges(Iterable):
@@ -172,6 +172,7 @@ class Exchanges(Iterable):
 
         return df
 
+
 class Activity(ActivityProxyBase):
     def __init__(self, document=None, **kwargs):
         """Create an `Activity` proxy object.
@@ -201,7 +202,7 @@ class Activity(ActivityProxyBase):
         elif key in self._data:
             return self._data[key]
 
-        for section in ('classifications', 'properties'):
+        for section in ("classifications", "properties"):
             if section in self._data:
                 if isinstance(self._data[section], list):
                     try:
@@ -216,10 +217,10 @@ class Activity(ActivityProxyBase):
         except ValueError:
             raise KeyError
 
-        if key in rp.get('classifications', []):
-            return rp['classifications'][key]
-        if key in rp.get('properties', []):
-            return rp['properties'][key]
+        if key in rp.get("classifications", []):
+            return rp["classifications"][key]
+        if key in rp.get("properties", []):
+            return rp["properties"][key]
 
         raise KeyError
 
@@ -266,10 +267,12 @@ class Activity(ActivityProxyBase):
         if not self.valid():
             raise ValidityError(
                 "This activity can't be saved for the "
-                "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
+                + "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
             )
 
         databases.set_dirty(self["database"])
+
+        check_activity_type(self._data.get("type"))
 
         for key, value in dict_as_activitydataset(self._data).items():
             if key != "id":
@@ -391,11 +394,19 @@ class Activity(ActivityProxyBase):
         candidates = list(self.production())
         if len(candidates) == 1:
             return candidates[0]
-        candidates2 = [exc for exc in candidates if exc.input._data.get('name') == self._data.get('reference product')]
+        candidates2 = [
+            exc
+            for exc in candidates
+            if exc.input._data.get("name") == self._data.get("reference product")
+        ]
         if len(candidates2) == 1:
             return candidates2[0]
         else:
-            raise ValueError("Can't find a single reference product exchange (found {} candidates)".format(len(candidates)))
+            raise ValueError(
+                "Can't find a single reference product exchange (found {} candidates)".format(
+                    len(candidates)
+                )
+            )
 
     def producers(self):
         return self.production()

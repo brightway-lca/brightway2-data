@@ -37,6 +37,7 @@ from .utils import (
     dict_as_exchangedataset,
     get_csv_data_dict,
     retupleize_geo_strings,
+    check_activity_type,
 )
 
 
@@ -442,6 +443,8 @@ class SQLiteBackend(ProcessedDataStore):
         ds = {k: v for k, v in ds.items() if k != "exchanges"}
         ds["database"] = key[0]
         ds["code"] = key[1]
+
+        check_activity_type(ds.get('type'))
 
         activities.append(dict_as_activitydataset(ds))
 

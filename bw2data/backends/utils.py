@@ -9,6 +9,11 @@ from ..meta import databases, methods
 from ..method import Method
 from .schema import get_id
 
+try:
+    import Levenshtein
+except ImportError:
+    Levenshtein = None
+
 
 def get_csv_data_dict(ds):
     fields = {"name", "reference product", "unit", "location"}
@@ -122,3 +127,30 @@ def retupleize_geo_strings(value):
     except NameError:
         # Not everything with a parentheses is a tuple.
         return value
+
+
+def check_activity_type(type_value):
+    if not Levenshtein:
+        return
+
+    VALID_TYPES = [
+        "process",
+        "emission",
+        "natural resource",
+        "product",
+        "economic",
+        "inventory indicator",
+    ]
+    if type_value and type_value not in VALID_TYPES:
+        possibles = sorted(
+            [
+                (Levenshtein.distance(type_value, possible), possible)
+                for possible in VALID_TYPES
+            ]
+        )
+        possibles = [(x, y) for x, y in possibles if x < 3]
+        if possibles:
+            warnings.warn(
+                f"Possible typo found: Given type `{type_value}` but "
+                + f"`{possibles[0][1]}` is more common"
+            )
