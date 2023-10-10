@@ -96,6 +96,9 @@ check_exchange_type = partial(_check_type, valid=VALID_EXCHANGE_TYPES, kind="exc
 
 
 def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
+    if not Levenshtein:
+        return
+
     for key in obj:
         if key not in valid and isinstance(key, str):
             possibles = [
