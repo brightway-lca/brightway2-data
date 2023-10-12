@@ -1,5 +1,9 @@
 # data Changelog
 
+## 4.0.DEV32 (2023-10-12)
+
+* Fix a bug in `IOTable.write` function
+
 ## 4.0.DEV31 (2023-10-10)
 
 * Fix a missing test clause for optional dependencies
