@@ -105,6 +105,17 @@ def test_iotable_setup_clean(iotable_fixture):
     assert "default" in projects
 
 
+@bw2test
+def test_iotable_write_function_searchable():
+    cat = Database("cat", backend="iotable")
+    cat_data = {
+        ("cat", "a"): {"name": "a", "unit": "meow", "location": "sunshine"},
+        ("cat", "b"): {"name": "b", "unit": "purr", "location": "curled up"},
+        ("cat", "c"): {"name": "c", "unit": "meow", "location": "on lap"},
+    }
+    cat.write(cat_data, process=True, searchable=False)
+
+
 def test_iotable_matrix_construction(iotable_fixture):
     lca = LCA({("cat", "a"): 1}, ("a method",))
     lca.lci()

@@ -21,8 +21,8 @@ class IOTableBackend(SQLiteBackend):
     backend = "iotable"
     node_class = IOTableActivity
 
-    def write(self, data):
-        super().write(data, process=False)
+    def write(self, data, process=False, searchable=True):
+        super().write(data, process=False, searchable=searchable)
 
     def write_exchanges(self, technosphere, biosphere, dependents):
         """
