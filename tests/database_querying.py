@@ -51,8 +51,8 @@ class DatabaseQuerysetTest(BW2DataTest):
         self.assertEqual(len(geomapping), 5)  # GLO
         self.assertTrue("GLO" in geomapping)
         self.assertTrue("carolina" in geomapping)
-        self.assertEqual(len(projects), 1)  # Default project
-        self.assertTrue("default" in projects)
+        self.assertEqual(len(projects), 1)  # Random test project
+        self.assertTrue("default" not in projects)
 
     def test_random_with_global_filters(self):
         self.db.filters = {"product": "lollipop"}

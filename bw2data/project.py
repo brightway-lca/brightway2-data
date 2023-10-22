@@ -4,6 +4,7 @@ import tempfile
 import warnings
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Optional
 
 from bw_processing import safe_filename
 from peewee import BooleanField, DoesNotExist, Model, TextField, SQL
@@ -154,6 +155,24 @@ class ProjectManager(Iterable):
         create_dir(self._base_data_dir)
         create_dir(self._base_logs_dir)
 
+    def change_base_directories(self, base_dir: Path, base_logs_dir: Optional[Path] = None, project_name: Optional[str] = "default", update: Optional[bool] = True) -> None:
+        if not isinstance(base_dir, Path) and base_dir.is_dir():
+            raise ValueError(f"{base_dir} is not a `Path` or not a directory")
+        if not os.access(base_dir, os.W_OK) and os.access(base_dir, os.R_OK):
+            raise ValueError(f"{base_dir} doesn't have read and write permissions")
+        self._base_data_dir = base_dir
+
+        if base_logs_dir is not None:
+            if not isinstance(base_logs_dir, Path) and base_logs_dir.is_dir():
+                raise ValueError(f"{base_logs_dir} is not a `Path` or not a directory")
+            if not os.access(base_logs_dir, os.W_OK):
+                raise ValueError(f"{base_logs_dir} doesn't have write permission")
+            self._base_logs_dir = base_logs_dir
+
+        config.cache = {}
+        self.db.change_path(base_dir / "projects.db")
+        self.set_current(project_name, update=update)
+
     @property
     def current(self):
         return self._project_name
@@ -269,35 +288,6 @@ class ProjectManager(Iterable):
         if not fp.is_dir():
             return False
         return fp
-
-    def _use_temp_directory(self):
-        """Point the ProjectManager towards a temporary directory instead of `user_data_dir`.
-
-        Used exclusively for tests."""
-        if not self._is_temp_dir:
-            self._orig_base_data_dir = self._base_data_dir
-            self._orig_base_logs_dir = self._base_logs_dir
-        temp_dir = Path(tempfile.mkdtemp())
-        self._base_data_dir = temp_dir / "data"
-        self._base_logs_dir = temp_dir / "logs"
-        self.db.change_path(":memory:")
-        self.set_current("default", update=False)
-        self._is_temp_dir = True
-        return temp_dir
-
-    def _restore_orig_directory(self):
-        """Point the ProjectManager back to original directories.
-
-        Used exclusively in tests."""
-        if not self._is_temp_dir:
-            return
-        self._base_data_dir = self._orig_base_data_dir
-        del self._orig_base_data_dir
-        self._base_logs_dir = self._orig_base_logs_dir
-        del self._orig_base_logs_dir
-        self.db.change_path(self._base_data_dir / "projects.db")
-        self.set_current("default", update=False)
-        self._is_temp_dir = False
 
     def migrate_project_25(self):
         """Migrate project to Brightway 2.5.

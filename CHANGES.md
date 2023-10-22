@@ -1,5 +1,10 @@
 # data Changelog
 
+## DEV
+
+* Add `projects.change_base_directories`
+* Update test decorator to use `projects.change_base_directories`
+
 ## 4.0.DEV32 (2023-10-12)
 
 * Fix a bug in `IOTable.write` function

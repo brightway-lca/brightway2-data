@@ -82,8 +82,8 @@ def test_directories():
 
 
 @bw2test
-def test_default_project_created():
-    assert "default" in projects
+def test_default_project_not_created():
+    assert "default" not in projects
 
 
 @bw2test
@@ -91,7 +91,7 @@ def test_repeatedly_set_name_same_value():
     projects.set_current("foo")
     projects.set_current("foo")
     projects.set_current("foo")
-    assert len(projects) == 3
+    assert len(projects) == 2
     assert "foo" in projects
 
 
@@ -185,7 +185,7 @@ def test_delete_project():
 
 @bw2test
 def test_delete_last_project():
-    assert len(projects) == 2
+    assert len(projects) == 1
     with pytest.raises(ValueError):
         projects.delete_project()
         projects.delete_project()
@@ -269,16 +269,16 @@ def test_representation():
 
 @bw2test
 def test_contains():
-    assert "default" in projects
+    assert "default" not in projects
     projects.set_current("foo")
     assert "foo" in projects
 
 
 @bw2test
 def test_len():
-    assert len(projects) == 2
+    assert len(projects) == 1
     projects.set_current("foo")
-    assert len(projects) == 3
+    assert len(projects) == 2
 
 
 @bw2test

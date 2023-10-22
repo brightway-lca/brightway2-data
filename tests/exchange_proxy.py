@@ -102,8 +102,8 @@ def test_setup_clean(activity):
     assert list(methods) == []
     assert len(geomapping) == 1  # GLO
     assert "GLO" in geomapping
-    assert len(projects) == 2  # Default project
-    assert "default" in projects
+    assert len(projects) == 1  # Random test project
+    assert "default" not in projects
 
 
 def test_production(activity):

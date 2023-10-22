@@ -101,8 +101,8 @@ def test_iotable_setup_clean(iotable_fixture):
     print(databases)
     assert len(databases) == 2
     assert list(methods) == [("a method",)]
-    assert len(projects) == 2  # Default project
-    assert "default" in projects
+    assert len(projects) == 1  # Default project
+    assert "default" not in projects
 
 
 @bw2test

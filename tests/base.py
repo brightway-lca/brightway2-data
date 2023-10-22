@@ -8,5 +8,5 @@ def test_bw2test_decorator():
     assert list(methods) == []
     assert len(geomapping) == 1
     assert "GLO" in geomapping
-    assert len(projects) == 2
-    assert "default" in projects
+    assert len(projects) == 1
+    assert "default" not in projects
