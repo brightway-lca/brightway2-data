@@ -1,12 +1,7 @@
 from typing import Iterable
 import warnings
 from functools import partial
-
-try:
-    import Levenshtein
-except ImportError:
-    Levenshtein = None
-
+from ecoinvent_interface.string_distance import damerau_levenshtein
 
 VALID_ACTIVITY_TYPES = (
     "process",
@@ -73,13 +68,9 @@ VALID_EXCHANGE_KEYS = (
 
 
 def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:
-    if not Levenshtein:
-        print("No Levenshtein module found; skipping type check")
-        return
-
     if type_value and type_value not in valid and isinstance(type_value, str):
         possibles = sorted(
-            [(Levenshtein.distance(type_value, possible), possible) for possible in valid],
+            [(damerau_levenshtein(type_value, possible), possible) for possible in valid],
             key=lambda x: x[0]
         )
         if possibles and possibles[0][0] < 2:
@@ -94,13 +85,10 @@ check_exchange_type = partial(_check_type, valid=VALID_EXCHANGE_TYPES, kind="exc
 
 
 def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
-    if not Levenshtein:
-        return
-
     for key in obj:
         if key not in valid and isinstance(key, str):
             possibles = sorted(
-                [(Levenshtein.distance(key, possible), possible) for possible in valid],
+                [(damerau_levenshtein(key, possible), possible) for possible in valid],
                 key=lambda x: x[0]
             )
             if possibles and possibles[0][0] < 2 and len(possibles[0][1]) > len(key):
