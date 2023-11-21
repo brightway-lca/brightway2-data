@@ -74,20 +74,18 @@ VALID_EXCHANGE_KEYS = (
 
 def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:
     if not Levenshtein:
+        print("No Levenshtein module found; skipping type check")
         return
 
     if type_value and type_value not in valid and isinstance(type_value, str):
         possibles = sorted(
-            [
-                (Levenshtein.distance(type_value, possible), possible)
-                for possible in valid
-            ]
+            [(Levenshtein.distance(type_value, possible), possible) for possible in valid],
+            key=lambda x: x[0]
         )
-        possibles = [(x, y) for x, y in possibles if x < 3]
-        if possibles:
+        if possibles and possibles[0][0] < 2:
             warnings.warn(
                 f"Possible typo found: Given {kind} type `{type_value}` but "
-                + f"`{possibles[0][1]}` is more common"
+                f"`{possibles[0][1]}` is more common"
             )
 
 
@@ -101,15 +99,14 @@ def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
 
     for key in obj:
         if key not in valid and isinstance(key, str):
-            possibles = [
-                (Levenshtein.distance(key, possible), possible)
-                for possible in valid
-            ]
-            possibles = sorted([(x, y) for x, y in possibles if x < 3 and len(y) > x + 1])
-            if possibles:
+            possibles = sorted(
+                [(Levenshtein.distance(key, possible), possible) for possible in valid],
+                key=lambda x: x[0]
+            )
+            if possibles and possibles[0][0] < 2 and len(possibles[0][1]) > len(key):
                 warnings.warn(
                     f"Possible incorrect {kind} key found: Given `{key}` but "
-                    + f"`{possibles[0][1]}` is more common"
+                    f"`{possibles[0][1]}` is more common"
                 )
 
 
