@@ -1,6 +1,6 @@
 # data Changelog
 
-## DEV
+## 4.0.DEV33 (2023-11-14)
 
 * Add `projects.change_base_directories`
 * Update test decorator to use `projects.change_base_directories`
