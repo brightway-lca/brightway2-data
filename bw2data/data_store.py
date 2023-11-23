@@ -161,7 +161,9 @@ class ProcessedDataStore(DataStore):
         return self.dirpath_processed() / self.filename_processed()
 
     def datapackage(self):
-        return load_datapackage(ZipFS(self.filepath_processed()))
+        zip_file_path = self.filepath_processed()
+        with ZipFS(zip_file_path) as zip_fs:
+            return load_datapackage(zip_fs)
 
     def write(self, data, process=True):
         """Serialize intermediate data to disk.
