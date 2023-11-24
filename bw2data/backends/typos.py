@@ -91,7 +91,7 @@ def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
                 [(damerau_levenshtein(key, possible), possible) for possible in valid],
                 key=lambda x: x[0]
             )
-            if possibles and possibles[0][0] < 2 and len(possibles[0][1]) > len(key):
+            if possibles and possibles[0][0] < 2 and len(possibles[0][1]) >= len(key):
                 warnings.warn(
                     f"Possible incorrect {kind} key found: Given `{key}` but "
                     f"`{possibles[0][1]}` is more common"
