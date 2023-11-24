@@ -268,6 +268,32 @@ class Activity(ActivityProxyBase):
         self = None
 
     def save(self):
+        """
+        Saves the current activity to the database after performing various checks.
+        This method validates the activity, updates the database status, and handles
+        geographical and indexing updates. It raises an error if the activity is
+        not valid and updates relevant data in the database.
+
+        Raises
+        ------
+        ValidityError
+            If the activity is not valid, an error is raised detailing the reasons.
+
+        Notes
+        -----
+        The method performs the following operations:
+        - Checks if the activity is valid.
+        - Marks the database as 'dirty', indicating changes.
+        - Checks for type and key validity of the activity.
+        - Updates the activity's associated document in the database.
+        - Updates the geographical mapping if needed.
+        - Updates the index if the database is searchable.
+
+        Examples
+        -------
+        >>> activity.save()
+        Saves the activity if it's valid, otherwise raises ValidityError.
+        """
         from .. import Database
 
         if not self.valid():
