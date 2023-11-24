@@ -461,3 +461,56 @@ def test_typo_exchange_key():
     expected = 'Possible incorrect exchange key found: Given `temporal_distrbution` but `temporal_distribution` is more common'
     with pytest.warns(UserWarning, match=expected):
         exc.save()
+
+@bw2test
+def test_valid_exchange_type():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    exc = a.new_exchange(
+        amount=0, input=b, type="technosphere", formula="foo * bar + 4"
+    )
+
+    with pytest.warns(None) as warning_list:
+        exc.save()
+
+    assert len(warning_list) == 0
+
+@bw2test
+def test_valid_exchange_key():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    exc = a.new_exchange(
+        amount=11, input=b, type="technosphere", temporal_distribution=[]
+    )
+
+    with pytest.warns(None) as warning_list:
+        exc.save()
+
+    assert len(warning_list) == 0
+
+@bw2test
+def test_typo_exchange_type_multiple_corrections():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    exc = a.new_exchange(
+        amount=0, input=b, type="technshhere", formula="foo * bar + 4"
+    )
+
+    expected = "Possible typo found: Given exchange type `technshhere` but `technosphere` is more common"
+    with pytest.warns(UserWarning, match=expected):
+        exc.save()
