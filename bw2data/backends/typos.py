@@ -70,7 +70,7 @@ VALID_EXCHANGE_KEYS = (
 def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:
     if type_value and type_value not in valid and isinstance(type_value, str):
         possibles = sorted(
-            [(damerau_levenshtein(type_value, possible), possible) for possible in valid],
+            ((damerau_levenshtein(type_value, possible), possible) for possible in valid),
             key=lambda x: x[0]
         )
         if possibles and possibles[0][0] < 2:
@@ -80,15 +80,11 @@ def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:
             )
 
 
-check_activity_type = partial(_check_type, valid=VALID_ACTIVITY_TYPES, kind="activity")
-check_exchange_type = partial(_check_type, valid=VALID_EXCHANGE_TYPES, kind="exchange")
-
-
 def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
     for key in obj:
         if key not in valid and isinstance(key, str):
             possibles = sorted(
-                [(damerau_levenshtein(key, possible), possible) for possible in valid],
+                ((damerau_levenshtein(key, possible), possible) for possible in valid),
                 key=lambda x: x[0]
             )
             if possibles and possibles[0][0] < 2 and len(possibles[0][1]) >= len(key):
@@ -98,5 +94,7 @@ def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
                 )
 
 
+check_activity_type = partial(_check_type, valid=VALID_ACTIVITY_TYPES, kind="activity")
+check_exchange_type = partial(_check_type, valid=VALID_EXCHANGE_TYPES, kind="exchange")
 check_activity_keys = partial(_check_keys, valid=VALID_ACTIVITY_KEYS, kind="activity")
 check_exchange_keys = partial(_check_keys, valid=VALID_EXCHANGE_KEYS, kind="exchange")
