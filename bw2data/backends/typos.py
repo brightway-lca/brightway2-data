@@ -68,6 +68,30 @@ VALID_EXCHANGE_KEYS = (
 
 
 def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:
+    """
+    Validates the `type_value against a set of valid types. If the `type_value`
+    is a close match (based on Damerau-Levenshtein distance) to any of the valid types
+    a warning is raised indicating a possible typo.
+
+    Parameters
+    ----------
+    type_value : str
+        The type value to be checked.
+    kind : str
+        The category of the type being checked (e.g., 'activity', 'exchange').
+    valid : Iterable[str]
+        An iterable of valid type values.
+
+    Raises
+    ------
+    UserWarning
+        Warns if `type_value` is not in `valid` but is close to a valid value.
+
+    Examples
+    --------
+    >>> _check_type("actvty", "activity", ["activity", "process"])
+    Possible typo found: Given activity type `actvty` but `activity` is more common
+    """
     if type_value and type_value not in valid and isinstance(type_value, str):
         possibles = sorted(
             ((damerau_levenshtein(type_value, possible), possible) for possible in valid),
@@ -83,6 +107,30 @@ def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:
 
 
 def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
+    """
+    Checks keys of a dictionary `obj` against a set of valid keys. If a key
+    is a close match to any of the valid keys, a warning is raised indicating
+    a possible incorrect key.
+
+    Parameters
+    ----------
+    obj : dict
+        The dictionary whose keys are to be checked.
+    kind : str
+        The category of the keys being checked (e.g., 'activity', 'exchange').
+    valid : Iterable[str]
+        An iterable of valid key values.
+
+    Raises
+    ------
+    UserWarning
+        Warns if a key in `obj` is not in `valid` but is close to a valid key.
+
+    Examples
+    --------
+    >>> _check_keys({"actvty": "value"}, "activity", ["activity", "process"])
+    Possible incorrect activity key found: Given `actvty` but `activity` is more common
+    """
     for key in obj:
         if key not in valid and isinstance(key, str):
             possibles = sorted(
