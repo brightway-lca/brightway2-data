@@ -154,8 +154,7 @@ class ProcessedDataStore(DataStore):
         return self.dirpath_processed() / self.filename_processed()
 
     def datapackage(self):
-        zip_file_path = self.filepath_processed()
-        with ZipFS(zip_file_path) as zip_fs:
+        with ZipFS(self.filepath_processed()) as zip_fs:
             return load_datapackage(zip_fs)
 
     def write(self, data, process=True):
