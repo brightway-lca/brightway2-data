@@ -73,11 +73,13 @@ def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:
             ((damerau_levenshtein(type_value, possible), possible) for possible in valid),
             key=lambda x: x[0]
         )
-        if possibles and possibles[0][0] < 2:
-            warnings.warn(
+
+        if possibles and possibles[0][0] <= 2:
+            warning_message = (
                 f"Possible typo found: Given {kind} type `{type_value}` but "
                 f"`{possibles[0][1]}` is more common"
             )
+            warnings.warn(warning_message, UserWarning)
 
 
 def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
