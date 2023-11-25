@@ -130,6 +130,17 @@ def test_method_processed_array(reset):
     assert np.allclose(indices["col"], geomapping[config.global_location])
 
 
+def test_method_processed_array_add_identifier(reset):
+    database = DatabaseChooser("foo")
+    database.write({("foo", "bar"): {}})
+
+    method = Method(("a", "method"))
+    method.write([[("foo", "bar"), 42]])
+    package = load_datapackage(ZipFS(method.filepath_processed()))
+    print(package.metadata)
+    assert package.metadata['resources'][0]['identifier'] == ['a', 'method']
+
+
 @bw2test
 def test_method_missing_reference():
     database = DatabaseChooser("foo")

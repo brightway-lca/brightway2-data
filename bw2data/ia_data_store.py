@@ -86,3 +86,7 @@ class ImpactAssessmentDataStore(ProcessedDataStore):
     @property
     def filename(self):
         return self.get_abbreviation()
+
+    def process(self, **extra_metadata):
+        extra_metadata["identifier"] = list(self.name)
+        super().process(**extra_metadata)

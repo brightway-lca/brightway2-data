@@ -85,7 +85,6 @@ class Method(ImpactAssessmentDataStore):
     def process(self, **extra_metadata):
         try:
             extra_metadata["global_index"] = geomapping[config.global_location]
-            extra_metadata["impact_category"] = list(self.name)
         except KeyError:
             raise KeyError("Can't find default global location! It's supposed to be `{}`, defined in `config`, but this isn't in the `geomapping`".format(config.global_location))
         super().process(**extra_metadata)
