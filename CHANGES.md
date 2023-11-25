@@ -1,5 +1,16 @@
 # data Changelog
 
+## 4.0.DEV35 (2023-11-24)
+
+* Prevent false positives cases where incorrect key is substr of valid key in `_check_keys` function
+* Implement test cases for valid exchange key and type in `exchange_proxy.py`
+* Add numpy docstrings in `typos`
+* Add numpy docstrings in `proxies.save` function
+
+## 4.0.DEV34 (2023-11-21)
+
+* Implement `ecoinvent_interface` to compare strings
+
 ## 4.0.DEV33 (2023-11-14)
 
 * Add `projects.change_base_directories`
