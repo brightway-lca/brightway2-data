@@ -1,7 +1,7 @@
 from typing import Iterable
 import warnings
 from functools import partial
-from ecoinvent_interface.string_distance import damerau_levenshtein
+from ..string_distance import damerau_levenshtein
 
 VALID_ACTIVITY_TYPES = (
     "process",
