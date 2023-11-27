@@ -85,8 +85,29 @@ class ImpactAssessmentDataStore(ProcessedDataStore):
 
     @property
     def filename(self):
+        """
+        Returns the abbreviated identifier of the method, used as the filename.
+
+        Returns
+        -------
+        str
+            The abbreviated identifier of the method.
+        """
         return self.get_abbreviation()
 
     def process(self, **extra_metadata):
+        """
+        Processes the impact assessment method and updates the metadata, including
+        the identifier.
+
+        Parameters
+        ----------
+        **extra_metadata
+            Additional metadata to be included during processing.
+
+        Notes
+        -----
+        The method updates the metadata with the list form of the method's identifier.
+        """
         extra_metadata["identifier"] = list(self.name)
         super().process(**extra_metadata)
