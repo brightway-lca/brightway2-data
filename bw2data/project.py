@@ -363,7 +363,7 @@ class ProjectManager(Iterable):
 
             Does not follow symbolic links"""
             return sum(
-                sum(os.path.getsize(root / name) for name in files)
+                sum(os.path.getsize(Path(root) / name) for name in files)
                 for root, dirs, files in os.walk(dirpath)
             )
 
