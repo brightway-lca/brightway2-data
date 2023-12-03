@@ -14,3 +14,13 @@ It is part of the `Brightway LCA framework <https://brightway.dev>`_.
 `Online documentation <https://docs.brightway.dev/>`_ is available, and the source code is hosted on `GitHub brightway-lca organization <https://github.com/brightway-lca/brightway2-data>`_.
 
 Note that version 4.0 and higher are only compatible with Brightway 2.5, as described in the `changelog <https://github.com/brightway-lca/brightway2-data/blob/main/CHANGES.md>`__.
+
+
+## Development Setup
+
+```bash
+brightway2-data $ python3 -m venv venv
+brightway2-data $ source ./venv/bin/activate
+brightway2-data $ python3 -m pip install -r requirements-test.txt
+brightway2-data $ pytest
+```

@@ -130,7 +130,9 @@ def test_funny_project_names():
 
 @bw2test
 def test_report():
-    assert projects.report
+    projects.set_current("foo")
+    report = projects.report()
+    assert "foo" in [name for (name, _, _) in report]
 
 
 @bw2test
