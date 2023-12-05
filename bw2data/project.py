@@ -212,11 +212,11 @@ class ProjectManager(Iterable):
 
     def _reset_sqlite3_databases(self):
         for relative_path, substitutable_db in config.sqlite3_databases:
-            substitutable_db.change_path(self.dir / relative_path)
+            substitutable_db.change_path(self.data_dir / relative_path)
 
     ### Public API
     @property
-    def dir(self):
+    def data_dir(self):
         return Path(self._base_data_dir) / safe_filename(
             self.current, full=self.dataset.full_hash
         )
@@ -258,9 +258,9 @@ class ProjectManager(Iterable):
             self.dataset = ProjectDataset.create(
                 data=kwargs, name=name, full_hash=full_hash
             )
-        create_dir(self.dir)
+        create_dir(self.data_dir)
         for dir_name in self._basic_directories:
-            create_dir(self.dir / dir_name)
+            create_dir(self.data_dir / dir_name)
         create_dir(self.logs_dir)
 
     def copy_project(self, new_name, switch=True):
@@ -274,7 +274,7 @@ class ProjectManager(Iterable):
         ProjectDataset.create(
             data=project_data, name=new_name, full_hash=self.dataset.full_hash
         )
-        shutil.copytree(self.dir, fp)
+        shutil.copytree(self.data_dir, fp)
         create_dir(self._base_logs_dir / safe_filename(new_name))
         if switch:
             self.set_current(new_name)
@@ -283,7 +283,7 @@ class ProjectManager(Iterable):
         """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
 
         Returns ``False`` if directory can't be created."""
-        fp = self.dir / str(name)
+        fp = self.data_dir / str(name)
         create_dir(fp)
         if not fp.is_dir():
             return False
@@ -370,7 +370,7 @@ class ProjectManager(Iterable):
         names = sorted([x.name for x in self])
         for obj in names:
             self.set_current(obj, update=False, writable=False)
-            data.append((obj, len(databases), get_dir_size(projects.dir) / 1e9))
+            data.append((obj, len(databases), get_dir_size(projects.data_dir) / 1e9))
         self.set_current(_current)
         return data
 
@@ -378,15 +378,15 @@ class ProjectManager(Iterable):
         if not self.dataset.full_hash:
             return
         try:
-            old_dir, old_logs_dir = self.dir, self.logs_dir
+            old_dir, old_logs_dir = self.data_dir, self.logs_dir
             self.dataset.full_hash = False
-            if self.dir.exists():
-                raise OSError("Target directory {} already exists".format(self.dir))
+            if self.data_dir.exists():
+                raise OSError("Target directory {} already exists".format(self.data_dir))
             if self.logs_dir.exists():
                 raise OSError(
                     "Target directory {} already exists".format(self.logs_dir)
                 )
-            old_dir.rename(self.dir)
+            old_dir.rename(self.data_dir)
             old_logs_dir.rename(self.logs_dir)
             self.dataset.save()
         except Exception as ex:
@@ -397,15 +397,15 @@ class ProjectManager(Iterable):
         if self.dataset.full_hash:
             return
         try:
-            old_dir, old_logs_dir = self.dir, self.logs_dir
+            old_dir, old_logs_dir = self.data_dir, self.logs_dir
             self.dataset.full_hash = True
-            if self.dir.exists():
-                raise OSError("Target directory {} already exists".format(self.dir))
+            if self.data_dir.exists():
+                raise OSError("Target directory {} already exists".format(self.data_dir))
             if self.logs_dir.exists():
                 raise OSError(
                     "Target directory {} already exists".format(self.logs_dir)
                 )
-            old_dir.rename(self.dir)
+            old_dir.rename(self.data_dir)
             old_logs_dir.rename(self.logs_dir)
             self.dataset.save()
         except Exception as ex:
