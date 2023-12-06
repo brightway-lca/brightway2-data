@@ -216,10 +216,27 @@ class ProjectManager(Iterable):
 
     ### Public API
     @property
-    def dir(self):
-        return Path(self._base_data_dir) / safe_filename(
+    def data_dir(self):
+        """
+        Returns the path to the directory specifically for data.
+        This is the preferred method to access the data directory.
+        """
+        return Path(self._base_dir) / safe_filename(
             self.current, full=self.dataset.full_hash
+        ) / "lci"
+
+    @property
+    def dir(self):
+        """
+        Deprecated: Use `dir` instead.
+        This property is maintained for backward compatibility.
+        """
+        warnings.warn(
+            "The 'dir' property is deprecated and will be removed in future versions. "
+            "Please use 'data_dir' for accessing the data directory.",
+            DeprecationWarning
         )
+        return self.data_dir
 
     @property
     def logs_dir(self):
