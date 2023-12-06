@@ -221,14 +221,14 @@ class ProjectManager(Iterable):
         Returns the path to the directory specifically for data.
         This is the preferred method to access the data directory.
         """
-        return Path(self._base_dir) / safe_filename(
+        return Path(self._base_data_dir) / safe_filename(
             self.current, full=self.dataset.full_hash
-        ) / "lci"
+        )
 
     @property
     def dir(self):
         """
-        Deprecated: Use `dir` instead.
+        Deprecated: Use `data_dir` instead.
         This property is maintained for backward compatibility.
         """
         warnings.warn(
