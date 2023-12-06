@@ -26,7 +26,7 @@ __all__ = [
     "ProcessedDataStore",
     "projects",
     "Searcher",
-    "set_data_dir",
+    "set_dir",
     "Weighting",
     "weightings",
 ]
@@ -35,7 +35,7 @@ from .version import version as __version__
 
 from .configuration import config
 from .project import projects
-from .utils import set_data_dir
+from .utils import set_dir
 from .meta import (
     dynamic_calculation_setups,
     calculation_setups,

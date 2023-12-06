@@ -1133,7 +1133,7 @@ class GroupDependency(Model):
 class ParameterManager:
     def __init__(self):
         self.db = SubstitutableDatabase(
-            projects.data_dir / "parameters.db",
+            projects.dir / "parameters.db",
             [
                 DatabaseParameter,
                 ProjectParameter,

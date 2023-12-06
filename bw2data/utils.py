@@ -313,7 +313,7 @@ def download_file(filename, directory="downloads", url=None):
     return filepath
 
 
-def set_data_dir(dirpath, permanent=True):
+def set_dir(dirpath, permanent=True):
     """Set the Brightway2 data directory to ``dirpath``.
 
     If ``permanent`` is ``True``, then set ``dirpath`` as the default data directory.
@@ -322,30 +322,30 @@ def set_data_dir(dirpath, permanent=True):
 
     """
     warnings.warn(
-        "`set_data_dir` is deprecated; use `projects.set_current('my "
+        "`set_dir` is deprecated; use `projects.set_current('my "
         "project name')` for a new project space.",
         DeprecationWarning,
     )
 
 
-def switch_data_directory(dirpath):
+def switch_directory(dirpath):
     from .projects import ProjectDataset, SubstitutableDatabase
 
-    if dirpath == bw.projects._base_data_dir:
+    if dirpath == bw.projects._base_dir:
         print("dirpath already loaded")
         return
     try:
         assert os.path.isdir(dirpath)
-        bw.projects._base_data_dir = dirpath
+        bw.projects._base_dir = dirpath
         bw.projects._base_logs_dir = os.path.join(dirpath, "logs")
         # create folder if it does not yet exist
         if not os.path.isdir(bw.projects._base_logs_dir):
             os.mkdir(bw.projects._base_logs_dir)
         # load new brightway directory
         bw.projects.db = SubstitutableDatabase(
-            os.path.join(bw.projects._base_data_dir, "projects.db"), [ProjectDataset]
+            os.path.join(bw.projects._base_dir, "projects.db"), [ProjectDataset]
         )
-        print("Loaded brightway2 data directory: {}".format(bw.projects._base_data_dir))
+        print("Loaded brightway2 data directory: {}".format(bw.projects._base_dir))
 
     except AssertionError:
         print('Could not access directory specified "dirpath"')

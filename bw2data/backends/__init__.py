@@ -6,7 +6,7 @@ from ..sqlite import SubstitutableDatabase
 from .schema import ActivityDataset, ExchangeDataset, get_id
 
 sqlite3_lci_db = SubstitutableDatabase(
-    projects.data_dir / "lci" / "databases.db",
+    projects.dir / "lci" / "databases.db",
     [ActivityDataset, ExchangeDataset],
 )
 

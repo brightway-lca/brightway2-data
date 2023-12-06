@@ -25,7 +25,7 @@ from bw2data.tests import bw2test
 def test_project_directories():
     projects.set_current("foo")
     for dirname in projects._basic_directories:
-        assert os.path.isdir(os.path.join(projects.data_dir, dirname))
+        assert os.path.isdir(os.path.join(projects.dir, dirname))
 
 
 @bw2test
@@ -49,7 +49,7 @@ def test_invalid_env_var():
 @bw2test
 def test_invalid_output_env_dir():
     os.environ["BRIGHTWAY2_OUTPUT_DIR"] = "nothing special"
-    assert str(projects.data_dir) in str(projects.output_dir)
+    assert str(projects.dir) in str(projects.output_dir)
     del os.environ["BRIGHTWAY2_OUTPUT_DIR"]
 
 
@@ -71,13 +71,13 @@ def test_output_dir_from_preferences():
 @bw2test
 def test_invalid_output_dir_from_preferences():
     preferences["output_dir"] = "nope"
-    assert str(projects.data_dir) in str(projects.output_dir)
+    assert str(projects.dir) in str(projects.output_dir)
     del preferences["output_dir"]
 
 
 @bw2test
 def test_directories():
-    assert os.path.isdir(projects.data_dir)
+    assert os.path.isdir(projects.dir)
     assert os.path.isdir(projects.logs_dir)
 
 
@@ -119,7 +119,7 @@ def test_funny_project_names():
     for name in NAMES:
         try:
             projects.set_current(name)
-            assert [x for x in os.listdir(projects.data_dir)]
+            assert [x for x in os.listdir(projects.dir)]
             print("This is OK:", name)
         except:
             print("This is not OK:", name)
@@ -138,7 +138,7 @@ def test_report():
 @bw2test
 def test_request_directory():
     projects.request_directory("foo")
-    assert "foo" in os.listdir(projects.data_dir)
+    assert "foo" in os.listdir(projects.dir)
 
 
 ###
@@ -157,7 +157,7 @@ def test_delete_current_project_with_name():
 @bw2test
 def test_delete_project_remove_directory():
     projects.set_current("foo")
-    foo_dir = projects.data_dir
+    foo_dir = projects.dir
     projects.set_current("bar")
     projects.delete_project("foo", delete_dir=True)
     assert not os.path.isdir(foo_dir)
@@ -168,7 +168,7 @@ def test_delete_project_remove_directory():
 @bw2test
 def test_delete_project_keep_directory():
     projects.set_current("foo")
-    foo_dir = projects.data_dir
+    foo_dir = projects.dir
     projects.set_current("bar")
     projects.delete_project("foo")
     assert os.path.isdir(foo_dir)

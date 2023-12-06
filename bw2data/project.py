@@ -64,16 +64,16 @@ class ProjectManager(Iterable):
     read_only = False
 
     def __init__(self):
-        self._base_data_dir, self._base_logs_dir = self._get_base_directories()
+        self._base_dir, self._base_logs_dir = self._get_base_directories()
         self._create_base_directories()
         self.db = SubstitutableDatabase(
-            self._base_data_dir / "projects.db", [ProjectDataset]
+            self._base_dir / "projects.db", [ProjectDataset]
         )
 
         columns = {o.name for o in self.db._database.get_columns("projectdataset")}
         if "full_hash" not in columns:
-            src_filepath = self._base_data_dir / "projects.db"
-            backup_filepath = self._base_data_dir / "projects.backup.db"
+            src_filepath = self._base_dir / "projects.db"
+            backup_filepath = self._base_dir / "projects.backup.db"
             shutil.copy(src_filepath, backup_filepath)
 
             MIGRATION_WARNING = """Adding a column to the projects database. A backup copy of this database '{}' was made at '{}'; if you have problems, file an issue, and restore the backup data to use the stable version of Brightway2."""
@@ -147,12 +147,12 @@ class ProjectManager(Iterable):
                 return envvar, logs_dir
 
         dirs = PlatformDirs("Brightway3", "pylca")
-        data_dir = Path(dirs.user_data_dir)
+        dir = Path(dirs.user_dir)
         logs_dir = Path(dirs.user_log_dir)
-        return data_dir, logs_dir
+        return dir, logs_dir
 
     def _create_base_directories(self):
-        create_dir(self._base_data_dir)
+        create_dir(self._base_dir)
         create_dir(self._base_logs_dir)
 
     def change_base_directories(self, base_dir: Path, base_logs_dir: Optional[Path] = None, project_name: Optional[str] = "default", update: Optional[bool] = True) -> None:
@@ -160,7 +160,7 @@ class ProjectManager(Iterable):
             raise ValueError(f"{base_dir} is not a `Path` or not a directory")
         if not os.access(base_dir, os.W_OK) and os.access(base_dir, os.R_OK):
             raise ValueError(f"{base_dir} doesn't have read and write permissions")
-        self._base_data_dir = base_dir
+        self._base_dir = base_dir
 
         if base_logs_dir is not None:
             if not isinstance(base_logs_dir, Path) and base_logs_dir.is_dir():
@@ -212,14 +212,31 @@ class ProjectManager(Iterable):
 
     def _reset_sqlite3_databases(self):
         for relative_path, substitutable_db in config.sqlite3_databases:
-            substitutable_db.change_path(self.data_dir / relative_path)
+            substitutable_db.change_path(self.dir / relative_path)
 
     ### Public API
     @property
     def data_dir(self):
-        return Path(self._base_data_dir) / safe_filename(
+        """
+        Returns the path to the directory specifically for data.
+        This is the preferred method to access the data directory.
+        """
+        return Path(self._base_dir) / safe_filename(
             self.current, full=self.dataset.full_hash
+        ) / "lci"
+
+    @property
+    def dir(self):
+        """
+        Deprecated: Use `dir` instead.
+        This property is maintained for backward compatibility.
+        """
+        warnings.warn(
+            "The 'dir' property is deprecated and will be removed in future versions. "
+            "Please use 'dir' for accessing the data directory.",
+            DeprecationWarning
         )
+        return self.data_dir
 
     @property
     def logs_dir(self):
@@ -258,23 +275,23 @@ class ProjectManager(Iterable):
             self.dataset = ProjectDataset.create(
                 data=kwargs, name=name, full_hash=full_hash
             )
-        create_dir(self.data_dir)
+        create_dir(self.dir)
         for dir_name in self._basic_directories:
-            create_dir(self.data_dir / dir_name)
+            create_dir(self.dir / dir_name)
         create_dir(self.logs_dir)
 
     def copy_project(self, new_name, switch=True):
         """Copy current project to a new project named ``new_name``. If ``switch``, switch to new project."""
         if new_name in self:
             raise ValueError("Project {} already exists".format(new_name))
-        fp = self._base_data_dir / safe_filename(new_name, full=self.dataset.full_hash)
+        fp = self._base_dir / safe_filename(new_name, full=self.dataset.full_hash)
         if fp.exists():
             raise ValueError("Project directory already exists")
         project_data = ProjectDataset.get(ProjectDataset.name == self.current).data
         ProjectDataset.create(
             data=project_data, name=new_name, full_hash=self.dataset.full_hash
         )
-        shutil.copytree(self.data_dir, fp)
+        shutil.copytree(self.dir, fp)
         create_dir(self._base_logs_dir / safe_filename(new_name))
         if switch:
             self.set_current(new_name)
@@ -283,7 +300,7 @@ class ProjectManager(Iterable):
         """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
 
         Returns ``False`` if directory can't be created."""
-        fp = self.data_dir / str(name)
+        fp = self.dir / str(name)
         create_dir(fp)
         if not fp.is_dir():
             return False
@@ -322,7 +339,7 @@ class ProjectManager(Iterable):
         ProjectDataset.delete().where(ProjectDataset.name == victim).execute()
 
         if delete_dir:
-            dir_path = self._base_data_dir / safe_filename(victim)
+            dir_path = self._base_dir / safe_filename(victim)
             assert dir_path.is_dir(), "Can't find project directory"
             shutil.rmtree(dir_path)
 
@@ -339,9 +356,9 @@ class ProjectManager(Iterable):
         Returns number of directories deleted."""
         registered = {safe_filename(obj.name) for obj in self}
         bad_directories = [
-            self._base_data_dir / dirname
-            for dirname in os.listdir(self._base_data_dir)
-            if (self._base_data_dir / dirname).is_dir() and dirname not in registered
+            self._base_dir / dirname
+            for dirname in os.listdir(self._base_dir)
+            if (self._base_dir / dirname).is_dir() and dirname not in registered
         ]
 
         for fp in bad_directories:
@@ -370,7 +387,7 @@ class ProjectManager(Iterable):
         names = sorted([x.name for x in self])
         for obj in names:
             self.set_current(obj, update=False, writable=False)
-            data.append((obj, len(databases), get_dir_size(projects.data_dir) / 1e9))
+            data.append((obj, len(databases), get_dir_size(projects.dir) / 1e9))
         self.set_current(_current)
         return data
 
@@ -378,15 +395,15 @@ class ProjectManager(Iterable):
         if not self.dataset.full_hash:
             return
         try:
-            old_dir, old_logs_dir = self.data_dir, self.logs_dir
+            old_dir, old_logs_dir = self.dir, self.logs_dir
             self.dataset.full_hash = False
-            if self.data_dir.exists():
-                raise OSError("Target directory {} already exists".format(self.data_dir))
+            if self.dir.exists():
+                raise OSError("Target directory {} already exists".format(self.dir))
             if self.logs_dir.exists():
                 raise OSError(
                     "Target directory {} already exists".format(self.logs_dir)
                 )
-            old_dir.rename(self.data_dir)
+            old_dir.rename(self.dir)
             old_logs_dir.rename(self.logs_dir)
             self.dataset.save()
         except Exception as ex:
@@ -397,15 +414,15 @@ class ProjectManager(Iterable):
         if self.dataset.full_hash:
             return
         try:
-            old_dir, old_logs_dir = self.data_dir, self.logs_dir
+            old_dir, old_logs_dir = self.dir, self.logs_dir
             self.dataset.full_hash = True
-            if self.data_dir.exists():
-                raise OSError("Target directory {} already exists".format(self.data_dir))
+            if self.dir.exists():
+                raise OSError("Target directory {} already exists".format(self.dir))
             if self.logs_dir.exists():
                 raise OSError(
                     "Target directory {} already exists".format(self.logs_dir)
                 )
-            old_dir.rename(self.data_dir)
+            old_dir.rename(self.dir)
             old_logs_dir.rename(self.logs_dir)
             self.dataset.save()
         except Exception as ex:
