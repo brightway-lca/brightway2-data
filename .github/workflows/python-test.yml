@@ -10,14 +10,14 @@ on:
   push:
     branches: [main, develop]
     paths-ignore: # prevents workflow execution when only these types of files are modified
-      - "**.md" # wildcards prevent file in any repo dir from trigering workflow
+      - "**.md" # wildcards prevent file in any repo dir from triggering workflow
       - "**.bib"
       - "**.ya?ml" # captures both .yml and .yaml
       - "LICENSE"
       - ".gitignore"
   pull_request:
     branches: [main, develop]
-    types: [opened, reopened] # excludes syncronize to avoid redundant trigger from commits on PRs
+    types: [opened, reopened] # excludes synchronize to avoid redundant trigger from commits on PRs
     paths-ignore:
       - "**.md"
       - "**.bib"
@@ -52,7 +52,7 @@ jobs:
       # Numpy first as it was raising errors on 3.11 (??)
       - name: Install package and test deps
         run: |
-          pip install numpy scipy
+          pip install numpy scipy pytest
           pip install .[testing] # install the package and the testing deps
       - name: Test with pytest
         run: |
