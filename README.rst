@@ -21,6 +21,6 @@ Note that version 4.0 and higher are only compatible with Brightway 2.5, as desc
 ```bash
 brightway2-data $ python3 -m venv venv
 brightway2-data $ source ./venv/bin/activate
-brightway2-data $ python3 -m pip install -r requirements-test.txt
+brightway2-data $ python3 -m pip install -r docs/requirements-test.txt
 brightway2-data $ pytest
 ```
