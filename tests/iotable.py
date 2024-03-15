@@ -489,3 +489,10 @@ def test_iotable_filtered_datapackage(iotable_fixture):
     IOTableExchanges(datapackage=dp, target=get_node(code="b"))
     with pytest.raises(InvalidDatapackage):
         IOTableExchanges(datapackage=dp, target=get_node(code="a"))
+
+
+def test_iotable_readonlyexchange_iterator(iotable_fixture):
+
+    act = get_activity(('cat','b'))
+
+    list(act.exchanges()) 
