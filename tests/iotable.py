@@ -492,7 +492,8 @@ def test_iotable_filtered_datapackage(iotable_fixture):
 
 
 def test_iotable_readonlyexchange_iterator(iotable_fixture):
-
-    act = get_activity(('cat','b'))
-
-    list(act.exchanges()) 
+    db = Database("nobio", backend="iotable")
+    db.write({("nobio", "a"): {"name": "foo", "type": "bar"}})
+    db.write_exchanges(technosphere=[], biosphere=[], dependents=[])
+    act = get_activity(('nobio', 'a'))
+    list(act.exchanges())
