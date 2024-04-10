@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 import stats_arrays as sa
 from pandas.testing import assert_frame_equal
+import warnings
 
 
 @pytest.fixture
@@ -475,10 +476,12 @@ def test_valid_exchange_type():
         amount=0, input=b, type="technosphere", formula="foo * bar + 4"
     )
 
-    with pytest.warns(None) as warning_list:
+    # assert that no warnings are raised
+    # https://docs.pytest.org/en/8.0.x/how-to/capture-warnings.html
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         exc.save()
 
-    assert len(warning_list) == 0
 
 @bw2test
 def test_valid_exchange_key():
@@ -493,10 +496,12 @@ def test_valid_exchange_key():
         amount=11, input=b, type="technosphere", temporal_distribution=[]
     )
 
-    with pytest.warns(None) as warning_list:
+    # assert that no warnings are raised
+    # https://docs.pytest.org/en/8.0.x/how-to/capture-warnings.html
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         exc.save()
 
-    assert len(warning_list) == 0
 
 @bw2test
 def test_typo_exchange_type_multiple_corrections():
