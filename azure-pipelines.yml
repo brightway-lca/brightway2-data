@@ -57,7 +57,7 @@ jobs:
   - bash: |
       python --version
       pip --version
-      pip install -r requirements-test.txt
+      pip install --pre -r requirements-test.txt
       echo "which pytest"
       which pytest
       echo "pytest version"
@@ -116,7 +116,7 @@ jobs:
 
   - bash: |
       python --version
-      pip3 install -r requirements-test.txt
+      pip3 install --pre -r requirements-test.txt
       pip3 install -e .
     displayName: Install packages
 
@@ -172,7 +172,7 @@ jobs:
 
   - script: |
       python --version
-      pip install -r requirements-test.txt
+      pip install --pre -r requirements-test.txt
       pip install -e .
     displayName: Install packages
 
