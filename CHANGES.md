@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.0.DEV36 (2024-05-11)
+
+* Allow custom datapackage processing by refactoring lookup dictionaries
+
 ## 4.0.DEV35 (2023-11-24)
 
 * Prevent false positives cases where incorrect key is substr of valid key in `_check_keys` function
