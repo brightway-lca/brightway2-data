@@ -11,7 +11,7 @@ from typing import Callable, List, Optional
 
 import pandas
 from tqdm import tqdm
-from bw_processing import clean_datapackage_name, create_datapackage
+from bw_processing import clean_datapackage_name, create_datapackage, Datapackage
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
 
@@ -24,7 +24,6 @@ from ..errors import (
     UntypedExchange,
     WrongDatabase,
 )
-from ..project import writable_project
 from ..query import Query
 from ..search import IndexManager, Searcher
 from ..utils import as_uncertainty_dict, get_node, get_geocollection
@@ -494,7 +493,6 @@ class SQLiteBackend(ProcessedDataStore):
 
     # Public API
 
-    @writable_project
     def write(self, data, process=True, searchable=True):
         """Write ``data`` to database.
 
@@ -598,7 +596,6 @@ class SQLiteBackend(ProcessedDataStore):
         obj.update(kwargs)
         return obj
 
-    @writable_project
     def make_searchable(self, reset=False):
         if self.name not in databases:
             raise UnknownObject("This database is not yet registered")
@@ -610,13 +607,11 @@ class SQLiteBackend(ProcessedDataStore):
         IndexManager(self.filename).delete_database()
         IndexManager(self.filename).add_datasets(self)
 
-    @writable_project
     def make_unsearchable(self):
         databases[self.name]["searchable"] = False
         databases.flush()
         IndexManager(self.filename).delete_database()
 
-    @writable_project
     def delete(self, keep_params=False, warn=True, vacuum=True):
         """Delete all data from SQLite database and Whoosh index"""
         if warn:

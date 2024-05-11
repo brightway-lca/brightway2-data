@@ -1,26 +1,28 @@
 from . import databases
-from .backends import SQLiteBackend
-from .backends.iotable import IOTableBackend
+from .data_store import ProcessedDataStore
 
 
-def DatabaseChooser(name, backend=None):
+def DatabaseChooser(name: str, backend: str = "sqlite") -> ProcessedDataStore:
     """A method that returns a database class instance.
 
     Database types are specified in `databases[database_name]['backend']`.
 
     """
-    if name in databases:
-        backend = databases[name].get("backend", backend or "sqlite")
-    else:
-        backend = backend or "sqlite"
+    from .subclass_mapping import DATABASE_BACKEND_MAPPING
 
-    # Backwards compatibility
-    if backend == "sqlite":
-        return SQLiteBackend(name)
-    elif backend == "iotable":
-        return IOTableBackend(name)
-    else:
-        raise ValueError("Backend {} not found".format(backend))
+    if name in databases:
+        backend = databases[name].get("backend") or backend
+
+    if not backend or not isinstance(backend, str):
+        raise ValueError(
+            f"Invalid value for backend: '{backend}'. Must be a string in " +
+            "`bw2data.database.DATABASE_BACKEND_MAPPING`"
+        )
+
+    try:
+        return DATABASE_BACKEND_MAPPING[backend](name)
+    except KeyError as exc:
+        raise KeyError(f"Backend {backend} not found") from exc
 
 
 # Backwards compatibility

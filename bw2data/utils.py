@@ -7,16 +7,13 @@ import re
 import string
 import urllib
 import warnings
-import webbrowser
 import zipfile
 from io import StringIO
 from pathlib import Path
 
 import stats_arrays as sa
-from peewee import DoesNotExist
 
-from . import config
-from .errors import MultipleResults, NotFound, UnknownObject, ValidityError, WebUIError
+from .errors import MultipleResults, NotFound, UnknownObject, ValidityError
 from .fatomic import open
 
 # Type of technosphere/biosphere exchanges used in processed Databases
@@ -66,7 +63,8 @@ def combine_methods(name, *ms):
     """Combine LCIA methods by adding duplicate characterization factors.
 
     Args:
-        * *ms* (one or more method id tuples): Any number of method ids, e.g. ``("my method", "wow"), ("another method", "wheee")``.
+        * *ms* (one or more method id tuples): Any number of method ids, e.g.
+        ``("my method", "wow"), ("another method", "wheee")``.
 
     Returns:
         The new Method instance.
@@ -369,16 +367,11 @@ def create_in_memory_zipfile_from_directory(path):
 
 def get_node(**kwargs):
     from . import databases
-    from .backends import Activity
     from .backends import ActivityDataset as AD
-    from .backends.iotable.proxies import IOTableActivity
+    from .subclass_mapping import NODE_PROCESS_CLASS_MAPPING
 
     def node_class(database_name):
-        mapping = {
-            'sqlite': Activity,
-            'iotable': IOTableActivity,
-        }
-        return mapping[databases[database_name].get("backend", "sqlite")]
+        return NODE_PROCESS_CLASS_MAPPING[databases[database_name].get("backend", "sqlite")]
 
     mapping = {
         "id": AD.id,
