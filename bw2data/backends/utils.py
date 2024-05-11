@@ -6,7 +6,6 @@ import numpy as np
 from .. import config
 from ..errors import InvalidExchange, UntypedExchange
 from ..meta import databases, methods
-from ..method import Method
 from .schema import get_id
 
 
@@ -90,6 +89,8 @@ def replace_cfs(old_key, new_key):
     """Replace ``old_key`` with ``new_key`` in characterization factors.
 
     Returns list of modified methods."""
+    from ..method import Method
+
     altered_methods = []
     for name in methods:
         changed = False
