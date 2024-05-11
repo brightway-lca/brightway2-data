@@ -705,41 +705,15 @@ class SQLiteBackend(ProcessedDataStore):
                 "flip": flip,
             }
 
-    def process(self, csv=False):
-        """Create structured arrays for the technosphere and biosphere matrices.
+    def _add_inventory_geomapping_to_datapackage(self, dp: Datapackage) -> None:
+        """Add the inventory geomapping array to an existing datapackage.
 
-        Uses ``bw_processing`` for array creation and metadata serialization.
-
-        Also creates a ``geomapping`` array, linking activities to locations. Used for regionalized calculations.
-
-        Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
-
-        """
-        # Try to avoid race conditions - but no guarantee
-        self.metadata["processed"] = datetime.datetime.now().isoformat()
-
-        # Get number of exchanges and processes to set
-        # initial Numpy array size (still have to include)
-        # implicit production exchanges
-        dependents = set()
-
+        Separated out to allow for easier use in subclasses."""
         # Create geomapping array, from dataset interger ids to locations
         inv_mapping_qs = ActivityDataset.select(
             ActivityDataset.id, ActivityDataset.location
         ).where(
             ActivityDataset.database == self.name, ActivityDataset.type == "process"
-        )
-
-        # self.filepath_processed checks if data is dirty,
-        # and processes if it is. This causes an infinite loop.
-        # So we construct the filepath ourselves.
-        fp = str(self.dirpath_processed() / self.filename_processed())
-
-        dp = create_datapackage(
-            fs=ZipFS(fp, write=True),
-            name=clean_datapackage_name(self.name),
-            sum_intra_duplicates=True,
-            sum_inter_duplicates=False,
         )
         dp.add_persistent_vector_from_iterator(
             matrix="inv_geomapping_matrix",
@@ -755,6 +729,35 @@ class SQLiteBackend(ProcessedDataStore):
                 for row in inv_mapping_qs.tuples()
             ),
             nrows=inv_mapping_qs.count(),
+        )
+
+    def process(self, csv=False):
+        """Create structured arrays for the technosphere and biosphere matrices.
+
+        Uses ``bw_processing`` for array creation and metadata serialization.
+
+        Also creates a ``geomapping`` array, linking activities to locations. Used for regionalized calculations.
+
+        Use a raw SQLite3 cursor instead of Peewee for a ~2 times speed advantage.
+
+        """
+        # Try to avoid race conditions - but no guarantee
+        self.metadata["processed"] = datetime.datetime.now().isoformat()
+        # Get number of exchanges and processes to set
+        # initial Numpy array size (still have to include)
+        # implicit production exchanges
+        dependents = set()
+
+        # self.filepath_processed checks if data is dirty,
+        # and processes if it is. This causes an infinite loop.
+        # So we construct the filepath ourselves.
+        fp = str(self.dirpath_processed() / self.filename_processed())
+
+        dp = create_datapackage(
+            fs=ZipFS(fp, write=True),
+            name=clean_datapackage_name(self.name),
+            sum_intra_duplicates=True,
+            sum_inter_duplicates=False,
         )
 
         BIOSPHERE_SQL = """SELECT e.data, a.id, b.id, e.input_database, e.input_code, e.output_database, e.output_code
