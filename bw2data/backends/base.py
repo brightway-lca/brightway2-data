@@ -754,6 +754,7 @@ class SQLiteBackend(ProcessedDataStore):
             sum_intra_duplicates=True,
             sum_inter_duplicates=False,
         )
+        self._add_inventory_geomapping_to_datapackage(dp)
 
         BIOSPHERE_SQL = """SELECT e.data, a.id, b.id, e.input_database, e.input_code, e.output_database, e.output_code
                 FROM exchangedataset as e
