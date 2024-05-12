@@ -31,7 +31,7 @@ setup(
         "bw2parameters",
         "bw_processing",
         "lxml",
-        "numpy",
+        "numpy<2",
         "peewee>=3.9.4",
         "platformdirs",
         "scipy",
