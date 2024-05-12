@@ -2,6 +2,9 @@
 
 ## 4.0.DEV36 (2024-05-11)
 
+* [PR #160: Fix a type error in ProjectManager's `report()` function](https://github.com/brightway-lca/brightway2-data/pull/160)
+* [PR #146: Fix pipeline](https://github.com/brightway-lca/brightway2-data/pull/164)
+* [PR #143: Fix iterator over exchanges](https://github.com/brightway-lca/brightway2-data/pull/163)
 * Allow custom datapackage processing by refactoring lookup dictionaries
 
 ## 4.0.DEV35 (2023-11-24)
