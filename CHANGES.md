@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.0.DEV37 (2024-05-12)
+
+* Add ability to skip typo checks for speed boost of large, known good, imports
+
 ## 4.0.DEV36 (2024-05-11)
 
 * [PR #160: Fix a type error in ProjectManager's `report()` function](https://github.com/brightway-lca/brightway2-data/pull/160)
