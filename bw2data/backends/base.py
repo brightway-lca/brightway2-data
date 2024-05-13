@@ -425,15 +425,16 @@ class SQLiteBackend(ProcessedDataStore):
                 'CREATE INDEX IF NOT EXISTS "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")'
             )
 
-    def _efficient_write_dataset(self, index, key, ds, exchanges, activities):
+    def _efficient_write_dataset(self, key: tuple, ds: dict, exchanges: list, activities: list, check_typos: bool = True) -> (list, list):
         for exchange in ds.get("exchanges", []):
             if "input" not in exchange or "amount" not in exchange:
                 raise InvalidExchange
             if "type" not in exchange:
                 raise UntypedExchange
 
-            check_exchange_type(exchange.get('type'))
-            check_exchange_keys(exchange)
+            if check_typos:
+                check_exchange_type(exchange.get('type'))
+                check_exchange_keys(exchange)
 
             exchange["output"] = key
             exchanges.append(dict_as_exchangedataset(exchange))
@@ -451,8 +452,9 @@ class SQLiteBackend(ProcessedDataStore):
         ds["database"] = key[0]
         ds["code"] = key[1]
 
-        check_activity_type(ds.get('type'))
-        check_activity_keys(ds)
+        if check_typos:
+            check_activity_type(ds.get('type'))
+            check_activity_keys(ds)
 
         activities.append(dict_as_activitydataset(ds))
 
@@ -462,7 +464,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         return exchanges, activities
 
-    def _efficient_write_many_data(self, data, indices=True):
+    def _efficient_write_many_data(self, data: dict, indices: bool = True, check_typos: bool = True) -> None:
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
             self._drop_indices()
@@ -472,9 +474,9 @@ class SQLiteBackend(ProcessedDataStore):
             self.delete(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
-            for index, (key, ds) in enumerate(tqdm_wrapper(data.items(), getattr(config, "is_test", False))):
+            for key, ds in tqdm_wrapper(data.items(), getattr(config, "is_test", False)):
                 exchanges, activities = self._efficient_write_dataset(
-                    index, key, ds, exchanges, activities
+                    key, ds, exchanges, activities, check_typos
                 )
 
             if activities:
@@ -493,7 +495,7 @@ class SQLiteBackend(ProcessedDataStore):
 
     # Public API
 
-    def write(self, data, process=True, searchable=True):
+    def write(self, data: dict, process: bool = True, searchable: bool = True, check_typos: bool = True):
         """Write ``data`` to database.
 
         ``data`` must be a dictionary of the form::
@@ -532,7 +534,7 @@ class SQLiteBackend(ProcessedDataStore):
         geomapping.add({x["location"] for x in data.values() if x.get("location")})
         if data:
             try:
-                self._efficient_write_many_data(data)
+                self._efficient_write_many_data(data, check_typos=check_typos)
             except:
                 # Purge all data from database, then reraise
                 self.delete(warn=False)

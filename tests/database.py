@@ -30,11 +30,6 @@ from .fixtures import biosphere
 from .fixtures import food as food_data
 from .fixtures import get_naughty
 
-try:
-    import Levenshtein
-except ImportError:
-    Levenshtein = None
-
 
 @pytest.fixture
 @bw2test
@@ -1122,7 +1117,6 @@ def test_nodes_to_dataframe_unsorted(df_fixture):
     assert df.shape == (2, 8)
 
 
-@pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
 @bw2test
 def test_warn_activity_type():
     db = Database("test-case")
@@ -1139,7 +1133,6 @@ def test_warn_activity_type():
         db.write(data)
 
 
-@pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
 @bw2test
 def test_warn_activity_key():
     db = Database("test-case")
@@ -1158,7 +1151,40 @@ def test_warn_activity_key():
         db.write(data)
 
 
-@pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
+@bw2test
+def test_no_warn_activity_key_no_check_typos(recwarn):
+    db = Database("test-case")
+    data = {
+        ("test-case", "1"): {
+            "exchanges": [],
+            "location": "somewhere",
+            "name": "c",
+            "type": "process",
+            "reference_product": "something",
+        }
+    }
+
+    db.write(data, check_typos=False)
+    assert not any("Possible incorrect activity key" in str(rec.message) for rec in recwarn)
+
+
+@bw2test
+def test_warn_activity_key_yes_check_typos(recwarn):
+    db = Database("test-case")
+    data = {
+        ("test-case", "1"): {
+            "exchanges": [],
+            "location": "somewhere",
+            "name": "c",
+            "type": "process",
+            "reference_product": "something",
+        }
+    }
+
+    db.write(data, check_typos=True)
+    assert any("Possible incorrect activity key" in str(rec.message) for rec in recwarn)
+
+
 @bw2test
 def test_warn_exchange_type():
     db = Database("test-case")
@@ -1183,7 +1209,6 @@ def test_warn_exchange_type():
         db.write(data)
 
 
-@pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
 @bw2test
 def test_warn_exchange_key():
     db = Database("test-case")
