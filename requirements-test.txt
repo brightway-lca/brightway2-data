@@ -8,6 +8,7 @@ platformdirs
 pytest
 pytest-cov
 python-coveralls
+rapidfuzz
 requests>=1.1.0
 scipy
 stats_arrays

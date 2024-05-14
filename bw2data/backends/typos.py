@@ -1,7 +1,14 @@
 from typing import Iterable
 import warnings
 from functools import partial
-from ..string_distance import damerau_levenshtein
+
+try:
+    from rapidfuzz.distance import DamerauLevenshtein
+    damerau_levenshtein = DamerauLevenshtein.distance
+except ImportError:
+    # Can happen on Windows, see
+    # https://github.com/rapidfuzz/RapidFuzz/tree/main?tab=readme-ov-file#with-pip
+    from ..string_distance import damerau_levenshtein
 
 VALID_ACTIVITY_TYPES = (
     "process",
