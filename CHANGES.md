@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## DEV
+
+* Use [rapidfuzz](https://pypi.org/project/rapidfuzz/) library for faster typo checks
+
 ## 4.0.DEV37 (2024-05-12)
 
 * Add ability to skip typo checks for speed boost of large, known good, imports
