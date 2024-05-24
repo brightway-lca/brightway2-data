@@ -1,6 +1,6 @@
 # `bw2data` Changelog
 
-## DEV
+## 4.0.DEV38 (2024-05-14)
 
 * Use [rapidfuzz](https://pypi.org/project/rapidfuzz/) library for faster typo checks
 
