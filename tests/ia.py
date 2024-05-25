@@ -141,11 +141,13 @@ def test_method_processed_array_add_identifier(reset):
     print(package.metadata)
     assert package.metadata['resources'][0]['identifier'] == ['a', 'method']
 
+
 @bw2test
 def test_iads_process_without_name():
     iads = MockIADS(None)
     with pytest.raises(TypeError):
         iads.process()
+
 
 @bw2test
 def test_method_missing_reference():
