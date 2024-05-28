@@ -1,5 +1,75 @@
 import platform
 
+DEFAULT_PROCESS_NODE_TYPE = "process"
+PROCESS_NODE_TYPES = [
+    "process",
+    None,
+]
+VALID_LCI_NODE_TYPES = [
+    "process",
+    "emission",
+    "natural resource",
+    "product",
+    "economic",
+    "inventory indicator",
+]
+VALID_EXCHANGE_TYPES = [
+    'biosphere',
+    'production', 'substitution', 'generic production',
+    'technosphere', 'generic consumption',
+]
+VALID_ACTIVITY_KEYS = [
+    'CAS number',
+    'activity',
+    'activity type',
+    'authors',
+    'categories',
+    'classifications',
+    'code',
+    'comment',
+    'created',
+    'database',
+    'exchanges',
+    'filename',
+    'flow',
+    'id',
+    'location',
+    'modified',
+    'name',
+    'parameters',
+    'production amount',
+    'reference product',
+    'synonyms',
+    'tags',
+    'type',
+    'unit',
+]
+VALID_EXCHANGE_KEYS = [
+    'activity',
+    'amount',
+    'classifications',
+    'code',
+    'comment',
+    'flow',
+    'input',
+    'loc',
+    'maximum',
+    'minimum',
+    'name',
+    'output',
+    'pedigree',
+    'production volume',
+    'properties',
+    'scale',
+    'scale without pedigree',
+    "shape",
+    "temporal_distribution",
+    'type',
+    'uncertainty type',
+    'uncertainty_type',
+    'unit',
+]
+
 
 class Config:
     """A singleton that stores configuration settings"""

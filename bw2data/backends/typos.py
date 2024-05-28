@@ -2,6 +2,7 @@ from typing import Iterable
 import warnings
 from functools import partial
 
+from ..configuration import VALID_LCI_NODE_TYPES, VALID_EXCHANGE_KEYS, VALID_EXCHANGE_TYPES, VALID_ACTIVITY_KEYS
 try:
     from rapidfuzz.distance import DamerauLevenshtein
     damerau_levenshtein = DamerauLevenshtein.distance
@@ -9,73 +10,6 @@ except ImportError:
     # Can happen on Windows, see
     # https://github.com/rapidfuzz/RapidFuzz/tree/main?tab=readme-ov-file#with-pip
     from ..string_distance import damerau_levenshtein
-
-VALID_ACTIVITY_TYPES = (
-    "process",
-    "emission",
-    "natural resource",
-    "product",
-    "economic",
-    "inventory indicator",
-)
-VALID_EXCHANGE_TYPES = (
-    'biosphere',
-    'production', 'substitution', 'generic production',
-    'technosphere', 'generic consumption',
-)
-VALID_ACTIVITY_KEYS = (
-    'CAS number',
-    'activity',
-    'activity type',
-    'authors',
-    'categories',
-    'classifications',
-    'code',
-    'comment',
-    'created',
-    'database',
-    'exchanges',
-    'filename',
-    'flow',
-    'id',
-    'location',
-    'modified',
-    'name',
-    'parameters',
-    'production amount',
-    'reference product',
-    'synonyms',
-    'tags',
-    'type',
-    'unit',
-)
-VALID_EXCHANGE_KEYS = (
-    'activity',
-    'amount',
-    'classifications',
-    'code',
-    'comment',
-    'flow',
-    'input',
-    'loc',
-    'maximum',
-    'minimum',
-    'name',
-    'output',
-    'pedigree',
-    'production volume',
-    'properties',
-    'scale',
-    'scale without pedigree',
-    "shape",
-    "temporal_distribution",
-    'type',
-    'uncertainty type',
-    'uncertainty_type',
-    'unit',
-)
-
-# TBD: What is reasonable for uncertainty_| type?
 
 
 def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:
@@ -155,7 +89,7 @@ def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
                 )
 
 
-check_activity_type = partial(_check_type, valid=VALID_ACTIVITY_TYPES, kind="activity")
+check_activity_type = partial(_check_type, valid=VALID_LCI_NODE_TYPES, kind="activity")
 check_exchange_type = partial(_check_type, valid=VALID_EXCHANGE_TYPES, kind="exchange")
 check_activity_keys = partial(_check_keys, valid=VALID_ACTIVITY_KEYS, kind="activity")
 check_exchange_keys = partial(_check_keys, valid=VALID_EXCHANGE_KEYS, kind="exchange")
