@@ -1,10 +1,31 @@
 import platform
 
+# For matrix construction
 DEFAULT_PROCESS_NODE_TYPE = "process"
+DEFAULT_PRODUCTION_EDGE_TYPE = "production"
+DEFAULT_CONSUMPTION_EDGE_TYPE = "technosphere"
+DEFAULT_BIOSPHERE_EDGE_TYPE = "biosphere"
 PROCESS_NODE_TYPES = [
     "process",
     None,
 ]
+BIOSPHERE_EDGE_TYPES = [
+    "biosphere",
+]
+TECHNOSPHERE_NEGATIVE_EDGE_TYPES = [
+    "technosphere",
+    "generic consumption",
+]
+TECHNOSPHERE_POSITIVE_EDGE_TYPES = [
+    "production",
+    "generic production",
+    "substitution",
+]
+TECHNOSPHERE_SUBSTITUTION_EDGE_TYPES = [
+    "substitution",
+]
+
+# For typo detection
 VALID_LCI_NODE_TYPES = [
     "process",
     "emission",

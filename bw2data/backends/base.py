@@ -16,7 +16,7 @@ from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
 
 from .. import config, databases, geomapping
-from ..configuration import PROCESS_NODE_TYPES
+from ..configuration import PROCESS_NODE_TYPES, DEFAULT_PROCESS_NODE_TYPE, TECHNOSPHERE_POSITIVE_EDGE_TYPES
 from ..data_store import ProcessedDataStore
 from ..errors import (
     DuplicateNode,
@@ -522,7 +522,7 @@ class SQLiteBackend(ProcessedDataStore):
         geocollections = {
             get_geocollection(x.get("location"))
             for x in data.values()
-            if x.get("type") == PROCESS_NODE_TYPES
+            if x.get("type") in PROCESS_NODE_TYPES
         }
         if None in geocollections:
             print(
@@ -790,7 +790,7 @@ class SQLiteBackend(ProcessedDataStore):
                         ExchangeDataset.output_code
                     ).where(
                         ExchangeDataset.output_database == self.name,
-                        ExchangeDataset.type << ("production", "generic production"),
+                        ExchangeDataset.type << TECHNOSPHERE_POSITIVE_EDGE_TYPES,
                     )
                 ),
             )
@@ -1010,7 +1010,7 @@ class SQLiteBackend(ProcessedDataStore):
                     "target_reference_product": target.get("reference product"),
                     "target_location": target.get("location"),
                     "target_unit": target.get("unit"),
-                    "target_type": target.get("type", "process"),
+                    "target_type": target.get("type", DEFAULT_PROCESS_NODE_TYPE),
                     "source_id": edge["id"],
                     "source_database": edge["database"],
                     "source_code": edge["code"],

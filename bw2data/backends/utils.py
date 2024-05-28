@@ -7,6 +7,7 @@ from .. import config
 from ..errors import InvalidExchange, UntypedExchange
 from ..meta import databases, methods
 from .schema import get_id
+from ..configuration import DEFAULT_PROCESS_NODE_TYPE
 
 
 def get_csv_data_dict(ds):
@@ -70,7 +71,7 @@ def dict_as_activitydataset(ds):
         "location": ds.get("location"),
         "name": ds.get("name"),
         "product": ds.get("reference product"),
-        "type": ds.get("type", "process"),
+        "type": ds.get("type", DEFAULT_PROCESS_NODE_TYPE),
     }
 
 

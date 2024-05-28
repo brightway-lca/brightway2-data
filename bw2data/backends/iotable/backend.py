@@ -11,6 +11,7 @@ from tqdm import tqdm
 from ... import config, databases, geomapping
 from .. import SQLiteBackend
 from .proxies import IOTableActivity, IOTableExchanges
+from ...configuration import DEFAULT_PROCESS_NODE_TYPE, DEFAULT_PRODUCTION_EDGE_TYPE, DEFAULT_CONSUMPTION_EDGE_TYPE, DEFAULT_BIOSPHERE_EDGE_TYPE
 
 
 class IOTableBackend(SQLiteBackend):
@@ -169,7 +170,7 @@ class IOTableBackend(SQLiteBackend):
                     f"{prefix}unit": obj.get("unit"),
                 }
                 if prefix == "target_":
-                    dct["target_type"] = obj.get("type", "process")
+                    dct["target_type"] = obj.get("type", DEFAULT_PROCESS_NODE_TYPE)
                     dct["target_reference_product"] = obj.get("reference product")
                 else:
                     dct["source_categories"] = (
@@ -187,11 +188,11 @@ class IOTableBackend(SQLiteBackend):
             for resource in exchanges.resources:
                 if resource["data"]["matrix"] == "biosphere_matrix":
                     arrays.append(
-                        np.array(["biosphere"] * len(resource["data"]["array"]))
+                        np.array([DEFAULT_BIOSPHERE_EDGE_TYPE] * len(resource["data"]["array"]))
                     )
                 else:
-                    arr = np.array(["technosphere"] * len(resource["data"]["array"]))
-                    arr[resource["flip"]["positive"]] = "production"
+                    arr = np.array([DEFAULT_CONSUMPTION_EDGE_TYPE] * len(resource["data"]["array"]))
+                    arr[resource["flip"]["positive"]] = DEFAULT_PRODUCTION_EDGE_TYPE
                     arrays.append(arr)
 
             return np.hstack(arrays)
