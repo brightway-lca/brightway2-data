@@ -3,7 +3,7 @@ import copy
 
 from ..database import DatabaseChooser
 from . import SQLiteBackend, ActivityDataset, ExchangeDataset
-from ..configuration import BIOSPHERE_EDGE_TYPES
+from ..configuration import labels
 
 
 def _list_or_dict(obj):
@@ -103,7 +103,7 @@ def add_input_info_for_indigenous_exchanges(activities, names, add_identifiers=F
             if add_identifiers:
                 exc["id"] = obj['id']
                 exc['code'] = obj['code']
-            if exc["type"] in BIOSPHERE_EDGE_TYPES:
+            if exc["type"] in labels.biosphere_edge_types:
                 exc["categories"] = obj.get("categories")
             exc.pop("input")
 
@@ -131,7 +131,7 @@ def add_input_info_for_external_exchanges(activities, names, add_identifiers=Fal
             if add_identifiers:
                 exc["id"] = obj.id
                 exc['code'] = obj.code
-            if exc["type"] in BIOSPHERE_EDGE_TYPES:
+            if exc["type"] in labels.biosphere_edge_types:
                 exc["categories"] = obj.data.get("categories")
 
 

@@ -2,7 +2,7 @@ from typing import Iterable
 import warnings
 from functools import partial
 
-from ..configuration import VALID_LCI_NODE_TYPES, VALID_EXCHANGE_KEYS, VALID_EXCHANGE_TYPES, VALID_ACTIVITY_KEYS
+from ..configuration import typo_settings
 try:
     from rapidfuzz.distance import DamerauLevenshtein
     damerau_levenshtein = DamerauLevenshtein.distance
@@ -89,7 +89,7 @@ def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
                 )
 
 
-check_activity_type = partial(_check_type, valid=VALID_LCI_NODE_TYPES, kind="activity")
-check_exchange_type = partial(_check_type, valid=VALID_EXCHANGE_TYPES, kind="exchange")
-check_activity_keys = partial(_check_keys, valid=VALID_ACTIVITY_KEYS, kind="activity")
-check_exchange_keys = partial(_check_keys, valid=VALID_EXCHANGE_KEYS, kind="exchange")
+check_activity_type = partial(_check_type, valid=typo_settings.node_types, kind="activity")
+check_exchange_type = partial(_check_type, valid=typo_settings.edge_types, kind="exchange")
+check_activity_keys = partial(_check_keys, valid=typo_settings.node_keys, kind="activity")
+check_exchange_keys = partial(_check_keys, valid=typo_settings.edge_keys, kind="exchange")

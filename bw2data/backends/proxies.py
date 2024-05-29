@@ -18,7 +18,7 @@ from .typos import (
     check_exchange_type,
     check_exchange_keys,
 )
-from ..configuration import DEFAULT_PROCESS_NODE_TYPE, TECHNOSPHERE_POSITIVE_EDGE_TYPES, TECHNOSPHERE_NEGATIVE_EDGE_TYPES, BIOSPHERE_EDGE_TYPES, TECHNOSPHERE_SUBSTITUTION_EDGE_TYPES
+from ..configuration import labels
 
 
 class Exchanges(Iterable):
@@ -135,7 +135,7 @@ class Exchanges(Iterable):
                 "target_reference_product": edge.output.get("reference product"),
                 "target_location": edge.output.get("location"),
                 "target_unit": edge.output.get("unit"),
-                "target_type": edge.output.get("type", DEFAULT_PROCESS_NODE_TYPE),
+                "target_type": edge.output.get("type", labels.process_node_default),
                 "source_id": edge.input["id"],
                 "source_database": edge.input["database"],
                 "source_code": edge.input["code"],
@@ -397,19 +397,19 @@ class Activity(ActivityProxyBase):
     def technosphere(self):
         return Exchanges(
             self.key,
-            kinds=TECHNOSPHERE_NEGATIVE_EDGE_TYPES
+            kinds=labels.technosphere_negative_edge_types
         )
 
     def biosphere(self):
         return Exchanges(
             self.key,
-            kinds=BIOSPHERE_EDGE_TYPES,
+            kinds=labels.biosphere_edge_types,
         )
 
     def production(self, include_substitution=False):
-        kinds = TECHNOSPHERE_POSITIVE_EDGE_TYPES
+        kinds = labels.technosphere_positive_edge_types
         if not include_substitution:
-            kinds = [obj for obj in kinds if obj not in TECHNOSPHERE_SUBSTITUTION_EDGE_TYPES]
+            kinds = [obj for obj in kinds if obj not in labels.substitution_edge_types]
         return Exchanges(
             self.key,
             kinds=kinds
@@ -445,13 +445,13 @@ class Activity(ActivityProxyBase):
     def substitution(self):
         return Exchanges(
             self.key,
-            kinds=TECHNOSPHERE_SUBSTITUTION_EDGE_TYPES,
+            kinds=labels.substitution_edge_types,
         )
 
-    def upstream(self, kinds=TECHNOSPHERE_NEGATIVE_EDGE_TYPES):
+    def upstream(self, kinds=labels.technosphere_negative_edge_types):
         return Exchanges(self.key, kinds=kinds, reverse=True)
 
-    def consumers(self, kinds=TECHNOSPHERE_NEGATIVE_EDGE_TYPES):
+    def consumers(self, kinds=labels.technosphere_negative_edge_types):
         return self.upstream(kinds=kinds)
 
     def new_exchange(self, **kwargs):

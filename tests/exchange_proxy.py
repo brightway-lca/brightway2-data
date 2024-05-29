@@ -2,7 +2,7 @@ from bw2data import Method, databases, geomapping, get_activity, methods, projec
 from bw2data.database import DatabaseChooser
 from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
 from bw2data.tests import bw2test
-from bw2data.configuration import DEFAULT_PROCESS_NODE_TYPE
+from bw2data.configuration import labels
 
 try:
     import bw2calc
@@ -181,7 +181,7 @@ def test_exchanges_to_dataframe(activity):
                 "target_reference_product": None,
                 "target_location": get_activity(code=a).get("location"),
                 "target_unit": get_activity(code=a).get("unit"),
-                "target_type": get_activity(code=a).get("type") or DEFAULT_PROCESS_NODE_TYPE,
+                "target_type": get_activity(code=a).get("type") or labels.process_node_default,
                 "source_id": id_map[b],
                 "source_database": "db",
                 "source_code": b,

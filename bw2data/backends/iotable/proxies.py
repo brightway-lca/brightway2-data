@@ -9,7 +9,7 @@ from bw_processing import Datapackage
 from ...errors import InvalidDatapackage
 from ...utils import get_node
 from ..proxies import Activity, Exchange, Exchanges
-from ...configuration import DEFAULT_PRODUCTION_EDGE_TYPE, DEFAULT_CONSUMPTION_EDGE_TYPE, DEFAULT_BIOSPHERE_EDGE_TYPE
+from ...configuration import labels
 
 
 class ReadOnlyExchange(Mapping):
@@ -198,7 +198,7 @@ class IOTableExchanges(Iterable):
                 output=col,
                 amount=value,
                 uncertainty_type=0,
-                type=DEFAULT_PRODUCTION_EDGE_TYPE,
+                type=labels.production_edge_default,
             )
         for row, col, value in self._raw_technosphere_iterator(negative=True):
             yield ReadOnlyExchange(
@@ -206,7 +206,7 @@ class IOTableExchanges(Iterable):
                 output=col,
                 amount=value,
                 uncertainty_type=0,
-                type=DEFAULT_CONSUMPTION_EDGE_TYPE,
+                type=labels.consumption_edge_default,
             )
         for row, col, value in self._raw_biosphere_iterator():
             yield ReadOnlyExchange(
@@ -214,7 +214,7 @@ class IOTableExchanges(Iterable):
                 output=col,
                 amount=value,
                 uncertainty_type=0,
-                type=DEFAULT_BIOSPHERE_EDGE_TYPE,
+                type=labels.biosphere_edge_default,
             )
 
     def _raw_technosphere_iterator(self, negative=True):

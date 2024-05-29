@@ -1,106 +1,117 @@
+from pathlib import Path
 import platform
+from typing import List, Union
 
-# For matrix construction
-DEFAULT_PROCESS_NODE_TYPE = "process"
-DEFAULT_PRODUCTION_EDGE_TYPE = "production"
-DEFAULT_CONSUMPTION_EDGE_TYPE = "technosphere"
-DEFAULT_BIOSPHERE_EDGE_TYPE = "biosphere"
-PROCESS_NODE_TYPES = [
-    "process",
-    None,
-]
-BIOSPHERE_EDGE_TYPES = [
-    "biosphere",
-]
-TECHNOSPHERE_NEGATIVE_EDGE_TYPES = [
-    "technosphere",
-    "generic consumption",
-]
-TECHNOSPHERE_POSITIVE_EDGE_TYPES = [
-    "production",
-    "generic production",
-    "substitution",
-]
-TECHNOSPHERE_SUBSTITUTION_EDGE_TYPES = [
-    "substitution",
-]
-
-# For typo detection
-VALID_LCI_NODE_TYPES = [
-    "process",
-    "emission",
-    "natural resource",
-    "product",
-    "economic",
-    "inventory indicator",
-]
-VALID_EXCHANGE_TYPES = [
-    'biosphere',
-    'production', 'substitution', 'generic production',
-    'technosphere', 'generic consumption',
-]
-VALID_ACTIVITY_KEYS = [
-    'CAS number',
-    'activity',
-    'activity type',
-    'authors',
-    'categories',
-    'classifications',
-    'code',
-    'comment',
-    'created',
-    'database',
-    'exchanges',
-    'filename',
-    'flow',
-    'id',
-    'location',
-    'modified',
-    'name',
-    'parameters',
-    'production amount',
-    'reference product',
-    'synonyms',
-    'tags',
-    'type',
-    'unit',
-]
-VALID_EXCHANGE_KEYS = [
-    'activity',
-    'amount',
-    'classifications',
-    'code',
-    'comment',
-    'flow',
-    'input',
-    'loc',
-    'maximum',
-    'minimum',
-    'name',
-    'output',
-    'pedigree',
-    'production volume',
-    'properties',
-    'scale',
-    'scale without pedigree',
-    "shape",
-    "temporal_distribution",
-    'type',
-    'uncertainty type',
-    'uncertainty_type',
-    'unit',
-]
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Config:
-    """A singleton that stores configuration settings"""
+class MatrixLabels(BaseSettings):
+    process_node_default: str = "process"
+    production_edge_default: str = "production"
+    consumption_edge_default: str = "technosphere"
+    biosphere_edge_default: str = "biosphere"
 
-    version = 3
-    backends = {}
-    cache = {}
-    metadata = []
-    sqlite3_databases = []
-    _windows = platform.system() == "Windows"
+    process_node_types: List[Union[str, None]] = ["process", None]
+    biosphere_edge_types: List[str] = ["biosphere"]
+    technosphere_negative_edge_types: List[str] = ["technosphere", "generic consumption"]
+    technosphere_positive_edge_types: List[str] = ["production", "generic production", "substitution"]
+    substitution_edge_types: List[str] = ["substitution"]
+
+    model_config = SettingsConfigDict(
+        env_file='brightway-matrix-configuration.env'
+    )
+
+    def reload(self, fp: Path) -> None:
+        """Load new `.env` file and overwrite settings"""
+        self.model_config.update(env_file=fp)
+
+
+class TypoSettings(BaseSettings):
+    node_types: List[str] = [
+        "economic",
+        "emission",
+        "inventory indicator",
+        "natural resource",
+        "process",
+        "product",
+    ]
+    edge_types: List[str] = [
+        'biosphere',
+        'generic consumption',
+        'generic production',
+        'production',
+        'substitution',
+        'technosphere',
+    ]
+    node_keys: List[str] = [
+        'CAS number',
+        'activity',
+        'activity type',
+        'authors',
+        'categories',
+        'classifications',
+        'code',
+        'comment',
+        'created',
+        'database',
+        'exchanges',
+        'filename',
+        'flow',
+        'id',
+        'location',
+        'modified',
+        'name',
+        'parameters',
+        'production amount',
+        'reference product',
+        'synonyms',
+        'tags',
+        'type',
+        'unit',
+    ]
+    edge_keys: List[str] = [
+        "shape",
+        "temporal_distribution",
+        'activity',
+        'amount',
+        'classifications',
+        'code',
+        'comment',
+        'flow',
+        'input',
+        'loc',
+        'maximum',
+        'minimum',
+        'name',
+        'output',
+        'pedigree',
+        'production volume',
+        'properties',
+        'scale without pedigree',
+        'scale',
+        'type',
+        'uncertainty type',
+        'uncertainty_type',
+        'unit',
+    ]
+
+    model_config = SettingsConfigDict(
+        env_file='brightway-typo-configuration.env'
+    )
+
+
+class Config(BaseSettings):
+    version: int = 3
+    backends: dict = {}
+    cache: dict = {}
+    metadata: list = []
+    sqlite3_databases: list = []
+    _windows: bool = platform.system() == "Windows"
+
+    model_config = SettingsConfigDict(
+        env_file='brightway-configuration.env',
+        extra='allow'
+    )
 
     @property
     def biosphere(self):
@@ -117,4 +128,6 @@ class Config:
         return self.p.get("global_location", "GLO")
 
 
+labels = MatrixLabels()
+typo_settings = TypoSettings()
 config = Config()
