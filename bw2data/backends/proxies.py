@@ -18,6 +18,7 @@ from .typos import (
     check_exchange_type,
     check_exchange_keys,
 )
+from ..configuration import labels
 
 
 class Exchanges(Iterable):
@@ -134,7 +135,7 @@ class Exchanges(Iterable):
                 "target_reference_product": edge.output.get("reference product"),
                 "target_location": edge.output.get("location"),
                 "target_unit": edge.output.get("unit"),
-                "target_type": edge.output.get("type", "process"),
+                "target_type": edge.output.get("type", labels.process_node_default),
                 "source_id": edge.input["id"],
                 "source_database": edge.input["database"],
                 "source_code": edge.input["code"],
@@ -393,28 +394,25 @@ class Activity(ActivityProxyBase):
     def edges(self):
         return self.exchanges()
 
-    def technosphere(self, include_substitution=False):
+    def technosphere(self):
         return Exchanges(
             self.key,
-            kinds=(
-                ("technosphere", "substitution")
-                if include_substitution
-                else ("technosphere",)
-            ),
+            kinds=labels.technosphere_negative_edge_types
         )
 
     def biosphere(self):
         return Exchanges(
             self.key,
-            kinds=("biosphere",),
+            kinds=labels.biosphere_edge_types,
         )
 
     def production(self, include_substitution=False):
+        kinds = labels.technosphere_positive_edge_types
+        if not include_substitution:
+            kinds = [obj for obj in kinds if obj not in labels.substitution_edge_types]
         return Exchanges(
             self.key,
-            kinds=("production", "substitution")
-            if include_substitution
-            else ("production",),
+            kinds=kinds
         )
 
     def rp_exchange(self):
@@ -447,13 +445,13 @@ class Activity(ActivityProxyBase):
     def substitution(self):
         return Exchanges(
             self.key,
-            kinds=("substitution",),
+            kinds=labels.substitution_edge_types,
         )
 
-    def upstream(self, kinds=("technosphere", "generic consumption")):
+    def upstream(self, kinds=labels.technosphere_negative_edge_types):
         return Exchanges(self.key, kinds=kinds, reverse=True)
 
-    def consumers(self, kinds=("technosphere", "generic consumption")):
+    def consumers(self, kinds=labels.technosphere_negative_edge_types):
         return self.upstream(kinds=kinds)
 
     def new_exchange(self, **kwargs):

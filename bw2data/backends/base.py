@@ -16,6 +16,7 @@ from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
 
 from .. import config, databases, geomapping
+from ..configuration import labels
 from ..data_store import ProcessedDataStore
 from ..errors import (
     DuplicateNode,
@@ -174,7 +175,7 @@ class SQLiteBackend(ProcessedDataStore):
             exc.get("input")[0]
             for ds in data.values()
             for exc in ds.get("exchanges", [])
-            if ds.get("type", "process") == "process"
+            if ds.get("type") in labels.process_node_types
             and exc.get("type") != "unknown"
             and exc.get("input", [None])[0] is not None
             and exc.get("input", [None])[0] not in ignore
@@ -521,7 +522,7 @@ class SQLiteBackend(ProcessedDataStore):
         geocollections = {
             get_geocollection(x.get("location"))
             for x in data.values()
-            if x.get("type", "process") == "process"
+            if x.get("type") in labels.process_node_types
         }
         if None in geocollections:
             print(
@@ -710,7 +711,7 @@ class SQLiteBackend(ProcessedDataStore):
         inv_mapping_qs = ActivityDataset.select(
             ActivityDataset.id, ActivityDataset.location
         ).where(
-            ActivityDataset.database == self.name, ActivityDataset.type == "process"
+            ActivityDataset.database == self.name, ActivityDataset.type << labels.process_node_types
         )
         dp.add_persistent_vector_from_iterator(
             matrix="inv_geomapping_matrix",
@@ -780,7 +781,7 @@ class SQLiteBackend(ProcessedDataStore):
                 # Get correct database name
                 ActivityDataset.database == self.name,
                 # Only consider `process` type activities
-                ActivityDataset.type << ("process", None),
+                ActivityDataset.type << labels.process_node_types,
                 # But exclude activities that already have production exchanges
                 ~(
                     ActivityDataset.code
@@ -789,7 +790,7 @@ class SQLiteBackend(ProcessedDataStore):
                         ExchangeDataset.output_code
                     ).where(
                         ExchangeDataset.output_database == self.name,
-                        ExchangeDataset.type << ("production", "generic production"),
+                        ExchangeDataset.type << labels.technosphere_positive_edge_types,
                     )
                 ),
             )
@@ -884,7 +885,7 @@ class SQLiteBackend(ProcessedDataStore):
         geocollections = {
             get_geocollection(x.get("location"))
             for x in self
-            if x.get("type", "process") == "process"
+            if x.get("type") in labels.process_node_types
         }
         if None in geocollections:
             print(
@@ -1009,7 +1010,7 @@ class SQLiteBackend(ProcessedDataStore):
                     "target_reference_product": target.get("reference product"),
                     "target_location": target.get("location"),
                     "target_unit": target.get("unit"),
-                    "target_type": target.get("type", "process"),
+                    "target_type": target.get("type", labels.process_node_default),
                     "source_id": edge["id"],
                     "source_database": edge["database"],
                     "source_code": edge["code"],
