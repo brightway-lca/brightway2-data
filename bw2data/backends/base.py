@@ -3,6 +3,7 @@ import datetime
 import itertools
 import pickle
 import pprint
+import uuid
 import random
 import sqlite3
 import warnings
@@ -573,10 +574,15 @@ class SQLiteBackend(ProcessedDataStore):
     def new_activity(self, code, **kwargs):
         return self.new_node(code, **kwargs)
 
-    def new_node(self, code, **kwargs):
+    def new_node(self, code: str=None, **kwargs):
         obj = self.node_class()
         obj["database"] = self.name
         obj["code"] = str(code)
+
+        if code is None:
+            obj["code"] = uuid.uuid4().hex
+        else:
+            obj["code"] = str(code)
 
         if (
             ActivityDataset.select()

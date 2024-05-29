@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal, assert_series_equal
 
-from bw2data import geomapping, get_id, databases, Database, get_activity
+from bw2data import geomapping, get_id, databases, Database, get_activity, get_node
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import Database
@@ -641,6 +641,20 @@ def test_new_node():
     act = database.get("foo")
     assert act["database"] == "a database"
     assert act["code"] == "foo"
+    assert act["location"] == "GLO"
+    assert act["this"] == "that"
+
+
+@bw2test
+def test_new_node_code_optional():
+    database = Database("a database")
+    database.register()
+    act = database.new_node(this="that", name="something")
+    act.save()
+
+    act = get_node(this="that")
+    assert act["database"] == "a database"
+    assert isinstance(act["code"], str) and len(act["code"]) == 32
     assert act["location"] == "GLO"
     assert act["this"] == "that"
 
