@@ -1,5 +1,11 @@
 # `bw2data` Changelog
 
+## DEV
+
+* [PR #170: Make string labels for matrix construction and typo detection user-configurable](https://github.com/brightway-lca/brightway2-data/pull/). Instead of fixed strings the labels which determine which values are used in matrices, which matrices they are used in, and what numeric sign they have is now completely configurable.
+* Breaking change: Removed `include_substitution` from `Node.technosphere` exchanges iterator. Substitution is production, and cannot logically be considered an input.
+* Breaking change: `bw2data.utils.TYPE_DICTIONARY` was removed. This hasn't been used in years.
+
 ## 4.0.DEV38 (2024-05-14)
 
 * Use [rapidfuzz](https://pypi.org/project/rapidfuzz/) library for faster typo checks
