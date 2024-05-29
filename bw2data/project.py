@@ -6,10 +6,10 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional
 
-from bw_processing import safe_filename
-from peewee import BooleanField, DoesNotExist, Model, TextField, SQL
-from platformdirs import PlatformDirs
 import wrapt
+from bw_processing import safe_filename
+from peewee import SQL, BooleanField, DoesNotExist, Model, TextField
+from platformdirs import PlatformDirs
 
 from . import config
 from .filesystem import create_dir
@@ -39,7 +39,7 @@ class ProjectDataset(Model):
     # But for backwards compatibility we need a default `True` value
     # and this hack is the recommended way to get this behaviour.
     # See https://docs.peewee-orm.com/en/latest/peewee/models.html?highlight=table%20generation
-    full_hash = BooleanField(default=True, constraints=[SQL('DEFAULT 1')])
+    full_hash = BooleanField(default=True, constraints=[SQL("DEFAULT 1")])
 
     def __str__(self):
         return "Project: {}".format(self.name)
@@ -155,7 +155,13 @@ class ProjectManager(Iterable):
         create_dir(self._base_data_dir)
         create_dir(self._base_logs_dir)
 
-    def change_base_directories(self, base_dir: Path, base_logs_dir: Optional[Path] = None, project_name: Optional[str] = "default", update: Optional[bool] = True) -> None:
+    def change_base_directories(
+        self,
+        base_dir: Path,
+        base_logs_dir: Optional[Path] = None,
+        project_name: Optional[str] = "default",
+        update: Optional[bool] = True,
+    ) -> None:
         if not isinstance(base_dir, Path) and base_dir.is_dir():
             raise ValueError(f"{base_dir} is not a `Path` or not a directory")
         if not os.access(base_dir, os.W_OK) and os.access(base_dir, os.R_OK):
@@ -352,7 +358,8 @@ class ProjectManager(Iterable):
     def report(self):
         """Give a report on current projects, including installed databases and file sizes.
 
-        Returns tuples of ``(project name, number of databases, size of all databases (GB))``."""
+        Returns tuples of ``(project name, number of databases, size of all databases (GB))``.
+        """
         from . import databases
 
         _current = self.current

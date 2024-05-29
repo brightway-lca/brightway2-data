@@ -17,7 +17,8 @@ from .errors import Brightway2Project
 class Mapping:
     """A dictionary that maps object ids, like ``("Ecoinvent 2.2", 42)``, to integers.
 
-    Used only for backwards compatibility; preferred method is now to look up the ids of activities directly in the SQlite database."""
+    Used only for backwards compatibility; preferred method is now to look up the ids of activities directly in the SQlite database.
+    """
 
     def add(self, keys):
         raise DeprecationWarning(

@@ -13,10 +13,9 @@ from pathlib import Path
 
 import stats_arrays as sa
 
+from .configuration import labels
 from .errors import MultipleResults, NotFound, UnknownObject, ValidityError
 from .fatomic import open
-from .configuration import labels
-
 
 DOWNLOAD_URL = "https://brightway.dev/data/"
 
@@ -290,7 +289,9 @@ def download_file(filename, directory="downloads", url=None):
     dirpath = projects.request_directory(directory)
     filepath = dirpath / filename
     download_path = (url if url is not None else DOWNLOAD_URL) + filename
-    with urllib.request.urlopen(download_path) as response, open(filepath, 'wb') as out_file:
+    with urllib.request.urlopen(download_path) as response, open(
+        filepath, "wb"
+    ) as out_file:
         if response.status != 200:
             raise NotFound(
                 "URL {} returns status code {}.".format(download_path, response.status)
@@ -364,7 +365,9 @@ def get_node(**kwargs):
     from .subclass_mapping import NODE_PROCESS_CLASS_MAPPING
 
     def node_class(database_name):
-        return NODE_PROCESS_CLASS_MAPPING[databases[database_name].get("backend", "sqlite")]
+        return NODE_PROCESS_CLASS_MAPPING[
+            databases[database_name].get("backend", "sqlite")
+        ]
 
     mapping = {
         "id": AD.id,

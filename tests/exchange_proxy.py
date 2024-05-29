@@ -1,19 +1,28 @@
-from bw2data import Method, databases, geomapping, get_activity, methods, projects, get_node
+from bw2data import (
+    Method,
+    databases,
+    geomapping,
+    get_activity,
+    get_node,
+    methods,
+    projects,
+)
+from bw2data.configuration import labels
 from bw2data.database import DatabaseChooser
 from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
 from bw2data.tests import bw2test
-from bw2data.configuration import labels
 
 try:
     import bw2calc
 except ImportError:
     bw2calc = None
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
 import stats_arrays as sa
 from pandas.testing import assert_frame_equal
-import warnings
 
 
 @pytest.fixture
@@ -181,7 +190,8 @@ def test_exchanges_to_dataframe(activity):
                 "target_reference_product": None,
                 "target_location": get_activity(code=a).get("location"),
                 "target_unit": get_activity(code=a).get("unit"),
-                "target_type": get_activity(code=a).get("type") or labels.process_node_default,
+                "target_type": get_activity(code=a).get("type")
+                or labels.process_node_default,
                 "source_id": id_map[b],
                 "source_database": "db",
                 "source_code": b,
@@ -222,6 +232,7 @@ def test_exchanges_to_dataframe(activity):
         expected.sort_values(["target_id", "source_id"]).reset_index(drop=True),
         check_dtype=False,
     )
+
 
 @bw2test
 def test_uncertainty():
@@ -427,9 +438,7 @@ def test_typo_exchange_type():
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    exc = a.new_exchange(
-        amount=0, input=b, type="technsphere", formula="foo * bar + 4"
-    )
+    exc = a.new_exchange(amount=0, input=b, type="technsphere", formula="foo * bar + 4")
 
     expected = "Possible typo found: Given exchange type `technsphere` but `technosphere` is more common"
     with pytest.warns(UserWarning, match=expected):
@@ -449,9 +458,10 @@ def test_typo_exchange_key():
         amount=11, input=b, type="technosphere", temporal_distrbution=[]
     )
 
-    expected = 'Possible incorrect exchange key found: Given `temporal_distrbution` but `temporal_distribution` is more common'
+    expected = "Possible incorrect exchange key found: Given `temporal_distrbution` but `temporal_distribution` is more common"
     with pytest.warns(UserWarning, match=expected):
         exc.save()
+
 
 @bw2test
 def test_valid_exchange_type():
@@ -502,9 +512,7 @@ def test_typo_exchange_type_multiple_corrections():
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    exc = a.new_exchange(
-        amount=0, input=b, type="technshhere", formula="foo * bar + 4"
-    )
+    exc = a.new_exchange(amount=0, input=b, type="technshhere", formula="foo * bar + 4")
 
     expected = "Possible typo found: Given exchange type `technshhere` but `technosphere` is more common"
     with pytest.warns(UserWarning, match=expected):

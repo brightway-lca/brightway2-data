@@ -194,9 +194,9 @@ def test_iotable_edges_to_dataframe(iotable_fixture):
                 "target_id": id_map[a],
                 "source_id": id_map[b],
                 "edge_amount": c,
-                "edge_type": "technosphere"
-                if ((-1 if d else 1) * c) < 0
-                else "production",
+                "edge_type": (
+                    "technosphere" if ((-1 if d else 1) * c) < 0 else "production"
+                ),
                 "target_database": "mouse" if a == "d" else "cat",
                 "target_code": a,
                 "target_name": get_activity(code=a).get("name"),
@@ -366,9 +366,9 @@ def test_iotable_activity_edges_to_dataframe(iotable_fixture):
                 "source_unit": get_activity(code=b).get("unit"),
                 "source_categories": None,
                 "edge_amount": c,
-                "edge_type": "technosphere"
-                if ((-1 if d else 1) * c) < 0
-                else "production",
+                "edge_type": (
+                    "technosphere" if ((-1 if d else 1) * c) < 0 else "production"
+                ),
             }
             for b, a, c, d in tech_exchanges
         ]
@@ -495,5 +495,5 @@ def test_iotable_readonlyexchange_iterator(iotable_fixture):
     db = Database("nobio", backend="iotable")
     db.write({("nobio", "a"): {"name": "foo", "type": "bar"}})
     db.write_exchanges(technosphere=[], biosphere=[], dependents=[])
-    act = get_activity(('nobio', 'a'))
+    act = get_activity(("nobio", "a"))
     list(act.exchanges())

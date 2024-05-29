@@ -4,7 +4,6 @@ import logging
 import uuid
 from logging.handlers import RotatingFileHandler
 
-
 from . import config, projects
 from .utils import create_in_memory_zipfile_from_directory, random_string
 
@@ -86,7 +85,6 @@ Message:
     )
     logger.addHandler(handler)
     return logger
-
 
 
 def close_log(log):

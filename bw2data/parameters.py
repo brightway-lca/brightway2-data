@@ -154,7 +154,8 @@ class ProjectParameter(ParameterBase):
     def static(ignored="project", only=None):
         """Get dictionary of ``{name: amount}`` for all project parameters.
 
-        ``only`` restricts returned names to ones found in ``only``. ``ignored`` included for API compatibility with other ``recalculate`` methods."""
+        ``only`` restricts returned names to ones found in ``only``. ``ignored`` included for API compatibility with other ``recalculate`` methods.
+        """
         result = dict(
             ProjectParameter.select(
                 ProjectParameter.name, ProjectParameter.amount
@@ -176,7 +177,8 @@ class ProjectParameter(ParameterBase):
     def recalculate(ignored=None):
         """Recalculate all parameters.
 
-        ``ignored`` included for API compatibility with other ``recalculate`` methods - it will really be ignored."""
+        ``ignored`` included for API compatibility with other ``recalculate`` methods - it will really be ignored.
+        """
         if not ProjectParameter.expired():
             return
         data = ProjectParameter.load()
@@ -378,7 +380,9 @@ class DatabaseParameter(ParameterBase):
         ParameterSet(data, glo).evaluate_and_set_amount_field()
         with parameters.db.atomic():
             for key, value in data.items():
-                DatabaseParameter.update(amount=value["amount"],).where(
+                DatabaseParameter.update(
+                    amount=value["amount"],
+                ).where(
                     DatabaseParameter.name == key,
                     DatabaseParameter.database == database,
                 ).execute()
@@ -621,7 +625,8 @@ class ActivityParameter(ParameterBase):
     def static(group, only=None, full=False):
         """Get dictionary of ``{name: amount}`` for parameters defined in ``group``.
 
-        ``only`` restricts returned names to ones found in ``only``. ``full`` returns all names, including those found in the dependency chain."""
+        ``only`` restricts returned names to ones found in ``only``. ``full`` returns all names, including those found in the dependency chain.
+        """
         result = dict(
             ActivityParameter.select(ActivityParameter.name, ActivityParameter.amount)
             .where(ActivityParameter.group == group)
@@ -639,7 +644,8 @@ class ActivityParameter(ParameterBase):
     def _static_dependencies(group):
         """Get dictionary of ``{name: amount}`` for all variables defined in dependency chain.
 
-        Be careful! This could have variables which overlap with local variable names. Designed for internal use."""
+        Be careful! This could have variables which overlap with local variable names. Designed for internal use.
+        """
         database = ActivityParameter.get(group=group).database
 
         chain = [ProjectParameter.static(), DatabaseParameter.static(database)] + [
@@ -821,7 +827,9 @@ class ActivityParameter(ParameterBase):
         ParameterSet(data, static).evaluate_and_set_amount_field()
         with parameters.db.atomic():
             for key, value in data.items():
-                ActivityParameter.update(amount=value["amount"],).where(
+                ActivityParameter.update(
+                    amount=value["amount"],
+                ).where(
                     ActivityParameter.name == key,
                     ActivityParameter.group == group,
                 ).execute()

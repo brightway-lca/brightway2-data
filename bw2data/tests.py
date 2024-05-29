@@ -2,8 +2,8 @@ import atexit
 import random
 import shutil
 import string
-import unittest
 import tempfile
+import unittest
 from pathlib import Path
 
 import wrapt
@@ -21,7 +21,12 @@ class BW2DataTest(unittest.TestCase):
         config.is_test = True
         tempdir = Path(tempfile.mkdtemp())
         project_name = "".join(random.choices(string.ascii_lowercase, k=18))
-        projects.change_base_directories(base_dir=tempdir, base_logs_dir=tempdir, project_name=project_name, update=False)
+        projects.change_base_directories(
+            base_dir=tempdir,
+            base_logs_dir=tempdir,
+            project_name=project_name,
+            update=False,
+        )
         projects._is_temp_dir = True
         self.extra_setup()
 
@@ -44,7 +49,9 @@ def bw2test(wrapped, instance, args, kwargs):
     config.is_test = True
     tempdir = Path(tempfile.mkdtemp())
     project_name = "".join(random.choices(string.ascii_lowercase, k=18))
-    projects.change_base_directories(base_dir=tempdir, base_logs_dir=tempdir, project_name=project_name, update=False)
+    projects.change_base_directories(
+        base_dir=tempdir, base_logs_dir=tempdir, project_name=project_name, update=False
+    )
     projects._is_temp_dir = True
     atexit.register(shutil.rmtree, tempdir)
     return wrapped(*args, **kwargs)

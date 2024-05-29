@@ -9,9 +9,9 @@ from fs.zipfs import ZipFS
 from tqdm import tqdm
 
 from ... import config, databases, geomapping
+from ...configuration import labels
 from .. import SQLiteBackend
 from .proxies import IOTableActivity, IOTableExchanges
-from ...configuration import labels
 
 
 class IOTableBackend(SQLiteBackend):
@@ -188,10 +188,16 @@ class IOTableBackend(SQLiteBackend):
             for resource in exchanges.resources:
                 if resource["data"]["matrix"] == "biosphere_matrix":
                     arrays.append(
-                        np.array([labels.biosphere_edge_default] * len(resource["data"]["array"]))
+                        np.array(
+                            [labels.biosphere_edge_default]
+                            * len(resource["data"]["array"])
+                        )
                     )
                 else:
-                    arr = np.array([labels.consumption_edge_default] * len(resource["data"]["array"]))
+                    arr = np.array(
+                        [labels.consumption_edge_default]
+                        * len(resource["data"]["array"])
+                    )
                     arr[resource["flip"]["positive"]] = labels.production_edge_default
                     arrays.append(arr)
 

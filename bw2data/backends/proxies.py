@@ -6,19 +6,19 @@ from typing import Callable, List, Optional
 import pandas as pd
 
 from .. import databases, geomapping
+from ..configuration import labels
 from ..errors import ValidityError
 from ..proxies import ActivityProxyBase, ExchangeProxyBase
 from ..search import IndexManager
 from . import sqlite3_lci_db
 from .schema import ActivityDataset, ExchangeDataset
-from .utils import dict_as_activitydataset, dict_as_exchangedataset
 from .typos import (
-    check_activity_type,
     check_activity_keys,
-    check_exchange_type,
+    check_activity_type,
     check_exchange_keys,
+    check_exchange_type,
 )
-from ..configuration import labels
+from .utils import dict_as_activitydataset, dict_as_exchangedataset
 
 
 class Exchanges(Iterable):
@@ -143,9 +143,11 @@ class Exchanges(Iterable):
                 "source_product": edge.input.get("product"),
                 "source_location": edge.input.get("location"),
                 "source_unit": edge.input.get("unit"),
-                "source_categories": "::".join(edge.input["categories"])
-                if edge.input.get("categories")
-                else None,
+                "source_categories": (
+                    "::".join(edge.input["categories"])
+                    if edge.input.get("categories")
+                    else None
+                ),
                 "edge_amount": edge["amount"],
                 "edge_type": edge["type"],
             }
@@ -186,7 +188,8 @@ class Activity(ActivityProxyBase):
 
         If this is a new activity, can pass `kwargs`.
 
-        If the activity exists in the database, `document` should be an `ActivityDataset`."""
+        If the activity exists in the database, `document` should be an `ActivityDataset`.
+        """
         if document is None:
             self._document = ActivityDataset()
             self._data = kwargs
@@ -300,7 +303,8 @@ class Activity(ActivityProxyBase):
         if not self.valid():
             raise ValidityError(
                 "This activity can't be saved for the "
-                + "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
+                + "following reasons\n\t* "
+                + "\n\t* ".join(self.valid(why=True)[1])
             )
 
         databases.set_dirty(self["database"])
@@ -395,10 +399,7 @@ class Activity(ActivityProxyBase):
         return self.exchanges()
 
     def technosphere(self):
-        return Exchanges(
-            self.key,
-            kinds=labels.technosphere_negative_edge_types
-        )
+        return Exchanges(self.key, kinds=labels.technosphere_negative_edge_types)
 
     def biosphere(self):
         return Exchanges(
@@ -410,10 +411,7 @@ class Activity(ActivityProxyBase):
         kinds = labels.technosphere_positive_edge_types
         if not include_substitution:
             kinds = [obj for obj in kinds if obj not in labels.substitution_edge_types]
-        return Exchanges(
-            self.key,
-            kinds=kinds
-        )
+        return Exchanges(self.key, kinds=kinds)
 
     def rp_exchange(self):
         """Return an ``Exchange`` object corresponding to the reference production. Uses the following in order:
@@ -498,7 +496,8 @@ class Exchange(ExchangeProxyBase):
 
         If this is a new exchange, can pass `kwargs`.
 
-        If the exchange exists in the database, `document` should be an `ExchangeDataset`."""
+        If the exchange exists in the database, `document` should be an `ExchangeDataset`.
+        """
         if document is None:
             self._document = ExchangeDataset()
             self._data = kwargs

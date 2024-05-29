@@ -15,8 +15,8 @@ def DatabaseChooser(name: str, backend: str = "sqlite") -> ProcessedDataStore:
 
     if not backend or not isinstance(backend, str):
         raise ValueError(
-            f"Invalid value for backend: '{backend}'. Must be a string in " +
-            "`bw2data.database.DATABASE_BACKEND_MAPPING`"
+            f"Invalid value for backend: '{backend}'. Must be a string in "
+            + "`bw2data.database.DATABASE_BACKEND_MAPPING`"
         )
 
     try:

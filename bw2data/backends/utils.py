@@ -4,10 +4,10 @@ import warnings
 import numpy as np
 
 from .. import config
+from ..configuration import labels
 from ..errors import InvalidExchange, UntypedExchange
 from ..meta import databases, methods
 from .schema import get_id
-from ..configuration import labels
 
 
 def get_csv_data_dict(ds):
@@ -26,7 +26,8 @@ def convert_backend(database_name, backend):
         * `database_name` (unicode): Name of database.
         * `backend` (unicode): Type of database. `backend` should be recoginized by `DatabaseChooser`.
 
-    Returns `False` if the old and new backend are the same. Otherwise returns an instance of the new Database object."""
+    Returns `False` if the old and new backend are the same. Otherwise returns an instance of the new Database object.
+    """
     if database_name not in databases:
         print("Can't find database {}".format(database_name))
 
@@ -46,10 +47,7 @@ def convert_backend(database_name, backend):
         warnings.simplefilter("ignore")
         new_db = Database(database_name, backend)
         new_db.register(**metadata)
-        new_db.write(
-            data,
-            searchable=databases[database_name].get("searchable")
-        )
+        new_db.write(data, searchable=databases[database_name].get("searchable"))
     return new_db
 
 

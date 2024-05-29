@@ -1,6 +1,11 @@
 import pickle
 
-from bw_processing import clean_datapackage_name, create_datapackage, safe_filename, load_datapackage
+from bw_processing import (
+    clean_datapackage_name,
+    create_datapackage,
+    load_datapackage,
+    safe_filename,
+)
 from fs.zipfs import ZipFS
 
 from . import projects
@@ -175,7 +180,8 @@ class ProcessedDataStore(DataStore):
     def process_row(self, row):
         """Translate data into a dictionary suitable for array inputs.
 
-        See `bw_processing documentation <https://github.com/brightway-lca/bw_processing>`__."""
+        See `bw_processing documentation <https://github.com/brightway-lca/bw_processing>`__.
+        """
         raise NotImplementedError
 
     def process(self, **extra_metadata):

@@ -3,18 +3,18 @@ import datetime
 import itertools
 import pickle
 import pprint
-import uuid
 import random
 import sqlite3
+import uuid
 import warnings
 from collections import defaultdict
 from typing import Callable, List, Optional
 
 import pandas
-from tqdm import tqdm
-from bw_processing import clean_datapackage_name, create_datapackage, Datapackage
+from bw_processing import Datapackage, clean_datapackage_name, create_datapackage
 from fs.zipfs import ZipFS
 from peewee import DoesNotExist, fn
+from tqdm import tqdm
 
 from .. import config, databases, geomapping
 from ..configuration import labels
@@ -28,22 +28,22 @@ from ..errors import (
 )
 from ..query import Query
 from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_node, get_geocollection
+from ..utils import as_uncertainty_dict, get_geocollection, get_node
 from . import sqlite3_lci_db
 from .proxies import Activity
 from .schema import ActivityDataset, ExchangeDataset, get_id
+from .typos import (
+    check_activity_keys,
+    check_activity_type,
+    check_exchange_keys,
+    check_exchange_type,
+)
 from .utils import (
     check_exchange,
     dict_as_activitydataset,
     dict_as_exchangedataset,
     get_csv_data_dict,
     retupleize_geo_strings,
-)
-from .typos import (
-    check_activity_type,
-    check_activity_keys,
-    check_exchange_keys,
-    check_exchange_type,
 )
 
 _VALID_KEYS = {"location", "name", "product", "type"}
@@ -143,10 +143,7 @@ class SQLiteBackend(ProcessedDataStore):
                 format="Brightway2 copy",
             )
 
-        new_database.write(
-            data,
-            searchable=databases[name].get("searchable")
-        )
+        new_database.write(data, searchable=databases[name].get("searchable"))
         return new_database
 
     def filepath_intermediate(self):
@@ -306,10 +303,7 @@ class SQLiteBackend(ProcessedDataStore):
             new_db = self.__class__(name)
             databases[name] = databases[old_name]
         new_data = self.relabel_data(self.load(), name)
-        new_db.write(
-            new_data,
-            searchable=databases[name].get("searchable")
-        )
+        new_db.write(new_data, searchable=databases[name].get("searchable"))
         del databases[old_name]
         self.name = name
         return new_db
@@ -387,7 +381,9 @@ class SQLiteBackend(ProcessedDataStore):
         """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
             if true_random:
-                return self.node_class(self._get_queryset(random=True, filters=filters).get())
+                return self.node_class(
+                    self._get_queryset(random=True, filters=filters).get()
+                )
             else:
                 return self.node_class(
                     self._get_queryset(filters=filters)
@@ -427,7 +423,14 @@ class SQLiteBackend(ProcessedDataStore):
                 'CREATE INDEX IF NOT EXISTS "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")'
             )
 
-    def _efficient_write_dataset(self, key: tuple, ds: dict, exchanges: list, activities: list, check_typos: bool = True) -> (list, list):
+    def _efficient_write_dataset(
+        self,
+        key: tuple,
+        ds: dict,
+        exchanges: list,
+        activities: list,
+        check_typos: bool = True,
+    ) -> (list, list):
         for exchange in ds.get("exchanges", []):
             if "input" not in exchange or "amount" not in exchange:
                 raise InvalidExchange
@@ -435,7 +438,7 @@ class SQLiteBackend(ProcessedDataStore):
                 raise UntypedExchange
 
             if check_typos:
-                check_exchange_type(exchange.get('type'))
+                check_exchange_type(exchange.get("type"))
                 check_exchange_keys(exchange)
 
             exchange["output"] = key
@@ -455,7 +458,7 @@ class SQLiteBackend(ProcessedDataStore):
         ds["code"] = key[1]
 
         if check_typos:
-            check_activity_type(ds.get('type'))
+            check_activity_type(ds.get("type"))
             check_activity_keys(ds)
 
         activities.append(dict_as_activitydataset(ds))
@@ -466,7 +469,9 @@ class SQLiteBackend(ProcessedDataStore):
 
         return exchanges, activities
 
-    def _efficient_write_many_data(self, data: dict, indices: bool = True, check_typos: bool = True) -> None:
+    def _efficient_write_many_data(
+        self, data: dict, indices: bool = True, check_typos: bool = True
+    ) -> None:
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
             self._drop_indices()
@@ -476,7 +481,9 @@ class SQLiteBackend(ProcessedDataStore):
             self.delete(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
-            for key, ds in tqdm_wrapper(data.items(), getattr(config, "is_test", False)):
+            for key, ds in tqdm_wrapper(
+                data.items(), getattr(config, "is_test", False)
+            ):
                 exchanges, activities = self._efficient_write_dataset(
                     key, ds, exchanges, activities, check_typos
                 )
@@ -497,7 +504,13 @@ class SQLiteBackend(ProcessedDataStore):
 
     # Public API
 
-    def write(self, data: dict, process: bool = True, searchable: bool = True, check_typos: bool = True):
+    def write(
+        self,
+        data: dict,
+        process: bool = True,
+        searchable: bool = True,
+        check_typos: bool = True,
+    ):
         """Write ``data`` to database.
 
         ``data`` must be a dictionary of the form::
@@ -583,12 +596,14 @@ class SQLiteBackend(ProcessedDataStore):
         else:
             obj["code"] = str(code)
 
-        if kwargs.get('type') in labels.edge_types:
+        if kwargs.get("type") in labels.edge_types:
             EDGE_LABELS = """
 Edge type label used for node.
 You gave the type "{}". This is normally used for *edges*, not for *nodes*.
 Here are the type values usually used for nodes:
-    {}""".format(kwargs['type'], labels.node_types)
+    {}""".format(
+                kwargs["type"], labels.node_types
+            )
             warnings.warn(EDGE_LABELS)
 
         if (
@@ -724,7 +739,8 @@ Here are the type values usually used for nodes:
         inv_mapping_qs = ActivityDataset.select(
             ActivityDataset.id, ActivityDataset.location
         ).where(
-            ActivityDataset.database == self.name, ActivityDataset.type << labels.process_node_types
+            ActivityDataset.database == self.name,
+            ActivityDataset.type << labels.process_node_types,
         )
         dp.add_persistent_vector_from_iterator(
             matrix="inv_geomapping_matrix",
@@ -922,7 +938,8 @@ Here are the type values usually used for nodes:
     def delete_duplicate_exchanges(self, fields=["amount", "type"]):
         """Delete exchanges which are exact duplicates. Useful if you accidentally ran your input data notebook twice.
 
-        To determine uniqueness, we look at the exchange input and output nodes, and at the exchanges values for fields ``fields``."""
+        To determine uniqueness, we look at the exchange input and output nodes, and at the exchanges values for fields ``fields``.
+        """
 
         def get_uniqueness_key(exchange, fields):
             lst = [exchange.input.key, exchange.output.key]
@@ -1031,9 +1048,11 @@ Here are the type values usually used for nodes:
                     "source_product": edge.get("product"),
                     "source_location": edge.get("location"),
                     "source_unit": edge.get("unit"),
-                    "source_categories": "::".join(edge["categories"])
-                    if edge.get("categories")
-                    else None,
+                    "source_categories": (
+                        "::".join(edge["categories"])
+                        if edge.get("categories")
+                        else None
+                    ),
                     "edge_amount": edge["amount"],
                     "edge_type": edge["type"],
                 }

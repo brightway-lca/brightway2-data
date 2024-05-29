@@ -24,7 +24,6 @@ from . import (
 )
 from .backends import sqlite3_lci_db
 
-
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
 
@@ -243,7 +242,7 @@ class Updates:
             (databases, Database, "LCI databases"),
         ]
 
-        for (meta, klass, name) in objects:
+        for meta, klass, name in objects:
             if meta.list:
                 print("Updating all %s" % name)
 

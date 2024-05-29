@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal, assert_series_equal
 
-from bw2data import geomapping, get_id, databases, Database, get_activity, get_node
+from bw2data import Database, databases, geomapping, get_activity, get_id, get_node
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import Database
@@ -663,7 +663,7 @@ def test_new_node_code_optional():
 def test_new_node_warn_type_technosphere():
     database = Database("a database")
     database.register()
-    with pytest.warns(UserWarning, match='\nEdge type label used for node'):
+    with pytest.warns(UserWarning, match="\nEdge type label used for node"):
         database.new_node(this="that", name="something", type="technosphere").save()
 
 
@@ -1147,10 +1147,12 @@ def test_warn_activity_type():
             "exchanges": [],
             "location": "somewhere",
             "name": "c",
-            "type": "prcess"
+            "type": "prcess",
         }
     }
-    expected = "Possible typo found: Given activity type `prcess` but `process` is more common"
+    expected = (
+        "Possible typo found: Given activity type `prcess` but `process` is more common"
+    )
     with pytest.warns(UserWarning, match=expected):
         db.write(data)
 
@@ -1187,7 +1189,9 @@ def test_no_warn_activity_key_no_check_typos(recwarn):
     }
 
     db.write(data, check_typos=False)
-    assert not any("Possible incorrect activity key" in str(rec.message) for rec in recwarn)
+    assert not any(
+        "Possible incorrect activity key" in str(rec.message) for rec in recwarn
+    )
 
 
 @bw2test
@@ -1216,15 +1220,17 @@ def test_warn_exchange_type():
             "exchanges": [],
         },
         ("test-case", "1"): {
-            "exchanges": [{
-                'input': ("test-case", "0"),
-                'amount': 7,
-                'type': 'technsphere',
-            }],
+            "exchanges": [
+                {
+                    "input": ("test-case", "0"),
+                    "amount": 7,
+                    "type": "technsphere",
+                }
+            ],
             "location": "somewhere",
             "name": "c",
-            "type": "prcess"
-        }
+            "type": "prcess",
+        },
     }
     expected = "Possible typo found: Given exchange type `technsphere` but `technosphere` is more common"
     with pytest.warns(UserWarning, match=expected):
@@ -1240,17 +1246,19 @@ def test_warn_exchange_key():
             "exchanges": [],
         },
         ("test-case", "1"): {
-            "exchanges": [{
-                'input': ("test-case", "0"),
-                'amount': 7,
-                'type': 'technosphere',
-                'temporal_distrbution': [],
-            }],
+            "exchanges": [
+                {
+                    "input": ("test-case", "0"),
+                    "amount": 7,
+                    "type": "technosphere",
+                    "temporal_distrbution": [],
+                }
+            ],
             "location": "somewhere",
             "name": "c",
-            "type": "process"
-        }
+            "type": "process",
+        },
     }
-    expected = 'Possible incorrect exchange key found: Given `temporal_distrbution` but `temporal_distribution` is more common'
+    expected = "Possible incorrect exchange key found: Given `temporal_distrbution` but `temporal_distribution` is more common"
     with pytest.warns(UserWarning, match=expected):
         db.write(data)
