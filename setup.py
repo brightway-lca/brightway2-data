@@ -34,7 +34,7 @@ setup(
         "numpy<2",
         "peewee>=3.9.4",
         "platformdirs",
-        "pydantic_settings",
+        "pydantic-settings",
         "rapidfuzz",
         "scipy",
         "stats_arrays",
