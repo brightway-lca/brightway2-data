@@ -574,15 +574,22 @@ class SQLiteBackend(ProcessedDataStore):
     def new_activity(self, code, **kwargs):
         return self.new_node(code, **kwargs)
 
-    def new_node(self, code: str=None, **kwargs):
+    def new_node(self, code: str = None, **kwargs):
         obj = self.node_class()
         obj["database"] = self.name
-        obj["code"] = str(code)
 
         if code is None:
             obj["code"] = uuid.uuid4().hex
         else:
             obj["code"] = str(code)
+
+        if kwargs.get('type') in labels.edge_types:
+            EDGE_LABELS = """
+Edge type label used for node.
+You gave the type "{}". This is normally used for *edges*, not for *nodes*.
+Here are the type values usually used for nodes:
+    {}""".format(kwargs['type'], labels.node_types)
+            warnings.warn(EDGE_LABELS)
 
         if (
             ActivityDataset.select()

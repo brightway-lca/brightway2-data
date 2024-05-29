@@ -12,10 +12,16 @@ class MatrixLabels(BaseSettings):
     biosphere_edge_default: str = "biosphere"
 
     process_node_types: List[Union[str, None]] = ["process", None]
+    node_types: List[Union[str, None]] = ["process", "product", "multifunctional", None]
+
     biosphere_edge_types: List[str] = ["biosphere"]
     technosphere_negative_edge_types: List[str] = ["technosphere", "generic consumption"]
     technosphere_positive_edge_types: List[str] = ["production", "generic production", "substitution"]
     substitution_edge_types: List[str] = ["substitution"]
+
+    @property
+    def edge_types(self):
+        return sorted(set(self.biosphere_edge_types + self.technosphere_negative_edge_types + self.technosphere_positive_edge_types + self.substitution_edge_types))
 
     model_config = SettingsConfigDict(
         env_file='brightway-matrix-configuration.env'

@@ -660,6 +660,14 @@ def test_new_node_code_optional():
 
 
 @bw2test
+def test_new_node_warn_type_technosphere():
+    database = Database("a database")
+    database.register()
+    with pytest.warns(UserWarning, match='\nEdge type label used for node'):
+        database.new_node(this="that", name="something", type="technosphere").save()
+
+
+@bw2test
 def test_new_node_error():
     database = Database("a database")
     database.register()
