@@ -4,6 +4,7 @@ lxml
 numpy<2
 peewee>=3.9.4
 platformdirs
+pydantic-settings
 requests>=1.1.0
 rapidfuzz
 scipy

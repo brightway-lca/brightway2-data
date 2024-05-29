@@ -15,15 +15,8 @@ import stats_arrays as sa
 
 from .errors import MultipleResults, NotFound, UnknownObject, ValidityError
 from .fatomic import open
+from .configuration import labels
 
-# Type of technosphere/biosphere exchanges used in processed Databases
-TYPE_DICTIONARY = {
-    "unknown": -1,
-    "production": 0,
-    "technosphere": 1,
-    "biosphere": 2,
-    "substitution": 3,
-}
 
 DOWNLOAD_URL = "https://brightway.dev/data/"
 
@@ -157,7 +150,7 @@ def uncertainify(data, distribution=None, bounds_factor=0.1, sd_factor=0.1):
 
     for key, value in data.items():
         for exchange in value.get("exchanges", []):
-            if (exchange.get("type") == "production") or (
+            if (exchange.get("type") in labels.technosphere_positive_edge_types) or (
                 exchange.get("uncertainty type", sa.UndefinedUncertainty.id)
                 != sa.UndefinedUncertainty.id
             ):

@@ -5,6 +5,7 @@ lxml
 numpy<2
 peewee>=3
 platformdirs
+pydantic-settings
 pytest
 pytest-cov
 python-coveralls

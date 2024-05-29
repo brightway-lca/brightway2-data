@@ -28,7 +28,7 @@ jobs:
 
   - bash: |
       source activate bw2
-      conda install --yes --quiet -c defaults -c conda-forge -c cmutel python=$PYTHON_VERSION brightway25 pytest pytest-azurepipelines">=1.0" pytest-cov
+      conda install --yes --quiet -c defaults -c conda-forge -c cmutel python=$PYTHON_VERSION brightway25 pydantic-settings pytest pytest-azurepipelines">=1.0" pytest-cov
       pip install -e .
     displayName: Install Anaconda packages
 
@@ -146,7 +146,7 @@ jobs:
 
   - script: |
       call activate bw2
-      conda install --yes -c defaults -c conda-forge -c cmutel -c haasad python=%PYTHON_VERSION% pytest brightway25 pytest-azurepipelines">=1.0"
+      conda install --yes -c defaults -c conda-forge -c cmutel -c haasad python=%PYTHON_VERSION% pytest pydantic-settings brightway25 pytest-azurepipelines">=1.0"
       pip install -e .
     displayName: Install Anaconda packages
 

@@ -2,6 +2,7 @@ from bw2data import Method, databases, geomapping, get_activity, methods, projec
 from bw2data.database import DatabaseChooser
 from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
 from bw2data.tests import bw2test
+from bw2data.configuration import labels
 
 try:
     import bw2calc
@@ -134,17 +135,6 @@ def test_technosphere(activity):
     assert exc["amount"] == 3
 
 
-def test_technosphere_include_substitution(activity):
-    d = get_activity(("db", "d"))
-    assert len(d.technosphere()) == 1
-    assert len(d.technosphere(include_substitution=True)) == 2
-
-
-def test_technosphere_exclude_substitution(activity):
-    d = get_activity(("db", "d"))
-    assert len(d.technosphere(include_substitution=False)) == 1
-
-
 def test_upstream(activity):
     assert len(list(activity.upstream())) == 1
     assert len(activity.upstream()) == 1
@@ -191,7 +181,7 @@ def test_exchanges_to_dataframe(activity):
                 "target_reference_product": None,
                 "target_location": get_activity(code=a).get("location"),
                 "target_unit": get_activity(code=a).get("unit"),
-                "target_type": get_activity(code=a).get("type") or "process",
+                "target_type": get_activity(code=a).get("type") or labels.process_node_default,
                 "source_id": id_map[b],
                 "source_database": "db",
                 "source_code": b,
