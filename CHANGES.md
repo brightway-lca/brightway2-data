@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.0.DEV40 (2024-06-05)
+
+* Add `get_multilca_data_objs` function
+
 ## 4.0.DEV39 (2024-05-29)
 
 * [PR #170: Make string labels for matrix construction and typo detection user-configurable](https://github.com/brightway-lca/brightway2-data/pull/). Instead of fixed strings the labels which determine which values are used in matrices, which matrices they are used in, and what numeric sign they have is now completely configurable.
