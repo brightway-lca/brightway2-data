@@ -9,6 +9,7 @@ __all__ = [
     "Edge",
     "extract_brightway_databases",
     "get_activity",
+    "get_multilca_data_objs",
     "get_node",
     "get_id",
     "geomapping",
@@ -72,7 +73,7 @@ from .method import Method
 from .search import Searcher, IndexManager
 from .weighting_normalization import Weighting, Normalization
 from .backends import convert_backend, get_id, Node, Edge
-from .compat import prepare_lca_inputs, Mapping
+from .compat import prepare_lca_inputs, Mapping, get_multilca_data_objs
 from .backends.wurst_extraction import extract_brightway_databases
 
 mapping = Mapping()

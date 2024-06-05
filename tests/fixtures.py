@@ -69,7 +69,7 @@ food = {
 }
 
 food2 = {
-    ("food", "1"): {
+    ("food2", "1"): {
         "categories": ["stuff", "meals"],
         "code": 1,
         "exchanges": [
@@ -91,13 +91,13 @@ food2 = {
         "type": "process",
         "unit": "kg",
     },
-    ("food", "2"): {
+    ("food2", "2"): {
         "categories": ["stuff", "meals"],
         "code": 2,
         "exchanges": [
             {
                 "amount": 0.25,
-                "input": ("food", "1"),
+                "input": ("food2", "1"),
                 "type": "technosphere",
                 "uncertainty type": 0,
             },

@@ -1,9 +1,14 @@
+from typing import Dict, List, Union
+
+from bw_processing.datapackage import DatapackageBase
+
 from . import (
     Database,
     Method,
     Normalization,
     Weighting,
     databases,
+    get_node,
     methods,
     normalizations,
     projects,
@@ -11,7 +16,7 @@ from . import (
 )
 from .backends.schema import ActivityDataset as AD
 from .backends.schema import get_id
-from .errors import Brightway2Project
+from .errors import Brightway2Project, UnknownObject
 
 
 class Mapping:
@@ -145,3 +150,46 @@ def get_database_filepath(functional_unit):
         *[Database(key[0]).find_graph_dependents() for key in functional_unit]
     )
     return [Database(obj).filepath_processed() for obj in dbs]
+
+
+def get_multilca_data_objs(
+    functional_units=Dict[str, dict], method_config=Dict[str, Union[list, dict]]
+) -> List[DatapackageBase]:
+    """Get all the datapackages needed for a complete MultiLCA calculation."""
+    input_database_names = set()
+
+    for v_dict in functional_units.values():
+        for obj in v_dict:
+            if not isinstance(obj, int):
+                raise ValueError(
+                    f"Functional unit inputs must be integers; got {obj} (type {type(obj)})"
+                )
+            try:
+                input_database_names.add(get_node(id=obj)["database"])
+            except UnknownObject:
+                raise UnknownObject(f"Functional unit id {obj} is not in this project")
+
+    complete_database_names = set.union(
+        *[
+            Database(db_label).find_graph_dependents()
+            for db_label in input_database_names
+        ]
+    )
+    data_objs = [Database(obj).datapackage() for obj in complete_database_names]
+
+    for ic in set(method_config.get("impact_categories", [])):
+        if ic not in methods:
+            raise ValueError(f"Impact category (`Method`) {ic} not in this project")
+        data_objs.append(Method(ic).datapackage())
+
+    for n in method_config.get("normalizations", []):
+        if n not in normalizations:
+            raise ValueError(f"Normalization {n} not in this project")
+        data_objs.append(Normalization(n).datapackage())
+
+    for w in method_config.get("weightings", []):
+        if w not in weightings:
+            raise ValueError(f"Weighting {w} not in this project")
+        data_objs.append(Weighting(w).datapackage())
+
+    return data_objs
