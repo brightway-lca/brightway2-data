@@ -1,5 +1,10 @@
 # `bw2data` Changelog
 
+## 4.0.DEV41 (2024-06-07)
+
+* Update packaging
+* Migrate from `pyfilesystem2` to `fsspec`
+
 ## 4.0.DEV40 (2024-06-05)
 
 * Add `get_multilca_data_objs` function
