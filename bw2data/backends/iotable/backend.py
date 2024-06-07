@@ -40,7 +40,7 @@ class IOTableBackend(SQLiteBackend):
 
         # create empty datapackage
         dp = create_datapackage(
-            fs=ZipFileSystem(self.filepath_processed(), write=True),
+            fs=ZipFileSystem(self.filepath_processed(), mode="w"),
             name=clean_datapackage_name(self.name),
             sum_intra_duplicates=True,
             sum_inter_duplicates=False,
