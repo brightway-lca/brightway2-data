@@ -282,7 +282,7 @@ def test_get_activity_id_different_ints():
     Database("biosphere").write(biosphere)
     different_ints = [
         int(1),
-        np.int0(1),
+        np.intp(1),
         np.int8(1),
         np.int16(1),
         np.int32(1),

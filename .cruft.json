@@ -1,0 +1,24 @@
+{
+  "template": "https://github.com/brightway-lca/cookiecutter-brightwaylib",
+  "commit": "2dd8d2464644700b16636f7b3d71972e5bf6e803",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "full_name": "Chris Mutel",
+      "email": "cmutel@gmail.com",
+      "github_username": "brightway-lca",
+      "project_name": "bw2data",
+      "package_name": "bw2data",
+      "project_short_description": "Ttools for the management of inventory databases and impact assessment methods",
+      "version": "4.0.dev30",
+      "use_pytest": "y",
+      "open_source_license": "BSD-3-Clause",
+      "copyright_year": "2024",
+      "_copy_without_render": [
+        ".github/*"
+      ],
+      "_template": "https://github.com/brightway-lca/cookiecutter-brightwaylib"
+    }
+  },
+  "directory": null
+}

@@ -1,8 +1,4 @@
-include README.rst
-include pytest.ini
-include *.txt
 include bw2data/*.py
-include bw2data/io/*.py
-include bw2data/proxies/*.py
-include tests/*.py
-include tests/*.txt
+include bw2data/search/*.py
+include bw2data/backends/*.py
+include bw2data/backends/iotable/*.py
