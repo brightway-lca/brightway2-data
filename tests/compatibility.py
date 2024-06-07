@@ -64,7 +64,10 @@ def test_prepare_lca_inputs_basic():
     d, objs, r = prepare_lca_inputs(demand={("food", "1"): 1}, method=("foo",))
     # ID is 3; two biosphere flows, then '1' is next written
     assert d == {3: 1}
-    assert [str(o.fs) for o in objs] == [str(o.datapackage().fs) for o in pla]
+
+    print(objs[0].metadata)
+
+    assert {o.metadata['id'] for o in objs} == {o.datapackage().metadata['id'] for o in pla}
 
     remapping_expected = {
         "activity": {
@@ -95,8 +98,8 @@ def test_prepare_lca_inputs_only_method():
     d, objs, r = prepare_lca_inputs(method=("foo",))
     # ID is 3; two biosphere flows, then '1' is next written
     assert d is None
-    assert [str(o.fs) for o in objs] == [
-        str(o.datapackage().fs) for o in [Method(("foo",))]
+    assert [o.metadata['id'] for o in objs] == [
+        o.datapackage().metadata['id'] for o in [Method(("foo",))]
     ]
 
 
@@ -108,7 +111,7 @@ def test_prepare_lca_inputs_multiple_demands():
     )
     # ID is 3; two biosphere flows, then '1' is next written
     assert d == [{3: 1}, {4: 10}]
-    assert {str(o.fs) for o in objs} == {str(o.datapackage().fs) for o in pla}
+    assert {o.metadata['id'] for o in objs} == {o.datapackage().metadata['id'] for o in pla}
 
 
 @bw2test
@@ -119,7 +122,7 @@ def test_prepare_lca_inputs_database_ordering():
         method=("foo",),
         demand_database_last=False,
     )
-    assert {str(o.fs) for o in objs} == {str(o.datapackage().fs) for o in pla}
+    assert {o.metadata['id'] for o in objs} == {o.datapackage().metadata['id'] for o in pla}
 
 
 @bw2test

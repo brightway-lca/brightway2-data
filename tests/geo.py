@@ -3,7 +3,7 @@ import copy
 import numpy as np
 import pytest
 from bw_processing import load_datapackage
-from fs.zipfs import ZipFS
+from fsspec.implementations.zip import ZipFileSystem
 
 from bw2data import Database, Method, config, geomapping, get_id, projects
 from bw2data.tests import bw2test
@@ -39,7 +39,7 @@ def test_glo_always_present():
 
 def test_method_process_adds_correct_geo(add_method):
     method = Method(("test method",))
-    package = load_datapackage(ZipFS(method.filepath_processed()))
+    package = load_datapackage(ZipFileSystem(method.filepath_processed()))
     print(package.resources)
 
     mapped = {
@@ -55,7 +55,7 @@ def test_database_process_adds_correct_geo(add_biosphere):
     database = Database("food")
     database.write(food)
 
-    package = load_datapackage(ZipFS(database.filepath_processed()))
+    package = load_datapackage(ZipFileSystem(database.filepath_processed()))
     data = package.get_resource("food_inventory_geomapping_matrix.indices")[0]
 
     assert geomapping["CA"] in data["col"].tolist()
@@ -69,7 +69,7 @@ def test_database_process_adds_default_geo(add_biosphere):
         del v["location"]
     database.write(new_food)
 
-    package = load_datapackage(ZipFS(database.filepath_processed()))
+    package = load_datapackage(ZipFileSystem(database.filepath_processed()))
     data = package.get_resource("food_inventory_geomapping_matrix.indices")[0]
 
     assert np.allclose(data["col"], geomapping[config.global_location])

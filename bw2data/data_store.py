@@ -6,7 +6,7 @@ from bw_processing import (
     load_datapackage,
     safe_filename,
 )
-from fs.zipfs import ZipFS
+from fsspec.implementations.zip import ZipFileSystem
 
 from . import projects
 from .errors import MissingIntermediateData, UnknownObject
@@ -159,8 +159,7 @@ class ProcessedDataStore(DataStore):
         return self.dirpath_processed() / self.filename_processed()
 
     def datapackage(self):
-        with ZipFS(self.filepath_processed()) as zip_fs:
-            return load_datapackage(zip_fs)
+        return load_datapackage(ZipFileSystem(self.filepath_processed()))
 
     def write(self, data, process=True):
         """Serialize intermediate data to disk.
@@ -197,7 +196,7 @@ class ProcessedDataStore(DataStore):
         """
         data = self.load()
         dp = create_datapackage(
-            fs=ZipFS(str(self.filepath_processed()), write=True),
+            fs=ZipFileSystem(self.filepath_processed(), mode="w"),
             name=self.filename_processed(),
             sum_intra_duplicates=True,
             sum_inter_duplicates=False,

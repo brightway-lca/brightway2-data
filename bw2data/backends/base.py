@@ -12,7 +12,7 @@ from typing import Callable, List, Optional
 
 import pandas
 from bw_processing import Datapackage, clean_datapackage_name, create_datapackage
-from fs.zipfs import ZipFS
+from fsspec.implementations.zip import ZipFileSystem
 from peewee import DoesNotExist, fn
 from tqdm import tqdm
 
@@ -781,7 +781,7 @@ Here are the type values usually used for nodes:
         fp = str(self.dirpath_processed() / self.filename_processed())
 
         dp = create_datapackage(
-            fs=ZipFS(fp, write=True),
+            fs=ZipFileSystem(fp, mode="w"),
             name=clean_datapackage_name(self.name),
             sum_intra_duplicates=True,
             sum_inter_duplicates=False,
