@@ -58,6 +58,7 @@ tracker = "https://github.com/brightway-lca/bw2data/issues"
 # seems to work, at least for now
 testing = [
     "bw2data",
+    "bw2calc>=2.0.dev17",
     "pytest",
     "pytest-cov",
     "python-coveralls"
