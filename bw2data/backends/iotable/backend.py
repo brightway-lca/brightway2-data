@@ -5,7 +5,7 @@ import itertools
 import numpy as np
 import pandas as pd
 from bw_processing import clean_datapackage_name, create_datapackage
-from fs.zipfs import ZipFS
+from fsspec.implementations.zip import ZipFileSystem
 from tqdm import tqdm
 
 from ... import config, databases, geomapping
@@ -40,7 +40,7 @@ class IOTableBackend(SQLiteBackend):
 
         # create empty datapackage
         dp = create_datapackage(
-            fs=ZipFS(str(self.filepath_processed()), write=True),
+            fs=ZipFileSystem(self.filepath_processed(), write=True),
             name=clean_datapackage_name(self.name),
             sum_intra_duplicates=True,
             sum_inter_duplicates=False,
