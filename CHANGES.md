@@ -1,5 +1,10 @@
 # `bw2data` Changelog
 
+## 4.0.DEV42 (2024-06-08)
+
+* Fix some packaging bugs
+* Fix some missing imports
+
 ## 4.0.DEV41 (2024-06-07)
 
 * Update packaging
