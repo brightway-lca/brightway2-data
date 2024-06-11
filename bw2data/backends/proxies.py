@@ -398,8 +398,11 @@ class Activity(ActivityProxyBase):
     def edges(self):
         return self.exchanges()
 
-    def technosphere(self):
-        return Exchanges(self.key, kinds=labels.technosphere_negative_edge_types)
+    def technosphere(self, include_substitution=False):
+        kinds = labels.technosphere_negative_edge_types
+        if include_substitution:
+            kinds = kinds + labels.substitution_edge_types
+        return Exchanges(self.key, kinds=kinds)
 
     def biosphere(self):
         return Exchanges(
