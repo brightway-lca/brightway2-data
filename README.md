@@ -5,8 +5,7 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/bw2data)][pypi status]
 [![License](https://img.shields.io/pypi/l/bw2data)][license]
 
-[![Read the documentation at https://bw2data.readthedocs.io/](https://img.shields.io/readthedocs/bw2data/latest.svg?label=Read%20the%20Docs)][read the docs]
-[![Tests](https://github.com/brightway-lca/bw2data/actions/workflows/python-test.yml/badge.svg)][tests]
+[![Tests](https://github.com/brightway-lca/brightway2-data/actions/workflows/python-test.yml/badge.svg)][tests]
 [![Codecov](https://codecov.io/gh/brightway-lca/bw2data/branch/main/graph/badge.svg)][codecov]
 
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)][pre-commit]
@@ -14,14 +13,14 @@
 
 [pypi status]: https://pypi.org/project/bw2data/
 [read the docs]: https://bw2data.readthedocs.io/
-[tests]: https://github.com/brightway-lca/bw2data/actions?workflow=Tests
+[tests]: https://github.com/brightway-lca/brightway2-data/actions?workflow=Tests
 [codecov]: https://app.codecov.io/gh/brightway-lca/bw2data
 [pre-commit]: https://github.com/pre-commit/pre-commit
 [black]: https://github.com/psf/black
 
 This package provides tools for the management of inventory databases and impact assessment methods.
-It is part of the `Brightway LCA framework <https://brightway.dev>`_.
-`Online documentation <https://docs.brightway.dev/>`_ is available, and the source code is hosted on [GitHub brightway-lca organization](https://github.com/brightway-lca/brightway2-data).
+It is part of the [Brightway LCA framework](https://brightway.dev).
+[Online documentation](https://docs.brightway.dev/) is available, and the source code is hosted on [GitHub brightway-lca organization](https://github.com/brightway-lca/brightway2-data).
 
 Note that version 4.0 and higher are only compatible with Brightway 2.5, as described in the [changelog](https://github.com/brightway-lca/brightway2-data/blob/main/CHANGES.md).
 
