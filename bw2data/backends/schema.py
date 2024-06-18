@@ -1,10 +1,25 @@
+from typing import Callable, override
 from peewee import DoesNotExist, Model, TextField
 
 from bw2data.errors import UnknownObject
 from bw2data.sqlite import PickleField
 
+import bw2data.signals as bwsignals
 
-class ActivityDataset(Model):
+
+class SignaledDataset(Model):
+    @override
+    def save(self, *args, **kwargs):
+        """Receives a mapper to convert the data to the expected dictionary format"""
+        old = type(self).get_or_none(type(self).id == self.id)
+        super().save(*args, **kwargs)
+        bwsignals.signaleddataset_on_save.send(
+            old=old,
+            new=self,
+        )
+
+
+class ActivityDataset(SignaledDataset):
     data = PickleField()  # Canonical, except for other C fields
     code = TextField()  # Canonical
     database = TextField()  # Canonical
@@ -18,7 +33,7 @@ class ActivityDataset(Model):
         return (self.database, self.code)
 
 
-class ExchangeDataset(Model):
+class ExchangeDataset(SignaledDataset):
     data = PickleField()  # Canonical, except for other C fields
     input_code = TextField()  # Canonical
     input_database = TextField()  # Canonical
