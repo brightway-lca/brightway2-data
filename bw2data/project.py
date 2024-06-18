@@ -1,6 +1,6 @@
 import os
 import shutil
-import tempfile
+import uuid
 import warnings
 from collections.abc import Iterable
 from pathlib import Path
@@ -33,6 +33,10 @@ def lockable():
 
 
 class ProjectDataset(Model):
+    # Event sourcing
+    is_sourced = BooleanField(default=False, constraints=[SQL("DEFAULT 0")])
+    revision = TextField(null=True, default=uuid.uuid4)
+
     data = PickleField()
     name = TextField(index=True, unique=True)
     # Peewee doesn't set defaults in the database but rather in Python.
@@ -52,6 +56,44 @@ class ProjectDataset(Model):
         else:
             return self.name.lower() < other.name.lower()
 
+    def _get_base_directories(self):
+        envvar = maybe_path(os.getenv("BRIGHTWAY2_DIR"))
+        if envvar:
+            if not envvar.is_dir():
+                raise OSError(
+                    (
+                        "BRIGHTWAY2_DIR variable is {}, but this is not"
+                        " a valid directory"
+                    ).format(envvar)
+                )
+            else:
+                print(
+                    "Using environment variable BRIGHTWAY2_DIR for data "
+                    "directory:\n{}".format(envvar)
+                )
+                return envvar.absolute()
+
+        return Path(PlatformDirs("Brightway3", "pylca").user_data_dir)
+
+    @property
+    def dir(self):
+        return Path(self._get_base_directories()) / safe_filename(
+            self.name, full=self.full_hash
+        )
+
+    def set_sourced(self) -> None:
+        """Set the project to be event sourced."""
+        self.is_sourced = True
+        self.revision = uuid.uuid4()
+        self.save()
+
+    def add_revision(self, patch: str, revision: Optional[str] = None) -> None:
+        """Add a revision to the project."""
+        self.revision = revision or uuid.uuid4()
+        with open(self.dir / "revisions" / str(self.revision), "w") as f:
+            f.write(patch)
+        self.save()
+
 
 class ProjectManager(Iterable):
     _basic_directories = (
@@ -59,6 +101,7 @@ class ProjectManager(Iterable):
         "intermediate",
         "lci",
         "processed",
+        "revisions",
     )
     _is_temp_dir = False
     read_only = False
