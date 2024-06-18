@@ -33,6 +33,7 @@ dependencies = [
     # You can add version requirements like "foo>2.0"
     "bw2parameters",
     "bw_processing>=0.9.5",
+    "deepdiff~=7.0.1",
     "fsspec",
     "lxml",
     "numpy<2",
