@@ -1,11 +1,14 @@
+import json
 import os
 import shutil
+import uuid
 import warnings
 from collections.abc import Iterable
 from copy import copy
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
+from deepdiff import DeepDiff, Delta
 import wrapt
 from bw_processing import safe_filename
 from peewee import SQL, BooleanField, DoesNotExist, Model, TextField
@@ -15,6 +18,7 @@ from bw2data import config
 from bw2data.filesystem import create_dir
 from bw2data.logs import stdout_feedback_logger
 from bw2data.signals import project_changed, project_created
+import bw2data.signals as bw2signals
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
 
@@ -35,6 +39,10 @@ def lockable():
 
 
 class ProjectDataset(Model):
+    # Event sourcing
+    is_sourced = BooleanField(default=False, constraints=[SQL("DEFAULT 0")])
+    revision = TextField(null=True, default=uuid.uuid4)
+
     data = PickleField()
     name = TextField(index=True, unique=True)
     # Peewee doesn't set defaults in the database but rather in Python.
@@ -54,6 +62,59 @@ class ProjectDataset(Model):
         else:
             return self.name.lower() < other.name.lower()
 
+    @property
+    def dir(self):
+        return projects._project_dir(self)
+
+    def set_sourced(self) -> None:
+        """Set the project to be event sourced."""
+        self.is_sourced = True
+        self.revision = uuid.uuid4()
+        self.save()
+
+    def add_revision(
+        self, metadata: dict[str, Any], delta: Delta, revision: str | None = None
+    ) -> str:
+        """Add a revision to the project.
+
+        At the moment, each object revision affects a single object.
+        This will change in the future to allow for multiple objects to be
+        included in a single revision.
+        {
+          "metadata": {
+            "revision": <this-revision-id>
+            "parent_revision": <parent-revision-id>
+            "title": "<optional>"
+            "description": "<optional>"
+            "authors": "<optional>" (maybe shouldn't be optional)
+            "type": "database object type" (e.g. "activity", "exchange", "parameter")
+            "id": "database object id" (e.g. "foo", "bar", "baz")
+          },
+          "data": {…}
+        }
+        """
+        metadata["parent_revision"] = str(self.revision)
+        self.revision = revision or uuid.uuid4()
+        metadata["revision"] = str(self.revision)
+        metadata["authors"] = metadata.get("authors", "Anonymous")
+        metadata["title"] = metadata.get("title", "Untitled revision")
+        metadata["description"] = metadata.get("description", "No description")
+        metadata["type"] = metadata["type"]
+        writable = Delta(
+            diff, serializer=lambda x: json_dumps({"metadata": metadata, "data": x}, indent=2)
+        ).dumps()
+        with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
+            f.write(json.dumps(writable, indent=2))
+        self.save()
+        print(f"Added revision {self.revision} for {metadata['type']} {metadata['id']}")
+        return self.revision
+
+    def load_revision(self, patch: str, revision: str) -> None:
+        from deepdiff import Delta  # this will move elsewhere, not the projects responsiblity
+
+        delta = Delta(patch)
+        self.revision = revision
+
 
 class ProjectManager(Iterable):
     _basic_directories = (
@@ -61,6 +122,7 @@ class ProjectManager(Iterable):
         "intermediate",
         "lci",
         "processed",
+        "revisions",
     )
     _is_temp_dir = False
     read_only = False
@@ -178,6 +240,10 @@ class ProjectManager(Iterable):
         self.db.change_path(base_dir / "projects.db")
         self.set_current(project_name, update=update)
 
+    def _project_dir(self, p: Optional[ProjectDataset] = None) -> Path:
+        p = p or self.dataset
+        return Path(self._base_data_dir) / safe_filename(p.name, full=p.full_hash)
+
     @property
     def current(self):
         return self._project_name
@@ -223,7 +289,7 @@ class ProjectManager(Iterable):
     ### Public API
     @property
     def dir(self):
-        return Path(self._base_data_dir) / safe_filename(self.current, full=self.dataset.full_hash)
+        return self._project_dir()
 
     @property
     def logs_dir(self):
@@ -425,7 +491,27 @@ class ProjectManager(Iterable):
             raise ex
 
 
+def _signal_dataset_saved(sender, old, new):
+    """Process dataset saved signal to add a event sourcing revision.
+
+    If the current project is set to be sourced, generate a revision.
+    """
+    if projects.dataset.is_sourced:
+        cls = new.__class__.__name__.lower()
+        import bw2data.backends.utils
+
+        mapper = getattr(bw2data.backends.utils, f"dict_as_{cls}")
+        patch = Delta(DeepDiff(
+            mapper(old.data) if old else None,
+            mapper(new.data),
+            verbose_level=2,
+        ), serializer=json_dumps)
+        projects.dataset.add_revision({"type": cls, "id": new.id}, patch)
+    print(f"Generated revision for {new.id}")
+
+
 projects = ProjectManager()
+bw2signals.database_saved.connect(_signal_dataset_saved)
 
 
 @wrapt.decorator
