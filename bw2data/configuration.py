@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class MatrixLabels(BaseSettings):
     process_node_default: str = "process"
+    biosphere_node_default: str = "emission"
     production_edge_default: str = "production"
     consumption_edge_default: str = "technosphere"
     biosphere_edge_default: str = "biosphere"
