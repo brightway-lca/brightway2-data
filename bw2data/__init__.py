@@ -15,6 +15,7 @@ __all__ = [
     "geomapping",
     "IndexManager",
     "JsonWrapper",
+    "labels",
     "mapping",
     "Method",
     "methods",
@@ -34,7 +35,7 @@ __all__ = [
 
 __version__ = (4, 0, "dev42")
 
-from .configuration import config
+from .configuration import config, labels
 from .project import projects
 from .utils import set_data_dir
 from .meta import (
