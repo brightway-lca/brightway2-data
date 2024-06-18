@@ -87,7 +87,7 @@ class ProjectDataset(Model):
         self.revision = uuid.uuid4()
         self.save()
 
-    def add_revision(self, patch: str, revision: str | None = None) -> None:
+    def add_revision(self, patch: str, revision: Optional[str] = None) -> None:
         """Add a revision to the project."""
         self.revision = revision or uuid.uuid4()
         with open(self.dir / "revisions" / str(self.revision), "w") as f:
