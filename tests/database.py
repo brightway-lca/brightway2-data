@@ -12,6 +12,7 @@ from bw2data import (
     calculation_setups,
     databases,
     geomapping,
+    projects,
     get_activity,
     get_id,
     get_node,
@@ -1366,3 +1367,10 @@ def test_warn_exchange_key():
     expected = "Possible incorrect exchange key found: Given `temporal_distrbution` but `temporal_distribution` is more common"
     with pytest.warns(UserWarning, match=expected):
         db.write(data)
+
+
+@bw2test
+def test_iotable_sourced_project():
+    projects.dataset.set_sourced()
+    with pytest.raises(ValueError):
+        Database("foo", backend="iotable")

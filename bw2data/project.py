@@ -5,26 +5,22 @@ import shutil
 import warnings
 from collections.abc import Iterable
 from copy import copy
+from functools import partial
 from pathlib import Path
 from typing import Any, Optional, TypeVar
 
-from deepdiff import DeepDiff, Delta
-from deepdiff.serialization import json_dumps
 import wrapt
 from bw_processing import safe_filename
-from peewee import SQL, BooleanField, DoesNotExist, Model, TextField, IntegerField, SqliteDatabase
+from peewee import SQL, BooleanField, DoesNotExist, IntegerField, Model, SqliteDatabase, TextField
 from platformdirs import PlatformDirs
 
+import bw2data.signals as bw2signals
 from bw2data import config
 from bw2data.filesystem import create_dir
 from bw2data.logs import stdout_feedback_logger
 from bw2data.signals import project_changed, project_created
-import bw2data.signals as bw2signals
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
-
-from snowflake import SnowflakeGenerator as sfg
-
 
 SD = TypeVar("SD", bound="bw2data.backends.schema.SignaledDataset")
 
@@ -43,10 +39,6 @@ This project is being used by another process and no writes can be made until:
 
 def lockable():
     return False
-
-
-def new_snowflakeid() -> int:
-    return next(sfg(0))
 
 
 class ProjectDataset(Model):
@@ -85,8 +77,14 @@ class ProjectDataset(Model):
             (self.dir / "revisions").mkdir()
         self.save()
 
-    def add_revision(self, old: SD, new: SD) -> int:
+    def add_revision(
+        self, old: Optional[Any], new: Optional[Any], operation: Optional[str] = None
+    ) -> int:
         """Add a revision to the project.
+
+        At the moment, each object revision affects a single object.
+        This will change in the future to allow for multiple objects to be
+        included in a single revision.
 
         {
           "metadata": {
@@ -104,18 +102,27 @@ class ProjectDataset(Model):
                     }, ...
                  ]
         }
+
+        {
+          "type": "database object type" (e.g. "activity", "exchange", "parameter"),
+          "id": "database object id" (e.g. "foo", "bar", "baz"),
+          "delta": <difference between revisions>
+        }
         """
+        if not self.is_sourced:
+            return
+
         from bw2data import revisions
 
-        metadata = revisions.generate_metadata(self.revision)
-        delta = revisions.generate_delta(old, new)
+        metadata = revisions.generate_metadata(parent_revision=self.revision)
+        delta = revisions.generate_delta(old, new, operation)
+        self.revision = metadata["revision"]
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
             f.write(
                 revisions.JSONEncoder(indent=2).encode(
                     revisions.generate_revision(metadata, (delta,)),
                 ),
             )
-        self.revision = metadata["revision"]
         self.save()
         with open(self.dir / "revisions" / "head", "w") as f:
             f.write(str(self.revision))
@@ -124,25 +131,21 @@ class ProjectDataset(Model):
 
     def apply_revision(self, revision: dict) -> None:
         """
-        Load a patch generated from a previous `add_revision` into the database.
+        Load a patch generated from a previous `add_revision` into the project.
         """
-        from bw2data.backends import proxies, utils
         from bw2data import revisions
 
         meta = revision["metadata"]
         parent = meta.get("parent_revision")
         assert not parent or self.revision == parent
         assert parent or not self.revision
-        for d in revision["data"]:
-            obj_class = getattr(proxies, d["type"].title())
-            data_class = obj_class.ORMDataset
-            data = utils.get_obj_as_dict(data_class, d.get("id"))
-            data = revisions.Delta.from_dict(d["delta"]).apply(data)
-            obj_class(data_class(**data)).save(signal=False)
+        for revision_data in revision["data"]:
+            obj_class = revisions.REVISIONED_LABEL_AS_OBJECT[revision_data["type"]]
+            obj_class.handle(revision_data)
         self.revision = meta["revision"]
         self.save()
 
-    def load_revisions(self, head: int | None = None) -> None:
+    def load_revisions(self, head: Optional[int] = None) -> None:
         """
         Load all revisions unapplied for this project.
         """
@@ -162,8 +165,7 @@ class ProjectDataset(Model):
                 revs.append(json.load(f))
         apply_to = self.revision
         g = revisions.RevisionGraph(head, revs)
-        g = itertools.takewhile(
-            lambda x: x["metadata"]["revision"] != apply_to, g)
+        g = itertools.takewhile(lambda x: x["metadata"]["revision"] != apply_to, g)
         for rev in reversed(list(g)):
             self.apply_revision(rev)
 
@@ -177,12 +179,12 @@ def add_full_hash_column(base_data_dir: Path, db: SqliteDatabase) -> None:
 Adding a column to the projects database.
 A backup copy of this database '{}' was made at '{}'.
 If you have problems, file an issue, restore the backup data, and use a stable version of Brightway.
-""".format(src_filepath, backup_filepath)
+""".format(
+        src_filepath, backup_filepath
+    )
     stdout_feedback_logger.warning(MIGRATION_WARNING)
 
-    ADD_FULL_HASH_COLUMN = (
-        """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
-    )
+    ADD_FULL_HASH_COLUMN = """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
     db.execute_sql(ADD_FULL_HASH_COLUMN)
 
 
@@ -195,16 +197,16 @@ def add_sourced_columns(base_data_dir: Path, db: SqliteDatabase) -> None:
 Adding two columns to the projects database.
 A backup copy of this database '{}' was made at '{}'.
 If you have problems, file an issue, restore the backup data, and use a stable version of Brightway.
-""".format(src_filepath, backup_filepath)
+""".format(
+        src_filepath, backup_filepath
+    )
     stdout_feedback_logger.warning(MIGRATION_WARNING)
 
     ADD_IS_SOURCED_COLUMN = (
         """ALTER TABLE projectdataset ADD COLUMN "is_sourced" integer default 0"""
     )
     db.execute_sql(ADD_IS_SOURCED_COLUMN)
-    ADD_REVISION_COLUMN = (
-        """ALTER TABLE projectdataset ADD COLUMN "revision" integer"""
-    )
+    ADD_REVISION_COLUMN = """ALTER TABLE projectdataset ADD COLUMN "revision" integer"""
     db.execute_sql(ADD_REVISION_COLUMN)
 
 
@@ -423,9 +425,11 @@ class ProjectManager(Iterable):
             self.set_current(new_name)
 
     def request_directory(self, name):
-        """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
+        """
+        Return the absolute path to the subdirectory `dirname`, creating it if necessary.
 
-        Returns ``False`` if directory can't be created."""
+        Returns `False` if directory can't be created.
+        """
         fp = self.dir / str(name)
         create_dir(fp)
         if not fp.is_dir():
@@ -569,18 +573,26 @@ class ProjectManager(Iterable):
             raise ex
 
 
-def _signal_dataset_saved(sender, old: SD, new: SD):
-    """Process dataset saved signal to add a event sourcing revision.
+def signal_dispatcher(
+    sender, old: Optional[Any] = None, new: Optional[Any] = None, operation: Optional[str] = None
+) -> int:
+    """Not sure why this is necessary, but fails silently if call `add_revision` directly"""
+    return projects.dataset.add_revision(old=old, new=new, operation=operation)
 
-    If the current project is set to be sourced, generate a revision.
-    """
-    if projects.dataset.is_sourced:
-        projects.dataset.add_revision(old, new)
-    print(f"Generated revision for {new.id}")
 
+# `.connect()` directly just fails silently...
+signal_dispatcher_on_activity_database_change = partial(
+    signal_dispatcher, operation="activity_database_change"
+)
+signal_dispatcher_on_activity_code_change = partial(
+    signal_dispatcher, operation="activity_code_change"
+)
 
 projects = ProjectManager()
-bw2signals.signaleddataset_on_save.connect(_signal_dataset_saved)
+bw2signals.signaleddataset_on_save.connect(signal_dispatcher)
+bw2signals.signaleddataset_on_delete.connect(signal_dispatcher)
+bw2signals.on_activity_database_change.connect(signal_dispatcher_on_activity_database_change)
+bw2signals.on_activity_code_change.connect(signal_dispatcher_on_activity_code_change)
 
 
 @wrapt.decorator
