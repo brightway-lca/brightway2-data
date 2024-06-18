@@ -33,7 +33,7 @@ __all__ = [
     "weightings",
 ]
 
-__version__ = (4, 0, "dev42")
+__version__ = (4, 0, "dev43")
 
 from .configuration import config, labels
 from .project import projects

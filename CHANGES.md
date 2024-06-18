@@ -1,5 +1,10 @@
 # `bw2data` Changelog
 
+## 4.0.DEV43 (2024-06-18)
+
+* Add biosphere node default labels
+* Add `labels` into `__init__` namespace
+
 ## 4.0.DEV42 (2024-06-08)
 
 * Fix some packaging bugs
