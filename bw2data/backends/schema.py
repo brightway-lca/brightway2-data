@@ -13,7 +13,7 @@ except ImportError:
 
 class SignaledDataset(Model):
     @override
-    def save(self, signal = True, *args, **kwargs):
+    def save(self, signal: bool = True, *args, **kwargs):
         """Receives a mapper to convert the data to the expected dictionary format"""
         old = type(self).get_or_none(type(self).id == self.id)
         super().save(*args, **kwargs)

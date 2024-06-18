@@ -2,6 +2,7 @@ import itertools
 import json
 import os
 import shutil
+import uuid
 import warnings
 from collections.abc import Iterable
 from copy import copy
@@ -87,6 +88,10 @@ class ProjectDataset(Model):
 
     def add_revision(self, old: SD, new: SD) -> int:
         """Add a revision to the project.
+
+        At the moment, each object revision affects a single object.
+        This will change in the future to allow for multiple objects to be
+        included in a single revision.
 
         {
           "metadata": {
@@ -423,9 +428,11 @@ class ProjectManager(Iterable):
             self.set_current(new_name)
 
     def request_directory(self, name):
-        """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
+        """
+        Return the absolute path to the subdirectory `dirname`, creating it if necessary.
 
-        Returns ``False`` if directory can't be created."""
+        Returns `False` if directory can't be created.
+        """
         fp = self.dir / str(name)
         create_dir(fp)
         if not fp.is_dir():

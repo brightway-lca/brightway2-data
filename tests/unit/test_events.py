@@ -3,8 +3,8 @@ import json
 from bw2data import revisions
 from bw2data.backends.schema import ActivityDataset
 from bw2data.database import DatabaseChooser
-from bw2data.project import projects
 from bw2data.revisions import RevisionGraph
+from bw2data.project import projects
 from bw2data.tests import bw2test
 
 
@@ -16,6 +16,7 @@ def test_setting_sourced():
 
     projects.dataset.set_sourced()
     assert projects.dataset.is_sourced
+    assert projects.dataset.revision is not None
 
 
 @bw2test
