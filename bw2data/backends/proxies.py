@@ -54,9 +54,8 @@ class Exchanges(Iterable):
                 ExchangeDataset.input_code == self._key[1],
                 # No production exchanges - these two clauses have to be together,
                 # not individually
-                ExchangeDataset.output_database
-                != self._key[0] & ExchangeDataset.output_code
-                != self._key[1],
+                (ExchangeDataset.output_database != self._key[0])
+                & (ExchangeDataset.output_code != self._key[1]),
             ]
         else:
             self._args = [
