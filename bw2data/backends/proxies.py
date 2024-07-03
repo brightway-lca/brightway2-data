@@ -392,26 +392,26 @@ class Activity(ActivityProxyBase):
         else:
             self._data["database"] = new_database
 
-    def exchanges(self):
-        return Exchanges(self.key)
+    def exchanges(self, exchanges_class=Exchanges):
+        return exchanges_class(self.key)
 
     def edges(self):
         return self.exchanges()
 
-    def technosphere(self):
-        return Exchanges(self.key, kinds=labels.technosphere_negative_edge_types)
+    def technosphere(self, exchanges_class=Exchanges):
+        return exchanges_class(self.key, kinds=labels.technosphere_negative_edge_types)
 
-    def biosphere(self):
-        return Exchanges(
+    def biosphere(self, exchanges_class=Exchanges):
+        return exchanges_class(
             self.key,
             kinds=labels.biosphere_edge_types,
         )
 
-    def production(self, include_substitution=False):
+    def production(self, include_substitution=False, exchanges_class=Exchanges):
         kinds = labels.technosphere_positive_edge_types
         if not include_substitution:
             kinds = [obj for obj in kinds if obj not in labels.substitution_edge_types]
-        return Exchanges(self.key, kinds=kinds)
+        return exchanges_class(self.key, kinds=kinds)
 
     def rp_exchange(self):
         """Return an ``Exchange`` object corresponding to the reference production. Uses the following in order:
@@ -440,14 +440,14 @@ class Activity(ActivityProxyBase):
     def producers(self):
         return self.production()
 
-    def substitution(self):
-        return Exchanges(
+    def substitution(self, exchanges_class=Exchanges):
+        return exchanges_class(
             self.key,
             kinds=labels.substitution_edge_types,
         )
 
-    def upstream(self, kinds=labels.technosphere_negative_edge_types):
-        return Exchanges(self.key, kinds=kinds, reverse=True)
+    def upstream(self, kinds=labels.technosphere_negative_edge_types, exchanges_class=Exchanges):
+        return exchanges_class(self.key, kinds=kinds, reverse=True)
 
     def consumers(self, kinds=labels.technosphere_negative_edge_types):
         return self.upstream(kinds=kinds)
