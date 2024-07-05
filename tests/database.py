@@ -604,11 +604,12 @@ def test_set_dependents():
                 "exchanges": [
                     {"input": ("baz", "w00t"), "type": "technosphere", "amount": 1}
                 ],
+                # baz not included because this isn't a process node type
                 "type": "emission",
             },
         }
     )
-    assert databases["a database"]["depends"] == ["baz", "biosphere", "foo"]
+    assert databases["a database"]["depends"] == ["biosphere", "foo"]
 
 
 @bw2test

@@ -8,12 +8,13 @@ import sqlite3
 import uuid
 import warnings
 from collections import defaultdict
-from typing import Callable, List, Optional
+from functools import partial
+from typing import Callable, List, Optional, Iterable
 
 import pandas
 from bw_processing import Datapackage, clean_datapackage_name, create_datapackage
 from fsspec.implementations.zip import ZipFileSystem
-from peewee import DoesNotExist, fn
+from peewee import DoesNotExist, fn, JOIN
 from tqdm import tqdm
 
 from .. import config, databases, geomapping
@@ -54,6 +55,93 @@ def tqdm_wrapper(iterable, is_test):
         return iterable
     else:
         return tqdm(iterable)
+
+
+def get_technosphere_qs(database_name: str, edge_types: Iterable[str]) -> Iterable:
+    Source = ActivityDataset.alias()
+    Target = ActivityDataset.alias()
+    return (
+        ExchangeDataset.select(
+            ExchangeDataset.data,
+            Source.id,
+            Target.id,
+            ExchangeDataset.input_database,
+            ExchangeDataset.input_code,
+            ExchangeDataset.output_database,
+            ExchangeDataset.output_code,
+        )
+        .join(
+            Source,
+            # Use a left join to get invalid edges and raise error
+            join_type=JOIN.LEFT_OUTER,
+            on=(
+                (ExchangeDataset.input_code == Source.code)
+                & (ExchangeDataset.input_database == Source.database)
+            ),
+        )
+        .switch(ExchangeDataset)
+        .join(
+            Target,
+            join_type=JOIN.LEFT_OUTER,
+            on=(
+                (ExchangeDataset.output_code == Target.code)
+                & (ExchangeDataset.output_database == Target.database)
+            ),
+        )
+        .where(
+            (ExchangeDataset.output_database == database_name)
+            & (ExchangeDataset.type << edge_types)
+            & (Target.type << labels.process_node_types)
+        )
+        .tuples().iterator()
+    )
+
+
+get_technosphere_positive_qs = partial(
+    get_technosphere_qs, edge_types=labels.technosphere_positive_edge_types
+)
+get_technosphere_negative_qs = partial(
+    get_technosphere_qs, edge_types=labels.technosphere_negative_edge_types
+)
+
+
+def get_biosphere_qs(database_name: str) -> Iterable:
+    Source = ActivityDataset.alias()
+    Target = ActivityDataset.alias()
+    return (
+        ExchangeDataset.select(
+            ExchangeDataset.data,
+            Source.id,
+            Target.id,
+            ExchangeDataset.input_database,
+            ExchangeDataset.input_code,
+            ExchangeDataset.output_database,
+            ExchangeDataset.output_code,
+        )
+        .join(
+            Source,
+            join_type=JOIN.LEFT_OUTER,
+            on=(
+                (ExchangeDataset.input_code == Source.code)
+                & (ExchangeDataset.input_database == Source.database)
+            ),
+        )
+        .switch(ExchangeDataset)
+        .join(
+            Target,
+            join_type=JOIN.LEFT_OUTER,
+            on=(
+                (ExchangeDataset.output_code == Target.code)
+                & (ExchangeDataset.output_database == Target.database)
+            ),
+        )
+        .where(
+            (ExchangeDataset.output_database == database_name)
+            & (ExchangeDataset.type << labels.biosphere_edge_types)
+            & (Target.type << labels.process_node_types)
+        )
+        .tuples().iterator()
+    )
 
 
 class SQLiteBackend(ProcessedDataStore):
@@ -689,7 +777,7 @@ Here are the type values usually used for nodes:
         if vacuum_needed:
             sqlite3_lci_db.vacuum()
 
-    def exchange_data_iterator(self, sql, dependents, flip=False):
+    def exchange_data_iterator(self, qs_func, dependents, flip=False):
         """Iterate over exchanges and format for ``bw_processing`` arrays.
 
         ``dependents`` is a set of dependent database names.
@@ -697,9 +785,7 @@ Here are the type values usually used for nodes:
         ``flip`` means flip the numeric sign; see ``bw_processing`` docs.
 
         Uses raw sqlite3 to retrieve data for ~2x speed boost."""
-        connection = sqlite3.connect(sqlite3_lci_db._filepath)
-        cursor = connection.cursor()
-        for line in cursor.execute(sql, (self.name,)):
+        for line in qs_func(self.name):
             (
                 data,
                 row,
@@ -712,7 +798,6 @@ Here are the type values usually used for nodes:
             # Modify ``dependents`` in place
             if input_database != output_database:
                 dependents.add(input_database)
-            data = pickle.loads(bytes(data))
             check_exchange(data)
             if row is None or col is None:
                 raise UnknownObject(
@@ -788,17 +873,10 @@ Here are the type values usually used for nodes:
         )
         self._add_inventory_geomapping_to_datapackage(dp)
 
-        BIOSPHERE_SQL = """SELECT e.data, a.id, b.id, e.input_database, e.input_code, e.output_database, e.output_code
-                FROM exchangedataset as e
-                LEFT JOIN activitydataset as a ON a.code == e.input_code AND a.database == e.input_database
-                LEFT JOIN activitydataset as b ON b.code == e.output_code AND b.database == e.output_database
-                WHERE e.output_database = ?
-                AND e.type = 'biosphere'
-        """
         dp.add_persistent_vector_from_iterator(
             matrix="biosphere_matrix",
             name=clean_datapackage_name(self.name + " biosphere matrix"),
-            dict_iterator=self.exchange_data_iterator(BIOSPHERE_SQL, dependents),
+            dict_iterator=self.exchange_data_iterator(get_biosphere_qs, dependents),
         )
 
         # Figure out when the production exchanges are implicit
@@ -826,29 +904,14 @@ Here are the type values usually used for nodes:
             .tuples()
         )
 
-        TECHNOSPHERE_POSITIVE_SQL = """SELECT e.data, a.id, b.id, e.input_database, e.input_code, e.output_database, e.output_code
-                FROM exchangedataset as e
-                LEFT JOIN activitydataset as a ON a.code == e.input_code AND a.database == e.input_database
-                LEFT JOIN activitydataset as b ON b.code == e.output_code AND b.database == e.output_database
-                WHERE e.output_database = ?
-                AND e.type IN ('production', 'substitution', 'generic production')
-        """
-        TECHNOSPHERE_NEGATIVE_SQL = """SELECT e.data, a.id, b.id, e.input_database, e.input_code, e.output_database, e.output_code
-                FROM exchangedataset as e
-                LEFT JOIN activitydataset as a ON a.code == e.input_code AND a.database == e.input_database
-                LEFT JOIN activitydataset as b ON b.code == e.output_code AND b.database == e.output_database
-                WHERE e.output_database = ?
-                AND e.type IN ('technosphere', 'generic consumption')
-        """
-
         dp.add_persistent_vector_from_iterator(
             matrix="technosphere_matrix",
             name=clean_datapackage_name(self.name + " technosphere matrix"),
             dict_iterator=itertools.chain(
                 self.exchange_data_iterator(
-                    TECHNOSPHERE_NEGATIVE_SQL, dependents, flip=True
+                    get_technosphere_negative_qs, dependents, flip=True
                 ),
-                self.exchange_data_iterator(TECHNOSPHERE_POSITIVE_SQL, dependents),
+                self.exchange_data_iterator(get_technosphere_positive_qs, dependents),
                 implicit_production,
             ),
         )
