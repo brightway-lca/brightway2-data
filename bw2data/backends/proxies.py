@@ -47,23 +47,24 @@ class Exchanges(Iterable):
     """
 
     def __init__(self, key, kinds=None, reverse=False):
-        self._key, self._kinds = key, kinds
+        self._key = key
         if reverse:
             self._args = [
                 ExchangeDataset.input_database == self._key[0],
                 ExchangeDataset.input_code == self._key[1],
                 # No production exchanges - these two clauses have to be together,
-                # not individually
-                (ExchangeDataset.output_database != self._key[0])
-                & (ExchangeDataset.output_code != self._key[1]),
+                # not individually. Note: DO NOT wrap these two clauses in
+                # parentheses, this somehow breaks the functionality!
+                ExchangeDataset.output_database != self._key[0]
+                & ExchangeDataset.output_code != self._key[1],
             ]
         else:
             self._args = [
                 ExchangeDataset.output_database == self._key[0],
                 ExchangeDataset.output_code == self._key[1],
             ]
-        if self._kinds:
-            self._args.append(ExchangeDataset.type << self._kinds)
+        if kinds:
+            self._args.append(ExchangeDataset.type << kinds)
 
     def filter(self, expr):
         self._args.append(expr)
