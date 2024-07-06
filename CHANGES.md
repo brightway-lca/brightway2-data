@@ -1,5 +1,10 @@
 # `bw2data` Changelog
 
+## 4.0.DEV45 (2024-07-06)
+
+* Use peewee instead of raw SQL when processing technosphere and biosphere exchanges, and properly exclude non-process nodes (i.e. those not included in `labels.process_node_types`) from processed arrays.
+* Fix a bug with upstream exchanges introduced in `4.0.DEV44`
+
 ## 4.0.DEV44 (2024-07-04)
 
 * [PR #175: add `check_typos` to `IOTableBackend` write function](https://github.com/brightway-lca/brightway2-data/pull/175).
