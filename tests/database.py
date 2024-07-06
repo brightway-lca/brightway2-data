@@ -495,6 +495,47 @@ def test_processed_array_with_metadata():
 
 
 @bw2test
+def test_processed_array_with_non_process_nodes():
+    database = Database("a database")
+    database.write(
+        {
+            ("a database", "2"): {
+                "type": "process",
+                "exchanges": [
+                    {
+                        "input": ("a database", "2"),
+                        "amount": 42,
+                        "uncertainty_type": 7,
+                        "type": "production",
+                    }
+                ],
+            },
+            ("a database", "3"): {
+                "type": "multifunctional",
+                "exchanges": [
+                    {
+                        "input": ("a database", "3"),
+                        "amount": 17,
+                        "uncertainty_type": 0,
+                        "type": "production",
+                    }
+                ]
+            }
+        }
+    )
+    package = database.datapackage()
+    print(package.resources)
+    array = package.get_resource("a_database_technosphere_matrix.data")[0]
+
+    assert array.shape == (1,)
+    assert array[0] == 42
+    assert array.sum() == 42
+
+    array = package.get_resource("a_database_technosphere_matrix.distributions")[0]
+    assert array.shape == (1,)
+
+
+@bw2test
 def test_base_class():
     database = Database("a database")
     assert database._metadata is databases
