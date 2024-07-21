@@ -1,17 +1,17 @@
-from whoosh.analysis import StandardAnalyzer
-from whoosh.fields import ID, TEXT, Schema
+from playhouse.sqlite_ext import FTSModel, SearchField, RowIDField
 
-bw2_schema = Schema(
-    name=TEXT(
-        stored=True,
-        sortable=True,
-        analyzer=StandardAnalyzer(stoplist=frozenset(), minsize=1),
-    ),
-    comment=TEXT(stored=True),
-    product=TEXT(stored=True, sortable=True),
-    categories=TEXT(stored=True),
-    synonyms=TEXT(stored=True),
-    location=TEXT(stored=True, sortable=True),
-    database=TEXT(stored=True),
-    code=ID(unique=True, stored=True),
-)
+
+class BW2Schema(FTSModel):
+    rowid = RowIDField()
+    name = SearchField()
+    comment = SearchField()
+    product = SearchField()
+    categories = SearchField()
+    synonyms = SearchField()
+    location = SearchField()
+    database = SearchField()
+    code = SearchField()
+
+    class Meta:
+        # Use the porter stemming algorithm to tokenize content.
+        options = {'tokenize': 'porter'}

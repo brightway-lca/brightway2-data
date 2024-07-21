@@ -302,6 +302,8 @@ def test_case_sensitivity_filter():
     assert len(db.search("lollipop")) == 2
     assert len(db.search("lollipop", filter={"location": "fr"})) == 1
     assert len(db.search("lollipop", filter={"location": "FR"})) == 1
+    assert len(db.search("lollipop", filter={"location": lambda col: col.ilike('FR')})) == 1
+    assert len(db.search("lollipop", filter={"location": lambda col: col == 'FR'})) == 0
 
 
 @bw2test
@@ -325,6 +327,8 @@ def test_case_sensitivity_mask():
     db.write(ds)
     assert len(db.search("lollipop")) == 2
     assert len(db.search("lollipop", mask={"product": "ZEbra"})) == 1
+    assert len(db.search("lollipop", mask={"product": lambda col: col.ilike('%ZEBRA%')})) == 1
+    assert len(db.search("lollipop", mask={"product": lambda col: col == 'ZEBRA'})) == 2
 
 
 @bw2test
