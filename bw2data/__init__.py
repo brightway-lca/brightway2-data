@@ -83,3 +83,10 @@ from .updates import Updates
 from .parameters import parameters
 
 Updates.check_status()
+
+
+try:
+    # Will register itself as a database backend provider
+    import multifunctional
+except ImportError:
+    pass
