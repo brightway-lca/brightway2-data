@@ -1,5 +1,10 @@
 # `bw2data` Changelog
 
+## 4.0.DEV46 (2024-07-23)
+
+* [PR #176: Fix un-hashable error](https://github.com/brightway-lca/brightway2-data/pull/176).
+* Import multifunctional if available
+
 ## 4.0.DEV45 (2024-07-06)
 
 * Use peewee instead of raw SQL when processing technosphere and biosphere exchanges, and properly exclude non-process nodes (i.e. those not included in `labels.process_node_types`) from processed arrays.
