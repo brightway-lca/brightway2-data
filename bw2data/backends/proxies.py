@@ -1,11 +1,14 @@
 import copy
+import json
 import uuid
 from collections.abc import Iterable
 from typing import Callable, List, Optional
 
 import pandas as pd
+from deepdiff import DeepDiff
+from playhouse.shortcuts import model_to_dict
 
-from .. import databases, geomapping
+from .. import databases, geomapping, projects
 from ..configuration import labels
 from ..errors import ValidityError
 from ..proxies import ActivityProxyBase, ExchangeProxyBase
@@ -195,7 +198,7 @@ class Activity(ActivityProxyBase):
             self._data = kwargs
         else:
             self._document = document
-            self._data = self._document.data
+            self._data = copy.copy(self._document.data)
             self._data["code"] = self._document.code
             self._data["database"] = self._document.database
             self._data["id"] = self._document.id
@@ -311,6 +314,14 @@ class Activity(ActivityProxyBase):
 
         check_activity_type(self._data.get("type"))
         check_activity_keys(self)
+        if projects.dataset.is_sourced:
+            # This breaks all encapsulation principles /o\
+            previous_state = model_to_dict(self._document)
+            previous_state["data"]["id"] = previous_state["id"]
+            patch = DeepDiff(
+                previous_state["data"], dict_as_activitydataset(self._data)["data"]
+            ).to_json()
+            projects.dataset.add_revision(json.dumps(patch, indent=2))
 
         for key, value in dict_as_activitydataset(self._data).items():
             if key != "id":
