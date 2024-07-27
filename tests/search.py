@@ -219,6 +219,19 @@ def test_limit():
 
 
 @bw2test
+def test_star_search():
+    im = IndexManager("foo")
+    im.add_datasets(
+        [
+            {"database": "foo", "code": "bar", "name": "lollipop {}".format(x)}
+            for x in range(50)
+        ]
+    )
+    with Searcher("foo") as s:
+        assert len(s.search("*", limit=25, proxy=False)) == 25
+
+
+@bw2test
 def test_search_faceting():
     im = IndexManager("foo")
     ds = [

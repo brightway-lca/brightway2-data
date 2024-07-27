@@ -132,13 +132,13 @@ class IndexManager:
     def update_dataset(self, ds):
         with self.db.bind_ctx(MODELS):
             for model in MODELS:
-                model.delete().where(model.code == ds["code"]).execute()
+                model.delete().where(model.code == ds["code"], model.database == ds["database"]).execute()
                 model.insert(**self._format_dataset(ds)).execute()
 
     def delete_dataset(self, ds):
         with self.db.bind_ctx(MODELS):
             for model in MODELS:
-                model.delete().where(model.code == ds["code"]).execute()
+                model.delete().where(model.code == ds["code"], model.database == ds["database"]).execute()
 
     def delete_database(self):
         with self.db.bind_ctx(MODELS):
@@ -182,13 +182,18 @@ class IndexManager:
                     )
                 )
             )
+
         with self.db.bind_ctx(MODELS):
+            if string == '*':
+                query = BW2Schema
+            else:
+                query = BW2Schema.search_bm25(string, weights=weights)
+            if conditions:
+                query = query.where(*conditions)
             return list(
-                BW2Schema.
-                search_bm25(string, weights=weights).
+                query.
                 select(BW2Schema.name, BW2Schema.comment, BW2Schema.product, BW2Schema.categories,
                        BW2Schema.synonyms, BW2Schema.location, BW2Schema.database, BW2Schema.code).
-                where(*conditions).
                 limit(limit).
                 dicts().
                 execute()
