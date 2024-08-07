@@ -667,7 +667,7 @@ class SQLiteBackend(ProcessedDataStore):
             try:
                 activities[exc["data"]["output"]]["exchanges"].append(exc["data"])
             except KeyError:
-                # This exchange not in the reduced set of activities returned
+                # This exchange not in the potentially filtered set of activities returned
                 # by _get_queryset
                 pass
         return activities
