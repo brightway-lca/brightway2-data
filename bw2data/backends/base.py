@@ -723,7 +723,7 @@ Here are the type values usually used for nodes:
             return
         databases[self.name]["searchable"] = True
         databases.flush()
-        IndexManager(self.filename).delete_database()
+        IndexManager(self.filename).create()
         IndexManager(self.filename).add_datasets(self)
 
     def make_unsearchable(self):
@@ -732,7 +732,7 @@ Here are the type values usually used for nodes:
         IndexManager(self.filename).delete_database()
 
     def delete(self, keep_params=False, warn=True, vacuum=True):
-        """Delete all data from SQLite database and Whoosh index"""
+        """Delete all data from SQLite database and search index"""
         if warn:
             MESSAGE = """
             Please use `del databases['{}']` instead.
@@ -965,7 +965,7 @@ Here are the type values usually used for nodes:
         * ``filter``: Dictionary of criteria that search results must meet, e.g. ``{'categories': 'air'}``. Keys must be one of the above fields.
         * ``mask``: Dictionary of criteria that exclude search results. Same format as ``filter``.
         * ``facet``: Field to facet results. Must be one of ``name``, ``product``, ``categories``, ``location``, or ``database``.
-        * ``proxy``: Return ``Activity`` proxies instead of raw Whoosh documents. Default is ``True``.
+        * ``proxy``: Return ``Activity`` proxies instead of dictionary index Models. Default is ``True``.
 
         Returns a list of ``Activity`` datasets."""
         with Searcher(self.filename) as s:

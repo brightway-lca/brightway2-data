@@ -114,6 +114,11 @@ class Updates:
             "automatic": True,
             "explanation": "bw2data 4.0 release requires migrations filename changes",
         },
+        "4.0 database search directories": {
+            "method": "database_search_directories_40",
+            "automatic": True,
+            "explanation": "bw2data 4.0 release switched to a new database search implementation",
+        },
     }
 
     @classmethod
@@ -141,7 +146,7 @@ class Updates:
                 key
                 for key in cls.UPDATES
                 if not preferences["updates"].get(key)
-                and not cls.UPDATES[key]["automatic"]
+                   and not cls.UPDATES[key]["automatic"]
             ]
         )
         if updates and verbose:
@@ -189,6 +194,16 @@ class Updates:
     @classmethod
     def database_search_directories_20(cls):
         shutil.rmtree(projects.request_directory("whoosh"))
+        for db in databases:
+            if databases[db].get("searchable"):
+                databases[db]["searchable"] = False
+                print("Reindexing database {}".format(db))
+                Database(db).make_searchable()
+
+    @classmethod
+    def database_search_directories_40(cls):
+        shutil.rmtree(projects.request_directory("whoosh"))
+        shutil.rmtree(projects.request_directory("search"))
         for db in databases:
             if databases[db].get("searchable"):
                 databases[db]["searchable"] = False
