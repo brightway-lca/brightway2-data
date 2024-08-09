@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.0.DEV47 (2024-08-09)
+
+* [PR #177: Switch from `whoosh` to SQLite FTS search index](https://github.com/brightway-lca/brightway2-data/pull/177).
+
 ## 4.0.DEV46 (2024-07-23)
 
 * [PR #176: Fix un-hashable error](https://github.com/brightway-lca/brightway2-data/pull/176).
