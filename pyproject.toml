@@ -39,7 +39,7 @@ dependencies = [
     "peewee>=3.9.4",
     "platformdirs",
     "pydantic-settings",
-    "rapidfuzz",
+    "rapidfuzz, sys_platform != 'emscripten'",
     "scipy",
     "stats_arrays",
     "tqdm",
