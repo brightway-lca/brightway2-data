@@ -56,19 +56,6 @@ class Searcher:
         }
 
         kwargs = {"limit": limit}
-        if filter is not None:
-            assert isinstance(filter, dict), "`filter` must be a dictionary"
-            assert set(filter.keys()).issubset(self.search_fields), "`filter` fields {} not in search schema".format(
-                set(filter.keys()).difference(self.search_fields))
-
-            kwargs["filter"] = filter
-
-        if mask is not None:
-            assert isinstance(mask, dict), "`mask` must be a dictionary"
-            assert set(mask.keys()).issubset(self.search_fields), "`mask` fields {} not in search schema".format(
-                set(mask.keys()).difference(self.search_fields))
-
-            kwargs["mask"] = mask
         if facet:
             kwargs.pop("limit")
 

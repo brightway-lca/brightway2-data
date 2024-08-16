@@ -295,56 +295,6 @@ def test_case_sensitivity_convert_lowercase():
 
 
 @bw2test
-def test_case_sensitivity_filter():
-    db = SQLiteBackend("foo")
-    ds = {
-        ("foo", "bar"): {
-            "database": "foo",
-            "code": "bar",
-            "name": "lollipop",
-            "location": "CH",
-        },
-        ("foo", "baz"): {
-            "database": "foo",
-            "code": "baz",
-            "name": "ice lollipop",
-            "location": "FR",
-        },
-    }
-    db.write(ds)
-    assert len(db.search("lollipop")) == 2
-    assert len(db.search("lollipop", filter={"location": "fr"})) == 1
-    assert len(db.search("lollipop", filter={"location": "FR"})) == 1
-    assert len(db.search("lollipop", filter={"location": lambda col: col.ilike('FR')})) == 1
-    assert len(db.search("lollipop", filter={"location": lambda col: col == 'FR'})) == 0
-
-
-@bw2test
-def test_case_sensitivity_mask():
-    db = SQLiteBackend("foo")
-    ds = {
-        ("foo", "bar"): {
-            "database": "foo",
-            "code": "bar",
-            "name": "lollipop",
-            "location": "CH",
-        },
-        ("foo", "baz"): {
-            "database": "foo",
-            "code": "baz",
-            "name": "ice lollipop",
-            "location": "FR",
-            "reference product": "ZEBRA",
-        },
-    }
-    db.write(ds)
-    assert len(db.search("lollipop")) == 2
-    assert len(db.search("lollipop", mask={"product": "ZEbra"})) == 1
-    assert len(db.search("lollipop", mask={"product": lambda col: col.ilike('%ZEBRA%')})) == 1
-    assert len(db.search("lollipop", mask={"product": lambda col: col == 'ZEBRA'})) == 2
-
-
-@bw2test
 def test_synonym_search():
     im = IndexManager("foo")
     im.add_dataset(
@@ -395,7 +345,3 @@ def test_search_single_char():
                 "synonyms": "",
             }
         ]
-
-
-if __name__ == "__main__":
-    test_synonym_search()
