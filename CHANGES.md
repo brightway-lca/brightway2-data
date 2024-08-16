@@ -1,5 +1,14 @@
 # `bw2data` Changelog
 
+## 4.0.DEV49 (2024-08-16)
+
+* Switch from FTS4 to FTS5 for better availability across all OSes and publication platforms.
+* Deprecated and removed `filter` and `mask` functionality from `.search`. Use list comprehensions for more complex search queries.
+
+## 4.0.DEV48 (2024-08-16)
+
+* Nobody saw nothing, and if you value your stuffed animals, it will stay that way.
+
 ## 4.0.DEV47 (2024-08-09)
 
 * [PR #177: Switch from `whoosh` to SQLite FTS search index](https://github.com/brightway-lca/brightway2-data/pull/177).
