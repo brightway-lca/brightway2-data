@@ -519,8 +519,8 @@ def test_processed_array_with_non_process_nodes():
                         "uncertainty_type": 0,
                         "type": "production",
                     }
-                ]
-            }
+                ],
+            },
         }
     )
     package = database.datapackage()

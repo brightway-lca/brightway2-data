@@ -206,7 +206,7 @@ class ProcessedDataStore(DataStore):
             name=clean_datapackage_name(str(self.name) + " matrix data"),
             dict_iterator=(self.process_row(row) for row in data),
             nrows=len(data),
-            **extra_metadata
+            **extra_metadata,
         )
         dp.finalize_serialization()
 

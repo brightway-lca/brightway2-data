@@ -56,7 +56,9 @@ class Method(ImpactAssessmentDataStore):
         except UnknownObject:
             raise UnknownObject(
                 "Can't find flow `{}`, specified in CF row `{}` for method `{}`".format(
-                    {tuple(row[0]) if isinstance(row[0], list) else row[0]}, row, self.name
+                    {tuple(row[0]) if isinstance(row[0], list) else row[0]},
+                    row,
+                    self.name,
                 )
             )
         except KeyError:

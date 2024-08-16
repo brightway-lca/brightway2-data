@@ -9,12 +9,12 @@ import uuid
 import warnings
 from collections import defaultdict
 from functools import partial
-from typing import Callable, List, Optional, Iterable
+from typing import Callable, Iterable, List, Optional
 
 import pandas
 from bw_processing import Datapackage, clean_datapackage_name, create_datapackage
 from fsspec.implementations.zip import ZipFileSystem
-from peewee import DoesNotExist, fn, JOIN
+from peewee import JOIN, DoesNotExist, fn
 from tqdm import tqdm
 
 from .. import config, databases, geomapping
@@ -93,7 +93,8 @@ def get_technosphere_qs(database_name: str, edge_types: Iterable[str]) -> Iterab
             & (ExchangeDataset.type << edge_types)
             & (Target.type << labels.process_node_types)
         )
-        .tuples().iterator()
+        .tuples()
+        .iterator()
     )
 
 
@@ -140,7 +141,8 @@ def get_biosphere_qs(database_name: str) -> Iterable:
             & (ExchangeDataset.type << labels.biosphere_edge_types)
             & (Target.type << labels.process_node_types)
         )
-        .tuples().iterator()
+        .tuples()
+        .iterator()
     )
 
 

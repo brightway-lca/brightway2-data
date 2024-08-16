@@ -55,8 +55,9 @@ class Exchanges(Iterable):
                 # No production exchanges - these two clauses have to be together,
                 # not individually. Note: DO NOT wrap these two clauses in
                 # parentheses, this somehow breaks the functionality!
-                ExchangeDataset.output_database != self._key[0]
-                & ExchangeDataset.output_code != self._key[1],
+                ExchangeDataset.output_database
+                != self._key[0] & ExchangeDataset.output_code
+                != self._key[1],
             ]
         else:
             self._args = [
@@ -446,7 +447,9 @@ class Activity(ActivityProxyBase):
             kinds=labels.substitution_edge_types,
         )
 
-    def upstream(self, kinds=labels.technosphere_negative_edge_types, exchanges_class=Exchanges):
+    def upstream(
+        self, kinds=labels.technosphere_negative_edge_types, exchanges_class=Exchanges
+    ):
         return exchanges_class(self.key, kinds=kinds, reverse=True)
 
     def consumers(self, kinds=labels.technosphere_negative_edge_types):
