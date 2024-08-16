@@ -31,15 +31,15 @@ class Searcher:
         self.index.close()
 
     def search(
-            self,
-            string,
-            limit=25,
-            facet=None,
-            proxy=True,
-            boosts=None,
-            filter=None,
-            mask=None,
-            node_class=None,
+        self,
+        string,
+        limit=25,
+        facet=None,
+        proxy=True,
+        boosts=None,
+        filter=None,
+        mask=None,
+        node_class=None,
     ):
         from .. import get_activity
 
@@ -69,10 +69,7 @@ class Searcher:
                     raise
 
         if facet:
-            results = {
-                k: list(v)
-                for k, v in groupby(results, lambda x: x.get(facet))
-            }
+            results = {k: list(v) for k, v in groupby(results, lambda x: x.get(facet))}
 
         if proxy and facet is not None:
             return {

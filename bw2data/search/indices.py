@@ -3,8 +3,8 @@ import warnings
 
 from playhouse.sqlite_ext import SqliteExtDatabase
 
-from .schema import BW2Schema
 from .. import projects
+from .schema import BW2Schema
 
 MODELS = (BW2Schema,)
 
@@ -58,20 +58,24 @@ class IndexManager:
                     model.insert_many(
                         [
                             self._format_dataset(ds)
-                            for ds in all_dataset[chunk_range: chunk_range + 100]
+                            for ds in all_dataset[chunk_range : chunk_range + 100]
                         ]
                     ).execute()
 
     def update_dataset(self, ds):
         with self.db.bind_ctx(MODELS):
             for model in MODELS:
-                model.delete().where(model.code == ds["code"], model.database == ds["database"]).execute()
+                model.delete().where(
+                    model.code == ds["code"], model.database == ds["database"]
+                ).execute()
                 model.insert(**self._format_dataset(ds)).execute()
 
     def delete_dataset(self, ds):
         with self.db.bind_ctx(MODELS):
             for model in MODELS:
-                model.delete().where(model.code == ds["code"], model.database == ds["database"]).execute()
+                model.delete().where(
+                    model.code == ds["code"], model.database == ds["database"]
+                ).execute()
 
     def delete_database(self):
         with self.db.bind_ctx(MODELS):
@@ -82,20 +86,33 @@ class IndexManager:
 
     def search(self, string, limit=None, weights=None, mask=None, filter=None):
         if mask:
-            warnings.warn(DeprecationWarning, "`mask` functionality has been deleted, and this input argument will be removed in the future")
+            warnings.warn(
+                "`mask` functionality has been deleted, and now does nothing. This input argument will be removed in the future",
+                DeprecationWarning,
+            )
         if filter:
-            warnings.warn(DeprecationWarning, "`filter` functionality has been deleted, and this input argument will be removed in the future")
+            warnings.warn(
+                "`filter` functionality has been deleted, and now does nothing. This input argument will be removed in the future",
+                DeprecationWarning,
+            )
 
         with self.db.bind_ctx(MODELS):
-            if string == '*':
+            if string == "*":
                 query = BW2Schema
             else:
                 query = BW2Schema.search_bm25(string.replace(",", ""), weights=weights)
             return list(
-                query.
-                select(BW2Schema.name, BW2Schema.comment, BW2Schema.product, BW2Schema.categories,
-                       BW2Schema.synonyms, BW2Schema.location, BW2Schema.database, BW2Schema.code).
-                limit(limit).
-                dicts().
-                execute()
+                query.select(
+                    BW2Schema.name,
+                    BW2Schema.comment,
+                    BW2Schema.product,
+                    BW2Schema.categories,
+                    BW2Schema.synonyms,
+                    BW2Schema.location,
+                    BW2Schema.database,
+                    BW2Schema.code,
+                )
+                .limit(limit)
+                .dicts()
+                .execute()
             )

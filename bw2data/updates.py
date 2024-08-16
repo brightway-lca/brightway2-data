@@ -146,7 +146,7 @@ class Updates:
                 key
                 for key in cls.UPDATES
                 if not preferences["updates"].get(key)
-                   and not cls.UPDATES[key]["automatic"]
+                and not cls.UPDATES[key]["automatic"]
             ]
         )
         if updates and verbose:

@@ -1,4 +1,4 @@
-from playhouse.sqlite_ext import FTS5Model, SearchField, RowIDField
+from playhouse.sqlite_ext import FTS5Model, RowIDField, SearchField
 
 
 class BW2Schema(FTS5Model):
@@ -13,4 +13,4 @@ class BW2Schema(FTS5Model):
     code = SearchField()
 
     class Meta:
-        options = {'tokenize': "unicode61 tokenchars '''&:'"}
+        options = {"tokenize": "unicode61 tokenchars '''&:'"}
