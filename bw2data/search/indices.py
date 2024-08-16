@@ -187,7 +187,7 @@ class IndexManager:
             if string == '*':
                 query = BW2Schema
             else:
-                query = BW2Schema.search_bm25(string, weights=weights)
+                query = BW2Schema.search_bm25(" ".join([term.replace(",", "") for term in string.split(" ")]), weights=weights)
             if conditions:
                 query = query.where(*conditions)
             return list(
