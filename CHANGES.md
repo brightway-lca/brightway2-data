@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.0.DEV50 (2024-08-17)
+
+* Undo `isort` reordering of `__init__.py` which caused circular import errors
+
 ## 4.0.DEV49 (2024-08-16)
 
 * Switch from FTS4 to FTS5 for better availability across all OSes and publication platforms.
