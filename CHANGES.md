@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.0.DEV51 (2024-08-21)
+
+* [PR #179: Make `rapidfuzz` optional on `sys_platform=emscripten`](https://github.com/brightway-lca/brightway2-data/pull/179).
+
 ## 4.0.DEV50 (2024-08-17)
 
 * Undo `isort` reordering of `__init__.py` which caused circular import errors
