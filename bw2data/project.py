@@ -1,18 +1,18 @@
 import os
 import shutil
-import tempfile
 import warnings
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Optional
 
-import wrapt
 from bw_processing import safe_filename
 from peewee import SQL, BooleanField, DoesNotExist, Model, TextField
 from platformdirs import PlatformDirs
+import wrapt
 
 from . import config
 from .filesystem import create_dir
+from .signals import project_changed, project_created
 from .sqlite import PickleField, SubstitutableDatabase
 from .utils import maybe_path
 
@@ -197,6 +197,7 @@ class ProjectManager(Iterable):
         self.dataset = ProjectDataset.get(ProjectDataset.name == self._project_name)
         self._reset_meta()
         self._reset_sqlite3_databases()
+        project_changed.send(self.dataset)
 
         if not writable:
             self.read_only = True
@@ -264,6 +265,7 @@ class ProjectManager(Iterable):
             self.dataset = ProjectDataset.create(
                 data=kwargs, name=name, full_hash=full_hash
             )
+            project_created.send(self.dataset)
         create_dir(self.dir)
         for dir_name in self._basic_directories:
             create_dir(self.dir / dir_name)
