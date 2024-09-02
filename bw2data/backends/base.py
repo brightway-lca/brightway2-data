@@ -1,10 +1,8 @@
 import copy
 import datetime
 import itertools
-import pickle
 import pprint
 import random
-import sqlite3
 import uuid
 import warnings
 from collections import defaultdict
@@ -679,6 +677,12 @@ class SQLiteBackend(ProcessedDataStore):
 
     def new_node(self, code: str = None, **kwargs):
         obj = self.node_class()
+        if 'database' in kwargs:
+            if kwargs['database'] != self.name:
+                raise ValueError(
+                    f"Creating a new node in database `{self.name}`, but gave database label `{kwargs['database']}`"
+                )
+            kwargs.pop('database')
         obj["database"] = self.name
 
         if code is None:
@@ -713,7 +717,8 @@ Here are the type values usually used for nodes:
         ):
             raise DuplicateNode("Node with this id already exists")
 
-        obj["location"] = config.global_location
+        if 'location' not in kwargs:
+            obj["location"] = config.global_location
         obj.update(kwargs)
         return obj
 
