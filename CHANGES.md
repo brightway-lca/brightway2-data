@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.0.DEV52 (2024-09-02)
+
+* Remove duplicate attr setting in `new_node`
+
 ## 4.0.DEV51 (2024-08-21)
 
 * [PR #179: Make `rapidfuzz` optional on `sys_platform=emscripten`](https://github.com/brightway-lca/brightway2-data/pull/179).
