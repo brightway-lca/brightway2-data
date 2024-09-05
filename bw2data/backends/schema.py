@@ -1,7 +1,7 @@
 from peewee import DoesNotExist, Model, TextField
 
-from ..errors import UnknownObject
-from ..sqlite import PickleField
+from bw2data.errors import UnknownObject
+from bw2data.sqlite import PickleField
 
 
 class ActivityDataset(Model):

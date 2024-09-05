@@ -1,2 +1,2 @@
-from .indices import IndexManager
-from .search import Searcher
+from bw2data.search.indices import IndexManager
+from bw2data.search.search import Searcher

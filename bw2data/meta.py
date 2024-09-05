@@ -1,6 +1,6 @@
 import datetime
 
-from .serialization import CompoundJSONDict, PickledDict, SerializedDict
+from bw2data.serialization import CompoundJSONDict, PickledDict, SerializedDict
 
 
 class GeoMapping(PickledDict):
@@ -83,7 +83,7 @@ class Databases(SerializedDict):
             self.flush()
 
     def clean(self):
-        from . import Database
+        from bw2data import Database
 
         def _clean():
             for x in self:
@@ -98,7 +98,7 @@ class Databases(SerializedDict):
             return _clean()
 
     def __delitem__(self, name):
-        from . import Database
+        from bw2data import Database
 
         try:
             Database(name).delete(warn=False)

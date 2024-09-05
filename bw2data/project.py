@@ -10,11 +10,11 @@ from peewee import SQL, BooleanField, DoesNotExist, Model, TextField
 from platformdirs import PlatformDirs
 import wrapt
 
-from . import config
-from .filesystem import create_dir
-from .signals import project_changed, project_created
-from .sqlite import PickleField, SubstitutableDatabase
-from .utils import maybe_path
+from bw2data import config
+from bw2data.filesystem import create_dir
+from bw2data.signals import project_changed, project_created
+from bw2data.sqlite import PickleField, SubstitutableDatabase
+from bw2data.utils import maybe_path
 
 READ_ONLY_PROJECT = """
 ***Read only project***
@@ -207,7 +207,7 @@ class ProjectManager(Iterable):
 
     def _do_automatic_updates(self):
         """Run any available automatic updates"""
-        from .updates import Updates
+        from bw2data.updates import Updates
 
         for update_name in Updates.check_automatic_updates():
             print("Applying automatic update: {}".format(update_name))
@@ -303,7 +303,7 @@ class ProjectManager(Iterable):
         Reprocesses all databases and LCIA objects."""
         assert not self.twofive, "Project is already 2.5 compatible"
 
-        from .updates import Updates
+        from bw2data.updates import Updates
 
         Updates()._reprocess_all()
 
@@ -362,7 +362,7 @@ class ProjectManager(Iterable):
 
         Returns tuples of ``(project name, number of databases, size of all databases (GB))``.
         """
-        from . import databases
+        from bw2data import databases
 
         _current = self.current
         data = []

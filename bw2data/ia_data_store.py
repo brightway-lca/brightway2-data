@@ -3,7 +3,7 @@ import string
 
 from bw_processing import safe_filename
 
-from .data_store import ProcessedDataStore
+from bw2data.data_store import ProcessedDataStore
 
 
 def abbreviate(names, length=8):

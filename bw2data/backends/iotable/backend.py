@@ -1,17 +1,15 @@
 import datetime
 import functools
-import itertools
 
 import numpy as np
 import pandas as pd
 from bw_processing import clean_datapackage_name, create_datapackage
 from fsspec.implementations.zip import ZipFileSystem
-from tqdm import tqdm
 
-from ... import config, databases, geomapping
-from ...configuration import labels
-from .. import SQLiteBackend
-from .proxies import IOTableActivity, IOTableExchanges
+from bw2data import config, databases, geomapping
+from bw2data.configuration import labels
+from bw2data.backends import SQLiteBackend
+from bw2data.backends.iotable.proxies import IOTableActivity, IOTableExchanges
 
 
 class IOTableBackend(SQLiteBackend):
@@ -146,11 +144,11 @@ class IOTableBackend(SQLiteBackend):
         Returns a pandas ``DataFrame``.
 
         """
-        from ... import get_activity
+        from bw2data import get_node
 
         @functools.lru_cache(10000)
         def cached_lookup(id_):
-            return get_activity(id=id_)
+            return get_node(id=id_)
 
         print("Retrieving metadata")
         activities = {o.id: o for o in self}

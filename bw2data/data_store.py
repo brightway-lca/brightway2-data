@@ -8,9 +8,9 @@ from bw_processing import (
 )
 from fsspec.implementations.zip import ZipFileSystem
 
-from . import projects
-from .errors import MissingIntermediateData, UnknownObject
-from .fatomic import open as atomic_open
+from bw2data import projects
+from bw2data.errors import MissingIntermediateData, UnknownObject
+from bw2data.fatomic import open as atomic_open
 
 
 class DataStore:

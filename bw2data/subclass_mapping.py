@@ -1,6 +1,6 @@
-from .backends import Activity, SQLiteBackend
-from .backends.iotable import IOTableBackend
-from .backends.iotable.proxies import IOTableActivity
+from bw2data.backends import Activity, SQLiteBackend
+from bw2data.backends.iotable import IOTableBackend
+from bw2data.backends.iotable.proxies import IOTableActivity
 
 DATABASE_BACKEND_MAPPING = {"sqlite": SQLiteBackend, "iotable": IOTableBackend}
 

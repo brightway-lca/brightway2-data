@@ -3,11 +3,11 @@ import warnings
 
 import numpy as np
 
-from .. import config
-from ..configuration import labels
-from ..errors import InvalidExchange, UntypedExchange
-from ..meta import databases, methods
-from .schema import get_id
+from bw2data import config
+from bw2data.configuration import labels
+from bw2data.errors import InvalidExchange, UntypedExchange
+from bw2data.meta import databases, methods
+from bw2data.backends.schema import get_id
 
 
 def get_csv_data_dict(ds):
@@ -31,7 +31,7 @@ def convert_backend(database_name, backend):
     if database_name not in databases:
         print("Can't find database {}".format(database_name))
 
-    from ..database import Database
+    from bw2data.database import Database
 
     db = Database(database_name)
     if db.backend == backend:
@@ -88,7 +88,7 @@ def replace_cfs(old_key, new_key):
     """Replace ``old_key`` with ``new_key`` in characterization factors.
 
     Returns list of modified methods."""
-    from ..method import Method
+    from bw2data.method import Method
 
     altered_methods = []
     for name in methods:

@@ -10,7 +10,7 @@ import numpy as np
 from bw_processing import safe_filename
 from tqdm import tqdm
 
-from . import (
+from bw2data import (
     Database,
     Method,
     Normalization,
@@ -22,7 +22,7 @@ from . import (
     projects,
     weightings,
 )
-from .backends import sqlite3_lci_db
+from bw2data.backends import sqlite3_lci_db
 
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
