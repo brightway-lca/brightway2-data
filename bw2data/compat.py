@@ -2,7 +2,7 @@ from typing import Dict, List, Union
 
 from bw_processing.datapackage import DatapackageBase
 
-from . import (
+from bw2data import (
     Database,
     Method,
     Normalization,
@@ -14,9 +14,9 @@ from . import (
     projects,
     weightings,
 )
-from .backends.schema import ActivityDataset as AD
-from .backends.schema import get_id
-from .errors import Brightway2Project, UnknownObject
+from bw2data.backends.schema import ActivityDataset as AD
+from bw2data.backends.schema import get_id
+from bw2data.errors import Brightway2Project, UnknownObject
 
 
 class Mapping:

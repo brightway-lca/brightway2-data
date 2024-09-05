@@ -4,8 +4,8 @@ import logging
 import uuid
 from logging.handlers import RotatingFileHandler
 
-from . import config, projects
-from .utils import create_in_memory_zipfile_from_directory, random_string
+from bw2data import config, projects
+from bw2data.utils import create_in_memory_zipfile_from_directory, random_string
 
 try:
     import anyjson

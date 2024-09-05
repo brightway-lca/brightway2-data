@@ -6,10 +6,10 @@ from warnings import warn
 import numpy as np
 from bw_processing import Datapackage
 
-from ...configuration import labels
-from ...errors import InvalidDatapackage
-from ...utils import get_node
-from ..proxies import Activity, Exchange, Exchanges
+from bw2data.configuration import labels
+from bw2data.errors import InvalidDatapackage
+from bw2data.utils import get_node
+from bw2data.backends.proxies import Activity, Exchange, Exchanges
 
 
 class ReadOnlyExchange(Mapping):
@@ -259,7 +259,7 @@ class IOTableActivity(Activity):
         raise ValueError("Not defined for IO Table activities")
 
     def _get_correct_db_backend(self):
-        from ...database import DatabaseChooser
+        from bw2data.database import DatabaseChooser
 
         db = DatabaseChooser(self["database"])
         if db.backend != "iotable":

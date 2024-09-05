@@ -1,8 +1,8 @@
-from .backends.schema import get_id
-from .ia_data_store import ImpactAssessmentDataStore
-from .meta import normalizations, weightings
-from .utils import as_uncertainty_dict
-from .validate import normalization_validator, weighting_validator
+from bw2data.backends.schema import get_id
+from bw2data.ia_data_store import ImpactAssessmentDataStore
+from bw2data.meta import normalizations, weightings
+from bw2data.utils import as_uncertainty_dict
+from bw2data.validate import normalization_validator, weighting_validator
 
 
 class Weighting(ImpactAssessmentDataStore):

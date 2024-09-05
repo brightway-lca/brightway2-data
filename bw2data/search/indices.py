@@ -3,8 +3,8 @@ import warnings
 
 from playhouse.sqlite_ext import SqliteExtDatabase
 
-from .. import projects
-from .schema import BW2Schema
+from bw2data import projects
+from bw2data.search.schema import BW2Schema
 
 MODELS = (BW2Schema,)
 

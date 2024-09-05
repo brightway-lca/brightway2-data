@@ -5,20 +5,20 @@ from typing import Callable, List, Optional
 
 import pandas as pd
 
-from .. import databases, geomapping
-from ..configuration import labels
-from ..errors import ValidityError
-from ..proxies import ActivityProxyBase, ExchangeProxyBase
-from ..search import IndexManager
-from . import sqlite3_lci_db
-from .schema import ActivityDataset, ExchangeDataset
-from .typos import (
+from bw2data import databases, geomapping
+from bw2data.configuration import labels
+from bw2data.errors import ValidityError
+from bw2data.proxies import ActivityProxyBase, ExchangeProxyBase
+from bw2data.search import IndexManager
+from bw2data.backends import sqlite3_lci_db
+from bw2data.backends.schema import ActivityDataset, ExchangeDataset
+from bw2data.backends.typos import (
     check_activity_keys,
     check_activity_type,
     check_exchange_keys,
     check_exchange_type,
 )
-from .utils import dict_as_activitydataset, dict_as_exchangedataset
+from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
 
 
 class Exchanges(Iterable):
@@ -254,8 +254,8 @@ class Activity(ActivityProxyBase):
         return (self.get("database"), self.get("code"))
 
     def delete(self):
-        from .. import Database
-        from ..parameters import ActivityParameter, ParameterizedExchange
+        from bw2data import Database
+        from bw2data.parameters import ActivityParameter, ParameterizedExchange
 
         try:
             ap = ActivityParameter.get(database=self[0], code=self[1])
@@ -299,7 +299,7 @@ class Activity(ActivityProxyBase):
         >>> activity.save()
         Saves the activity if it's valid, otherwise raises ValidityError.
         """
-        from .. import Database
+        from bw2data import Database
 
         if not self.valid():
             raise ValidityError(
@@ -355,7 +355,7 @@ class Activity(ActivityProxyBase):
             ).execute()
 
         if databases[self["database"]].get("searchable"):
-            from .. import Database
+            from bw2data import Database
 
             IndexManager(Database(self["database"]).filename).delete_dataset(self)
             self._data["code"] = new_code
@@ -385,7 +385,7 @@ class Activity(ActivityProxyBase):
             ).execute()
 
         if databases[self["database"]].get("searchable"):
-            from .. import Database
+            from bw2data import Database
 
             IndexManager(Database(self["database"]).filename).delete_dataset(self)
             self._data["database"] = new_database
@@ -533,7 +533,7 @@ class Exchange(ExchangeProxyBase):
         self._document.save()
 
     def delete(self):
-        from ..parameters import ParameterizedExchange
+        from bw2data.parameters import ParameterizedExchange
 
         ParameterizedExchange.delete().where(
             ParameterizedExchange.exchange == self._document.id

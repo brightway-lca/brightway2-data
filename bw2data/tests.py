@@ -8,9 +8,9 @@ from pathlib import Path
 
 import wrapt
 
-from . import config, databases, geomapping, methods
-from .parameters import parameters
-from .project import projects
+from bw2data import config, databases, geomapping, methods
+from bw2data.parameters import parameters
+from bw2data.project import projects
 
 
 class BW2DataTest(unittest.TestCase):

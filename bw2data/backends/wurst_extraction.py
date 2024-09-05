@@ -2,9 +2,9 @@ import copy
 
 from tqdm import tqdm
 
-from ..configuration import labels
-from ..database import DatabaseChooser
-from . import ActivityDataset, ExchangeDataset, SQLiteBackend
+from bw2data.configuration import labels
+from bw2data.database import DatabaseChooser
+from bw2data.backends import ActivityDataset, ExchangeDataset, SQLiteBackend
 
 
 def _list_or_dict(obj):

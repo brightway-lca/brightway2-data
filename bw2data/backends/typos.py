@@ -2,7 +2,7 @@ import warnings
 from functools import partial
 from typing import Iterable
 
-from ..configuration import typo_settings
+from bw2data.configuration import typo_settings
 
 try:
     from rapidfuzz.distance import DamerauLevenshtein
@@ -13,7 +13,7 @@ except ImportError:
     # https://github.com/rapidfuzz/RapidFuzz/tree/main?tab=readme-ov-file#with-pip
     # Rapidfuzz is not currently available on Emscripten
     # https://github.com/brightway-lca/brightway-live/issues/59
-    from ..string_distance import damerau_levenshtein
+    from bw2data.string_distance import damerau_levenshtein
 
 
 def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:

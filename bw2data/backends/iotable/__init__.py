@@ -1,1 +1,1 @@
-from .backend import IOTableBackend
+from bw2data.backends.iotable.backend import IOTableBackend

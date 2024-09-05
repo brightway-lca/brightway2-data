@@ -1,9 +1,9 @@
-from . import config, geomapping, methods
-from .backends.schema import get_id
-from .errors import UnknownObject
-from .ia_data_store import ImpactAssessmentDataStore
-from .utils import as_uncertainty_dict, get_geocollection
-from .validate import ia_validator
+from bw2data import config, geomapping, methods
+from bw2data.backends.schema import get_id
+from bw2data.errors import UnknownObject
+from bw2data.ia_data_store import ImpactAssessmentDataStore
+from bw2data.utils import as_uncertainty_dict, get_geocollection
+from bw2data.validate import ia_validator
 
 
 class Method(ImpactAssessmentDataStore):

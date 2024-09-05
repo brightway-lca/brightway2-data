@@ -1,5 +1,5 @@
-from . import databases
-from .data_store import ProcessedDataStore
+from bw2data import databases
+from bw2data.data_store import ProcessedDataStore
 
 
 def DatabaseChooser(name: str, backend: str = "sqlite") -> ProcessedDataStore:
@@ -8,7 +8,7 @@ def DatabaseChooser(name: str, backend: str = "sqlite") -> ProcessedDataStore:
     Database types are specified in `databases[database_name]['backend']`.
 
     """
-    from .subclass_mapping import DATABASE_BACKEND_MAPPING
+    from bw2data.subclass_mapping import DATABASE_BACKEND_MAPPING
 
     if name in databases:
         backend = databases[name].get("backend") or backend

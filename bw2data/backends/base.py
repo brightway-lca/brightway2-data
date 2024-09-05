@@ -15,29 +15,29 @@ from fsspec.implementations.zip import ZipFileSystem
 from peewee import JOIN, DoesNotExist, fn
 from tqdm import tqdm
 
-from .. import config, databases, geomapping
-from ..configuration import labels
-from ..data_store import ProcessedDataStore
-from ..errors import (
+from bw2data import config, databases, geomapping
+from bw2data.configuration import labels
+from bw2data.data_store import ProcessedDataStore
+from bw2data.errors import (
     DuplicateNode,
     InvalidExchange,
     UnknownObject,
     UntypedExchange,
     WrongDatabase,
 )
-from ..query import Query
-from ..search import IndexManager, Searcher
-from ..utils import as_uncertainty_dict, get_geocollection, get_node
-from . import sqlite3_lci_db
-from .proxies import Activity
-from .schema import ActivityDataset, ExchangeDataset, get_id
-from .typos import (
+from bw2data.query import Query
+from bw2data.search import IndexManager, Searcher
+from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node
+from bw2data.backends import sqlite3_lci_db
+from bw2data.backends.proxies import Activity
+from bw2data.backends.schema import ActivityDataset, ExchangeDataset, get_id
+from bw2data.backends.typos import (
     check_activity_keys,
     check_activity_type,
     check_exchange_keys,
     check_exchange_type,
 )
-from .utils import (
+from bw2data.backends.utils import (
     check_exchange,
     dict_as_activitydataset,
     dict_as_exchangedataset,
@@ -757,7 +757,7 @@ Here are the type values usually used for nodes:
         IndexManager(self.filename).delete_database()
 
         if not keep_params:
-            from ..parameters import (
+            from bw2data.parameters import (
                 ActivityParameter,
                 DatabaseParameter,
                 ParameterizedExchange,
@@ -1096,7 +1096,7 @@ Here are the type values usually used for nodes:
         Returns a pandas ``DataFrame``.
 
         """
-        from .wurst_extraction import extract_brightway_databases
+        from bw2data.backends.wurst_extraction import extract_brightway_databases
 
         result = []
 

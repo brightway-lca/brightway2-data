@@ -13,9 +13,9 @@ from pathlib import Path
 
 import stats_arrays as sa
 
-from .configuration import labels
-from .errors import MultipleResults, NotFound, UnknownObject, ValidityError
-from .fatomic import open
+from bw2data.configuration import labels
+from bw2data.errors import MultipleResults, NotFound, UnknownObject, ValidityError
+from bw2data.fatomic import open
 
 DOWNLOAD_URL = "https://brightway.dev/data/"
 
@@ -62,7 +62,7 @@ def combine_methods(name, *ms):
         The new Method instance.
 
     """
-    from . import Method, methods
+    from bw2data import Method, methods
 
     data = {}
     units = set([methods[tuple(x)]["unit"] for x in ms])
@@ -223,14 +223,14 @@ def merge_databases(parent_db, other):
     ``parent_db`` and ``other`` should be the names of databases.
 
     Doesn't return anything."""
-    from . import databases
-    from .backends import (
+    from bw2data import databases
+    from bw2data.backends import (
         ActivityDataset,
         ExchangeDataset,
         SQLiteBackend,
         sqlite3_lci_db,
     )
-    from .database import Database
+    from bw2data.database import Database
 
     assert parent_db in databases
     assert other in databases
@@ -283,7 +283,7 @@ def download_file(filename, directory="downloads", url=None):
         The path of the created file.
 
     """
-    from . import projects
+    from bw2data import projects
 
     assert isinstance(directory, str), "`directory` must be a string"
     dirpath = projects.request_directory(directory)
@@ -321,26 +321,10 @@ def set_data_dir(dirpath, permanent=True):
 
 
 def switch_data_directory(dirpath):
-    from .projects import ProjectDataset, SubstitutableDatabase
-
-    if dirpath == bw.projects._base_data_dir:
-        print("dirpath already loaded")
-        return
-    try:
-        assert os.path.isdir(dirpath)
-        bw.projects._base_data_dir = dirpath
-        bw.projects._base_logs_dir = os.path.join(dirpath, "logs")
-        # create folder if it does not yet exist
-        if not os.path.isdir(bw.projects._base_logs_dir):
-            os.mkdir(bw.projects._base_logs_dir)
-        # load new brightway directory
-        bw.projects.db = SubstitutableDatabase(
-            os.path.join(bw.projects._base_data_dir, "projects.db"), [ProjectDataset]
-        )
-        print("Loaded brightway2 data directory: {}".format(bw.projects._base_data_dir))
-
-    except AssertionError:
-        print('Could not access directory specified "dirpath"')
+    warnings.warn(
+        "`switch_data_directory` is deprecated; use `projects.change_base_directories`.",
+        DeprecationWarning,
+    )
 
 
 def create_in_memory_zipfile_from_directory(path):
@@ -360,9 +344,9 @@ def create_in_memory_zipfile_from_directory(path):
 
 
 def get_node(**kwargs):
-    from . import databases
-    from .backends import ActivityDataset as AD
-    from .subclass_mapping import NODE_PROCESS_CLASS_MAPPING
+    from bw2data import databases
+    from bw2data.backends import ActivityDataset as AD
+    from bw2data.subclass_mapping import NODE_PROCESS_CLASS_MAPPING
 
     def node_class(database_name):
         return NODE_PROCESS_CLASS_MAPPING[
@@ -416,7 +400,7 @@ def get_activity(key=None, **kwargs):
     """Support multiple ways to get exactly one activity node.
 
     ``key`` can be an integer or a key tuple."""
-    from .backends import Activity
+    from bw2data.backends import Activity
 
     # Includes subclasses
     if isinstance(key, Activity):

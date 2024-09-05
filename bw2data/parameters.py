@@ -17,9 +17,9 @@ from peewee import (
     TextField,
 )
 
-from . import config, databases, get_activity, projects
-from .backends.schema import ExchangeDataset
-from .sqlite import PickleField, SubstitutableDatabase
+from bw2data import config, databases, get_activity, projects
+from bw2data.backends.schema import ExchangeDataset
+from bw2data.sqlite import PickleField, SubstitutableDatabase
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
 clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)

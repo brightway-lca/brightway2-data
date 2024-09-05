@@ -2,7 +2,7 @@ from itertools import groupby
 
 import peewee
 
-from .indices import IndexManager
+from bw2data.search.indices import IndexManager
 
 
 def keysplit(strng):
@@ -41,7 +41,7 @@ class Searcher:
         mask=None,
         node_class=None,
     ):
-        from .. import get_activity
+        from bw2data import get_node
 
         lowercase = lambda x: x.lower() if hasattr(x, "lower") else x
         string = lowercase(string)
@@ -74,8 +74,8 @@ class Searcher:
         if proxy and facet is not None:
             return {
                 key: [
-                    get_activity(
-                        key=(obj["database"], obj["code"]), node_class=node_class
+                    get_node(
+                        database=obj["database"], code=obj["code"], node_class=node_class
                     )
                     for obj in value
                 ]
@@ -83,7 +83,7 @@ class Searcher:
             }
         elif proxy:
             return [
-                get_activity(key=(obj["database"], obj["code"]), node_class=node_class)
+                get_node(database=obj["database"], code=obj["code"], node_class=node_class)
                 for obj in results
             ]
         else:

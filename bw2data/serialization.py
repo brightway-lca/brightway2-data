@@ -5,10 +5,10 @@ import random
 from collections.abc import MutableMapping
 from time import time
 
-from . import projects
-from .errors import PickleError
-from .fatomic import open as atomic_open
-from .utils import maybe_path
+from bw2data import projects
+from bw2data.errors import PickleError
+from bw2data.fatomic import open as atomic_open
+from bw2data.utils import maybe_path
 
 try:
     import anyjson
