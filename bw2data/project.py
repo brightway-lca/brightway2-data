@@ -2,6 +2,7 @@ import os
 import shutil
 import warnings
 from collections.abc import Iterable
+from copy import copy
 from pathlib import Path
 from typing import Optional
 
@@ -382,6 +383,20 @@ class ProjectManager(Iterable):
             data.append((obj, len(databases), get_dir_size(projects.dir) / 1e9))
         self.set_current(_current)
         return data
+
+    def rename_project(self, new_name: str) -> None:
+        """Rename current project, and switch to the new project."""
+        from bw2data import databases
+
+        if new_name in databases:
+            raise ValueError(f"Project `{new_name}` already exists.")
+
+        warnings.warn("Renaming current project; this is relatively expensive and could take a little while.")
+
+        old_name = copy(self.current)
+        self.copy_project(new_name)
+        self.set_current(new_name)
+        self.delete_project(old_name, delete_dir=True)
 
     def use_short_hash(self):
         if not self.dataset.full_hash:
