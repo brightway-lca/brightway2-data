@@ -25,9 +25,9 @@ class Method(ImpactAssessmentDataStore):
             )])
 
     where:
-        * *valid_tuple* (tuple): A dataset identifier, like ``("biosphere", "CO2")``.
-        * *maybe_uncertainty* (uncertainty dict or number): Either a number or an uncertainty dictionary.
-        * *object* (object, optional) is a location identifier, used only for regionalized LCIA.
+        - *valid_tuple* (tuple): A dataset identifier, like ``("biosphere", "CO2")``.
+        - *maybe_uncertainty* (uncertainty dict or number): Either a number or an uncertainty dictionary.
+        - *object* (object, optional) is a location identifier, used only for regionalized LCIA.
 
     Args:
         * *name* (tuple): Name of impact assessment method to manage.

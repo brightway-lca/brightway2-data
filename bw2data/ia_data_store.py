@@ -12,10 +12,10 @@ def abbreviate(names, length=8):
     First, apply :func:`.filesystem.safe_filename` to each element in ``names``.
 
     Next, take the following, in order:
-        * The first word of the first element in names, lower-cased, where word is defined as everything up to the first empty space character.
-        * Join the rest of the first element (i.e. after the first word) with all other elements. Use the empty space character to join.
-        * In this long string separated by spaces, take the lowercase first character of each word. Add the first word to this new string.
-        * Finally, add a dash, and then the MD5 hash of the entire identifier, where each element is joined by a dash character.
+        - The first word of the first element in names, lower-cased, where word is defined as everything up to the first empty space character.
+        - Join the rest of the first element (i.e. after the first word) with all other elements. Use the empty space character to join.
+        - In this long string separated by spaces, take the lowercase first character of each word. Add the first word to this new string.
+        - Finally, add a dash, and then the MD5 hash of the entire identifier, where each element is joined by a dash character.
 
     ``('ReCiPe Endpoint (E,A)', 'human health', 'ionising radiation')`` becomes ``'recipee(hhir-70eeef20a20deb6347ad428e3f6c5f3c'``.
 
@@ -39,7 +39,7 @@ class ImpactAssessmentDataStore(ProcessedDataStore):
     Because impact assessment methods are identified by a tuple of strings, e.g. ``('ReCiPe Endpoint (E,A)', 'human health', 'ionising radiation')``, we need to transform this identifier before it can be used e.g. as a filename. We do this using the :func:`.abbreviate` function, which returns a single unicode string.
 
     Args:
-        * *name* (tuple): Name of the IA object to manage. Must be a tuple of unicode strings.
+        - *name* (tuple): Name of the IA object to manage. Must be a tuple of unicode strings.
 
     """
 
@@ -57,7 +57,7 @@ class ImpactAssessmentDataStore(ProcessedDataStore):
         If ``name`` is not provided, add "Copy of" to the last element of the original name, e.g. ``("foo", "bar")`` becomes ``("foo", "Copy of bar")``
 
         Args:
-            * *name* (tuple, optional): Name of the new method.
+            - *name* (tuple, optional): Name of the new method.
 
         Returns:
             The new object.
@@ -102,7 +102,7 @@ class ImpactAssessmentDataStore(ProcessedDataStore):
 
         Parameters
         ----------
-        **extra_metadata
+        extra_metadata
             Additional metadata to be included during processing.
 
         Notes

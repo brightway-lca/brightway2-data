@@ -114,11 +114,10 @@ class ProjectParameter(ParameterBase):
     """Parameter set for a project. Group name is 'project'.
 
     Columns:
-
-        * name: str, unique
-        * formula: str, optional
-        * amount: float, optional
-        * data: object, optional. Used for any other metadata.
+        - name: str, unique
+        - formula: str, optional
+        - amount: float, optional
+        - data: object, optional. Used for any other metadata.
 
     Note that there is no magic for reading and writing to ``data`` (unlike ``Activity`` objects) - it must be used directly.
 
@@ -561,13 +560,13 @@ class ActivityParameter(ParameterBase):
 
     Columns:
 
-        * group: str
-        * database: str
-        * code: str. Code and database define the linked activity for this parameter.
-        * name: str, unique within a group
-        * formula: str, optional
-        * amount: float, optional
-        * data: object, optional. Used for any other metadata.
+        - group: str
+        - database: str
+        - code: str. Code and database define the linked activity for this parameter.
+        - name: str, unique within a group
+        - formula: str, optional
+        - amount: float, optional
+        - data: object, optional. Used for any other metadata.
 
     Activities can only have parameters in one group. Group names cannot be 'project' or the name of any existing database.
 

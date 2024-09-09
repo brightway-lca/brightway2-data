@@ -295,8 +295,9 @@ class Activity(ActivityProxyBase):
         - Updates the index if the database is searchable.
 
         Examples
-        -------
+        --------
         >>> activity.save()
+
         Saves the activity if it's valid, otherwise raises ValidityError.
         """
         from bw2data import Database
