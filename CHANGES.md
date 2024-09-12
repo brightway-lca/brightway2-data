@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.0.DEV53 (2024-09-12)
+
+* Add additional labels
+
 ## 4.0.DEV52 (2024-09-02)
 
 * Remove duplicate attr setting in `new_node`
