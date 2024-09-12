@@ -6,14 +6,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MatrixLabels(BaseSettings):
-    process_node_default: str = "process"
-    biosphere_node_default: str = "emission"
-    production_edge_default: str = "production"
-    consumption_edge_default: str = "technosphere"
-    biosphere_edge_default: str = "biosphere"
+    node_types: List[Union[str, None]] = ["process", "product", "processwithreferenceproduct", "multifunctional", None]
+    process_node_types: List[Union[str, None]] = ["process", "processwithreferenceproduct", None]
+    product_node_types: List[str] = ["product"]
 
-    process_node_types: List[Union[str, None]] = ["process", None]
-    node_types: List[Union[str, None]] = ["process", "product", "multifunctional", None]
+    process_node_default: str = "process"
+    multifunctional_node_default: str = "multifunctional"
+    chimaera_node_default: str = "processwithreferenceproduct"
+    product_node_default: str = "product"
+    biosphere_node_default: str = "emission"
 
     biosphere_edge_types: List[str] = ["biosphere"]
     technosphere_negative_edge_types: List[str] = [
@@ -25,7 +26,13 @@ class MatrixLabels(BaseSettings):
         "generic production",
         "substitution",
     ]
+    # You should normally use `technosphere_positive_edge_types`, as it includes substitution
     substitution_edge_types: List[str] = ["substitution"]
+
+    production_edge_default: str = "production"
+    consumption_edge_default: str = "technosphere"
+    biosphere_edge_default: str = "biosphere"
+    substitution_edge_default: str = "substitution"
 
     @property
     def edge_types(self):
@@ -50,8 +57,10 @@ class TypoSettings(BaseSettings):
         "economic",
         "emission",
         "inventory indicator",
+        "multifunctional",
         "natural resource",
         "process",
+        "processwithreferenceproduct",
         "product",
     ]
     edge_types: List[str] = [
