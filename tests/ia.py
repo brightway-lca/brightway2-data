@@ -368,3 +368,30 @@ def test_method_iteration(testy):
         (get_node(code="A"), 1),
         (get_node(code="B"), 1)
     ]
+
+
+def test_method_write_with_nodes():
+    database = DatabaseChooser("testy")
+    data = {
+        ("testy", "A"): {},
+        ("testy", "B"): {
+            "exchanges": [
+                {"input": ("testy", "A"), "amount": 1, "type": "technosphere"},
+            ]
+        },
+    }
+    database.write(data)
+
+    method_data = [
+        (get_node(code="A"), 1),
+        (get_node(code="B"), 1)
+    ]
+    name = ("a", "method")
+    method = Method(name)
+    method.write(method_data)
+    assert methods[name]["num_cfs"] == 2
+
+    assert list(method) == [
+        (get_node(code="A"), 1),
+        (get_node(code="B"), 1)
+    ]
