@@ -359,6 +359,11 @@ def testy():
     return method
 
 
+def test_method_write_tuple_get_int(testy):
+    for line in testy.load():
+        assert isinstance(line[0], int)
+
+
 def test_method_iteration(testy):
     for line in testy:
         assert isinstance(line[0], Activity)

@@ -4,7 +4,6 @@ import stats_arrays as sa
 
 from bw2data import Database, Method, methods
 from bw2data.backends import Activity as PWActivity
-from bw2data.backends.schema import ActivityDataset as AD
 from bw2data.errors import MultipleResults, UnknownObject, ValidityError
 from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
@@ -37,15 +36,15 @@ class UtilsTest(BW2DataTest):
         d.write(biosphere)
         m1 = Method(("test method 1",))
         m1.register(unit="p")
-        m1.write([(("biosphere", 1), 1, "GLO"), (("biosphere", 2), 2, "GLO")])
+        m1.write([(("biosphere", "1"), 1, "GLO"), (("biosphere", "2"), 2, "GLO")])
         m2 = Method(("test method 2",))
         m2.register(unit="p")
-        m2.write([(("biosphere", 2), 10, "GLO")])
+        m2.write([(("biosphere", "2"), 10, "GLO")])
         combine_methods(("test method 3",), ("test method 1",), ("test method 2",))
         cm = Method(("test method 3",))
         self.assertEqual(
             sorted(cm.load()),
-            [(("biosphere", 1), 1, "GLO"), (("biosphere", 2), 12, "GLO")],
+            [(get_node(code="1").id, 1, "GLO"), (get_node(code="2").id, 12, "GLO")],
         )
         self.assertEqual(methods[["test method 3"]]["unit"], "p")
 

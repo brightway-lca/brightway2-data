@@ -10,6 +10,7 @@ import warnings
 import zipfile
 from io import StringIO
 from pathlib import Path
+from typing import List
 
 import stats_arrays as sa
 
@@ -51,7 +52,7 @@ def random_string(length=8):
     )
 
 
-def combine_methods(name, *ms):
+def combine_methods(name: tuple, *ms: List[tuple]) -> "bw2data.method.Method":
     """Combine LCIA methods by adding duplicate characterization factors.
 
     Args:
@@ -64,17 +65,29 @@ def combine_methods(name, *ms):
     """
     from bw2data import Method, methods
 
-    data = {}
-    units = set([methods[tuple(x)]["unit"] for x in ms])
-    for m in ms:
-        for key, cf, geo in Method(m).load():
-            data[(key, geo)] = data.get((key, geo), 0) + cf
+    for input_method in ms:
+        if input_method not in methods:
+            raise KeyError(f"Input method {input_method} not registered.")
+
+    data = collections.defaultdict(float)
+    units = set([methods[x]["unit"] for x in ms])
+    if len(units) != 1:
+        raise ValueError(f"Can't combine LCIA methods with incompatible units: {units}")
+
+    for input_method in ms:
+        for line in Method(input_method):
+            if len(line) == 3:
+                id_, cf, geo = line
+            else:
+                id_, cf = line
+                geo = None
+            data[(id_, geo)] += cf
     meta = {
         "description": "Combination of the following methods: "
         + ", ".join([str(x) for x in ms]),
-        "unit": list(units)[0] if len(units) == 1 else "Unknown",
+        "unit": units.pop(),
     }
-    data = [(key, cf, geo) for (key, geo), cf in data.items()]
+    data = [(id_, cf, geo) for (id_, geo), cf in data.items()]
     method = Method(name)
     method.register(**meta)
     method.write(data)
