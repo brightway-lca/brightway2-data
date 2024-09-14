@@ -332,3 +332,39 @@ def test_method_pass_id_processed_array(reset):
     indices = package.get_resource("a_method_matrix_data.indices")[0]
     assert np.allclose(indices["row"], node.id)
     assert np.allclose(indices["col"], geomapping[config.global_location])
+
+
+@pytest.fixture
+@bw2test
+def testy():
+    database = DatabaseChooser("testy")
+    data = {
+        ("testy", "A"): {},
+        ("testy", "B"): {
+            "exchanges": [
+                {"input": ("testy", "A"), "amount": 1, "type": "technosphere"},
+            ]
+        },
+    }
+    database.write(data)
+
+    method_data = [
+        [("testy", "A"), 1],
+        [("testy", "B"), 1],
+    ]
+    name = ("a", "method")
+    method = Method(name)
+    method.write(method_data)
+    assert methods[name]["num_cfs"] == 2
+    return method
+
+
+def test_method_iteration(testy):
+    for line in testy:
+        assert isinstance(line[0], Activity)
+        assert isinstance(line[1], int)
+
+    assert list(testy) == [
+        (get_node(code="A"), 1),
+        (get_node(code="B"), 1)
+    ]

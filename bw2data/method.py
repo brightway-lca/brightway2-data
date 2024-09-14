@@ -1,8 +1,11 @@
+from typing import Iterable
+
 from bw2data import config, geomapping, methods
+from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import get_id
 from bw2data.errors import UnknownObject
 from bw2data.ia_data_store import ImpactAssessmentDataStore
-from bw2data.utils import as_uncertainty_dict, get_geocollection
+from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node
 from bw2data.validate import ia_validator
 
 
@@ -37,6 +40,20 @@ class Method(ImpactAssessmentDataStore):
     _metadata = methods
     validator = ia_validator
     matrix = "characterization_matrix"
+
+    def __iter__(self):
+        """Iterate over characterization factors and return `Node` instances with CFs and geo ids"""
+        data = self.load()
+        for line in data:
+            if isinstance(line[0], tuple):
+                node = get_node(key=line[0])
+                yield (node, *line[1:])
+            elif isinstance(line[0], int):
+                node = get_node(id=line[0])
+                yield (node, *line[1:])
+            else:
+                # Our `.write()` function won't allow this, but our users are creative
+                raise ValueError(f"Can't understand elementary flow identifier {line[0]} in line {line}")
 
     def add_geomappings(self, data):
         geomapping.add({x[2] for x in data if len(x) == 3})
@@ -83,6 +100,19 @@ class Method(ImpactAssessmentDataStore):
             self.register()
         self.metadata["num_cfs"] = len(data)
 
+        def normalize_ids(line: Iterable) -> tuple:
+            if isinstance(line[0], Activity):
+                return (line[0].id, *line[1:])
+            elif isinstance(line[0], tuple):
+                return (get_node(key=line[0]).id, *line[1:])
+            elif not isinstance(line[0], int):
+                raise ValueError(
+                    f"Can't understand elementary flow identifier {line[0]} in data line {line}"
+                )
+            else:
+                return tuple(line)
+
+        data = [normalize_ids(line) for line in data]
         third = lambda x: x[2] if len(x) == 3 else None
 
         geocollections = {
