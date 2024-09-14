@@ -213,6 +213,19 @@ def test_get_node_normal():
 
 
 @bw2test
+def test_get_node_key():
+    Database("biosphere").write(biosphere)
+    node = get_node(key=("biosphere", "2"))
+    assert node['name'] == "another emission"
+    assert isinstance(node, PWActivity)
+
+    with pytest.raises(ValueError):
+        get_node(key=["biosphere", "2"])
+    with pytest.raises(ValueError):
+        get_node(key="2")
+
+
+@bw2test
 def test_get_node_multiple_filters():
     Database("biosphere").write(biosphere)
     node = get_node(name="an emission", type="emission")

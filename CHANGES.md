@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## DEV
+
+* Allow `get_node(key=(<some tuple))`
+
 ## 4.0.DEV53 (2024-09-12)
 
 * Add additional labels

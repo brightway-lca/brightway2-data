@@ -353,6 +353,12 @@ def get_node(**kwargs):
             databases[database_name].get("backend", "sqlite")
         ]
 
+    if "key" in kwargs:
+        if not isinstance(kwargs["key"], tuple):
+            raise ValueError("`key` must be a tuple")
+        kwargs.update({"code": kwargs["key"][1], "database": kwargs["key"][0]})
+        del kwargs["key"]
+
     mapping = {
         "id": AD.id,
         "code": AD.code,
