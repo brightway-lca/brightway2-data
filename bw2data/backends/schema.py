@@ -29,6 +29,10 @@ class ExchangeDataset(Model):
 
 def get_id(key):
     if isinstance(key, int):
+        try:
+            ActivityDataset.get(ActivityDataset.id == key)
+        except DoesNotExist:
+            raise UnknownObject
         return key
     else:
         try:

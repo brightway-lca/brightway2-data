@@ -8,6 +8,7 @@ from fsspec.implementations.zip import ZipFileSystem
 
 from bw2data import config, get_id, get_node
 from bw2data.backends.schema import ActivityDataset as AD
+from bw2data.backends import Activity
 from bw2data.database import DatabaseChooser
 from bw2data.errors import UnknownObject
 from bw2data.ia_data_store import ImpactAssessmentDataStore as IADS
@@ -270,6 +271,13 @@ def test_normalization_process_row(reset):
 
 @bw2test
 def test_method_geocollection():
+    database = DatabaseChooser("foo")
+    database.write({
+        ("foo", "1"): {},
+        ("foo", "2"): {},
+        ("foo", "3"): {},
+    })
+
     m = Method(("foo",))
     m.write([(1, 2, "RU"), (3, 4, ("foo", "bar"))])
     assert m.metadata["geocollections"] == ["foo", "world"]
@@ -277,11 +285,18 @@ def test_method_geocollection():
 
 @bw2test
 def test_method_geocollection_missing_ok():
+    database = DatabaseChooser("foo")
+    database.write({
+        ("foo", "1"): {},
+        ("foo", "2"): {},
+        ("foo", "3"): {},
+    })
+
     m = Method(("foo",))
     m.write(
         [
             (1, 2, None),
-            (1, 2),
+            (3, 4),
         ]
     )
     assert m.metadata["geocollections"] == ["world"]
@@ -289,6 +304,11 @@ def test_method_geocollection_missing_ok():
 
 @bw2test
 def test_method_geocollection_warning():
+    database = DatabaseChooser("foo")
+    database.write({
+        ("foo", "1"): {},
+    })
+
     m = Method(("foo",))
     m.write(
         [

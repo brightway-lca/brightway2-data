@@ -3,6 +3,7 @@
 ## DEV
 
 * Allow `get_node(key=(<some tuple))`
+* Raise `UnknownObject` when writing LCIA methods referring to non-existent flows
 
 ## 4.0.DEV53 (2024-09-12)
 
