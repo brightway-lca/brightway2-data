@@ -6,6 +6,8 @@ __all__ = (
     "ParameterizedExchange",
     "parameters",
     "ProjectParameter",
+    "ParameterBase",
+    "ParameterManager",    
 )
 
 import datetime
