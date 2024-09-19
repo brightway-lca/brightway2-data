@@ -123,7 +123,6 @@ class Method(ImpactAssessmentDataStore):
             geocollections.discard(None)
 
         self.metadata["geocollections"] = sorted(geocollections)
-        self._metadata.flush()
         super(Method, self).write(data, process=process)
 
     def process(self, **extra_metadata):
