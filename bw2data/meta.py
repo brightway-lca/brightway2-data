@@ -1,4 +1,5 @@
 import datetime
+import warnings
 
 from bw2data.serialization import CompoundJSONDict, PickledDict, SerializedDict
 
@@ -100,10 +101,19 @@ class Databases(SerializedDict):
     def __delitem__(self, name):
         from bw2data import Database
 
+        if name not in self:
+            raise KeyError
+
         try:
             Database(name).delete(warn=False)
         except:
-            pass
+            warnings.warn(
+                """
+Deletion unsuccessful due to database error.
+Metadata state is unchanged, but database state is unknown.
+            """
+            )
+            return
 
         super(Databases, self).__delitem__(name)
 
