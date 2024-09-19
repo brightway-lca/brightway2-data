@@ -238,9 +238,7 @@ def test_delete_activity_parameters():
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    a.new_exchange(
-        amount=0, input=b, type="technosphere", formula="foo * bar + 4"
-    ).save()
+    a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4").save()
 
     activity_data = [
         {
@@ -512,9 +510,7 @@ def test_warning_on_type_typo():
     database = DatabaseChooser("a database")
     database.register()
 
-    expected = (
-        "Possible typo found: Given activity type `prcess` but `process` is more common"
-    )
+    expected = "Possible typo found: Given activity type `prcess` but `process` is more common"
     with pytest.warns(UserWarning, match=expected):
         database.new_node(code="foo", name="bar", type="prcess", exchanges=[]).save()
 
@@ -529,16 +525,10 @@ def test_warning_on_key_typo():
     database = DatabaseChooser("a database")
     database.register()
 
-    expected = (
-        "Possible incorrect activity key found: Given `nme` but `name` is more common"
-    )
+    expected = "Possible incorrect activity key found: Given `nme` but `name` is more common"
     with pytest.warns(UserWarning, match=expected):
-        database.new_node(
-            code="foo", name="s", nme="bar", type="process", exchanges=[]
-        ).save()
+        database.new_node(code="foo", name="s", nme="bar", type="process", exchanges=[]).save()
 
     expected = "Possible incorrect activity key found: Given `reference_product` but `reference product` is more common"
     with pytest.warns(UserWarning, match=expected):
-        database.new_node(
-            code="fooz", name="barz", reference_product="candy", exchanges=[]
-        ).save()
+        database.new_node(code="fooz", name="barz", reference_product="candy", exchanges=[]).save()

@@ -215,7 +215,7 @@ def test_get_node_normal():
 def test_get_node_key():
     Database("biosphere").write(biosphere)
     node = get_node(key=("biosphere", "2"))
-    assert node['name'] == "another emission"
+    assert node["name"] == "another emission"
     assert isinstance(node, PWActivity)
 
     with pytest.raises(ValueError):

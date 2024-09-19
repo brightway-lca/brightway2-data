@@ -2,9 +2,9 @@ import copy
 
 from tqdm import tqdm
 
+from bw2data.backends import ActivityDataset, ExchangeDataset, SQLiteBackend
 from bw2data.configuration import labels
 from bw2data.database import DatabaseChooser
-from bw2data.backends import ActivityDataset, ExchangeDataset, SQLiteBackend
 
 
 def _list_or_dict(obj):
@@ -33,8 +33,7 @@ def extract_activity(proxy, add_identifiers=False):
         "unit": proxy.data.get("unit", ""),
         "exchanges": [],
         "parameters": {
-            obj["name"]: obj["amount"]
-            for obj in _list_or_dict(proxy.data.get("parameters", []))
+            obj["name"]: obj["amount"] for obj in _list_or_dict(proxy.data.get("parameters", []))
         },
         "parameters full": list(_list_or_dict(proxy.data.get("parameters", []))),
     }
@@ -139,9 +138,7 @@ def add_input_info_for_external_exchanges(activities, names, add_identifiers=Fal
                 exc["categories"] = obj.data.get("categories")
 
 
-def extract_brightway_databases(
-    database_names, add_properties=False, add_identifiers=False
-):
+def extract_brightway_databases(database_names, add_properties=False, add_identifiers=False):
     """Extract a Brightway2 SQLiteBackend database to the Wurst internal format.
 
     ``database_names`` is a list of database names. You should already be in the correct project.
@@ -158,18 +155,12 @@ def extract_brightway_databases(
 
     # Construct generators for both activities and exchanges
     # Need to be clever to minimize copying and memory use
-    activity_qs = ActivityDataset.select().where(
-        ActivityDataset.database << database_names
-    )
-    exchange_qs = ExchangeDataset.select().where(
-        ExchangeDataset.output_database << database_names
-    )
+    activity_qs = ActivityDataset.select().where(ActivityDataset.database << database_names)
+    exchange_qs = ExchangeDataset.select().where(ExchangeDataset.output_database << database_names)
 
     # Retrieve all activity data
     print("Getting activity data")
-    activities = [
-        extract_activity(o, add_identifiers=add_identifiers) for o in tqdm(activity_qs)
-    ]
+    activities = [extract_activity(o, add_identifiers=add_identifiers) for o in tqdm(activity_qs)]
     # Add each exchange to the activity list of exchanges
     print("Adding exchange data to activities")
     add_exchanges_to_consumers(activities, exchange_qs, add_properties)

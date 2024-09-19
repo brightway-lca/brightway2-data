@@ -36,9 +36,7 @@ class DataStore:
 
     def _get_metadata(self):
         if self.name not in self._metadata:
-            raise UnknownObject(
-                "This object is not yet registered; can't get or set metadata"
-            )
+            raise UnknownObject("This object is not yet registered; can't get or set metadata")
         return self._metadata[self.name]
 
     def _set_metadata(self, value):

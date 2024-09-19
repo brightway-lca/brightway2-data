@@ -16,18 +16,6 @@ from peewee import JOIN, DoesNotExist, fn
 from tqdm import tqdm
 
 from bw2data import config, databases, geomapping
-from bw2data.configuration import labels
-from bw2data.data_store import ProcessedDataStore
-from bw2data.errors import (
-    DuplicateNode,
-    InvalidExchange,
-    UnknownObject,
-    UntypedExchange,
-    WrongDatabase,
-)
-from bw2data.query import Query
-from bw2data.search import IndexManager, Searcher
-from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset, get_id
@@ -44,6 +32,18 @@ from bw2data.backends.utils import (
     get_csv_data_dict,
     retupleize_geo_strings,
 )
+from bw2data.configuration import labels
+from bw2data.data_store import ProcessedDataStore
+from bw2data.errors import (
+    DuplicateNode,
+    InvalidExchange,
+    UnknownObject,
+    UntypedExchange,
+    WrongDatabase,
+)
+from bw2data.query import Query
+from bw2data.search import IndexManager, Searcher
+from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
@@ -277,9 +277,7 @@ class SQLiteBackend(ProcessedDataStore):
         """
 
         def extend(seeds):
-            return set.union(
-                seeds, set.union(*[set(databases[obj]["depends"]) for obj in seeds])
-            )
+            return set.union(seeds, set.union(*[set(databases[obj]["depends"]) for obj in seeds]))
 
         seed, extended = {self.name}, extend({self.name})
         while extended != seed:
@@ -368,12 +366,7 @@ class SQLiteBackend(ProcessedDataStore):
                     e["input"] = (new_name, e["input"][1])
             return obj
 
-        return dict(
-            [
-                ((new_name, k[1]), relabel_exchanges(v, new_name))
-                for k, v in data.items()
-            ]
-        )
+        return dict([((new_name, k[1]), relabel_exchanges(v, new_name)) for k, v in data.items()])
 
     def rename(self, name):
         """Rename a database. Modifies exchanges to link to new name. Deregisters old database.
@@ -439,10 +432,7 @@ class SQLiteBackend(ProcessedDataStore):
         if not filters:
             self._filters = {}
         else:
-            print(
-                "Filters will effect all database queries"
-                " until unset (`.filters = None`)"
-            )
+            print("Filters will effect all database queries" " until unset (`.filters = None`)")
             assert isinstance(filters, dict), "Filter must be a dictionary"
             for key in filters:
                 assert key in _VALID_KEYS, "Filter key {} is invalid".format(key)
@@ -469,14 +459,10 @@ class SQLiteBackend(ProcessedDataStore):
         """True random requires loading and sorting data in SQLite, and can be resource-intensive."""
         try:
             if true_random:
-                return self.node_class(
-                    self._get_queryset(random=True, filters=filters).get()
-                )
+                return self.node_class(self._get_queryset(random=True, filters=filters).get())
             else:
                 return self.node_class(
-                    self._get_queryset(filters=filters)
-                    .offset(random.randint(0, len(self)))
-                    .get()
+                    self._get_queryset(filters=filters).offset(random.randint(0, len(self))).get()
                 )
         except DoesNotExist:
             warnings.warn("This database is empty")
@@ -569,9 +555,7 @@ class SQLiteBackend(ProcessedDataStore):
             self.delete(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
-            for key, ds in tqdm_wrapper(
-                data.items(), getattr(config, "is_test", False)
-            ):
+            for key, ds in tqdm_wrapper(data.items(), getattr(config, "is_test", False)):
                 exchanges, activities = self._efficient_write_dataset(
                     key, ds, exchanges, activities, check_typos
                 )
@@ -677,12 +661,12 @@ class SQLiteBackend(ProcessedDataStore):
 
     def new_node(self, code: str = None, **kwargs):
         obj = self.node_class()
-        if 'database' in kwargs:
-            if kwargs['database'] != self.name:
+        if "database" in kwargs:
+            if kwargs["database"] != self.name:
                 raise ValueError(
                     f"Creating a new node in database `{self.name}`, but gave database label `{kwargs['database']}`"
                 )
-            kwargs.pop('database')
+            kwargs.pop("database")
         obj["database"] = self.name
 
         if code is None:
@@ -702,22 +686,17 @@ Here are the type values usually used for nodes:
 
         if (
             ActivityDataset.select()
-            .where(
-                (ActivityDataset.database == self.name)
-                & (ActivityDataset.code == obj["code"])
-            )
+            .where((ActivityDataset.database == self.name) & (ActivityDataset.code == obj["code"]))
             .count()
         ):
             raise DuplicateNode("Node with this database / code combo already exists")
         if (
             "id" in kwargs
-            and ActivityDataset.select()
-            .where(ActivityDataset.id == int("id" in kwargs))
-            .count()
+            and ActivityDataset.select().where(ActivityDataset.id == int("id" in kwargs)).count()
         ):
             raise DuplicateNode("Node with this id already exists")
 
-        if 'location' not in kwargs:
+        if "location" not in kwargs:
             obj["location"] = config.global_location
         obj.update(kwargs)
         return obj
@@ -751,9 +730,7 @@ Here are the type values usually used for nodes:
         vacuum_needed = len(self) > 500 and vacuum
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
-        ExchangeDataset.delete().where(
-            ExchangeDataset.output_database == self.name
-        ).execute()
+        ExchangeDataset.delete().where(ExchangeDataset.output_database == self.name).execute()
         IndexManager(self.filename).delete_database()
 
         if not keep_params:
@@ -771,15 +748,9 @@ Here are the type values usually used for nodes:
                     .tuples()
                 }
             )
-            ParameterizedExchange.delete().where(
-                ParameterizedExchange.group << groups
-            ).execute()
-            ActivityParameter.delete().where(
-                ActivityParameter.database == self.name
-            ).execute()
-            DatabaseParameter.delete().where(
-                DatabaseParameter.database == self.name
-            ).execute()
+            ParameterizedExchange.delete().where(ParameterizedExchange.group << groups).execute()
+            ActivityParameter.delete().where(ActivityParameter.database == self.name).execute()
+            DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
 
         if vacuum_needed:
             sqlite3_lci_db.vacuum()
@@ -812,9 +783,7 @@ Here are the type values usually used for nodes:
                         "Exchange between {} and {} is invalid "
                         "- one of these objects is unknown (i.e. doesn't exist "
                         "as a process dataset)"
-                    ).format(
-                        (input_database, input_code), (output_database, output_code)
-                    )
+                    ).format((input_database, input_code), (output_database, output_code))
                 )
             yield {
                 **as_uncertainty_dict(data),
@@ -828,9 +797,7 @@ Here are the type values usually used for nodes:
 
         Separated out to allow for easier use in subclasses."""
         # Create geomapping array, from dataset interger ids to locations
-        inv_mapping_qs = ActivityDataset.select(
-            ActivityDataset.id, ActivityDataset.location
-        ).where(
+        inv_mapping_qs = ActivityDataset.select(ActivityDataset.id, ActivityDataset.location).where(
             ActivityDataset.database == self.name,
             ActivityDataset.type << labels.process_node_types,
         )
@@ -840,9 +807,7 @@ Here are the type values usually used for nodes:
             dict_iterator=(
                 {
                     "row": row[0],
-                    "col": geomapping[
-                        retupleize_geo_strings(row[1]) or config.global_location
-                    ],
+                    "col": geomapping[retupleize_geo_strings(row[1]) or config.global_location],
                     "amount": 1,
                 }
                 for row in inv_mapping_qs.tuples()
@@ -915,9 +880,7 @@ Here are the type values usually used for nodes:
             matrix="technosphere_matrix",
             name=clean_datapackage_name(self.name + " technosphere matrix"),
             dict_iterator=itertools.chain(
-                self.exchange_data_iterator(
-                    get_technosphere_negative_qs, dependents, flip=True
-                ),
+                self.exchange_data_iterator(get_technosphere_negative_qs, dependents, flip=True),
                 self.exchange_data_iterator(get_technosphere_positive_qs, dependents),
                 implicit_production,
             ),
@@ -1045,14 +1008,10 @@ Here are the type values usually used for nodes:
             # Feels like magic
             df = pandas.DataFrame(self)
         else:
-            df = pandas.DataFrame(
-                [{field: obj.get(field) for field in columns} for obj in self]
-            )
+            df = pandas.DataFrame([{field: obj.get(field) for field in columns} for obj in self])
         if return_sorted:
             sort_columns = ["name", "reference product", "location", "unit"]
-            df = df.sort_values(
-                by=[column for column in sort_columns if column in df.columns]
-            )
+            df = df.sort_values(by=[column for column in sort_columns if column in df.columns])
         return df
 
     def edges_to_dataframe(
@@ -1119,9 +1078,7 @@ Here are the type values usually used for nodes:
                     "source_location": edge.get("location"),
                     "source_unit": edge.get("unit"),
                     "source_categories": (
-                        "::".join(edge["categories"])
-                        if edge.get("categories")
-                        else None
+                        "::".join(edge["categories"]) if edge.get("categories") else None
                     ),
                     "edge_amount": edge["amount"],
                     "edge_type": edge["type"],

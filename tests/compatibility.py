@@ -67,9 +67,7 @@ def test_prepare_lca_inputs_basic():
 
     print(objs[0].metadata)
 
-    assert {o.metadata["id"] for o in objs} == {
-        o.datapackage().metadata["id"] for o in pla
-    }
+    assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in pla}
 
     remapping_expected = {
         "activity": {
@@ -113,9 +111,7 @@ def test_prepare_lca_inputs_multiple_demands():
     )
     # ID is 3; two biosphere flows, then '1' is next written
     assert d == [{3: 1}, {4: 10}]
-    assert {o.metadata["id"] for o in objs} == {
-        o.datapackage().metadata["id"] for o in pla
-    }
+    assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in pla}
 
 
 @bw2test
@@ -126,17 +122,13 @@ def test_prepare_lca_inputs_database_ordering():
         method=("foo",),
         demand_database_last=False,
     )
-    assert {o.metadata["id"] for o in objs} == {
-        o.datapackage().metadata["id"] for o in pla
-    }
+    assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in pla}
 
 
 @bw2test
 def test_prepare_lca_inputs_remapping():
     setup()
-    d, objs, r = prepare_lca_inputs(
-        demand={("food", "1"): 1}, method=("foo",), remapping=False
-    )
+    d, objs, r = prepare_lca_inputs(demand={("food", "1"): 1}, method=("foo",), remapping=False)
     assert r is None
 
 
@@ -242,9 +234,7 @@ def test_get_multilca_data_objs_errors_fu_wrong_type():
     Weighting(("weight",)).write([42])
 
     with pytest.raises(ValueError):
-        get_multilca_data_objs(
-            functional_units={"a": {("food2", "2"): 1}}, method_config={}
-        )
+        get_multilca_data_objs(functional_units={"a": {("food2", "2"): 1}}, method_config={})
     with pytest.raises(ValueError):
         get_multilca_data_objs(
             functional_units={"a": {get_activity(("food", "1")): 1}}, method_config={}

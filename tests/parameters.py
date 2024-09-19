@@ -18,9 +18,7 @@ from bw2data.parameters import (
 from bw2data.tests import bw2test
 
 # Regex to search for UUID: https://stackoverflow.com/a/18359032
-uuid4hex = re.compile(
-    r"[0-9a-f]{8}[0-9a-f]{4}4[0-9a-f]{3}[89ab][0-9a-f]{3}[0-9a-f]{12}", re.I
-)
+uuid4hex = re.compile(r"[0-9a-f]{8}[0-9a-f]{4}4[0-9a-f]{3}[89ab][0-9a-f]{3}[0-9a-f]{12}", re.I)
 
 ######################
 ### Project parameters
@@ -245,12 +243,7 @@ def test_project_parameter_formula_update():
     ProjectParameter.create(name="foobar", amount=6.28)
     ProjectParameter.create(name="bar", amount=1, formula="foo + 2")
     ProjectParameter.create(name="baz", amount=1, formula="foobar * 3")
-    assert (
-        ProjectParameter.select()
-        .where(ProjectParameter.formula.contains("foo"))
-        .count()
-        == 2
-    )
+    assert ProjectParameter.select().where(ProjectParameter.formula.contains("foo")).count() == 2
     ProjectParameter.update_formula_parameter_name("foo", "efficiency")
     assert ProjectParameter.get(name="bar").formula == "efficiency + 2"
     assert ProjectParameter.get(name="baz").formula == "foobar * 3"
@@ -381,9 +374,7 @@ def test_database_autoupdate_triggers():
 
 @bw2test
 def test_database_uniqueness_constraint():
-    DatabaseParameter.create(
-        database="A", name="foo", amount=3.14, data={"uncertainty type": 0}
-    )
+    DatabaseParameter.create(database="A", name="foo", amount=3.14, data={"uncertainty type": 0})
     with pytest.raises(IntegrityError):
         DatabaseParameter.create(
             database="A",
@@ -745,9 +736,7 @@ def chain():
 @bw2test
 def test_create_activity_parameter():
     assert not ActivityParameter.select().count()
-    obj = ActivityParameter.create(
-        group="A", database="B", code="C", name="D", amount=3.14
-    )
+    obj = ActivityParameter.create(group="A", database="B", code="C", name="D", amount=3.14)
     assert obj.group == "A"
     assert obj.database == "B"
     assert obj.code == "C"
@@ -778,9 +767,7 @@ def test_activity_parameter_expired():
 
 @bw2test
 def test_activity_parameter_dict():
-    a = ActivityParameter.create(
-        group="A", database="B", code="C", name="D", amount=3.14
-    )
+    a = ActivityParameter.create(group="A", database="B", code="C", name="D", amount=3.14)
     expected = {"database": "B", "code": "C", "name": "D", "amount": 3.14}
     assert a.dict == expected
     b = ActivityParameter.create(
@@ -876,9 +863,7 @@ def test_activity_parameter_dependency_chain_includes_exchanges(chain):
     db = Database("K")
     a = db.new_activity(code="something something danger zone", name="An activity")
     a.save()
-    a.new_exchange(
-        amount=0, input=a, type="production", formula="something_new + 4 - J"
-    ).save()
+    a.new_exchange(amount=0, input=a, type="production", formula="something_new + 4 - J").save()
     parameters.add_exchanges_to_group("G", a)
 
     expected = [
@@ -1000,9 +985,7 @@ def test_activity_parameter_recalculate_exchanges():
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    a.new_exchange(
-        amount=0, input=b, type="technosphere", formula="foo * bar + 4"
-    ).save()
+    a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4").save()
 
     project_data = [
         {
@@ -1103,12 +1086,8 @@ def test_recalculate_exchanges_no_activities_parameters():
 @bw2test
 def test_activity_parameter_recalculate():
     Database("B").register()
-    ActivityParameter.create(
-        group="A", database="B", code="C", name="D", formula="2 ** 3"
-    )
-    ActivityParameter.create(
-        group="A", database="B", code="E", name="F", formula="2 * D"
-    )
+    ActivityParameter.create(group="A", database="B", code="C", name="D", formula="2 ** 3")
+    ActivityParameter.create(group="A", database="B", code="E", name="F", formula="2 * D")
     assert not Group.get(name="A").fresh
     ActivityParameter.recalculate("A")
     assert ActivityParameter.get(name="D").amount == 8
@@ -1116,9 +1095,7 @@ def test_activity_parameter_recalculate():
     assert Group.get(name="A").fresh
 
     Database("K").register()
-    ActivityParameter.create(
-        group="G", database="K", code="H", name="J", formula="F + D * 2"
-    )
+    ActivityParameter.create(group="G", database="K", code="H", name="J", formula="F + D * 2")
     ActivityParameter.create(
         group="G",
         database="K",
@@ -1239,9 +1216,7 @@ def test_activity_parameter_formula_update_activity_include(chain):
     parameters.recalculate()
     assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + D"
     assert ActivityParameter.get(name="J", group="G").formula == "F + D * 2"
-    ActivityParameter.update_formula_activity_parameter_name(
-        "D", "dingo", include_order=True
-    )
+    ActivityParameter.update_formula_activity_parameter_name("D", "dingo", include_order=True)
     assert ActivityParameter.get(name="F", group="A").formula == "foo + bar + dingo"
     assert ActivityParameter.get(name="J", group="G").formula == "F + dingo * 2"
 
@@ -1423,10 +1398,7 @@ def test_group_dependency_override():
     Database("B").register()
     DatabaseParameter.create(database="B", name="bar", amount=1, formula="foo * 5")
     parameters.recalculate()
-    assert (
-        GroupDependency.select().where(GroupDependency.depends == "project").count()
-        == 1
-    )
+    assert GroupDependency.select().where(GroupDependency.depends == "project").count() == 1
     assert DatabaseParameter.get(name="bar").amount == 10
     DatabaseParameter.create(
         database="B",
@@ -1434,10 +1406,7 @@ def test_group_dependency_override():
         amount=8,
     )
     parameters.recalculate()
-    assert (
-        GroupDependency.select().where(GroupDependency.depends == "project").count()
-        == 0
-    )
+    assert GroupDependency.select().where(GroupDependency.depends == "project").count() == 0
     assert DatabaseParameter.get(name="bar").amount == 40
 
 
@@ -1490,12 +1459,8 @@ def test_parameters_repr():
 @bw2test
 def test_parameters_recalculate():
     Database("B").register()
-    ActivityParameter.create(
-        group="A", database="B", code="C", name="D", formula="2 ** 3"
-    )
-    ActivityParameter.create(
-        group="A", database="B", code="E", name="F", formula="foo + bar + D"
-    )
+    ActivityParameter.create(group="A", database="B", code="C", name="D", formula="2 ** 3")
+    ActivityParameter.create(group="A", database="B", code="E", name="F", formula="foo + bar + D")
     DatabaseParameter.create(
         database="B",
         name="foo",
@@ -1518,9 +1483,7 @@ def test_parameters_new_database_parameters():
         parameters.new_database_parameters([], "another")
     Database("another").register()
     with pytest.raises(AssertionError):
-        parameters.new_database_parameters(
-            [{"name": "foo"}, {"name": "foo"}], "another"
-        )
+        parameters.new_database_parameters([{"name": "foo"}, {"name": "foo"}], "another")
     DatabaseParameter.create(name="foo", database="another", amount=0)
     DatabaseParameter.create(name="baz", database="another", amount=21)
     assert len(parameters) == 2
@@ -1552,9 +1515,7 @@ def test_parameters_new_activity_parameters_errors():
     with pytest.raises(AssertionError):
         parameters.new_activity_parameters([], "example")
     with pytest.raises(AssertionError):
-        parameters.new_activity_parameters(
-            [{"database": 1}, {"database": 2}], "example"
-        )
+        parameters.new_activity_parameters([{"database": 1}, {"database": 2}], "example")
 
     with pytest.raises(AssertionError):
         parameters.new_activity_parameters([{"database": "unknown"}], "example")
@@ -1572,12 +1533,8 @@ def test_parameters_new_activity_parameters():
     assert not len(parameters)
     assert not Group.select().count()
     Database("A").register()
-    ActivityParameter.create(
-        group="another", database="A", name="baz", code="D", amount=49
-    )
-    ActivityParameter.create(
-        group="another", database="A", name="foo", code="E", amount=101
-    )
+    ActivityParameter.create(group="another", database="A", name="baz", code="D", amount=49)
+    ActivityParameter.create(group="another", database="A", name="foo", code="E", amount=101)
     assert len(parameters) == 2
     assert ActivityParameter.get(name="foo").amount == 101
     assert ActivityParameter.get(name="baz").amount == 49
@@ -1609,9 +1566,7 @@ def test_parameters_new_activity_parameters():
 @bw2test
 def test_parameters_new_activity_parameters_no_overlap():
     Database("A").register()
-    ActivityParameter.create(
-        group="another", database="A", name="foo", code="D", amount=49
-    )
+    ActivityParameter.create(group="another", database="A", name="foo", code="D", amount=49)
     data = [
         {"database": "A", "code": "B", "name": "foo", "amount": 4},
         {
@@ -1637,9 +1592,7 @@ def test_parameters_rename_project_parameter():
     parameters.rename_project_parameter(param, "foobar")
     with pytest.raises(ProjectParameter.DoesNotExist):
         ProjectParameter.get(name="foo")
-    assert (
-        ProjectParameter.select().where(ProjectParameter.name == "foobar").count() == 1
-    )
+    assert ProjectParameter.select().where(ProjectParameter.name == "foobar").count() == 1
 
 
 @bw2test
@@ -1718,15 +1671,11 @@ def test_parameters_rename_database_parameter():
         name="foo",
         amount=5,
     )
-    assert (
-        DatabaseParameter.select().where(DatabaseParameter.name == "foo").count() == 1
-    )
+    assert DatabaseParameter.select().where(DatabaseParameter.name == "foo").count() == 1
     parameters.rename_database_parameter(param, "bar")
     with pytest.raises(DatabaseParameter.DoesNotExist):
         DatabaseParameter.get(name="foo")
-    assert (
-        DatabaseParameter.select().where(DatabaseParameter.name == "bar").count() == 1
-    )
+    assert DatabaseParameter.select().where(DatabaseParameter.name == "bar").count() == 1
 
 
 def test_parameters_rename_database_parameter_dependencies(chain):
@@ -1866,11 +1815,7 @@ def test_parameters_add_to_group():
 
     assert parameters.add_to_group("my group", a) == 2
     assert Group.get(name="my group")
-    assert (
-        not ActivityParameter.select()
-        .where(ActivityParameter.name == "bye bye")
-        .count()
-    )
+    assert not ActivityParameter.select().where(ActivityParameter.name == "bye bye").count()
     expected = (
         ("one", 4, None, {"foo": "bar"}),
         ("two", 42, "this + that", {}),

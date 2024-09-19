@@ -7,9 +7,9 @@ from bw_processing import clean_datapackage_name, create_datapackage
 from fsspec.implementations.zip import ZipFileSystem
 
 from bw2data import config, databases, geomapping
-from bw2data.configuration import labels
 from bw2data.backends import SQLiteBackend
 from bw2data.backends.iotable.proxies import IOTableActivity, IOTableExchanges
+from bw2data.configuration import labels
 
 
 class IOTableBackend(SQLiteBackend):
@@ -21,9 +21,7 @@ class IOTableBackend(SQLiteBackend):
     node_class = IOTableActivity
 
     def write(self, data, process=False, searchable=True, check_typos=True):
-        super().write(
-            data, process=False, searchable=searchable, check_typos=check_typos
-        )
+        super().write(data, process=False, searchable=searchable, check_typos=check_typos)
 
     def write_exchanges(self, technosphere, biosphere, dependents):
         """
@@ -51,9 +49,7 @@ class IOTableBackend(SQLiteBackend):
             dict_iterator=(
                 {
                     "row": obj.id,
-                    "col": geomapping[
-                        obj.get("location", None) or config.global_location
-                    ],
+                    "col": geomapping[obj.get("location", None) or config.global_location],
                     "amount": 1,
                 }
                 for obj in self
@@ -79,9 +75,7 @@ class IOTableBackend(SQLiteBackend):
                 dict_iterator=technosphere,
             )
         else:
-            raise Exception(
-                f"Error: Unsupported technosphere type: {type(technosphere)}"
-            )
+            raise Exception(f"Error: Unsupported technosphere type: {type(technosphere)}")
 
         print("Adding biosphere matrix")
         # if biosphere is a dictionary pass it's keys & values
@@ -105,9 +99,7 @@ class IOTableBackend(SQLiteBackend):
         print("Finalizing serialization")
         dp.finalize_serialization()
 
-        databases[self.name]["depends"] = sorted(
-            set(dependents).difference({self.name})
-        )
+        databases[self.name]["depends"] = sorted(set(dependents).difference({self.name}))
         databases[self.name]["processed"] = datetime.datetime.now().isoformat()
         databases.flush()
 
@@ -179,24 +171,18 @@ class IOTableBackend(SQLiteBackend):
                     dct["source_product"] = obj.get("product")
                 return dct
 
-            return pd.DataFrame(
-                [dict_for_obj(get(id_), prefix) for id_ in np.unique(ids)]
-            )
+            return pd.DataFrame([dict_for_obj(get(id_), prefix) for id_ in np.unique(ids)])
 
         def get_edge_types(exchanges):
             arrays = []
             for resource in exchanges.resources:
                 if resource["data"]["matrix"] == "biosphere_matrix":
                     arrays.append(
-                        np.array(
-                            [labels.biosphere_edge_default]
-                            * len(resource["data"]["array"])
-                        )
+                        np.array([labels.biosphere_edge_default] * len(resource["data"]["array"]))
                     )
                 else:
                     arr = np.array(
-                        [labels.consumption_edge_default]
-                        * len(resource["data"]["array"])
+                        [labels.consumption_edge_default] * len(resource["data"]["array"])
                     )
                     arr[resource["flip"]["positive"]] = labels.production_edge_default
                     arrays.append(arr)
@@ -212,9 +198,7 @@ class IOTableBackend(SQLiteBackend):
         source_ids = np.hstack(
             [resource["indices"]["array"]["row"] for resource in exchanges.resources]
         )
-        edge_amounts = np.hstack(
-            [resource["data"]["array"] for resource in exchanges.resources]
-        )
+        edge_amounts = np.hstack([resource["data"]["array"] for resource in exchanges.resources])
         edge_types = get_edge_types(exchanges)
 
         print("Creating metadata dataframes")

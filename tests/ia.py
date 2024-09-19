@@ -7,8 +7,8 @@ from bw_processing import load_datapackage
 from fsspec.implementations.zip import ZipFileSystem
 
 from bw2data import config, get_id, get_node
-from bw2data.backends.schema import ActivityDataset as AD
 from bw2data.backends import Activity
+from bw2data.backends.schema import ActivityDataset as AD
 from bw2data.database import DatabaseChooser
 from bw2data.errors import UnknownObject
 from bw2data.ia_data_store import ImpactAssessmentDataStore as IADS
@@ -272,11 +272,13 @@ def test_normalization_process_row(reset):
 @bw2test
 def test_method_geocollection():
     database = DatabaseChooser("foo")
-    database.write({
-        ("foo", "1"): {},
-        ("foo", "2"): {},
-        ("foo", "3"): {},
-    })
+    database.write(
+        {
+            ("foo", "1"): {},
+            ("foo", "2"): {},
+            ("foo", "3"): {},
+        }
+    )
 
     m = Method(("foo",))
     m.write([(1, 2, "RU"), (3, 4, ("foo", "bar"))])
@@ -286,11 +288,13 @@ def test_method_geocollection():
 @bw2test
 def test_method_geocollection_missing_ok():
     database = DatabaseChooser("foo")
-    database.write({
-        ("foo", "1"): {},
-        ("foo", "2"): {},
-        ("foo", "3"): {},
-    })
+    database.write(
+        {
+            ("foo", "1"): {},
+            ("foo", "2"): {},
+            ("foo", "3"): {},
+        }
+    )
 
     m = Method(("foo",))
     m.write(
@@ -305,9 +309,11 @@ def test_method_geocollection_missing_ok():
 @bw2test
 def test_method_geocollection_warning():
     database = DatabaseChooser("foo")
-    database.write({
-        ("foo", "1"): {},
-    })
+    database.write(
+        {
+            ("foo", "1"): {},
+        }
+    )
 
     m = Method(("foo",))
     m.write(
@@ -369,10 +375,7 @@ def test_method_iteration(testy):
         assert isinstance(line[0], Activity)
         assert isinstance(line[1], int)
 
-    assert list(testy) == [
-        (get_node(code="A"), 1),
-        (get_node(code="B"), 1)
-    ]
+    assert list(testy) == [(get_node(code="A"), 1), (get_node(code="B"), 1)]
 
 
 def test_method_write_with_nodes():
@@ -387,16 +390,10 @@ def test_method_write_with_nodes():
     }
     database.write(data)
 
-    method_data = [
-        (get_node(code="A"), 1),
-        (get_node(code="B"), 1)
-    ]
+    method_data = [(get_node(code="A"), 1), (get_node(code="B"), 1)]
     name = ("a", "method")
     method = Method(name)
     method.write(method_data)
     assert methods[name]["num_cfs"] == 2
 
-    assert list(method) == [
-        (get_node(code="A"), 1),
-        (get_node(code="B"), 1)
-    ]
+    assert list(method) == [(get_node(code="A"), 1), (get_node(code="B"), 1)]

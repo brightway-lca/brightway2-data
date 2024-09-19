@@ -47,9 +47,7 @@ def random_string(length=8):
         A string (not unicode)
 
     """
-    return "".join(
-        random.choice(string.ascii_letters + string.digits) for i in range(length)
-    )
+    return "".join(random.choice(string.ascii_letters + string.digits) for i in range(length))
 
 
 def combine_methods(name: tuple, *ms: List[tuple]) -> "bw2data.method.Method":
@@ -83,8 +81,7 @@ def combine_methods(name: tuple, *ms: List[tuple]) -> "bw2data.method.Method":
                 geo = None
             data[(id_, geo)] += cf
     meta = {
-        "description": "Combination of the following methods: "
-        + ", ".join([str(x) for x in ms]),
+        "description": "Combination of the following methods: " + ", ".join([str(x) for x in ms]),
         "unit": units.pop(),
     }
     data = [(id_, cf, geo) for (id_, geo), cf in data.items()]
@@ -212,13 +209,9 @@ def recursive_str_to_unicode(data, encoding="utf8"):
     elif isinstance(data, bytes):
         return str(data, encoding)  # Faster than str.encode
     elif isinstance(data, collections.abc.Mapping):
-        return dict(
-            map(recursive_str_to_unicode, data.items(), itertools.repeat(encoding))
-        )
+        return dict(map(recursive_str_to_unicode, data.items(), itertools.repeat(encoding)))
     elif isinstance(data, collections.abc.Iterable):
-        return type(data)(
-            map(recursive_str_to_unicode, data, itertools.repeat(encoding))
-        )
+        return type(data)(map(recursive_str_to_unicode, data, itertools.repeat(encoding)))
     else:
         return data
 
@@ -237,12 +230,7 @@ def merge_databases(parent_db, other):
 
     Doesn't return anything."""
     from bw2data import databases
-    from bw2data.backends import (
-        ActivityDataset,
-        ExchangeDataset,
-        SQLiteBackend,
-        sqlite3_lci_db,
-    )
+    from bw2data.backends import ActivityDataset, ExchangeDataset, SQLiteBackend, sqlite3_lci_db
     from bw2data.database import Database
 
     assert parent_db in databases
@@ -255,12 +243,10 @@ def merge_databases(parent_db, other):
         raise ValidityError("Both databases must be `SQLiteBackend`")
 
     first_codes = {
-        obj.code
-        for obj in ActivityDataset.select().where(ActivityDataset.database == parent_db)
+        obj.code for obj in ActivityDataset.select().where(ActivityDataset.database == parent_db)
     }
     second_codes = {
-        obj.code
-        for obj in ActivityDataset.select().where(ActivityDataset.database == other)
+        obj.code for obj in ActivityDataset.select().where(ActivityDataset.database == other)
     }
     if first_codes.intersection(second_codes):
         raise ValidityError("Duplicate codes - can't merge databases")
@@ -302,13 +288,9 @@ def download_file(filename, directory="downloads", url=None):
     dirpath = projects.request_directory(directory)
     filepath = dirpath / filename
     download_path = (url if url is not None else DOWNLOAD_URL) + filename
-    with urllib.request.urlopen(download_path) as response, open(
-        filepath, "wb"
-    ) as out_file:
+    with urllib.request.urlopen(download_path) as response, open(filepath, "wb") as out_file:
         if response.status != 200:
-            raise NotFound(
-                "URL {} returns status code {}.".format(download_path, response.status)
-            )
+            raise NotFound("URL {} returns status code {}.".format(download_path, response.status))
         chunk = 128 * 1024
         while True:
             segment = response.read(chunk)
@@ -362,9 +344,7 @@ def get_node(**kwargs):
     from bw2data.subclass_mapping import NODE_PROCESS_CLASS_MAPPING
 
     def node_class(database_name):
-        return NODE_PROCESS_CLASS_MAPPING[
-            databases[database_name].get("backend", "sqlite")
-        ]
+        return NODE_PROCESS_CLASS_MAPPING[databases[database_name].get("backend", "sqlite")]
 
     if "key" in kwargs:
         if not isinstance(kwargs["key"], tuple):
@@ -394,22 +374,14 @@ def get_node(**kwargs):
     extended_search = any(key not in mapping for key in kwargs)
     if extended_search:
         if "database" not in kwargs:
-            warnings.warn(
-                "Given search criteria very broad; try to specify at least a database"
-            )
+            warnings.warn("Given search criteria very broad; try to specify at least a database")
         candidates = [
             obj
             for obj in candidates
-            if all(
-                obj.get(key) == value
-                for key, value in kwargs.items()
-                if key not in mapping
-            )
+            if all(obj.get(key) == value for key, value in kwargs.items() if key not in mapping)
         ]
     if len(candidates) > 1:
-        raise MultipleResults(
-            "Found {} results for the given search".format(len(candidates))
-        )
+        raise MultipleResults("Found {} results for the given search".format(len(candidates)))
     elif not candidates:
         raise UnknownObject
     return candidates[0]
@@ -441,9 +413,7 @@ def get_geocollection(location, default_global_location=False):
             return None
     elif isinstance(location, tuple):
         return location[0]
-    elif isinstance(location, str) and (
-        len(location) == 2 or location.lower() == "glo"
-    ):
+    elif isinstance(location, str) and (len(location) == 2 or location.lower() == "glo"):
         return "world"
     else:
         return None

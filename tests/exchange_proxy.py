@@ -1,12 +1,4 @@
-from bw2data import (
-    Method,
-    databases,
-    geomapping,
-    get_activity,
-    get_node,
-    methods,
-    projects,
-)
+from bw2data import Method, databases, geomapping, get_activity, get_node, methods, projects
 from bw2data.configuration import labels
 from bw2data.database import DatabaseChooser
 from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
@@ -95,9 +87,7 @@ def activity_and_method():
             ("db", "c"): {"name": "c", "type": "biosphere"},
             ("db", "d"): {
                 "name": "d",
-                "exchanges": [
-                    {"input": ("db", "a"), "amount": 5, "type": "technosphere"}
-                ],
+                "exchanges": [{"input": ("db", "a"), "amount": 5, "type": "technosphere"}],
             },
         }
     )
@@ -190,8 +180,7 @@ def test_exchanges_to_dataframe(activity):
                 "target_reference_product": None,
                 "target_location": get_activity(code=a).get("location"),
                 "target_unit": get_activity(code=a).get("unit"),
-                "target_type": get_activity(code=a).get("type")
-                or labels.process_node_default,
+                "target_type": get_activity(code=a).get("type") or labels.process_node_default,
                 "source_id": id_map[b],
                 "source_database": "db",
                 "source_code": b,
@@ -389,9 +378,7 @@ def test_delete_parameterized_exchange():
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    exc = a.new_exchange(
-        amount=0, input=b, type="technosphere", formula="foo * bar + 4"
-    )
+    exc = a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4")
     exc.save()
 
     activity_data = [
@@ -440,7 +427,9 @@ def test_typo_exchange_type():
     b.save()
     exc = a.new_exchange(amount=0, input=b, type="technsphere", formula="foo * bar + 4")
 
-    expected = "Possible typo found: Given exchange type `technsphere` but `technosphere` is more common"
+    expected = (
+        "Possible typo found: Given exchange type `technsphere` but `technosphere` is more common"
+    )
     with pytest.warns(UserWarning, match=expected):
         exc.save()
 
@@ -454,9 +443,7 @@ def test_typo_exchange_key():
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    exc = a.new_exchange(
-        amount=11, input=b, type="technosphere", temporal_distrbution=[]
-    )
+    exc = a.new_exchange(amount=11, input=b, type="technosphere", temporal_distrbution=[])
 
     expected = "Possible incorrect exchange key found: Given `temporal_distrbution` but `temporal_distribution` is more common"
     with pytest.warns(UserWarning, match=expected):
@@ -472,9 +459,7 @@ def test_valid_exchange_type():
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    exc = a.new_exchange(
-        amount=0, input=b, type="technosphere", formula="foo * bar + 4"
-    )
+    exc = a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4")
 
     # assert that no warnings are raised
     # https://docs.pytest.org/en/8.0.x/how-to/capture-warnings.html
@@ -492,9 +477,7 @@ def test_valid_exchange_key():
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    exc = a.new_exchange(
-        amount=11, input=b, type="technosphere", temporal_distribution=[]
-    )
+    exc = a.new_exchange(amount=11, input=b, type="technosphere", temporal_distribution=[])
 
     # assert that no warnings are raised
     # https://docs.pytest.org/en/8.0.x/how-to/capture-warnings.html
@@ -514,6 +497,8 @@ def test_typo_exchange_type_multiple_corrections():
     b.save()
     exc = a.new_exchange(amount=0, input=b, type="technshhere", formula="foo * bar + 4")
 
-    expected = "Possible typo found: Given exchange type `technshhere` but `technosphere` is more common"
+    expected = (
+        "Possible typo found: Given exchange type `technshhere` but `technosphere` is more common"
+    )
     with pytest.warns(UserWarning, match=expected):
         exc.save()

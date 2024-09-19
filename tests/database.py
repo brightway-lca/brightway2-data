@@ -98,9 +98,7 @@ def test_copy(food):
 def test_copy_does_deepcopy():
     data = {
         ("old name", "1"): {
-            "exchanges": [
-                {"input": ("old name", "1"), "amount": 1.0, "type": "technosphere"}
-            ]
+            "exchanges": [{"input": ("old name", "1"), "amount": 1.0, "type": "technosphere"}]
         }
     }
     d = Database("old name")
@@ -152,17 +150,11 @@ def test_relabel_data():
         ("old and boring", "1"): {
             "exchanges": [{"input": ("old and boring", "42"), "amount": 1.0}]
         },
-        ("old and boring", "2"): {
-            "exchanges": [{"input": ("old and boring", "1"), "amount": 4.0}]
-        },
+        ("old and boring", "2"): {"exchanges": [{"input": ("old and boring", "1"), "amount": 4.0}]},
     }
     shiny_new = {
-        ("shiny new", "1"): {
-            "exchanges": [{"input": ("old and boring", "42"), "amount": 1.0}]
-        },
-        ("shiny new", "2"): {
-            "exchanges": [{"input": ("shiny new", "1"), "amount": 4.0}]
-        },
+        ("shiny new", "1"): {"exchanges": [{"input": ("old and boring", "42"), "amount": 1.0}]},
+        ("shiny new", "2"): {"exchanges": [{"input": ("shiny new", "1"), "amount": 4.0}]},
     }
     db = Database("foo")
     assert shiny_new == db.relabel_data(old_data, "shiny new")
@@ -362,9 +354,7 @@ def test_no_input_raises_invalid_exchange():
 def test_no_amount_raises_invalid_exchange():
     database = Database("testy")
     database_data = {
-        ("testy", "A"): {
-            "exchanges": [{"input": ("testy", "A"), "type": "technosphere"}]
-        },
+        ("testy", "A"): {"exchanges": [{"input": ("testy", "A"), "type": "technosphere"}]},
     }
     with pytest.raises(InvalidExchange):
         database.write(database_data, process=False)
@@ -375,9 +365,7 @@ def test_zero_amount_is_valid_exchange():
     database = Database("testy")
     database_data = {
         ("testy", "A"): {
-            "exchanges": [
-                {"input": ("testy", "A"), "type": "technosphere", "amount": 0.0}
-            ]
+            "exchanges": [{"input": ("testy", "A"), "type": "technosphere", "amount": 0.0}]
         },
     }
     database.write(database_data, process=False)
@@ -642,9 +630,7 @@ def test_set_dependents():
                 "location": "bar",
             },
             ("a database", "baz"): {
-                "exchanges": [
-                    {"input": ("baz", "w00t"), "type": "technosphere", "amount": 1}
-                ],
+                "exchanges": [{"input": ("baz", "w00t"), "type": "technosphere", "amount": 1}],
                 # baz not included because this isn't a process node type
                 "type": "emission",
             },
@@ -864,9 +850,7 @@ def test_database_delete_parameters():
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    a.new_exchange(
-        amount=0, input=b, type="technosphere", formula="foo * bar + 4"
-    ).save()
+    a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4").save()
 
     database_data = [
         {
@@ -1192,9 +1176,7 @@ def test_warn_activity_type():
             "type": "prcess",
         }
     }
-    expected = (
-        "Possible typo found: Given activity type `prcess` but `process` is more common"
-    )
+    expected = "Possible typo found: Given activity type `prcess` but `process` is more common"
     with pytest.warns(UserWarning, match=expected):
         db.write(data)
 
@@ -1231,9 +1213,7 @@ def test_no_warn_activity_key_no_check_typos(recwarn):
     }
 
     db.write(data, check_typos=False)
-    assert not any(
-        "Possible incorrect activity key" in str(rec.message) for rec in recwarn
-    )
+    assert not any("Possible incorrect activity key" in str(rec.message) for rec in recwarn)
 
 
 @bw2test
@@ -1274,7 +1254,9 @@ def test_warn_exchange_type():
             "type": "prcess",
         },
     }
-    expected = "Possible typo found: Given exchange type `technsphere` but `technosphere` is more common"
+    expected = (
+        "Possible typo found: Given exchange type `technsphere` but `technosphere` is more common"
+    )
     with pytest.warns(UserWarning, match=expected):
         db.write(data)
 

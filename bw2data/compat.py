@@ -26,18 +26,14 @@ class Mapping:
     """
 
     def add(self, keys):
-        raise DeprecationWarning(
-            "This method is no longer necessary, and does nothing."
-        )
+        raise DeprecationWarning("This method is no longer necessary, and does nothing.")
         return
 
     def __getitem__(self, key):
         return get_id(key)
 
     def delete(self, keys):
-        raise DeprecationWarning(
-            "This method is no longer necessary, and does nothing."
-        )
+        raise DeprecationWarning("This method is no longer necessary, and does nothing.")
         return
 
     def __str__(self):
@@ -82,9 +78,7 @@ def prepare_lca_inputs(
     remapping_dicts = None
 
     if demands:
-        demand_database_names = [
-            db_label for dct in demands for db_label, _ in unpack(dct)
-        ]
+        demand_database_names = [db_label for dct in demands for db_label, _ in unpack(dct)]
     elif demand:
         demand_database_names = [db_label for db_label, _ in unpack(demand)]
     else:
@@ -92,10 +86,7 @@ def prepare_lca_inputs(
 
     if demand_database_names:
         database_names = set.union(
-            *[
-                Database(db_label).find_graph_dependents()
-                for db_label in demand_database_names
-            ]
+            *[Database(db_label).find_graph_dependents() for db_label in demand_database_names]
         )
 
         if demand_database_last:
@@ -146,9 +137,7 @@ def prepare_lca_inputs(
 
 def get_database_filepath(functional_unit):
     """Get filepaths for all databases in supply chain of `functional_unit`"""
-    dbs = set.union(
-        *[Database(key[0]).find_graph_dependents() for key in functional_unit]
-    )
+    dbs = set.union(*[Database(key[0]).find_graph_dependents() for key in functional_unit])
     return [Database(obj).filepath_processed() for obj in dbs]
 
 
@@ -170,10 +159,7 @@ def get_multilca_data_objs(
                 raise UnknownObject(f"Functional unit id {obj} is not in this project")
 
     complete_database_names = set.union(
-        *[
-            Database(db_label).find_graph_dependents()
-            for db_label in input_database_names
-        ]
+        *[Database(db_label).find_graph_dependents() for db_label in input_database_names]
     )
     data_objs = [Database(obj).datapackage() for obj in complete_database_names]
 

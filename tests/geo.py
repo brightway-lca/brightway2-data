@@ -43,8 +43,7 @@ def test_method_process_adds_correct_geo(add_method):
     print(package.resources)
 
     mapped = {
-        row["row"]: row["col"]
-        for row in package.get_resource("test_method_matrix_data.indices")[0]
+        row["row"]: row["col"] for row in package.get_resource("test_method_matrix_data.indices")[0]
     }
     assert geomapping["foo"] == mapped[get_id(("biosphere", 1))]
     assert geomapping["bar"] == mapped[get_id(("biosphere", 2))]

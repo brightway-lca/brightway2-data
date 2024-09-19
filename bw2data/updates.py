@@ -145,8 +145,7 @@ class Updates:
             [
                 key
                 for key in cls.UPDATES
-                if not preferences["updates"].get(key)
-                and not cls.UPDATES[key]["automatic"]
+                if not preferences["updates"].get(key) and not cls.UPDATES[key]["automatic"]
             ]
         )
         if updates and verbose:
@@ -243,8 +242,7 @@ class Updates:
             )
             assert current.is_file()
             target = Path(
-                projects.request_directory("migrations")
-                / (safe_filename(name) + ".json")
+                projects.request_directory("migrations") / (safe_filename(name) + ".json")
             )
             current.replace(target)
 

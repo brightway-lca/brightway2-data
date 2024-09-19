@@ -4,10 +4,10 @@ import warnings
 import numpy as np
 
 from bw2data import config
+from bw2data.backends.schema import get_id
 from bw2data.configuration import labels
 from bw2data.errors import InvalidExchange, UntypedExchange
 from bw2data.meta import databases, methods
-from bw2data.backends.schema import get_id
 
 
 def get_csv_data_dict(ds):

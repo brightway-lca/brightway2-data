@@ -53,7 +53,9 @@ class Method(ImpactAssessmentDataStore):
                 yield (node, *line[1:])
             else:
                 # Our `.write()` function won't allow this, but our users are creative
-                raise ValueError(f"Can't understand elementary flow identifier {line[0]} in line {line}")
+                raise ValueError(
+                    f"Can't understand elementary flow identifier {line[0]} in line {line}"
+                )
 
     def add_geomappings(self, data):
         geomapping.add({x[2] for x in data if len(x) == 3})
@@ -65,9 +67,7 @@ class Method(ImpactAssessmentDataStore):
                 **as_uncertainty_dict(row[1]),
                 "row": get_id(row[0]),
                 "col": (
-                    geomapping[row[2]]
-                    if len(row) >= 3
-                    else geomapping[config.global_location]
+                    geomapping[row[2]] if len(row) >= 3 else geomapping[config.global_location]
                 ),
             }
         except UnknownObject:
@@ -116,8 +116,7 @@ class Method(ImpactAssessmentDataStore):
         third = lambda x: x[2] if len(x) == 3 else None
 
         geocollections = {
-            get_geocollection(third(elem), default_global_location=True)
-            for elem in data
+            get_geocollection(third(elem), default_global_location=True) for elem in data
         }
         if None in geocollections:
             geocollections.discard(None)

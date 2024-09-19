@@ -43,10 +43,7 @@ def _check_type(type_value: str, kind: str, valid: Iterable[str]) -> None:
     """
     if type_value and type_value not in valid and isinstance(type_value, str):
         possibles = sorted(
-            (
-                (damerau_levenshtein(type_value, possible), possible)
-                for possible in valid
-            ),
+            ((damerau_levenshtein(type_value, possible), possible) for possible in valid),
             key=lambda x: x[0],
         )
 
@@ -96,15 +93,7 @@ def _check_keys(obj: dict, kind: str, valid: Iterable[str]) -> None:
                 )
 
 
-check_activity_type = partial(
-    _check_type, valid=typo_settings.node_types, kind="activity"
-)
-check_exchange_type = partial(
-    _check_type, valid=typo_settings.edge_types, kind="exchange"
-)
-check_activity_keys = partial(
-    _check_keys, valid=typo_settings.node_keys, kind="activity"
-)
-check_exchange_keys = partial(
-    _check_keys, valid=typo_settings.edge_keys, kind="exchange"
-)
+check_activity_type = partial(_check_type, valid=typo_settings.node_types, kind="activity")
+check_exchange_type = partial(_check_type, valid=typo_settings.edge_types, kind="exchange")
+check_activity_keys = partial(_check_keys, valid=typo_settings.node_keys, kind="activity")
+check_exchange_keys = partial(_check_keys, valid=typo_settings.edge_keys, kind="exchange")

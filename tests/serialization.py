@@ -13,9 +13,7 @@ class JsonSantizierTestCase(unittest.TestCase):
             JsonSanitizer.sanitize({1: 2}),
             {"__dict__": True, "keys": [1], "values": [2]},
         )
-        self.assertEqual(
-            JsonSanitizer.load({"__dict__": True, "keys": [1], "values": [2]}), {1: 2}
-        )
+        self.assertEqual(JsonSanitizer.load({"__dict__": True, "keys": [1], "values": [2]}), {1: 2})
 
     def test_nested(self):
         input_data = [{(1, 2): "foo"}, ["bar", (5, 6)], {}, tuple([]), ((7,),)]

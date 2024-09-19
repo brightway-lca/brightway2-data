@@ -86,9 +86,9 @@ def test_extraction(test_bw2_database):
         },
     ]
 
-    assert sorted(
-        extract_brightway_databases("food"), key=lambda x: x["code"]
-    ) == sorted(expected, key=lambda x: x["code"])
+    assert sorted(extract_brightway_databases("food"), key=lambda x: x["code"]) == sorted(
+        expected, key=lambda x: x["code"]
+    )
 
 
 @bw2test

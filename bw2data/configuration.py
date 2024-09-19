@@ -6,7 +6,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MatrixLabels(BaseSettings):
-    node_types: List[Union[str, None]] = ["process", "product", "processwithreferenceproduct", "multifunctional", None]
+    node_types: List[Union[str, None]] = [
+        "process",
+        "product",
+        "processwithreferenceproduct",
+        "multifunctional",
+        None,
+    ]
     process_node_types: List[Union[str, None]] = ["process", "processwithreferenceproduct", None]
     product_node_types: List[str] = ["product"]
 
@@ -47,7 +53,7 @@ class MatrixLabels(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file="brightway-matrix-configuration.env",
-        env_prefix="dont_pick_up_random_env_vars_a1b2c3d4e5"
+        env_prefix="dont_pick_up_random_env_vars_a1b2c3d4e5",
     )
 
     def reload(self, fp: Path) -> None:
@@ -128,7 +134,7 @@ class TypoSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file="brightway-typo-configuration.env",
-        env_prefix="dont_pick_up_random_env_vars_a1b2c3d4e5"
+        env_prefix="dont_pick_up_random_env_vars_a1b2c3d4e5",
     )
 
 
@@ -143,7 +149,7 @@ class Config(BaseSettings):
     model_config = SettingsConfigDict(
         env_file="brightway-configuration.env",
         extra="allow",
-        env_prefix="dont_pick_up_random_env_vars_a1b2c3d4e5"
+        env_prefix="dont_pick_up_random_env_vars_a1b2c3d4e5",
     )
 
     @property

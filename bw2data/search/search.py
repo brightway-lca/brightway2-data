@@ -74,9 +74,7 @@ class Searcher:
         if proxy and facet is not None:
             return {
                 key: [
-                    get_node(
-                        database=obj["database"], code=obj["code"], node_class=node_class
-                    )
+                    get_node(database=obj["database"], code=obj["code"], node_class=node_class)
                     for obj in value
                 ]
                 for key, value in results.items()

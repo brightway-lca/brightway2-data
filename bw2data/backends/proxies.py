@@ -6,10 +6,6 @@ from typing import Callable, List, Optional
 import pandas as pd
 
 from bw2data import databases, geomapping
-from bw2data.configuration import labels
-from bw2data.errors import ValidityError
-from bw2data.proxies import ActivityProxyBase, ExchangeProxyBase
-from bw2data.search import IndexManager
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.typos import (
@@ -19,6 +15,10 @@ from bw2data.backends.typos import (
     check_exchange_type,
 )
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
+from bw2data.configuration import labels
+from bw2data.errors import ValidityError
+from bw2data.proxies import ActivityProxyBase, ExchangeProxyBase
+from bw2data.search import IndexManager
 
 
 class Exchanges(Iterable):
@@ -145,9 +145,7 @@ class Exchanges(Iterable):
                 "source_location": edge.input.get("location"),
                 "source_unit": edge.input.get("unit"),
                 "source_categories": (
-                    "::".join(edge.input["categories"])
-                    if edge.input.get("categories")
-                    else None
+                    "::".join(edge.input["categories"]) if edge.input.get("categories") else None
                 ),
                 "edge_amount": edge["amount"],
                 "edge_type": edge["type"],
@@ -240,9 +238,7 @@ class Activity(ActivityProxyBase):
             raise ValueError("`id` is read-only")
         elif key == "code" and "code" in self._data:
             self._change_code(value)
-            print(
-                "Successfully switched activity dataset to new code `{}`".format(value)
-            )
+            print("Successfully switched activity dataset to new code `{}`".format(value))
         elif key == "database" and "database" in self._data:
             self._change_database(value)
             print("Successfully switch activity dataset to database `{}`".format(value))
@@ -259,9 +255,7 @@ class Activity(ActivityProxyBase):
 
         try:
             ap = ActivityParameter.get(database=self[0], code=self[1])
-            ParameterizedExchange.delete().where(
-                ParameterizedExchange.group == ap.group
-            ).execute()
+            ParameterizedExchange.delete().where(ParameterizedExchange.group == ap.group).execute()
             ActivityParameter.delete().where(
                 ActivityParameter.database == self[0], ActivityParameter.code == self[1]
             ).execute()
@@ -337,9 +331,7 @@ class Activity(ActivityProxyBase):
             )
             .count()
         ):
-            raise ValueError(
-                "Activity database with code `{}` already exists".format(new_code)
-            )
+            raise ValueError("Activity database with code `{}` already exists".format(new_code))
 
         with sqlite3_lci_db.atomic() as txn:
             ActivityDataset.update(code=new_code).where(
@@ -448,9 +440,7 @@ class Activity(ActivityProxyBase):
             kinds=labels.substitution_edge_types,
         )
 
-    def upstream(
-        self, kinds=labels.technosphere_negative_edge_types, exchanges_class=Exchanges
-    ):
+    def upstream(self, kinds=labels.technosphere_negative_edge_types, exchanges_class=Exchanges):
         return exchanges_class(self.key, kinds=kinds, reverse=True)
 
     def consumers(self, kinds=labels.technosphere_negative_edge_types):

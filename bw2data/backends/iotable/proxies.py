@@ -6,10 +6,10 @@ from warnings import warn
 import numpy as np
 from bw_processing import Datapackage
 
+from bw2data.backends.proxies import Activity, Exchange, Exchanges
 from bw2data.configuration import labels
 from bw2data.errors import InvalidDatapackage
 from bw2data.utils import get_node
-from bw2data.backends.proxies import Activity, Exchange, Exchanges
 
 
 class ReadOnlyExchange(Mapping):
@@ -122,39 +122,25 @@ class IOTableExchanges(Iterable):
     def _group_and_filter_resources(self, datapackage):
         resources = [
             {obj["kind"]: obj for obj in group if obj["category"] == "vector"}
-            for _, group in itertools.groupby(
-                datapackage.resources, lambda x: x["group"]
-            )
+            for _, group in itertools.groupby(datapackage.resources, lambda x: x["group"])
         ]
         return [obj for obj in resources if obj]
 
     def _add_arrays_to_resources(self, resources, datapackage):
         for resource in resources:
-            resource["data"]["array"] = datapackage.get_resource(
-                resource["data"]["name"]
-            )[0]
-            resource["indices"]["array"] = datapackage.get_resource(
-                resource["indices"]["name"]
-            )[0]
+            resource["data"]["array"] = datapackage.get_resource(resource["data"]["name"])[0]
+            resource["indices"]["array"] = datapackage.get_resource(resource["indices"]["name"])[0]
             if "flip" in resource:
-                resource["flip"]["array"] = datapackage.get_resource(
-                    resource["flip"]["name"]
-                )[0]
+                resource["flip"]["array"] = datapackage.get_resource(resource["flip"]["name"])[0]
             else:
-                resource["flip"] = {
-                    "array": np.zeros_like(resource["data"]["array"], dtype=bool)
-                }
+                resource["flip"] = {"array": np.zeros_like(resource["data"]["array"], dtype=bool)}
 
             # Add array indicating if values are positive after combining data and flip
             positive_arr = np.ones_like(resource["flip"]["array"], dtype=int)
             positive_arr[resource["flip"]["array"]] = -1
-            resource["flip"]["positive"] = (
-                resource["data"]["array"] * positive_arr
-            ) >= 0
+            resource["flip"]["positive"] = (resource["data"]["array"] * positive_arr) >= 0
 
-    def _reduce_arrays_to_selected_types(
-        self, resources, technosphere, production, biosphere
-    ):
+    def _reduce_arrays_to_selected_types(self, resources, technosphere, production, biosphere):
         if not biosphere:
             resources = [
                 resource
@@ -171,8 +157,7 @@ class IOTableExchanges(Iterable):
             resources = [
                 resource
                 for resource in resources
-                if resource["data"]["matrix"]
-                in ("biosphere_matrix", "technosphere_matrix")
+                if resource["data"]["matrix"] in ("biosphere_matrix", "technosphere_matrix")
             ]
 
         if technosphere != production:
@@ -218,9 +203,7 @@ class IOTableExchanges(Iterable):
             )
 
     def _raw_technosphere_iterator(self, negative=True):
-        tm = lambda x: any(
-            obj.get("matrix") == "technosphere_matrix" for obj in x.values()
-        )
+        tm = lambda x: any(obj.get("matrix") == "technosphere_matrix" for obj in x.values())
         for resource in filter(tm, self.resources):
             for (row, col), value, positive_flag in zip(
                 resource["indices"]["array"],
@@ -231,13 +214,9 @@ class IOTableExchanges(Iterable):
                     yield (row, col, value)
 
     def _raw_biosphere_iterator(self):
-        bm = lambda x: any(
-            obj.get("matrix") == "biosphere_matrix" for obj in x.values()
-        )
+        bm = lambda x: any(obj.get("matrix") == "biosphere_matrix" for obj in x.values())
         for resource in filter(bm, self.resources):
-            for (row, col), value in zip(
-                resource["indices"]["array"], resource["data"]["array"]
-            ):
+            for (row, col), value in zip(resource["indices"]["array"], resource["data"]["array"]):
                 yield (row, col, value)
 
     def __next__(self):
@@ -263,9 +242,7 @@ class IOTableActivity(Activity):
 
         db = DatabaseChooser(self["database"])
         if db.backend != "iotable":
-            raise ValueError(
-                "`IOTableActivity` must be used with IO Table backend activities"
-            )
+            raise ValueError("`IOTableActivity` must be used with IO Table backend activities")
         return db
 
     def technosphere(self) -> IOTableExchanges:

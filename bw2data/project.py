@@ -6,10 +6,10 @@ from copy import copy
 from pathlib import Path
 from typing import Optional
 
+import wrapt
 from bw_processing import safe_filename
 from peewee import SQL, BooleanField, DoesNotExist, Model, TextField
 from platformdirs import PlatformDirs
-import wrapt
 
 from bw2data import config
 from bw2data.filesystem import create_dir
@@ -67,9 +67,7 @@ class ProjectManager(Iterable):
     def __init__(self):
         self._base_data_dir, self._base_logs_dir = self._get_base_directories()
         self._create_base_directories()
-        self.db = SubstitutableDatabase(
-            self._base_data_dir / "projects.db", [ProjectDataset]
-        )
+        self.db = SubstitutableDatabase(self._base_data_dir / "projects.db", [ProjectDataset])
 
         columns = {o.name for o in self.db._database.get_columns("projectdataset")}
         if "full_hash" not in columns:
@@ -81,7 +79,9 @@ class ProjectManager(Iterable):
 
             print(MIGRATION_WARNING.format(src_filepath, backup_filepath))
 
-            ADD_FULL_HASH_COLUMN = """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
+            ADD_FULL_HASH_COLUMN = (
+                """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
+            )
             self.db.execute_sql(ADD_FULL_HASH_COLUMN)
 
             # We don't do this, as the column added doesn't have a default
@@ -112,9 +112,7 @@ class ProjectManager(Iterable):
                 "`projects.report()` to get\n\ta report on all projects."
             ).format(
                 len(self),
-                "".join(
-                    ["\n\t{}".format(x) for x in sorted([x.name for x in self])[:10]]
-                ),
+                "".join(["\n\t{}".format(x) for x in sorted([x.name for x in self])[:10]]),
             )
         else:
             return (
@@ -132,10 +130,9 @@ class ProjectManager(Iterable):
         if envvar:
             if not envvar.is_dir():
                 raise OSError(
-                    (
-                        "BRIGHTWAY2_DIR variable is {}, but this is not"
-                        " a valid directory"
-                    ).format(envvar)
+                    ("BRIGHTWAY2_DIR variable is {}, but this is not" " a valid directory").format(
+                        envvar
+                    )
                 )
             else:
                 print(
@@ -225,15 +222,11 @@ class ProjectManager(Iterable):
     ### Public API
     @property
     def dir(self):
-        return Path(self._base_data_dir) / safe_filename(
-            self.current, full=self.dataset.full_hash
-        )
+        return Path(self._base_data_dir) / safe_filename(self.current, full=self.dataset.full_hash)
 
     @property
     def logs_dir(self):
-        return Path(self._base_logs_dir) / safe_filename(
-            self.current, full=self.dataset.full_hash
-        )
+        return Path(self._base_logs_dir) / safe_filename(self.current, full=self.dataset.full_hash)
 
     @property
     def output_dir(self):
@@ -263,9 +256,7 @@ class ProjectManager(Iterable):
         try:
             self.dataset = ProjectDataset.get(ProjectDataset.name == name)
         except DoesNotExist:
-            self.dataset = ProjectDataset.create(
-                data=kwargs, name=name, full_hash=full_hash
-            )
+            self.dataset = ProjectDataset.create(data=kwargs, name=name, full_hash=full_hash)
             project_created.send(self.dataset)
         create_dir(self.dir)
         for dir_name in self._basic_directories:
@@ -280,9 +271,7 @@ class ProjectManager(Iterable):
         if fp.exists():
             raise ValueError("Project directory already exists")
         project_data = ProjectDataset.get(ProjectDataset.name == self.current).data
-        ProjectDataset.create(
-            data=project_data, name=new_name, full_hash=self.dataset.full_hash
-        )
+        ProjectDataset.create(data=project_data, name=new_name, full_hash=self.dataset.full_hash)
         shutil.copytree(self.dir, fp)
         create_dir(self._base_logs_dir / safe_filename(new_name))
         if switch:
@@ -391,7 +380,9 @@ class ProjectManager(Iterable):
         if new_name in databases:
             raise ValueError(f"Project `{new_name}` already exists.")
 
-        warnings.warn("Renaming current project; this is relatively expensive and could take a little while.")
+        warnings.warn(
+            "Renaming current project; this is relatively expensive and could take a little while."
+        )
 
         old_name = copy(self.current)
         self.copy_project(new_name)
@@ -407,9 +398,7 @@ class ProjectManager(Iterable):
             if self.dir.exists():
                 raise OSError("Target directory {} already exists".format(self.dir))
             if self.logs_dir.exists():
-                raise OSError(
-                    "Target directory {} already exists".format(self.logs_dir)
-                )
+                raise OSError("Target directory {} already exists".format(self.logs_dir))
             old_dir.rename(self.dir)
             old_logs_dir.rename(self.logs_dir)
             self.dataset.save()
@@ -426,9 +415,7 @@ class ProjectManager(Iterable):
             if self.dir.exists():
                 raise OSError("Target directory {} already exists".format(self.dir))
             if self.logs_dir.exists():
-                raise OSError(
-                    "Target directory {} already exists".format(self.logs_dir)
-                )
+                raise OSError("Target directory {} already exists".format(self.logs_dir))
             old_dir.rename(self.dir)
             old_logs_dir.rename(self.logs_dir)
             self.dataset.save()

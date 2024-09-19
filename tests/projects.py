@@ -5,15 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from bw2data import (
-    config,
-    databases,
-    geomapping,
-    mapping,
-    methods,
-    preferences,
-    projects,
-)
+from bw2data import config, databases, geomapping, mapping, methods, preferences, projects
 from bw2data.project import ProjectDataset
 from bw2data.tests import bw2test
 
@@ -155,7 +147,10 @@ def test_delete_current_project_with_name():
     assert "foo" not in projects
 
 
-@pytest.mark.skipif(platform.system() == "Windows", reason="Open file handle on Windows (only in tests, not real life)")
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Open file handle on Windows (only in tests, not real life)",
+)
 @bw2test
 def test_delete_project_remove_directory():
     projects.set_current("foo")

@@ -61,9 +61,7 @@ class DatabaseQuerysetTest(BW2DataTest):
 
     def test_random_with_local_filters(self):
         for _ in range(10):
-            self.assertEqual(
-                self.db.random(filters={"product": "lollipop"})["name"], "c"
-            )
+            self.assertEqual(self.db.random(filters={"product": "lollipop"})["name"], "c")
 
     def test_random_with_local_and_global_filters(self):
         db = DatabaseChooser("Newt")
@@ -94,9 +92,7 @@ class DatabaseQuerysetTest(BW2DataTest):
         self.assertTrue(len({db.random()["name"] for _ in range(10)}) > 1)
         db.filters = {"product": "widget"}
         for _ in range(10):
-            self.assertEqual(
-                self.db.random(filters={"location": "delaware"})["name"], "a"
-            )
+            self.assertEqual(self.db.random(filters={"location": "delaware"})["name"], "a")
 
     def test_contains_respects_filters(self):
         self.db.filters = {"product": "lollipop"}

@@ -200,18 +200,14 @@ class ExchangeProxyBase(ProxyBase):
         elif not isinstance(self["input"], tuple):
             errors.append("Field ``input`` must be a tuple")
         elif self["input"][0] not in databases:
-            errors.append(
-                "Input database ``{}`` doesn't exist".format(self["input"][0])
-            )
+            errors.append("Input database ``{}`` doesn't exist".format(self["input"][0]))
 
         if not self.get("output"):
             errors.append("Missing field ``output``")
         elif not isinstance(self["output"], tuple):
             errors.append("Field ``output`` must be a tuple")
         elif self["output"][0] not in databases:
-            errors.append(
-                "Output database ``{}`` doesn't exist".format(self["output"][0])
-            )
+            errors.append("Output database ``{}`` doesn't exist".format(self["output"][0]))
 
         if not isinstance(self.get("amount", None), Number):
             errors.append("Invalid or missing field ``amount``")

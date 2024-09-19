@@ -208,9 +208,7 @@ class SerializedDict(MutableMapping):
 
     def backup(self):
         """Write a backup version of the data to the ``backups`` directory."""
-        filepath = os.path.join(
-            projects.dir, "backups", self.filename + ".%s.backup" % int(time())
-        )
+        filepath = os.path.join(projects.dir, "backups", self.filename + ".%s.backup" % int(time()))
         self.serialize(filepath)
 
 

@@ -4,22 +4,9 @@ import pytest
 from bw2calc import LCA
 from pandas.testing import assert_frame_equal
 
-from bw2data import (
-    Database,
-    Method,
-    databases,
-    get_activity,
-    get_id,
-    get_node,
-    methods,
-    projects,
-)
+from bw2data import Database, Method, databases, get_activity, get_id, get_node, methods, projects
 from bw2data.backends import Activity
-from bw2data.backends.iotable.proxies import (
-    IOTableActivity,
-    IOTableExchanges,
-    ReadOnlyExchange,
-)
+from bw2data.backends.iotable.proxies import IOTableActivity, IOTableExchanges, ReadOnlyExchange
 from bw2data.errors import InvalidDatapackage
 from bw2data.tests import bw2test
 
@@ -194,9 +181,7 @@ def test_iotable_edges_to_dataframe(iotable_fixture):
                 "target_id": id_map[a],
                 "source_id": id_map[b],
                 "edge_amount": c,
-                "edge_type": (
-                    "technosphere" if ((-1 if d else 1) * c) < 0 else "production"
-                ),
+                "edge_type": ("technosphere" if ((-1 if d else 1) * c) < 0 else "production"),
                 "target_database": "mouse" if a == "d" else "cat",
                 "target_code": a,
                 "target_name": get_activity(code=a).get("name"),
@@ -366,9 +351,7 @@ def test_iotable_activity_edges_to_dataframe(iotable_fixture):
                 "source_unit": get_activity(code=b).get("unit"),
                 "source_categories": None,
                 "edge_amount": c,
-                "edge_type": (
-                    "technosphere" if ((-1 if d else 1) * c) < 0 else "production"
-                ),
+                "edge_type": ("technosphere" if ((-1 if d else 1) * c) < 0 else "production"),
             }
             for b, a, c, d in tech_exchanges
         ]
