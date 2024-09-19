@@ -94,7 +94,7 @@ log_cli_date_format = "%Y-%m-%d %H:%M:%S"
 
 [tool.flake8]
 # Some sane defaults for the code style checker flake8
-max_line_length = 88
+max_line_length = 100
 extend_ignore = ["E203", "W503"]
 # ^  Black-compatible
 #    E203 and W503 have edge cases handled by black
@@ -107,11 +107,11 @@ exclude = [
 ]
 
 [tool.black]
-line-length = 88
+line-length = 100
 
 [tool.isort]
 profile = "black"
-line_length = 88
+line_length = 100
 multi_line_output = 3
 include_trailing_comma = true
 force_grid_wrap = 0
