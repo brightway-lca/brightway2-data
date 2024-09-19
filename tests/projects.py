@@ -1,4 +1,5 @@
 import os
+import platform
 import tempfile
 from pathlib import Path
 
@@ -154,6 +155,7 @@ def test_delete_current_project_with_name():
     assert "foo" not in projects
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="Open file handle on Windows (only in tests, not real life)")
 @bw2test
 def test_delete_project_remove_directory():
     projects.set_current("foo")
