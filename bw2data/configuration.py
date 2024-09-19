@@ -45,7 +45,10 @@ class MatrixLabels(BaseSettings):
             )
         )
 
-    model_config = SettingsConfigDict(env_file="brightway-matrix-configuration.env")
+    model_config = SettingsConfigDict(
+        env_file="brightway-matrix-configuration.env",
+        env_prefix="dont_pick_up_random_env_vars_a1b2c3d4e5"
+    )
 
     def reload(self, fp: Path) -> None:
         """Load new `.env` file and overwrite settings"""
@@ -123,7 +126,10 @@ class TypoSettings(BaseSettings):
         "unit",
     ]
 
-    model_config = SettingsConfigDict(env_file="brightway-typo-configuration.env")
+    model_config = SettingsConfigDict(
+        env_file="brightway-typo-configuration.env",
+        env_prefix="dont_pick_up_random_env_vars_a1b2c3d4e5"
+    )
 
 
 class Config(BaseSettings):
@@ -135,7 +141,9 @@ class Config(BaseSettings):
     _windows: bool = platform.system() == "Windows"
 
     model_config = SettingsConfigDict(
-        env_file="brightway-configuration.env", extra="allow"
+        env_file="brightway-configuration.env",
+        extra="allow",
+        env_prefix="dont_pick_up_random_env_vars_a1b2c3d4e5"
     )
 
     @property
