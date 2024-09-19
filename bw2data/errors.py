@@ -1,4 +1,4 @@
-class BW2Exception(BaseException):
+class BW2Exception(Exception):
     """Base class for exceptions in Brightway2"""
 
     pass
