@@ -6,11 +6,12 @@ name: Publish Python 🐍 distributions 📦 to TestPyPI
 on:
   push:
     branches: [main]
-    tags-ignore: '*'
+
 jobs:
   build-n-publish:
     name: Build and publish Python 🐍 distributions 📦 to TestPyPI
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     permissions:
       id-token: write
     steps:
