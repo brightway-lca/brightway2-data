@@ -1,5 +1,11 @@
 # `bw2data` Changelog
 
+## 4.0.DEV55 (2024-09-20)
+
+* [#190](https://github.com/brightway-lca/brightway2-data/issues/190): `BW2Exception` should inherit `Exception` (instead of `BaseException`)
+* [#187](https://github.com/brightway-lca/brightway2-data/issues/187): `Except: pass` in databases metastore
+* [#178](https://github.com/brightway-lca/brightway2-data/issues/178): Use of `pydantic_settings` in `configuration.py` allows for environment variables
+
 ## 4.0.DEV54 (2024-09-14)
 
 * Allow `get_node(key=(<some tuple))`
