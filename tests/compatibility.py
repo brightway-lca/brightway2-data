@@ -9,6 +9,7 @@ from bw2data import (
     databases,
     geomapping,
     get_activity,
+    get_node,
     get_multilca_data_objs,
     methods,
     normalizations,
@@ -50,6 +51,8 @@ def test_registered_database_repr():
     print(d)
 
 
+@pytest.fixture
+@bw2test
 def setup():
     Database("biosphere").write(biosphere)
     Database("food").write(food)
@@ -58,16 +61,11 @@ def setup():
     return Database("biosphere"), Database("food"), Method(("foo",))
 
 
-@bw2test
-def test_prepare_lca_inputs_basic():
-    pla = setup()
+def test_prepare_lca_inputs_basic(setup):
     d, objs, r = prepare_lca_inputs(demand={("food", "1"): 1}, method=("foo",))
     # ID is 3; two biosphere flows, then '1' is next written
     assert d == {3: 1}
-
-    print(objs[0].metadata)
-
-    assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in pla}
+    assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in setup}
 
     remapping_expected = {
         "activity": {
@@ -92,9 +90,7 @@ def test_prepare_lca_inputs_basic():
     assert r == remapping_expected
 
 
-@bw2test
-def test_prepare_lca_inputs_only_method():
-    setup()
+def test_prepare_lca_inputs_only_method(setup):
     d, objs, r = prepare_lca_inputs(method=("foo",))
     # ID is 3; two biosphere flows, then '1' is next written
     assert d is None
@@ -103,31 +99,35 @@ def test_prepare_lca_inputs_only_method():
     ]
 
 
-@bw2test
-def test_prepare_lca_inputs_multiple_demands():
-    pla = setup()
+def test_prepare_lca_inputs_multiple_demands_data_types(setup):
+    first = get_node(database="food", code="1")
+    second = get_node(database="food", code="2")
+    d, objs, r = prepare_lca_inputs(
+        demands=[{first: 1}, {second.id: 10}], method=("foo",)
+    )
+    assert d == [{3: 1}, {4: 10}]
+    assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in setup}
+
+
+def test_prepare_lca_inputs_multiple_demands(setup):
     d, objs, r = prepare_lca_inputs(
         demands=[{("food", "1"): 1}, {("food", "2"): 10}], method=("foo",)
     )
     # ID is 3; two biosphere flows, then '1' is next written
     assert d == [{3: 1}, {4: 10}]
-    assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in pla}
+    assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in setup}
 
 
-@bw2test
-def test_prepare_lca_inputs_database_ordering():
-    pla = setup()
+def test_prepare_lca_inputs_database_ordering(setup):
     d, objs, r = prepare_lca_inputs(
         demands=[{("food", "1"): 1}, {("food", "2"): 10}],
         method=("foo",),
         demand_database_last=False,
     )
-    assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in pla}
+    assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in setup}
 
 
-@bw2test
-def test_prepare_lca_inputs_remapping():
-    setup()
+def test_prepare_lca_inputs_remapping(setup):
     d, objs, r = prepare_lca_inputs(demand={("food", "1"): 1}, method=("foo",), remapping=False)
     assert r is None
 

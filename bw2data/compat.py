@@ -14,8 +14,8 @@ from bw2data import (
     projects,
     weightings,
 )
-from bw2data.backends.schema import ActivityDataset as AD
-from bw2data.backends.schema import get_id
+from bw2data.backends.schema import get_id, ActivityDataset as AD
+from bw2data.backends import Node
 from bw2data.errors import Brightway2Project, UnknownObject
 
 
@@ -43,12 +43,18 @@ class Mapping:
         return AD.select().count()
 
 
-def unpack(dct):
+def unpack(dct) -> str:
     for obj in dct:
-        if hasattr(obj, "key"):
-            yield obj.key
+        if isinstance(obj, AD):
+            yield obj.database
+        elif isinstance(obj, Node):
+            yield obj["database"]
+        elif isinstance(obj, tuple):
+            yield obj[0]
+        elif isinstance(obj, int):
+            yield get_node(id=obj)['database']
         else:
-            yield obj
+            raise ValueError
 
 
 def translate_key(key):
@@ -78,9 +84,9 @@ def prepare_lca_inputs(
     remapping_dicts = None
 
     if demands:
-        demand_database_names = [db_label for dct in demands for db_label, _ in unpack(dct)]
+        demand_database_names = sorted({db_label for dct in demands for db_label in unpack(dct)})
     elif demand:
-        demand_database_names = [db_label for db_label, _ in unpack(demand)]
+        demand_database_names = sorted({db_label for db_label in unpack(demand)})
     else:
         demand_database_names = []
 
