@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.0.DEV56 (2024-09-24)
+
+* [#192](https://github.com/brightway-lca/brightway2-data/issues/192): Providing `Node` objects to `prepare_lca_inputs` raises an error
+
 ## 4.0.DEV55 (2024-09-20)
 
 * [#190](https://github.com/brightway-lca/brightway2-data/issues/190): `BW2Exception` should inherit `Exception` (instead of `BaseException`)
