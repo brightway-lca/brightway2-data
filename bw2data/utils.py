@@ -10,9 +10,11 @@ import warnings
 import zipfile
 from io import StringIO
 from pathlib import Path
+from pprint import pformat
 from typing import List
 
 import stats_arrays as sa
+from deprecated import deprecated
 
 from bw2data.configuration import labels
 from bw2data.errors import MultipleResults, NotFound, UnknownObject, ValidityError
@@ -21,8 +23,11 @@ from bw2data.fatomic import open
 DOWNLOAD_URL = "https://brightway.dev/data/"
 
 
+@deprecated("`safe_filename` has been moved to `bw_processing`; will be removed in v5")
 def safe_filename(*args, **kwargs):
-    raise DeprecationWarning("`safe_filename` has been moved to `bw_processing`")
+    from bw_processing import safe_filename
+
+    return safe_filename(*args, **kwargs)
 
 
 def maybe_path(x):
@@ -308,18 +313,11 @@ def set_data_dir(dirpath, permanent=True):
     Creates ``dirpath`` if needed. Also creates basic directories, and resets metadata.
 
     """
-    warnings.warn(
-        "`set_data_dir` is deprecated; use `projects.set_current('my "
-        "project name')` for a new project space.",
-        DeprecationWarning,
-    )
+    raise NotImplementedError("Change projects using `projects.set_current()`")
 
 
 def switch_data_directory(dirpath):
-    warnings.warn(
-        "`switch_data_directory` is deprecated; use `projects.change_base_directories`.",
-        DeprecationWarning,
-    )
+    raise NotImplementedError("Change projects using `projects.set_current()`")
 
 
 def create_in_memory_zipfile_from_directory(path):
@@ -405,7 +403,7 @@ def get_activity(key=None, **kwargs):
 
 
 def get_geocollection(location, default_global_location=False):
-    """conservative approach to finding geocollections. Won't guess about ecoinvent or other databases."""
+    """conservative approach to finding geocollections. Won't guess about ecoinvent or other dbs."""
     if not location:
         if default_global_location:
             return "world"
@@ -417,3 +415,39 @@ def get_geocollection(location, default_global_location=False):
         return "world"
     else:
         return None
+
+
+def set_correct_process_type(dataset: dict) -> dict:
+    """
+    Change the `type` for an LCI process under certain conditions.
+
+    Only will make changes if the following conditions are met:
+
+    * `type` is `None` or missing -> set to either `process` or `processwithreferenceproduct`
+    * `type` is `process` but the dataset also includes an exchange which points to the same node
+        -> `processwithreferenceproduct`
+
+    """
+    this = (dataset["database"], dataset["code"])
+    if dataset.get("type") not in (labels.process_node_default, None):
+        pass
+    elif any(exc.get("input") == this for exc in dataset.get("exchanges", [])):
+        # Explicit self production/consumption -> chimaera
+        dataset["type"] = labels.chimaera_node_default
+    elif any(exc.get("functional") for exc in dataset.get("exchanges", [])):
+        dataset["type"] = labels.process_node_default
+    elif (
+        # No production edges -> implicit self production -> chimaera
+        not any(
+            exc.get("type") in labels.technosphere_positive_edge_types
+            for exc in dataset.get("exchanges", [])
+        )
+    ):
+        dataset["type"] = labels.chimaera_node_default
+    elif not dataset.get("type"):
+        dataset["type"] = labels.process_node_default
+    else:
+        # No conditions for setting or changing type occurred
+        pass
+
+    return dataset

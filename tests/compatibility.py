@@ -9,8 +9,8 @@ from bw2data import (
     databases,
     geomapping,
     get_activity,
-    get_node,
     get_multilca_data_objs,
+    get_node,
     methods,
     normalizations,
     prepare_lca_inputs,
@@ -102,9 +102,7 @@ def test_prepare_lca_inputs_only_method(setup):
 def test_prepare_lca_inputs_multiple_demands_data_types(setup):
     first = get_node(database="food", code="1")
     second = get_node(database="food", code="2")
-    d, objs, r = prepare_lca_inputs(
-        demands=[{first: 1}, {second.id: 10}], method=("foo",)
-    )
+    d, objs, r = prepare_lca_inputs(demands=[{first: 1}, {second.id: 10}], method=("foo",))
     assert d == [{3: 1}, {4: 10}]
     assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in setup}
 

@@ -148,16 +148,38 @@ def test_delete_warning():
 def test_relabel_data():
     old_data = {
         ("old and boring", "1"): {
-            "exchanges": [{"input": ("old and boring", "42"), "amount": 1.0}]
+            "exchanges": [
+                {
+                    "input": ("old and boring", "42"),
+                    "output": ("old and boring", "1"),
+                    "amount": 1.0,
+                },
+                {
+                    "input": ("something else", "42"),
+                    "output": ("old and boring", "1"),
+                    "amount": 1.0,
+                },
+                {
+                    "input": ("old and boring", "42"),
+                    "output": ("something else", "123"),
+                    "amount": 1.0,
+                },
+            ]
         },
         ("old and boring", "2"): {"exchanges": [{"input": ("old and boring", "1"), "amount": 4.0}]},
     }
     shiny_new = {
-        ("shiny new", "1"): {"exchanges": [{"input": ("old and boring", "42"), "amount": 1.0}]},
+        ("shiny new", "1"): {
+            "exchanges": [
+                {"input": ("shiny new", "42"), "output": ("shiny new", "1"), "amount": 1.0},
+                {"input": ("something else", "42"), "output": ("shiny new", "1"), "amount": 1.0},
+                {"input": ("shiny new", "42"), "output": ("something else", "123"), "amount": 1.0},
+            ]
+        },
         ("shiny new", "2"): {"exchanges": [{"input": ("shiny new", "1"), "amount": 4.0}]},
     }
     db = Database("foo")
-    assert shiny_new == db.relabel_data(old_data, "shiny new")
+    assert shiny_new == db.relabel_data(old_data, "old and boring", "shiny new")
 
 
 ### Metadata
@@ -565,6 +587,7 @@ def test_find_dependents():
                     },
                 ],
                 "location": "bar",
+                "type": "process",
             },
             ("a database", "baz"): {
                 "exchanges": [
@@ -733,7 +756,7 @@ def test_can_split_processes_products():
                 "exchanges": [
                     {
                         "input": ("a database", "product"),
-                        "output": ("a database", "product"),
+                        "output": ("a database", "foo"),
                         "type": "production",
                         "amount": 1,
                     }
@@ -918,14 +941,49 @@ def test_delete_duplicate_exchanges():
 
 
 @bw2test
-def test_add_geocollections(capsys):
+def test_add_geocollections_dict(capsys):
     db = Database("test-case")
     db.write(
         {
-            ("test-case", "1"): {"location": "RU", "exchanges": []},
-            ("test-case", "2"): {"exchanges": []},
-            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar")},
+            ("test-case", "1"): {"location": "RU", "exchanges": [], "type": "process"},
+            ("test-case", "2"): {"exchanges": [], "type": "processwithreferenceproduct"},
+            ("test-case", "3"): {
+                "exchanges": [],
+                "location": ("foo", "bar"),
+                "type": "processwithreferenceproduct",
+            },
         }
+    )
+    assert db.metadata["geocollections"] == ["foo", "world"]
+    assert "Not able" in capsys.readouterr().out
+
+
+@bw2test
+def test_add_geocollections_list(capsys):
+    db = Database("test-case")
+    db.write(
+        [
+            {
+                "database": "test-case",
+                "code": "1",
+                "location": "RU",
+                "exchanges": [],
+                "type": "process",
+            },
+            {
+                "database": "test-case",
+                "code": "2",
+                "exchanges": [],
+                "type": "processwithreferenceproduct",
+            },
+            {
+                "database": "test-case",
+                "code": "3",
+                "exchanges": [],
+                "location": ("foo", "bar"),
+                "type": "processwithreferenceproduct",
+            },
+        ]
     )
     assert db.metadata["geocollections"] == ["foo", "world"]
     assert "Not able" in capsys.readouterr().out
@@ -936,12 +994,18 @@ def test_set_geocollections(capsys):
     db = Database("test-case")
     db.write(
         {
-            ("test-case", "1"): {"location": "RU", "exchanges": [], "name": "a"},
-            ("test-case", "2"): {"exchanges": [], "name": "b"},
+            ("test-case", "1"): {
+                "location": "RU",
+                "exchanges": [],
+                "name": "a",
+                "type": "processwithreferenceproduct",
+            },
+            ("test-case", "2"): {"exchanges": [], "name": "b", "type": "process"},
             ("test-case", "3"): {
                 "exchanges": [],
                 "location": ("foo", "bar"),
                 "name": "c",
+                "type": "processwithreferenceproduct",
             },
         }
     )
@@ -965,8 +1029,8 @@ def test_add_geocollections_unable(capsys):
     db = Database("test-case")
     db.write(
         {
-            ("test-case", "1"): {"location": "Russia", "exchanges": []},
-            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar")},
+            ("test-case", "1"): {"location": "Russia", "exchanges": [], "type": "process"},
+            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar"), "type": "process"},
         }
     )
     assert db.metadata["geocollections"] == ["foo"]
@@ -983,7 +1047,7 @@ def test_add_geocollections_no_unable_for_product(capsys):
                 "type": "product",
                 "exchanges": [],
             },
-            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar")},
+            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar"), "type": "process"},
         }
     )
     assert db.metadata["geocollections"] == ["foo"]
@@ -1117,7 +1181,7 @@ def test_nodes_to_dataframe_simple(df_fixture):
                 "id": get_id(("food", "2")),
                 "location": "CH",
                 "name": "dinner",
-                "type": "process",
+                "type": "processwithreferenceproduct",
                 "unit": "kg",
             },
             {
@@ -1127,7 +1191,7 @@ def test_nodes_to_dataframe_simple(df_fixture):
                 "id": get_id(("food", "1")),
                 "location": "CA",
                 "name": "lunch",
-                "type": "process",
+                "type": "processwithreferenceproduct",
                 "unit": "kg",
             },
         ]

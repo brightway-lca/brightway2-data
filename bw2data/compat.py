@@ -1,6 +1,7 @@
 from typing import Dict, List, Union
 
 from bw_processing.datapackage import DatapackageBase
+from deprecated import deprecated
 
 from bw2data import (
     Database,
@@ -14,8 +15,9 @@ from bw2data import (
     projects,
     weightings,
 )
-from bw2data.backends.schema import get_id, ActivityDataset as AD
 from bw2data.backends import Node
+from bw2data.backends.schema import ActivityDataset as AD
+from bw2data.backends.schema import get_id
 from bw2data.errors import Brightway2Project, UnknownObject
 
 
@@ -25,15 +27,15 @@ class Mapping:
     Used only for backwards compatibility; preferred method is now to look up the ids of activities directly in the SQlite database.
     """
 
+    @deprecated("This method is no longer necessary, and does nothing.")
     def add(self, keys):
-        raise DeprecationWarning("This method is no longer necessary, and does nothing.")
         return
 
     def __getitem__(self, key):
         return get_id(key)
 
+    @deprecated("This method is no longer necessary, and does nothing.")
     def delete(self, keys):
-        raise DeprecationWarning("This method is no longer necessary, and does nothing.")
         return
 
     def __str__(self):
@@ -52,7 +54,7 @@ def unpack(dct) -> str:
         elif isinstance(obj, tuple):
             yield obj[0]
         elif isinstance(obj, int):
-            yield get_node(id=obj)['database']
+            yield get_node(id=obj)["database"]
         else:
             raise ValueError
 

@@ -1,19 +1,20 @@
 import platform
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
+from deprecated import deprecated
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MatrixLabels(BaseSettings):
-    node_types: List[Union[str, None]] = [
+    lci_node_types: List[str] = [
         "process",
         "product",
         "processwithreferenceproduct",
         "multifunctional",
-        None,
     ]
-    process_node_types: List[Union[str, None]] = ["process", "processwithreferenceproduct", None]
+    other_node_types: List[str] = []
+    process_node_types: List[str] = ["process", "processwithreferenceproduct"]
     product_node_types: List[str] = ["product"]
 
     process_node_default: str = "process"
@@ -34,6 +35,7 @@ class MatrixLabels(BaseSettings):
     ]
     # You should normally use `technosphere_positive_edge_types`, as it includes substitution
     substitution_edge_types: List[str] = ["substitution"]
+    other_edge_types: List[str] = []
 
     production_edge_default: str = "production"
     consumption_edge_default: str = "technosphere"
@@ -41,7 +43,11 @@ class MatrixLabels(BaseSettings):
     substitution_edge_default: str = "substitution"
 
     @property
-    def edge_types(self):
+    def implicit_production_allowed_node_types(self):
+        return [self.chimaera_node_default]
+
+    @property
+    def lci_edge_types(self) -> List[str]:
         return sorted(
             set(
                 self.biosphere_edge_types
@@ -50,6 +56,14 @@ class MatrixLabels(BaseSettings):
                 + self.substitution_edge_types
             )
         )
+
+    @property
+    def edge_types(self) -> List[str]:
+        return sorted(set(self.lci_edge_types + self.other_edge_types))
+
+    @property
+    def node_types(self) -> List[str]:
+        return sorted(set(self.lci_node_types + self.other_node_types))
 
     model_config = SettingsConfigDict(
         env_file="brightway-matrix-configuration.env",

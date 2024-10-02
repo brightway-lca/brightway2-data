@@ -7,7 +7,7 @@ import uuid
 import warnings
 from collections import defaultdict
 from functools import partial
-from typing import Callable, Iterable, List, Optional
+from typing import Callable, Iterable, List, Optional, Union
 
 import pandas
 from bw_processing import Datapackage, clean_datapackage_name, create_datapackage
@@ -43,7 +43,7 @@ from bw2data.errors import (
 )
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
-from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node
+from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
@@ -223,12 +223,12 @@ class SQLiteBackend(ProcessedDataStore):
 
         """
         assert name not in databases, ValueError("This database exists")
-        data = self.relabel_data(copy.deepcopy(self.load()), name)
+        data = self.relabel_data(copy.deepcopy(self.load()), self.name, name)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             new_database = self.__class__(name)
             new_database.register(
-                format="Brightway2 copy",
+                format=f"Copied from '{self.name}'",
             )
 
         new_database.write(data, searchable=databases[name].get("searchable"))
@@ -262,7 +262,7 @@ class SQLiteBackend(ProcessedDataStore):
             for ds in data.values()
             for exc in ds.get("exchanges", [])
             if ds.get("type") in labels.process_node_types
-            and exc.get("type") != "unknown"
+            and exc.get("type") in labels.lci_edge_types
             and exc.get("input", [None])[0] is not None
             and exc.get("input", [None])[0] not in ignore
         }
@@ -308,7 +308,7 @@ class SQLiteBackend(ProcessedDataStore):
         if write_empty:
             self.write({}, searchable=False)
 
-    def relabel_data(self, data, new_name):
+    def relabel_data(self, data: dict, old_name: str, new_name: str) -> dict:
         """Relabel database keys and exchanges.
 
         In a database which internally refer to the same database, update to new database name ``new_name``.
@@ -360,13 +360,18 @@ class SQLiteBackend(ProcessedDataStore):
 
         """
 
-        def relabel_exchanges(obj, new_name):
+        def relabel_exchanges(obj: dict, old_name: str, new_name: str) -> dict:
             for e in obj.get("exchanges", []):
-                if e["input"] in data:
+                if "input" in e and e["input"][0] == old_name:
                     e["input"] = (new_name, e["input"][1])
+                if "output" in e and e["output"][0] == old_name:
+                    e["output"] = (new_name, e["output"][1])
+
             return obj
 
-        return dict([((new_name, k[1]), relabel_exchanges(v, new_name)) for k, v in data.items()])
+        return dict(
+            [((new_name, k[1]), relabel_exchanges(v, old_name, new_name)) for k, v in data.items()]
+        )
 
     def rename(self, name):
         """Rename a database. Modifies exchanges to link to new name. Deregisters old database.
@@ -383,7 +388,7 @@ class SQLiteBackend(ProcessedDataStore):
             warnings.simplefilter("ignore")
             new_db = self.__class__(name)
             databases[name] = databases[old_name]
-        new_data = self.relabel_data(self.load(), name)
+        new_data = self.relabel_data(self.load(), old_name, name)
         new_db.write(new_data, searchable=databases[name].get("searchable"))
         del databases[old_name]
         self.name = name
@@ -499,7 +504,6 @@ class SQLiteBackend(ProcessedDataStore):
 
     def _efficient_write_dataset(
         self,
-        key: tuple,
         ds: dict,
         exchanges: list,
         activities: list,
@@ -515,7 +519,8 @@ class SQLiteBackend(ProcessedDataStore):
                 check_exchange_type(exchange.get("type"))
                 check_exchange_keys(exchange)
 
-            exchange["output"] = key
+            if "output" not in exchange:
+                exchange["output"] = (ds["database"], ds["code"])
             exchanges.append(dict_as_exchangedataset(exchange))
 
             # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
@@ -528,8 +533,6 @@ class SQLiteBackend(ProcessedDataStore):
                 exchanges = []
 
         ds = {k: v for k, v in ds.items() if k != "exchanges"}
-        ds["database"] = key[0]
-        ds["code"] = key[1]
 
         if check_typos:
             check_activity_type(ds.get("type"))
@@ -544,7 +547,7 @@ class SQLiteBackend(ProcessedDataStore):
         return exchanges, activities
 
     def _efficient_write_many_data(
-        self, data: dict, indices: bool = True, check_typos: bool = True
+        self, data: list, indices: bool = True, check_typos: bool = True
     ) -> None:
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
@@ -555,9 +558,9 @@ class SQLiteBackend(ProcessedDataStore):
             self.delete(keep_params=True, warn=False, vacuum=False)
             exchanges, activities = [], []
 
-            for key, ds in tqdm_wrapper(data.items(), getattr(config, "is_test", False)):
+            for ds in tqdm_wrapper(data, getattr(config, "is_test", False)):
                 exchanges, activities = self._efficient_write_dataset(
-                    key, ds, exchanges, activities, check_typos
+                    ds, exchanges, activities, check_typos
                 )
 
             if activities:
@@ -578,7 +581,7 @@ class SQLiteBackend(ProcessedDataStore):
 
     def write(
         self,
-        data: dict,
+        data: Union[dict, list],
         process: bool = True,
         searchable: bool = True,
         check_typos: bool = True,
@@ -592,9 +595,20 @@ class SQLiteBackend(ProcessedDataStore):
             }
 
         Writing a database will first deletes all existing data."""
+
+        def merger(d1: dict, d2: dict) -> dict:
+            """The joys of 3.9 compatibility"""
+            d1.update(d2)
+            return d1
+
+        if isinstance(data, dict):
+            data = [merger(v, {"database": db, "code": code}) for (db, code), v in data.items()]
+
+        data = [set_correct_process_type(dataset) for dataset in data]
+
         if self.name not in databases:
             self.register(write_empty=False)
-        wrong_database = {key[0] for key in data}.difference({self.name})
+        wrong_database = {ds["database"] for ds in data}.difference({self.name})
         if wrong_database:
             raise WrongDatabase(
                 "Can't write activities in databases {} to database {}".format(
@@ -606,9 +620,9 @@ class SQLiteBackend(ProcessedDataStore):
 
         databases.set_modified(self.name)
         geocollections = {
-            get_geocollection(x.get("location"))
-            for x in data.values()
-            if x.get("type") in labels.process_node_types
+            get_geocollection(dataset.get("location"))
+            for dataset in data
+            if dataset.get("type") in labels.process_node_types
         }
         if None in geocollections:
             print(
@@ -618,7 +632,7 @@ class SQLiteBackend(ProcessedDataStore):
         databases[self.name]["geocollections"] = sorted(geocollections)
         # processing will flush the database metadata
 
-        geomapping.add({x["location"] for x in data.values() if x.get("location")})
+        geomapping.add({x["location"] for x in data if x.get("location")})
         if data:
             try:
                 self._efficient_write_many_data(data, check_typos=check_typos)
@@ -674,7 +688,7 @@ class SQLiteBackend(ProcessedDataStore):
         else:
             obj["code"] = str(code)
 
-        if kwargs.get("type") in labels.edge_types:
+        if kwargs.get("type") in labels.lci_edge_types:
             EDGE_LABELS = """
 Edge type label used for node.
 You gave the type "{}". This is normally used for *edges*, not for *nodes*.
@@ -828,8 +842,8 @@ Here are the type values usually used for nodes:
         # Try to avoid race conditions - but no guarantee
         self.metadata["processed"] = datetime.datetime.now().isoformat()
         # Get number of exchanges and processes to set
-        # initial Numpy array size (still have to include)
-        # implicit production exchanges
+        # initial Numpy array size (still have to include
+        # implicit production exchanges)
         dependents = set()
 
         # self.filepath_processed checks if data is dirty,
@@ -860,7 +874,7 @@ Here are the type values usually used for nodes:
                 # Get correct database name
                 ActivityDataset.database == self.name,
                 # Only consider `process` type activities
-                ActivityDataset.type << labels.process_node_types,
+                ActivityDataset.type << labels.implicit_production_allowed_node_types,
                 # But exclude activities that already have production exchanges
                 ~(
                     ActivityDataset.code
