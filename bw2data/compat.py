@@ -14,8 +14,9 @@ from bw2data import (
     projects,
     weightings,
 )
-from bw2data.backends.schema import get_id, ActivityDataset as AD
 from bw2data.backends import Node
+from bw2data.backends.schema import ActivityDataset as AD
+from bw2data.backends.schema import get_id
 from bw2data.errors import Brightway2Project, UnknownObject
 
 
@@ -52,7 +53,7 @@ def unpack(dct) -> str:
         elif isinstance(obj, tuple):
             yield obj[0]
         elif isinstance(obj, int):
-            yield get_node(id=obj)['database']
+            yield get_node(id=obj)["database"]
         else:
             raise ValueError
 

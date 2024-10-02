@@ -421,11 +421,11 @@ def get_geocollection(location, default_global_location=False):
 
 def set_correct_process_type(dataset: dict) -> dict:
     """
-Change the `type` for an LCI process under certain conditions.
+    Change the `type` for an LCI process under certain conditions.
 
-Only will make changes if the following conditions are met:
+    Only will make changes if the following conditions are met:
 
-* `type` is `None` or missing -> set to either `process` or `processwithreferenceproduct`
-* `type` is `process` but the dataset also includes a reference product -> `processwithreferenceproduct`
+    * `type` is `None` or missing -> set to either `process` or `processwithreferenceproduct`
+    * `type` is `process` but the dataset also includes a reference product -> `processwithreferenceproduct`
 
     """

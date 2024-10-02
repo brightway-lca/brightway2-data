@@ -362,14 +362,16 @@ class SQLiteBackend(ProcessedDataStore):
 
         def relabel_exchanges(obj: dict, old_name: str, new_name: str) -> dict:
             for e in obj.get("exchanges", []):
-                if "input" in e and e['input'][0] == old_name:
+                if "input" in e and e["input"][0] == old_name:
                     e["input"] = (new_name, e["input"][1])
-                if "output" in e and e['output'][0] == old_name:
+                if "output" in e and e["output"][0] == old_name:
                     e["output"] = (new_name, e["output"][1])
 
             return obj
 
-        return dict([((new_name, k[1]), relabel_exchanges(v, old_name, new_name)) for k, v in data.items()])
+        return dict(
+            [((new_name, k[1]), relabel_exchanges(v, old_name, new_name)) for k, v in data.items()]
+        )
 
     def rename(self, name):
         """Rename a database. Modifies exchanges to link to new name. Deregisters old database.
@@ -518,7 +520,7 @@ class SQLiteBackend(ProcessedDataStore):
                 check_exchange_keys(exchange)
 
             if "output" not in exchange:
-                exchange["output"] = (ds['database'], ds['code'])
+                exchange["output"] = (ds["database"], ds["code"])
             exchanges.append(dict_as_exchangedataset(exchange))
 
             # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
@@ -593,6 +595,7 @@ class SQLiteBackend(ProcessedDataStore):
             }
 
         Writing a database will first deletes all existing data."""
+
         def merger(d1: dict, d2: dict) -> dict:
             """The joys of 3.9 compatibility"""
             d1.update(d2)
@@ -605,7 +608,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         if self.name not in databases:
             self.register(write_empty=False)
-        wrong_database = {ds['database'] for ds in data}.difference({self.name})
+        wrong_database = {ds["database"] for ds in data}.difference({self.name})
         if wrong_database:
             raise WrongDatabase(
                 "Can't write activities in databases {} to database {}".format(

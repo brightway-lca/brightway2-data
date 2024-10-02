@@ -149,19 +149,33 @@ def test_relabel_data():
     old_data = {
         ("old and boring", "1"): {
             "exchanges": [
-                {"input": ("old and boring", "42"), "output": ("old and boring", "1"), "amount": 1.0},
-                {"input": ("something else", "42"), "output": ("old and boring", "1"), "amount": 1.0},
-                {"input": ("old and boring", "42"), "output": ("something else", "123"), "amount": 1.0},
+                {
+                    "input": ("old and boring", "42"),
+                    "output": ("old and boring", "1"),
+                    "amount": 1.0,
+                },
+                {
+                    "input": ("something else", "42"),
+                    "output": ("old and boring", "1"),
+                    "amount": 1.0,
+                },
+                {
+                    "input": ("old and boring", "42"),
+                    "output": ("something else", "123"),
+                    "amount": 1.0,
+                },
             ]
         },
         ("old and boring", "2"): {"exchanges": [{"input": ("old and boring", "1"), "amount": 4.0}]},
     }
     shiny_new = {
-        ("shiny new", "1"): {"exchanges": [
+        ("shiny new", "1"): {
+            "exchanges": [
                 {"input": ("shiny new", "42"), "output": ("shiny new", "1"), "amount": 1.0},
                 {"input": ("something else", "42"), "output": ("shiny new", "1"), "amount": 1.0},
                 {"input": ("shiny new", "42"), "output": ("something else", "123"), "amount": 1.0},
-        ]},
+            ]
+        },
         ("shiny new", "2"): {"exchanges": [{"input": ("shiny new", "1"), "amount": 4.0}]},
     }
     db = Database("foo")
@@ -933,7 +947,11 @@ def test_add_geocollections_dict(capsys):
         {
             ("test-case", "1"): {"location": "RU", "exchanges": [], "type": "process"},
             ("test-case", "2"): {"exchanges": [], "type": "processwithreferenceproduct"},
-            ("test-case", "3"): {"exchanges": [], "location": ("foo", "bar"), "type": "processwithreferenceproduct"},
+            ("test-case", "3"): {
+                "exchanges": [],
+                "location": ("foo", "bar"),
+                "type": "processwithreferenceproduct",
+            },
         }
     )
     assert db.metadata["geocollections"] == ["foo", "world"]
@@ -945,9 +963,26 @@ def test_add_geocollections_list(capsys):
     db = Database("test-case")
     db.write(
         [
-            {"database": "test-case", "code": "1", "location": "RU", "exchanges": [], "type": "process"},
-            {"database": "test-case", "code": "2", "exchanges": [], "type": "processwithreferenceproduct"},
-            {"database": "test-case", "code": "3", "exchanges": [], "location": ("foo", "bar"), "type": "processwithreferenceproduct"},
+            {
+                "database": "test-case",
+                "code": "1",
+                "location": "RU",
+                "exchanges": [],
+                "type": "process",
+            },
+            {
+                "database": "test-case",
+                "code": "2",
+                "exchanges": [],
+                "type": "processwithreferenceproduct",
+            },
+            {
+                "database": "test-case",
+                "code": "3",
+                "exchanges": [],
+                "location": ("foo", "bar"),
+                "type": "processwithreferenceproduct",
+            },
         ]
     )
     assert db.metadata["geocollections"] == ["foo", "world"]
@@ -959,13 +994,18 @@ def test_set_geocollections(capsys):
     db = Database("test-case")
     db.write(
         {
-            ("test-case", "1"): {"location": "RU", "exchanges": [], "name": "a", "type": "processwithreferenceproduct"},
+            ("test-case", "1"): {
+                "location": "RU",
+                "exchanges": [],
+                "name": "a",
+                "type": "processwithreferenceproduct",
+            },
             ("test-case", "2"): {"exchanges": [], "name": "b", "type": "process"},
             ("test-case", "3"): {
                 "exchanges": [],
                 "location": ("foo", "bar"),
                 "name": "c",
-                "type": "processwithreferenceproduct"
+                "type": "processwithreferenceproduct",
             },
         }
     )
