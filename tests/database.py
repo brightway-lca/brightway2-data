@@ -1181,7 +1181,7 @@ def test_nodes_to_dataframe_simple(df_fixture):
                 "id": get_id(("food", "2")),
                 "location": "CH",
                 "name": "dinner",
-                "type": "process",
+                "type": "processwithreferenceproduct",
                 "unit": "kg",
             },
             {
@@ -1191,7 +1191,7 @@ def test_nodes_to_dataframe_simple(df_fixture):
                 "id": get_id(("food", "1")),
                 "location": "CA",
                 "name": "lunch",
-                "type": "process",
+                "type": "processwithreferenceproduct",
                 "unit": "kg",
             },
         ]

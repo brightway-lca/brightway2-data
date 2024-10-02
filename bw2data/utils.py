@@ -430,16 +430,11 @@ def set_correct_process_type(dataset: dict) -> dict:
     """
     this = (dataset["database"], dataset["code"])
     if dataset.get("type") not in (labels.process_node_default, None):
-        print("Condition 1")
         pass
     elif any(exc.get("input") == this for exc in dataset.get("exchanges", [])):
         # Explicit self production/consumption -> chimaera
-        print("Condition 2")
         dataset["type"] = labels.chimaera_node_default
-    elif (
-        any(exc.get("functional") for exc in dataset.get("exchanges", []))
-    ):
-        print("Condition 3")
+    elif any(exc.get("functional") for exc in dataset.get("exchanges", [])):
         dataset["type"] = labels.process_node_default
     elif (
         # No production edges -> implicit self production -> chimaera
@@ -448,14 +443,11 @@ def set_correct_process_type(dataset: dict) -> dict:
             for exc in dataset.get("exchanges", [])
         )
     ):
-        print("Condition 4")
         dataset["type"] = labels.chimaera_node_default
     elif not dataset.get("type"):
-        print("Condition 5")
         dataset["type"] = labels.process_node_default
     else:
         # No conditions for setting or changing type occurred
-        print("Condition 6")
         pass
 
     return dataset

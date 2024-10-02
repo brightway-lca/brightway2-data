@@ -51,9 +51,24 @@ def iotable_fixture():
 
     cat = Database("cat", backend="iotable")
     cat_data = {
-        ("cat", "a"): {"name": "a", "unit": "meow", "location": "sunshine"},
-        ("cat", "b"): {"name": "b", "unit": "purr", "location": "curled up"},
-        ("cat", "c"): {"name": "c", "unit": "meow", "location": "on lap"},
+        ("cat", "a"): {
+            "name": "a",
+            "unit": "meow",
+            "location": "sunshine",
+            "type": "processwithreferenceproduct",
+        },
+        ("cat", "b"): {
+            "name": "b",
+            "unit": "purr",
+            "location": "curled up",
+            "type": "processwithreferenceproduct",
+        },
+        ("cat", "c"): {
+            "name": "c",
+            "unit": "meow",
+            "location": "on lap",
+            "type": "processwithreferenceproduct",
+        },
     }
     cat.write(cat_data)
     cat.write_exchanges(
@@ -261,6 +276,7 @@ def test_iotable_nodes_to_dataframe(iotable_fixture):
                 "id": get_id(("cat", "a")),
                 "location": "sunshine",
                 "name": "a",
+                "type": "processwithreferenceproduct",
                 "unit": "meow",
             },
             {
@@ -269,6 +285,7 @@ def test_iotable_nodes_to_dataframe(iotable_fixture):
                 "id": get_id(("cat", "b")),
                 "location": "curled up",
                 "name": "b",
+                "type": "processwithreferenceproduct",
                 "unit": "purr",
             },
             {
@@ -277,10 +294,13 @@ def test_iotable_nodes_to_dataframe(iotable_fixture):
                 "id": get_id(("cat", "c")),
                 "location": "on lap",
                 "name": "c",
+                "type": "processwithreferenceproduct",
                 "unit": "meow",
             },
         ]
     )
+    print(df.reset_index(drop=True))
+    print(expected.reset_index(drop=True))
     assert_frame_equal(
         df.reset_index(drop=True),
         expected.reset_index(drop=True),

@@ -43,7 +43,7 @@ from bw2data.errors import (
 )
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
-from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node
+from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
@@ -601,10 +601,10 @@ class SQLiteBackend(ProcessedDataStore):
             d1.update(d2)
             return d1
 
-        print("In write:", data)
-
         if isinstance(data, dict):
             data = [merger(v, {"database": db, "code": code}) for (db, code), v in data.items()]
+
+        data = [set_correct_process_type(dataset) for dataset in data]
 
         if self.name not in databases:
             self.register(write_empty=False)
