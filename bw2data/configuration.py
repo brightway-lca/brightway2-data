@@ -2,6 +2,7 @@ import platform
 from pathlib import Path
 from typing import List, Union
 
+from deprecated import deprecated
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,7 +42,7 @@ class MatrixLabels(BaseSettings):
     substitution_edge_default: str = "substitution"
 
     @property
-    def edge_types(self):
+    def lci_edge_types(self):
         return sorted(
             set(
                 self.biosphere_edge_types
@@ -50,6 +51,11 @@ class MatrixLabels(BaseSettings):
                 + self.substitution_edge_types
             )
         )
+
+    @property
+    @deprecated("Use `lci_edge_types` instead; there are other edge types. Will be removed in v5")
+    def edge_types(self):
+        return self.lci_edge_types
 
     model_config = SettingsConfigDict(
         env_file="brightway-matrix-configuration.env",

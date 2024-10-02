@@ -32,6 +32,7 @@ dependencies = [
     "blinker",
     "bw2parameters",
     "bw_processing>=0.9.5",
+    "deprecated",
     "fsspec",
     "lxml",
     "numpy<2",
