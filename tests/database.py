@@ -565,6 +565,7 @@ def test_find_dependents():
                     },
                 ],
                 "location": "bar",
+                "type": "process",
             },
             ("a database", "baz"): {
                 "exchanges": [

@@ -262,7 +262,7 @@ class SQLiteBackend(ProcessedDataStore):
             for ds in data.values()
             for exc in ds.get("exchanges", [])
             if ds.get("type") in labels.process_node_types
-            and exc.get("type") != "unknown"
+            and exc.get("type") in labels.lci_edge_types
             and exc.get("input", [None])[0] is not None
             and exc.get("input", [None])[0] not in ignore
         }
