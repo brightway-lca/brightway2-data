@@ -734,7 +734,7 @@ def test_can_split_processes_products():
                 "exchanges": [
                     {
                         "input": ("a database", "product"),
-                        "output": ("a database", "product"),
+                        "output": ("a database", "foo"),
                         "type": "production",
                         "amount": 1,
                     }
