@@ -115,7 +115,7 @@ class Updates:
             "automatic": True,
             "explanation": "bw2data 4.0 release requires migrations filename changes",
         },
-        "4.0 database search directories": {
+        "4.0 database search directories FTS5": {
             "method": "database_search_directories_40",
             "automatic": True,
             "explanation": "bw2data 4.0 release switched to a new database search implementation",
@@ -194,6 +194,7 @@ class Updates:
     @classmethod
     def database_search_directories_20(cls):
         shutil.rmtree(projects.request_directory("whoosh"))
+        # TBD: Delete existing search index if available
         for db in databases:
             if databases[db].get("searchable"):
                 databases[db]["searchable"] = False
