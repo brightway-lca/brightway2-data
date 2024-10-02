@@ -842,8 +842,8 @@ Here are the type values usually used for nodes:
         # Try to avoid race conditions - but no guarantee
         self.metadata["processed"] = datetime.datetime.now().isoformat()
         # Get number of exchanges and processes to set
-        # initial Numpy array size (still have to include)
-        # implicit production exchanges
+        # initial Numpy array size (still have to include
+        # implicit production exchanges)
         dependents = set()
 
         # self.filepath_processed checks if data is dirty,
@@ -874,7 +874,7 @@ Here are the type values usually used for nodes:
                 # Get correct database name
                 ActivityDataset.database == self.name,
                 # Only consider `process` type activities
-                ActivityDataset.type << labels.process_node_types,
+                ActivityDataset.type << labels.implicit_production_allowed_node_types,
                 # But exclude activities that already have production exchanges
                 ~(
                     ActivityDataset.code

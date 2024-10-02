@@ -43,6 +43,10 @@ class MatrixLabels(BaseSettings):
     substitution_edge_default: str = "substitution"
 
     @property
+    def implicit_production_allowed_node_types(self):
+        return [self.chimaera_node_default]
+
+    @property
     def lci_edge_types(self) -> List[str]:
         return sorted(
             set(
