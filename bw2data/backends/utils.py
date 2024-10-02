@@ -29,7 +29,7 @@ def convert_backend(database_name, backend):
     Returns `False` if the old and new backend are the same. Otherwise returns an instance of the new Database object.
     """
     if database_name not in databases:
-        print("Can't find database {}".format(database_name))
+        raise ValueError(f"Can't find database {database_name}")
 
     from bw2data.database import Database
 

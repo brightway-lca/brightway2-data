@@ -10,6 +10,7 @@ from bw2data import config, databases, geomapping
 from bw2data.backends import SQLiteBackend
 from bw2data.backends.iotable.proxies import IOTableActivity, IOTableExchanges
 from bw2data.configuration import labels
+from bw2data.logs import stdout_feedback_logger
 
 
 class IOTableBackend(SQLiteBackend):
@@ -34,7 +35,7 @@ class IOTableBackend(SQLiteBackend):
         Technosphere and biosphere data has format ``(row id, col id, value, flip)``.
 
         """
-        print("Starting IO table write")
+        stdout_feedback_logger.info("Starting IO table write")
 
         # create empty datapackage
         dp = create_datapackage(
@@ -59,7 +60,7 @@ class IOTableBackend(SQLiteBackend):
             nrows=len(self),
         )
 
-        print("Adding technosphere matrix")
+        stdout_feedback_logger.info("Adding technosphere matrix")
         # if technosphere is a dictionary pass it's keys & values
         if isinstance(technosphere, dict):
             dp.add_persistent_vector(
@@ -77,7 +78,7 @@ class IOTableBackend(SQLiteBackend):
         else:
             raise Exception(f"Error: Unsupported technosphere type: {type(technosphere)}")
 
-        print("Adding biosphere matrix")
+        stdout_feedback_logger.info("Adding biosphere matrix")
         # if biosphere is a dictionary pass it's keys & values
         if isinstance(biosphere, dict):
             dp.add_persistent_vector(
@@ -96,7 +97,7 @@ class IOTableBackend(SQLiteBackend):
             raise Exception(f"Error: Unsupported biosphere type: {type(technosphere)}")
 
         # finalize
-        print("Finalizing serialization")
+        stdout_feedback_logger.info("Finalizing serialization")
         dp.finalize_serialization()
 
         databases[self.name]["depends"] = sorted(set(dependents).difference({self.name}))
@@ -142,7 +143,7 @@ class IOTableBackend(SQLiteBackend):
         def cached_lookup(id_):
             return get_node(id=id_)
 
-        print("Retrieving metadata")
+        stdout_feedback_logger.info("Retrieving metadata")
         activities = {o.id: o for o in self}
 
         def get(id_):
@@ -189,7 +190,7 @@ class IOTableBackend(SQLiteBackend):
 
             return np.hstack(arrays)
 
-        print("Loading datapackage")
+        stdout_feedback_logger.info("Loading datapackage")
         exchanges = IOTableExchanges(datapackage=self.datapackage())
 
         target_ids = np.hstack(
@@ -201,11 +202,11 @@ class IOTableBackend(SQLiteBackend):
         edge_amounts = np.hstack([resource["data"]["array"] for resource in exchanges.resources])
         edge_types = get_edge_types(exchanges)
 
-        print("Creating metadata dataframes")
+        stdout_feedback_logger.info("Creating metadata dataframes")
         target_metadata = metadata_dataframe(target_ids)
         source_metadata = metadata_dataframe(source_ids, "source_")
 
-        print("Building merged dataframe")
+        stdout_feedback_logger.info("Building merged dataframe")
         df = pd.DataFrame(
             {
                 "target_id": target_ids,
@@ -233,7 +234,7 @@ class IOTableBackend(SQLiteBackend):
             "source_categories",
             "edge_type",
         ]
-        print("Compressing DataFrame")
+        stdout_feedback_logger.info("Compressing DataFrame")
         for column in categorical_columns:
             if column in df.columns:
                 df[column] = df[column].astype("category")

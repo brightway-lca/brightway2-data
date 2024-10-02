@@ -445,7 +445,6 @@ def test_processed_array():
         }
     )
     package = database.datapackage()
-    print(package.resources)
     array = package.get_resource("a_database_technosphere_matrix.data")[0]
 
     assert array.shape == (1,)
@@ -534,7 +533,6 @@ def test_processed_array_with_non_process_nodes():
         }
     )
     package = database.datapackage()
-    print(package.resources)
     array = package.get_resource("a_database_technosphere_matrix.data")[0]
 
     assert array.shape == (1,)
@@ -770,9 +768,6 @@ def test_can_split_processes_products():
     # print statements to get debugging for CI test runners
     for x in database:
         print(x.id, x.key, get_id(x.key))
-    print("array:", array)
-    print("array col:", array["col"])
-    print("array dtype:", array.dtype)
     assert array.shape == (1,)
     assert array["col"][0] == get_id(("a database", "foo"))
     assert array["row"][0] == get_id(("a database", "product"))
@@ -798,7 +793,6 @@ def test_sqlite_processed_array_order():
     database.write(data)
     lookup = {k: get_id(("testy_new", k)) for k in "ABC"}
     # print statements to get debugging for CI test runners
-    print("lookup:", lookup)
     assert len(lookup) == 3
     t = sorted(
         [
@@ -813,29 +807,23 @@ def test_sqlite_processed_array_order():
         ]
     )
     b = sorted([(lookup["C"], lookup["B"], 2), (lookup["C"], lookup["B"], 3)])
-    print("t:", t)
-    print("b:", b)
 
     package = database.datapackage()
 
     array = package.get_resource("testy_new_technosphere_matrix.data")[0]
-    print("data array:", array)
     assert array.shape == (6,)
     assert np.allclose(array, [x[2] for x in t])
 
     array = package.get_resource("testy_new_technosphere_matrix.indices")[0]
-    print("indices array:", array)
     assert array.shape == (6,)
     assert np.allclose(array["row"], [x[0] for x in t])
     assert np.allclose(array["col"], [x[1] for x in t])
 
     array = package.get_resource("testy_new_biosphere_matrix.data")[0]
-    print("data array:", array)
     assert array.shape == (2,)
     assert np.allclose(array, [x[2] for x in b])
 
     array = package.get_resource("testy_new_biosphere_matrix.indices")[0]
-    print("indices array:", array)
     assert array.shape == (2,)
     assert np.allclose(array["row"], [x[0] for x in b])
     assert np.allclose(array["col"], [x[1] for x in b])

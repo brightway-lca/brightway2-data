@@ -19,6 +19,7 @@ from bw2data.configuration import labels
 from bw2data.errors import ValidityError
 from bw2data.proxies import ActivityProxyBase, ExchangeProxyBase
 from bw2data.search import IndexManager
+from bw2data.logs import stdout_feedback_logger
 
 
 class Exchanges(Iterable):
@@ -238,10 +239,10 @@ class Activity(ActivityProxyBase):
             raise ValueError("`id` is read-only")
         elif key == "code" and "code" in self._data:
             self._change_code(value)
-            print("Successfully switched activity dataset to new code `{}`".format(value))
+            stdout_feedback_logger.info("Successfully switched activity dataset to new code `%s`", value)
         elif key == "database" and "database" in self._data:
             self._change_database(value)
-            print("Successfully switch activity dataset to database `{}`".format(value))
+            stdout_feedback_logger.info("Successfully switch activity dataset to database `%s`", value)
         else:
             super(Activity, self).__setitem__(key, value)
 

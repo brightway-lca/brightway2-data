@@ -44,6 +44,7 @@ from bw2data.errors import (
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
+from bw2data.logs import stdout_feedback_logger
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
@@ -420,8 +421,7 @@ class SQLiteBackend(ProcessedDataStore):
                 for key, value in filters.items():
                     qs = qs.where(getattr(ActivityDataset, key) == value)
             if self.filters:
-                print("Using the following database filters:")
-                pprint.pprint(self.filters)
+                stdout_feedback_logger.info("Using the following database filters: %s", pprint.pformat(self.filters))
                 for key, value in self.filters.items():
                     qs = qs.where(getattr(ActivityDataset, key) == value)
         if self.order_by and not random:
@@ -437,7 +437,7 @@ class SQLiteBackend(ProcessedDataStore):
         if not filters:
             self._filters = {}
         else:
-            print("Filters will effect all database queries" " until unset (`.filters = None`)")
+            stdout_feedback_logger.info("Filters will effect all database queries" " until unset (`.filters = None`)")
             assert isinstance(filters, dict), "Filter must be a dictionary"
             for key in filters:
                 assert key in _VALID_KEYS, "Filter key {} is invalid".format(key)
@@ -625,7 +625,7 @@ class SQLiteBackend(ProcessedDataStore):
             if dataset.get("type") in labels.process_node_types
         }
         if None in geocollections:
-            print(
+            stdout_feedback_logger.warning(
                 "Not able to determine geocollections for all datasets. This database is not ready for regionalization."
             )
             geocollections.discard(None)
@@ -719,7 +719,7 @@ Here are the type values usually used for nodes:
         if self.name not in databases:
             raise UnknownObject("This database is not yet registered")
         if self._searchable and not reset:
-            print("This database is already searchable")
+            stdout_feedback_logger.info("This database is already searchable")
             return
         databases[self.name]["searchable"] = True
         databases.flush()
@@ -964,7 +964,7 @@ Here are the type values usually used for nodes:
             if x.get("type") in labels.process_node_types
         }
         if None in geocollections:
-            print(
+            stdout_feedback_logger.warning(
                 "Not able to determine geocollections for all datasets. Not setting `geocollections`."
             )
             geocollections.discard(None)
@@ -1003,7 +1003,7 @@ Here are the type values usually used for nodes:
         for lst in exchange_mapping.values():
             if len(lst) > 1:
                 for exc in lst[-1:0:-1]:
-                    print("Deleting exchange:", exc)
+                    stdout_feedback_logger.warning("Deleting exchange: %s", exc)
                     exc.delete()
 
     def nodes_to_dataframe(
@@ -1102,7 +1102,7 @@ Here are the type values usually used for nodes:
                         func(node=target, edge=edge, row=row)
                 result.append(row)
 
-        print("Creating DataFrame")
+        stdout_feedback_logger.info("Creating DataFrame")
         df = pandas.DataFrame(result)
 
         if categorical:
@@ -1122,7 +1122,7 @@ Here are the type values usually used for nodes:
                 "source_categories",
                 "edge_type",
             ]
-            print("Compressing DataFrame")
+            stdout_feedback_logger.info("Compressing DataFrame")
             for column in categorical_columns:
                 if column in df.columns:
                     df[column] = df[column].astype("category")

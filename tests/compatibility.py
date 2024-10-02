@@ -38,6 +38,7 @@ def test_repr_str_unicode():
     for obj in objects:
         assert repr(obj)
         assert str(obj)
+        # Make sure can be printed - not for debugging
         print(obj)
 
 

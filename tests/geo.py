@@ -40,7 +40,6 @@ def test_glo_always_present():
 def test_method_process_adds_correct_geo(add_method):
     method = Method(("test method",))
     package = load_datapackage(ZipFileSystem(method.filepath_processed()))
-    print(package.resources)
 
     mapped = {
         row["row"]: row["col"] for row in package.get_resource("test_method_matrix_data.indices")[0]

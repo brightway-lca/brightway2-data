@@ -11,6 +11,7 @@ from fsspec.implementations.zip import ZipFileSystem
 from bw2data import projects
 from bw2data.errors import MissingIntermediateData, UnknownObject
 from bw2data.fatomic import open as atomic_open
+from bw2data.logs import stdout_feedback_logger
 
 
 class DataStore:
@@ -117,7 +118,7 @@ class DataStore:
 
             return BW2Package.export_obj(self)
         except ImportError:
-            print("bw2io not installed")
+            stdout_feedback_logger.warning("bw2io not installed")
 
     def write(self, data):
         """Serialize intermediate data to disk.

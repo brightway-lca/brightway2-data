@@ -3,6 +3,8 @@ import pickle
 
 from peewee import BlobField, SqliteDatabase, TextField
 
+from bw2data.logs import stdout_feedback_logger
+
 
 class PickleField(BlobField):
     def db_value(self, value):
@@ -45,7 +47,7 @@ class SubstitutableDatabase:
         return self.db.transaction()
 
     def vacuum(self):
-        print("Vacuuming database ")
+        stdout_feedback_logger.info("Vacuuming database ")
         self.execute_sql("VACUUM;")
 
 
