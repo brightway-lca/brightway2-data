@@ -1,5 +1,18 @@
 # `bw2data` Changelog
 
+## DEV
+
+* [#193](https://github.com/brightway-lca/brightway2-data/pull/193): Set node types when writing a `Database`
+
+This is a big change and could break some code:
+
+* It changes data when calling `.write()` as it guarantees that `type` is always present
+* Many datasets will have their type label changed from `process` to `processwithreferenceproduct` (e.g. all ecoinvent). Code with uses hard-coded "process" values will break. See `bw2data.configuration` for more details on labels you should expect.
+* Only nodes with type `processwithreferenceproduct` will be checked for implicit production. This shouldn't break anything as we change `process` to `processwithreferenceproduct` if implicit production was going to be added.
+
+* [#194](https://github.com/brightway-lca/brightway2-data/pull/194): Replace `print` with logging and add optional `structlog`
+* Fix `calculation_setups` getting out of sync on node and database deletion
+
 ## 4.0.DEV56 (2024-09-24)
 
 * [#192](https://github.com/brightway-lca/brightway2-data/issues/192): Providing `Node` objects to `prepare_lca_inputs` raises an error
