@@ -1,20 +1,19 @@
 import platform
 from pathlib import Path
-from typing import List, Union
+from typing import List
 
 from deprecated import deprecated
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class MatrixLabels(BaseSettings):
-    node_types: List[Union[str, None]] = [
+    node_types: List[str] = [
         "process",
         "product",
         "processwithreferenceproduct",
         "multifunctional",
-        None,
     ]
-    process_node_types: List[Union[str, None]] = ["process", "processwithreferenceproduct", None]
+    process_node_types: List[str] = ["process", "processwithreferenceproduct"]
     product_node_types: List[str] = ["product"]
 
     process_node_default: str = "process"
