@@ -5,6 +5,7 @@ from tqdm import tqdm
 from bw2data.backends import ActivityDataset, ExchangeDataset, SQLiteBackend
 from bw2data.configuration import labels
 from bw2data.database import DatabaseChooser
+from bw2data.logs import stdout_feedback_logger
 
 
 def _list_or_dict(obj):
@@ -159,13 +160,13 @@ def extract_brightway_databases(database_names, add_properties=False, add_identi
     exchange_qs = ExchangeDataset.select().where(ExchangeDataset.output_database << database_names)
 
     # Retrieve all activity data
-    print("Getting activity data")
+    stdout_feedback_logger.info("Getting activity data")
     activities = [extract_activity(o, add_identifiers=add_identifiers) for o in tqdm(activity_qs)]
     # Add each exchange to the activity list of exchanges
-    print("Adding exchange data to activities")
+    stdout_feedback_logger.info("Adding exchange data to activities")
     add_exchanges_to_consumers(activities, exchange_qs, add_properties)
     # Add details on exchanges which come from our databases
-    print("Filling out exchange data")
+    stdout_feedback_logger.info("Filling out exchange data")
     add_input_info_for_indigenous_exchanges(
         activities, database_names, add_identifiers=add_identifiers
     )

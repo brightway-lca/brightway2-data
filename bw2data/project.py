@@ -16,6 +16,7 @@ from bw2data.filesystem import create_dir
 from bw2data.signals import project_changed, project_created
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
+from bw2data.logs import stdout_feedback_logger
 
 READ_ONLY_PROJECT = """
 ***Read only project***
@@ -77,7 +78,7 @@ class ProjectManager(Iterable):
 
             MIGRATION_WARNING = """Adding a column to the projects database. A backup copy of this database '{}' was made at '{}'; if you have problems, file an issue, and restore the backup data to use the stable version of Brightway2."""
 
-            print(MIGRATION_WARNING.format(src_filepath, backup_filepath))
+            stdout_feedback_logger.warning(MIGRATION_WARNING.format(src_filepath, backup_filepath))
 
             ADD_FULL_HASH_COLUMN = (
                 """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
@@ -135,7 +136,7 @@ class ProjectManager(Iterable):
                     )
                 )
             else:
-                print(
+                stdout_feedback_logger.info(
                     "Using environment variable BRIGHTWAY2_DIR for data "
                     "directory:\n{}".format(envvar)
                 )
@@ -208,7 +209,7 @@ class ProjectManager(Iterable):
         from bw2data.updates import Updates
 
         for update_name in Updates.check_automatic_updates():
-            print("Applying automatic update: {}".format(update_name))
+            stdout_feedback_logger.info("Applying automatic update: {}".format(update_name))
             Updates.do_update(update_name)
 
     def _reset_meta(self):

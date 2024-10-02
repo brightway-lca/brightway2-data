@@ -554,7 +554,6 @@ def test_set_correct_process_type():
         ),
     ]
     for ds, label in data:
-        print(ds, label)
         assert set_correct_process_type(ds)["type"] == label
 
 
@@ -593,9 +592,7 @@ def test_set_correct_process_type():
 #     assert len(merged) == 2
 #     assert "another database" not in databases
 #     assert ("a database", "bar") in mapping
-#     print(merged.filepath_processed())
 #     package = load_package(merged.filepath_processed())
-#     print(package.keys())
 #     array = package["technosphere_matrix.npy"]
 #     assert mapping[("a database", "bar")] in {x["col_value"] for x in array}
 #     assert mapping[("a database", "foo")] in {x["col_value"] for x in array}

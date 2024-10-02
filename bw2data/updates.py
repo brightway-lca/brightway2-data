@@ -23,6 +23,7 @@ from bw2data import (
     weightings,
 )
 from bw2data.backends import sqlite3_lci_db
+from bw2data.logs import stdout_feedback_logger
 
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
@@ -184,11 +185,11 @@ class Updates:
     @classmethod
     def schema_change_20_compound_keys(cls):
         with sqlite3.connect(sqlite3_lci_db.db.database) as conn:
-            print("Update ActivityDataset table schema and data")
+            stdout_feedback_logger.info("Update ActivityDataset table schema and data")
             conn.executescript(UPDATE_ACTIVITYDATASET)
-            print("Updating ExchangeDataset table schema and data")
+            stdout_feedback_logger.info("Updating ExchangeDataset table schema and data")
             conn.executescript(UPDATE_EXCHANGEDATASET)
-            print("Finished with schema change")
+            stdout_feedback_logger.info("Finished with schema change")
 
     @classmethod
     def database_search_directories_20(cls):
@@ -196,7 +197,7 @@ class Updates:
         for db in databases:
             if databases[db].get("searchable"):
                 databases[db]["searchable"] = False
-                print("Reindexing database {}".format(db))
+                stdout_feedback_logger.info("Reindexing database {}".format(db))
                 Database(db).make_searchable()
 
     @classmethod
@@ -206,7 +207,7 @@ class Updates:
         for db in databases:
             if databases[db].get("searchable"):
                 databases[db]["searchable"] = False
-                print("Reindexing database {}".format(db))
+                stdout_feedback_logger.info("Reindexing database {}".format(db))
                 Database(db).make_searchable()
 
     @classmethod
@@ -232,7 +233,7 @@ class Updates:
         try:
             import bw2io as bi
         except ImportError:
-            print("`bw2io` not installed; not updating `migrations` filenames")
+            stdout_feedback_logger.warning("`bw2io` not installed; not updating `migrations` filenames")
             return
 
         for name in bi.migrations:
@@ -257,7 +258,7 @@ class Updates:
 
         for meta, klass, name in objects:
             if meta.list:
-                print("Updating all %s" % name)
+                stdout_feedback_logger.info("Updating all %s" % name)
 
                 for index, key in tqdm(enumerate(meta)):
                     obj = klass(key)

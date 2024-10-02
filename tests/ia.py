@@ -140,7 +140,6 @@ def test_method_processed_array_add_identifier(reset):
     method = Method(("a", "method"))
     method.write([[("foo", "bar"), 42]])
     package = load_datapackage(ZipFileSystem(method.filepath_processed()))
-    print(package.metadata)
     assert package.metadata["resources"][0]["identifier"] == ["a", "method"]
 
 
@@ -224,7 +223,6 @@ def test_weighting_process(reset):
     weighting = Weighting(("foo",))
     weighting.write([42])
     package = load_datapackage(ZipFileSystem(weighting.filepath_processed()))
-    print(package.resources)
 
     data = package.get_resource("foo_matrix_data.data")[0]
     assert np.allclose(data, [42])

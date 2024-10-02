@@ -100,7 +100,6 @@ def iotable_fixture():
 
 
 def test_iotable_setup_clean(iotable_fixture):
-    print(databases)
     assert len(databases) == 2
     assert list(methods) == [("a method",)]
     assert len(projects) == 1  # Default project
@@ -133,13 +132,6 @@ def test_iotable_matrix_construction(iotable_fixture):
         ("c", "c", 1, True),
     ]
     for a, b, c, d in tech_values:
-        print(a, b, c, d)
-        print(
-            lca.technosphere_matrix[
-                lca.dicts.product[get_activity(code=a).id],
-                lca.dicts.activity[get_activity(code=b).id],
-            ]
-        )
         assert np.allclose(
             lca.technosphere_matrix[
                 lca.dicts.product[get_activity(code=a).id],
@@ -299,8 +291,6 @@ def test_iotable_nodes_to_dataframe(iotable_fixture):
             },
         ]
     )
-    print(df.reset_index(drop=True))
-    print(expected.reset_index(drop=True))
     assert_frame_equal(
         df.reset_index(drop=True),
         expected.reset_index(drop=True),
@@ -423,7 +413,6 @@ def test_iotable_edges_technosphere(iotable_fixture):
     act = get_activity(("cat", "a"))
     assert len(act.technosphere()) == 1
     exc = next(iter(act.technosphere()))
-    print(exc)
     assert exc.input == get_activity(("cat", "b"))
     assert exc.output == act
     assert isinstance(exc, ReadOnlyExchange)

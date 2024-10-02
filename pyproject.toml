@@ -42,6 +42,7 @@ dependencies = [
     "rapidfuzz; sys_platform != 'emscripten'",
     "scipy",
     "stats_arrays",
+    "structlog",
     "tqdm",
     "voluptuous",
     "wrapt",
