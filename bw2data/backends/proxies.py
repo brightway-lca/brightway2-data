@@ -17,9 +17,9 @@ from bw2data.backends.typos import (
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
 from bw2data.configuration import labels
 from bw2data.errors import ValidityError
+from bw2data.logs import stdout_feedback_logger
 from bw2data.proxies import ActivityProxyBase, ExchangeProxyBase
 from bw2data.search import IndexManager
-from bw2data.logs import stdout_feedback_logger
 
 
 class Exchanges(Iterable):
@@ -239,10 +239,14 @@ class Activity(ActivityProxyBase):
             raise ValueError("`id` is read-only")
         elif key == "code" and "code" in self._data:
             self._change_code(value)
-            stdout_feedback_logger.info("Successfully switched activity dataset to new code `%s`", value)
+            stdout_feedback_logger.info(
+                "Successfully switched activity dataset to new code `%s`", value
+            )
         elif key == "database" and "database" in self._data:
             self._change_database(value)
-            stdout_feedback_logger.info("Successfully switch activity dataset to database `%s`", value)
+            stdout_feedback_logger.info(
+                "Successfully switch activity dataset to database `%s`", value
+            )
         else:
             super(Activity, self).__setitem__(key, value)
 
@@ -251,8 +255,15 @@ class Activity(ActivityProxyBase):
         return (self.get("database"), self.get("code"))
 
     def delete(self):
-        from bw2data import Database
+        from bw2data import Database, calculation_setups
         from bw2data.parameters import ActivityParameter, ParameterizedExchange
+
+        def purge(obj: Activity, dct: dict) -> dict:
+            return {
+                key: value
+                for key, value in dct.items()
+                if key != obj._data["id"] and key != (obj._data["database"], obj._data["code"])
+            }
 
         try:
             ap = ActivityParameter.get(database=self[0], code=self[1])
@@ -264,6 +275,17 @@ class Activity(ActivityProxyBase):
             pass
         IndexManager(Database(self["database"]).filename).delete_dataset(self._data)
         self.exchanges().delete()
+
+        for name, setup in calculation_setups.items():
+            if any(
+                (key == self._data["id"] or key == (self._data["database"], self._data["code"]))
+                for func_unit in setup["inv"]
+                for key in func_unit
+            ):
+                stdout_feedback_logger.warning("Removing this node from calculation setup %s", name)
+                setup["inv"] = [purge(self, dct) for dct in setup["inv"] if purge(self, dct)]
+        calculation_setups.flush()
+
         self._document.delete_instance()
         self = None
 

@@ -13,10 +13,10 @@ from platformdirs import PlatformDirs
 
 from bw2data import config
 from bw2data.filesystem import create_dir
+from bw2data.logs import stdout_feedback_logger
 from bw2data.signals import project_changed, project_created
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
-from bw2data.logs import stdout_feedback_logger
 
 READ_ONLY_PROJECT = """
 ***Read only project***

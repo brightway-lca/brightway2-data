@@ -233,7 +233,9 @@ class Updates:
         try:
             import bw2io as bi
         except ImportError:
-            stdout_feedback_logger.warning("`bw2io` not installed; not updating `migrations` filenames")
+            stdout_feedback_logger.warning(
+                "`bw2io` not installed; not updating `migrations` filenames"
+            )
             return
 
         for name in bi.migrations:

@@ -1,5 +1,6 @@
 import pytest
 
+from bw2data import calculation_setups, get_node
 from bw2data.backends import ActivityDataset, ExchangeDataset
 from bw2data.database import DatabaseChooser
 from bw2data.errors import UnknownObject, ValidityError
@@ -263,6 +264,26 @@ def test_delete_activity_parameters():
     a.delete()
     assert ActivityParameter.select().count() == 1
     assert not ParameterizedExchange.select().count()
+
+
+@bw2test
+def test_delete_calculation_setups(capsys):
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+    a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4").save()
+
+    a = get_node(code="A")
+    b = get_node(code="B")
+    calculation_setups["foo"] = {"inv": [{a.id: 1, b.id: 2}, {a.key: 2}, {b.key: 3}]}
+
+    a.delete()
+    assert calculation_setups["foo"]["inv"] == [{b.id: 2}, {b.key: 3}]
+    assert "Removing this node" in capsys.readouterr().out
 
 
 @bw2test

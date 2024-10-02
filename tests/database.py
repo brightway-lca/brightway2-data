@@ -7,7 +7,15 @@ import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal, assert_series_equal
 
-from bw2data import Database, databases, geomapping, get_activity, get_id, get_node
+from bw2data import (
+    Database,
+    calculation_setups,
+    databases,
+    geomapping,
+    get_activity,
+    get_id,
+    get_node,
+)
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import Database
@@ -134,6 +142,18 @@ def test_deletes_from_database():
             "select count(*) from exchangedataset where output_database = 'biosphere'"
         )
     ) == (0,)
+
+
+@bw2test
+def test_deletes_from_calculation_setups():
+    d = Database("biosphere")
+    d.write(biosphere)
+
+    calculation_setups["foo"] = {
+        "inv": [{d.random().key: 1, d.random().id: 2}, {d.random().key: 4}, {d.random().id: 8}]
+    }
+    del databases["biosphere"]
+    assert calculation_setups["foo"]["inv"] == []
 
 
 @bw2test

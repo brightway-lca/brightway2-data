@@ -15,7 +15,7 @@ from fsspec.implementations.zip import ZipFileSystem
 from peewee import JOIN, DoesNotExist, fn
 from tqdm import tqdm
 
-from bw2data import config, databases, geomapping
+from bw2data import calculation_setups, config, databases, geomapping
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset, get_id
@@ -41,10 +41,10 @@ from bw2data.errors import (
     UntypedExchange,
     WrongDatabase,
 )
+from bw2data.logs import stdout_feedback_logger
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
-from bw2data.logs import stdout_feedback_logger
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
@@ -421,7 +421,9 @@ class SQLiteBackend(ProcessedDataStore):
                 for key, value in filters.items():
                     qs = qs.where(getattr(ActivityDataset, key) == value)
             if self.filters:
-                stdout_feedback_logger.info("Using the following database filters: %s", pprint.pformat(self.filters))
+                stdout_feedback_logger.info(
+                    "Using the following database filters: %s", pprint.pformat(self.filters)
+                )
                 for key, value in self.filters.items():
                     qs = qs.where(getattr(ActivityDataset, key) == value)
         if self.order_by and not random:
@@ -437,7 +439,9 @@ class SQLiteBackend(ProcessedDataStore):
         if not filters:
             self._filters = {}
         else:
-            stdout_feedback_logger.info("Filters will effect all database queries" " until unset (`.filters = None`)")
+            stdout_feedback_logger.info(
+                "Filters will effect all database queries" " until unset (`.filters = None`)"
+            )
             assert isinstance(filters, dict), "Filter must be a dictionary"
             for key in filters:
                 assert key in _VALID_KEYS, "Filter key {} is invalid".format(key)
@@ -742,6 +746,28 @@ Here are the type values usually used for nodes:
             warnings.warn(MESSAGE.format(self.name), UserWarning)
 
         vacuum_needed = len(self) > 500 and vacuum
+
+        database_ids = {obj.id for obj in self}
+        database_keys = {obj.key for obj in self}
+
+        def purge(dct: dict) -> dict:
+            return {
+                key: value
+                for key, value in dct.items()
+                if key not in database_ids and key not in database_keys
+            }
+
+        for name, setup in calculation_setups.items():
+            if any(
+                (key in database_ids or key in database_keys)
+                for func_unit in setup["inv"]
+                for key in func_unit
+            ):
+                stdout_feedback_logger.warning(
+                    "Removing database node(s) from calculation setup %s", name
+                )
+                setup["inv"] = [purge(dct) for dct in setup["inv"] if purge(dct)]
+        calculation_setups.flush()
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
         ExchangeDataset.delete().where(ExchangeDataset.output_database == self.name).execute()
