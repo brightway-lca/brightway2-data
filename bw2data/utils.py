@@ -10,6 +10,7 @@ import warnings
 import zipfile
 from io import StringIO
 from pathlib import Path
+from pprint import pformat
 from typing import List
 
 import stats_arrays as sa
@@ -402,7 +403,7 @@ def get_activity(key=None, **kwargs):
 
 
 def get_geocollection(location, default_global_location=False):
-    """conservative approach to finding geocollections. Won't guess about ecoinvent or other databases."""
+    """conservative approach to finding geocollections. Won't guess about ecoinvent or other dbs."""
     if not location:
         if default_global_location:
             return "world"
@@ -423,6 +424,38 @@ def set_correct_process_type(dataset: dict) -> dict:
     Only will make changes if the following conditions are met:
 
     * `type` is `None` or missing -> set to either `process` or `processwithreferenceproduct`
-    * `type` is `process` but the dataset also includes a reference product -> `processwithreferenceproduct`
+    * `type` is `process` but the dataset also includes an exchange which points to the same node
+        -> `processwithreferenceproduct`
 
     """
+    this = (dataset["database"], dataset["code"])
+    if dataset.get("type") not in (labels.process_node_default, None):
+        print("Condition 1")
+        pass
+    elif any(exc.get("input") == this for exc in dataset.get("exchanges", [])):
+        # Explicit self production/consumption -> chimaera
+        print("Condition 2")
+        dataset["type"] = labels.chimaera_node_default
+    elif (
+        any(exc.get("functional") for exc in dataset.get("exchanges", []))
+    ):
+        print("Condition 3")
+        dataset["type"] = labels.process_node_default
+    elif (
+        # No production edges -> implicit self production -> chimaera
+        not any(
+            exc.get("type") in labels.technosphere_positive_edge_types
+            for exc in dataset.get("exchanges", [])
+        )
+    ):
+        print("Condition 4")
+        dataset["type"] = labels.chimaera_node_default
+    elif not dataset.get("type"):
+        print("Condition 5")
+        dataset["type"] = labels.process_node_default
+    else:
+        # No conditions for setting or changing type occurred
+        print("Condition 6")
+        pass
+
+    return dataset

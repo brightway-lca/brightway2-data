@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import stats_arrays as sa
 
-from bw2data import Database, Method, methods
+from bw2data import Database, Method, labels, methods
 from bw2data.backends import Activity as PWActivity
 from bw2data.errors import MultipleResults, UnknownObject, ValidityError
 from bw2data.tests import BW2DataTest, bw2test
@@ -14,6 +14,7 @@ from bw2data.utils import (
     merge_databases,
     natural_sort,
     random_string,
+    set_correct_process_type,
     uncertainify,
 )
 
@@ -422,6 +423,139 @@ def test_merge_databases_nonexistent():
         merge_databases("a database", "another database")
     with pytest.raises(AssertionError):
         merge_databases("another database", "a database")
+
+
+def test_set_correct_process_type():
+    data = [
+        # Completely empty -> implicit production - chimaera
+        ({"database": "a", "code": "b"}, labels.chimaera_node_default),
+        # Exchanges but not production -> implicit production - chimaera
+        (
+            {"database": "a", "code": "b", "exchanges": [{"type": "biosphere"}]},
+            labels.chimaera_node_default,
+        ),
+        # Exchanges with different functional input - process
+        (
+            {
+                "database": "a",
+                "code": "b",
+                "exchanges": [{"functional": True, "input": "something"}],
+            },
+            labels.process_node_default,
+        ),
+        # Exchanges with same functional input - chimaera
+        (
+            {
+                "database": "a",
+                "code": "b",
+                "exchanges": [{"functional": True, "input": ("a", "b")}],
+            },
+            labels.chimaera_node_default,
+        ),
+        # Exchanges with different production output - process
+        (
+            {
+                "database": "a",
+                "code": "b",
+                "exchanges": [{"type": labels.production_edge_default, "input": "something"}],
+            },
+            labels.process_node_default,
+        ),
+        # Exchanges with same production output - chimaera
+        (
+            {
+                "database": "a",
+                "code": "b",
+                "exchanges": [{"type": labels.production_edge_default, "input": ("a", "b")}],
+            },
+            labels.chimaera_node_default,
+        ),
+        # Exchanges with different production output and labelled `process` - process
+        (
+            {
+                "database": "a",
+                "code": "b",
+                "type": "process",
+                "exchanges": [{"type": labels.production_edge_default, "input": "something"}],
+            },
+            labels.process_node_default,
+        ),
+        # Exchanges with same production output and labelled `process` - chimaera
+        (
+            {
+                "database": "a",
+                "code": "b",
+                "type": "process",
+                "exchanges": [{"type": labels.production_edge_default, "input": ("a", "b")}],
+            },
+            labels.chimaera_node_default,
+        ),
+        # Exchanges with substitution output - process
+        (
+            {
+                "database": "a",
+                "code": "b",
+                "exchanges": [{"type": labels.substitution_edge_default}],
+            },
+            labels.process_node_default,
+        ),
+        # Exchanges with substitution output and labelled `process` - process
+        (
+            {
+                "database": "a",
+                "code": "b",
+                "type": "process",
+                "exchanges": [{"type": labels.substitution_edge_default}],
+            },
+            labels.process_node_default,
+        ),
+        # No production but self-reference in input - chimaera
+        (
+            {
+                "database": "a",
+                "code": "b",
+                "exchanges": [
+                    {"type": labels.technosphere_negative_edge_types, "input": ("a", "b")}
+                ],
+            },
+            labels.chimaera_node_default,
+        ),
+        # No production but self-reference in input and labelled `process` - chimaera
+        (
+            {
+                "database": "a",
+                "code": "b",
+                "type": "process",
+                "exchanges": [
+                    {"type": labels.technosphere_negative_edge_types, "input": ("a", "b")}
+                ],
+            },
+            labels.chimaera_node_default,
+        ),
+        # Biosphere
+        (
+            {"database": "a", "code": "b", "type": labels.biosphere_node_default},
+            labels.biosphere_node_default,
+        ),
+        # Multifunctional
+        (
+            {"database": "a", "code": "b", "type": labels.multifunctional_node_default},
+            labels.multifunctional_node_default,
+        ),
+        # Product
+        (
+            {"database": "a", "code": "b", "type": labels.product_node_default},
+            labels.product_node_default,
+        ),
+        # Already processwithreferenceproduct
+        (
+            {"database": "a", "code": "b", "type": labels.chimaera_node_default},
+            labels.chimaera_node_default,
+        ),
+    ]
+    for ds, label in data:
+        print(ds, label)
+        assert set_correct_process_type(ds)["type"] == label
 
 
 # @bw2test
