@@ -1,6 +1,7 @@
 from typing import Dict, List, Union
 
 from bw_processing.datapackage import DatapackageBase
+from deprecated import deprecated
 
 from bw2data import (
     Database,
@@ -26,15 +27,15 @@ class Mapping:
     Used only for backwards compatibility; preferred method is now to look up the ids of activities directly in the SQlite database.
     """
 
+    @deprecated("This method is no longer necessary, and does nothing.")
     def add(self, keys):
-        raise DeprecationWarning("This method is no longer necessary, and does nothing.")
         return
 
     def __getitem__(self, key):
         return get_id(key)
 
+    @deprecated("This method is no longer necessary, and does nothing.")
     def delete(self, keys):
-        raise DeprecationWarning("This method is no longer necessary, and does nothing.")
         return
 
     def __str__(self):

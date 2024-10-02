@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import List
 
 import stats_arrays as sa
+from deprecated import deprecated
 
 from bw2data.configuration import labels
 from bw2data.errors import MultipleResults, NotFound, UnknownObject, ValidityError
@@ -21,8 +22,11 @@ from bw2data.fatomic import open
 DOWNLOAD_URL = "https://brightway.dev/data/"
 
 
+@deprecated("`safe_filename` has been moved to `bw_processing`; will be removed in v5")
 def safe_filename(*args, **kwargs):
-    raise DeprecationWarning("`safe_filename` has been moved to `bw_processing`")
+    from bw_processing import safe_filename
+
+    return safe_filename(*args, **kwargs)
 
 
 def maybe_path(x):
@@ -308,18 +312,11 @@ def set_data_dir(dirpath, permanent=True):
     Creates ``dirpath`` if needed. Also creates basic directories, and resets metadata.
 
     """
-    warnings.warn(
-        "`set_data_dir` is deprecated; use `projects.set_current('my "
-        "project name')` for a new project space.",
-        DeprecationWarning,
-    )
+    raise NotImplementedError("Change projects using `projects.set_current()`")
 
 
 def switch_data_directory(dirpath):
-    warnings.warn(
-        "`switch_data_directory` is deprecated; use `projects.change_base_directories`.",
-        DeprecationWarning,
-    )
+    raise NotImplementedError("Change projects using `projects.set_current()`")
 
 
 def create_in_memory_zipfile_from_directory(path):
