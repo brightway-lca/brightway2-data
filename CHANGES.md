@@ -1,6 +1,6 @@
 # `bw2data` Changelog
 
-## DEV
+## 4.0.DEV57 (2024-10-03)
 
 * [#193](https://github.com/brightway-lca/brightway2-data/pull/193): Set node types when writing a `Database`
 
