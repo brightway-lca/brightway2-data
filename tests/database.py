@@ -102,6 +102,14 @@ def test_copy(food):
     assert "repas" in databases
 
 
+def test_copy_metadata(food):
+    d = Database("food")
+    d.metadata['custom'] = "something"
+    d.copy("repas")
+    assert "repas" in databases
+    assert databases['repas']['custom'] == 'something'
+
+
 @bw2test
 def test_copy_does_deepcopy():
     data = {

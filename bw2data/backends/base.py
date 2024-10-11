@@ -228,9 +228,9 @@ class SQLiteBackend(ProcessedDataStore):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             new_database = self.__class__(name)
-            new_database.register(
-                format=f"Copied from '{self.name}'",
-            )
+            metadata = copy.copy(self.metadata)
+            metadata['format'] = f"Copied from '{self.name}'"
+            new_database.register(**metadata)
 
         new_database.write(data, searchable=databases[name].get("searchable"))
         return new_database
