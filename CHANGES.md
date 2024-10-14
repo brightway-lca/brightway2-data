@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.0.DEV59 (2024-10-14)
+
+* Add error handling in updating migrations files
+
 ## 4.0.DEV58 (2024-10-10)
 
 * [#196](https://github.com/brightway-lca/brightway2-data/issues/196): Fix copying over database metadata when copying database

@@ -239,16 +239,27 @@ class Updates:
             )
             return
 
+        missing = []
         for name in bi.migrations:
             current = Path(
                 projects.request_directory("migrations")
                 / (safe_filename(name, full=True) + ".json")
             )
-            assert current.is_file()
+            if not current.is_file():
+                missing.append(name)
+                continue
             target = Path(
                 projects.request_directory("migrations") / (safe_filename(name) + ".json")
             )
             current.replace(target)
+
+        if missing:
+            for name in missing:
+                stdout_feedback_logger.warning(
+                    f"Purging migration with missing data: {name}"
+                )
+                del bi.migrations[name]
+            bi.migrations.flush()
 
     @classmethod
     def _reprocess_all(cls):
