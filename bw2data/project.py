@@ -122,6 +122,24 @@ class ProjectDataset(Model):
         delta = Delta(patch)
         self.revision = revision
 
+    def apply_revision(self, revision: dict) -> None:
+        """
+        Load a patch generated from a previous `add_revision` into the database.
+        """
+        from bw2data.backends import proxies, utils
+        from bw2data import revisions
+
+        meta = revision["metadata"]
+        parent = meta.get("parent_revision")
+        assert not parent or self.revision == parent
+        for d in revision["data"]:
+            obj_class = getattr(proxies, d["type"].title())
+            data_class = obj_class.ORMDataset
+            data = utils.get_obj_as_dict(data_class, d.get("id"))
+            data = revisions.Delta.from_dict(d["delta"]).apply(data)
+            obj_class(data_class(**data)).save()
+        self.revision = meta["revision"]
+
 
 class ProjectManager(Iterable):
     _basic_directories = (
