@@ -123,37 +123,112 @@ def test_apply():
     projects.dataset.set_sourced()
     database = DatabaseChooser(obj_db)
     database.register()
-    projects.dataset.apply_revision(
-        {
-            "metadata": {"revision": revision},
-            "data": [
-                {
-                    "type": "activitydataset",
-                    "delta": {
-                        "type_changes": {
-                            "root": {
-                                "old_type": "NoneType",
-                                "new_type": "dict",
-                                "new_value": {
-                                    "database": obj_db,
-                                    "name": obj_name,
-                                    "code": obj_code,
-                                    "data": {
+    projects.dataset.apply_revisions(
+        (
+            {
+                "metadata": {"revision": revision},
+                "data": [
+                    {
+                        "type": "activitydataset",
+                        "delta": {
+                            "type_changes": {
+                                "root": {
+                                    "old_type": "NoneType",
+                                    "new_type": "dict",
+                                    "new_value": {
                                         "database": obj_db,
                                         "name": obj_name,
                                         "code": obj_code,
+                                        "data": {
+                                            "database": obj_db,
+                                            "name": obj_name,
+                                            "code": obj_code,
+                                        },
                                     },
                                 },
                             },
                         },
-                    },
-                }
-            ],
-        }
+                    }
+                ],
+            },
+        )
     )
     activity = database.get(obj_code)
     assert activity._document.name == obj_name
     assert projects.dataset.revision == revision
+
+
+def test_apply_sequence_to_obj():
+    root, head = "r0", "r2"
+    code0, code1, code2 = "c0", "c1", "c2"
+    obj_id, obj_db, obj_name = 1, "db0", "a0"
+    projects.set_current("test_apply_sequence_to_obj")
+    projects.dataset.set_sourced()
+    database = DatabaseChooser(obj_db)
+    database.register()
+    projects.dataset.apply_revisions(
+        (
+            {
+                "metadata": {"revision": root},
+                "data": [
+                    {
+                        "type": "activitydataset",
+                        "delta": {
+                            "type_changes": {
+                                "root": {
+                                    "old_type": "NoneType",
+                                    "new_type": "dict",
+                                    "new_value": {
+                                        "database": obj_db,
+                                        "name": obj_name,
+                                        "code": code0,
+                                        "data": {
+                                            "database": obj_db,
+                                            "name": obj_name,
+                                            "code": code0,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    }
+                ],
+            },
+            {
+                "metadata": {"revision": "r1", "parent_revision": root},
+                "data": [
+                    {
+                        "type": "activitydataset",
+                        "id": obj_id,
+                        "delta": {
+                            "values_changed": {
+                                "root['code']": {"new_value": code1},
+                            },
+                        },
+                    }
+                ],
+            },
+            {
+                "metadata": {"revision": "r2", "parent_revision": "r1"},
+                "data": [
+                    {
+                        "type": "activitydataset",
+                        "id": obj_id,
+                        "delta": {
+                            "values_changed": {
+                                "root['code']": {"new_value": code2},
+                            },
+                        },
+                    }
+                ],
+            },
+        )
+    )
+    activity = database.get(code2)
+    assert activity._document.database == obj_db
+    assert activity._document.name == obj_name
+    assert activity._document.code == code2
+    assert projects.dataset.revision == head
 
 
 def test_iter_graph():

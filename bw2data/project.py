@@ -6,7 +6,7 @@ import warnings
 from collections.abc import Iterable
 from copy import copy
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from deepdiff import DeepDiff, Delta
 from deepdiff.serialization import json_dumps
@@ -111,22 +111,27 @@ class ProjectDataset(Model):
         delta = Delta(patch)
         self.revision = revision
 
-    def apply_revision(self, revision: dict) -> None:
+    def apply_revisions(self, revisions: Sequence[dict]) -> None:
         """
-        Load a patch generated from a previous `add_revision` into the database.
+        Load patches generated from a previous `add_revision` into the database.
+        The revisions are assumed to be in application order.
         """
         # TODO serialize/deserialize properly
         import json
         from deepdiff.serialization import json_loads
         from bw2data.backends import proxies, utils
 
-        meta = revision["metadata"]
-        for d in revision["data"]:
-            obj_class = getattr(proxies, d["type"].removesuffix("dataset").title())
-            data_class = obj_class.Dataset
-            data = utils.get_obj_data(data_class, d.get("id"))
-            data += Delta(json.dumps(d["delta"]), deserializer=json_loads)
-            obj_class(data_class(**data)).save()
+        prev = None
+        for revision in revisions:
+            meta = revision["metadata"]
+            assert prev == meta.get("parent_revision")
+            prev = meta["revision"]
+            for d in revision["data"]:
+                obj_class = getattr(proxies, d["type"].removesuffix("dataset").title())
+                data_class = obj_class.Dataset
+                data = utils.get_obj_data(data_class, d.get("id"))
+                data += Delta(json.dumps(d["delta"]), deserializer=json_loads)
+                obj_class(data_class(**data)).save()
             self.revision = meta["revision"]
         self.save()
 
