@@ -17,6 +17,17 @@ class Delta:
     Can be serialized, transfered, and applied to the same previous version to
     change it to the new state.
     """
+    def apply(self, obj):
+        return obj + self.delta
+
+    @classmethod
+    def from_dict(cls: Self, d: dict) -> Self:
+        ret = cls()
+        ret.delta = deepdiff.Delta(
+            JSONEncoder().encode(d), deserializer=deepdiff.serialization.json_loads
+        )
+        return ret
+
     @classmethod
     def from_difference(
         cls: Self,
