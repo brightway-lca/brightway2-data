@@ -1,5 +1,6 @@
 from bw2data.database import DatabaseChooser
 from bw2data.project import projects
+from bw2data.revisions import RevisionGraph
 from bw2data.tests import bw2test
 
 
@@ -153,3 +154,11 @@ def test_apply():
     activity = database.get(obj_code)
     assert activity._document.name == obj_name
     assert projects.dataset.revision == revision
+
+
+def test_iter_graph():
+    r0 = {"metadata": {"revision": "r0"}}
+    r1 = {"metadata": {"revision": "r1", "parent_revision": "r0"}}
+    r2 = {"metadata": {"revision": "r2", "parent_revision": "r1"}}
+    g = RevisionGraph("r2", (r1, r2, r0))
+    assert list(g) == [r2, r1, r0]
