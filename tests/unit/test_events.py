@@ -113,3 +113,43 @@ def test_load_diff():
     project.import()
     """
     pass
+
+
+@bw2test
+def test_apply():
+    revision, obj_db, obj_name, obj_code = "r0", "db0", "a0", "c0"
+    projects.set_current("test_apply")
+    projects.dataset.set_sourced()
+    database = DatabaseChooser(obj_db)
+    database.register()
+    projects.dataset.apply_revision(
+        {
+            "metadata": {"revision": revision},
+            "data": [
+                {
+                    "type": "activitydataset",
+                    "delta": {
+                        "type_changes": {
+                            "root": {
+                                "old_type": "NoneType",
+                                "new_type": "dict",
+                                "new_value": {
+                                    "database": obj_db,
+                                    "name": obj_name,
+                                    "code": obj_code,
+                                    "data": {
+                                        "database": obj_db,
+                                        "name": obj_name,
+                                        "code": obj_code,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                }
+            ],
+        }
+    )
+    activity = database.get(obj_code)
+    assert activity._document.name == obj_name
+    assert projects.dataset.revision == revision

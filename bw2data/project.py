@@ -111,6 +111,25 @@ class ProjectDataset(Model):
         delta = Delta(patch)
         self.revision = revision
 
+    def apply_revision(self, revision: dict) -> None:
+        """
+        Load a patch generated from a previous `add_revision` into the database.
+        """
+        # TODO serialize/deserialize properly
+        import json
+        from deepdiff.serialization import json_loads
+        from bw2data.backends import proxies, utils
+
+        meta = revision["metadata"]
+        for d in revision["data"]:
+            obj_class = getattr(proxies, d["type"].removesuffix("dataset").title())
+            data_class = obj_class.Dataset
+            data = utils.get_obj_data(data_class, d.get("id"))
+            data += Delta(json.dumps(d["delta"]), deserializer=json_loads)
+            obj_class(data_class(**data)).save()
+            self.revision = meta["revision"]
+        self.save()
+
 
 class ProjectManager(Iterable):
     _basic_directories = (

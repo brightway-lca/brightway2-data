@@ -1,10 +1,11 @@
 import copy
+from typing import Optional
 import warnings
 
 import numpy as np
 
 from bw2data import config
-from bw2data.backends.schema import get_id
+from bw2data.backends.schema import SignaledDataset, get_id
 from bw2data.configuration import labels
 from bw2data.errors import InvalidExchange, UntypedExchange
 from bw2data.meta import databases, methods
@@ -82,6 +83,14 @@ def dict_as_exchangedataset(ds):
         "output_code": ds["output"][1],
         "type": ds["type"],
     }
+
+
+def get_obj_data(cls: SignaledDataset, obj_id: Optional[int]) -> dict:
+    if obj_id is None:
+        return {}
+    obj = cls.get_by_id(obj_id)
+    to_dict = globals()["dict_as_" + cls.__name__.lower()]
+    return to_dict(obj.data)
 
 
 def replace_cfs(old_key, new_key):
