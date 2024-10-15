@@ -63,28 +63,6 @@ class ProjectDataset(Model):
         else:
             return self.name.lower() < other.name.lower()
 
-    def _get_base_directories(self):
-        envvar = maybe_path(os.getenv("BRIGHTWAY2_DIR"))
-        if envvar:
-            if not envvar.is_dir():
-                raise OSError(
-                    ("BRIGHTWAY2_DIR variable is {}, but this is not" " a valid directory").format(
-                        envvar
-                    )
-                )
-            else:
-                print(
-                    "Using environment variable BRIGHTWAY2_DIR for data "
-                    "directory:\n{}".format(envvar)
-                )
-                return envvar.absolute()
-
-        return Path(PlatformDirs("Brightway3", "pylca").user_data_dir)
-
-    @property
-    def dir(self):
-        return Path(self._get_base_directories()) / safe_filename(self.name, full=self.full_hash)
-
     def set_sourced(self) -> None:
         """Set the project to be event sourced."""
         self.is_sourced = True
@@ -120,7 +98,8 @@ class ProjectDataset(Model):
         metadata["description"] = metadata.get("description", "No description")
         metadata["type"] = metadata["type"]
         writable = Delta(diff, serializer=lambda x: json_dumps({"metadata": metadata, "data": x}, indent=2)).dumps()
-        with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
+        # XXX
+        with open(projects.dir / "revisions" / f"{self.revision}.rev", "w") as f:
             f.write(writable)
         self.save()
         print(f"Added revision {self.revision} for {metadata['type']} {metadata['id']}")
