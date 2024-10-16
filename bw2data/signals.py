@@ -1,5 +1,9 @@
 from blinker import signal
 
+database_saved = signal(
+    "bw2data.database_save",
+    doc="""Nothing to see here""",)
+
 project_changed = signal(
     "bw2data.project_changed",
     doc="""
