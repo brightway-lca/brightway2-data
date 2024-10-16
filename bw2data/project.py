@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from deepdiff import DeepDiff, Delta
+from deepdiff.serialization import json_dumps
 import wrapt
 from bw_processing import safe_filename
 from peewee import SQL, BooleanField, DoesNotExist, Model, TextField
@@ -73,7 +74,7 @@ class ProjectDataset(Model):
         self.save()
 
     def add_revision(
-        self, metadata: dict[str, Any], delta: Delta, revision: str | None = None
+        self, metadata: dict[str, Any], diff: DeepDiff, revision: str | None = None
     ) -> str:
         """Add a revision to the project.
 
@@ -100,11 +101,9 @@ class ProjectDataset(Model):
         metadata["title"] = metadata.get("title", "Untitled revision")
         metadata["description"] = metadata.get("description", "No description")
         metadata["type"] = metadata["type"]
-        writable = Delta(
-            diff, serializer=lambda x: json_dumps({"metadata": metadata, "data": x}, indent=2)
-        ).dumps()
+        writable = Delta(diff, serializer=lambda x: json_dumps({"metadata": metadata, "data": x}, indent=2)).dumps()
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
-            f.write(json.dumps(writable, indent=2))
+            f.write(writable)
         self.save()
         print(f"Added revision {self.revision} for {metadata['type']} {metadata['id']}")
         return self.revision
@@ -501,11 +500,11 @@ def _signal_dataset_saved(sender, old, new):
         import bw2data.backends.utils
 
         mapper = getattr(bw2data.backends.utils, f"dict_as_{cls}")
-        patch = Delta(DeepDiff(
+        patch = DeepDiff(
             mapper(old.data) if old else None,
             mapper(new.data),
             verbose_level=2,
-        ), serializer=json_dumps)
+        )
         projects.dataset.add_revision({"type": cls, "id": new.id}, patch)
     print(f"Generated revision for {new.id}")
 
