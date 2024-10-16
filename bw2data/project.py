@@ -583,6 +583,7 @@ def _signal_dataset_saved(sender, old: SD, new: SD):
     """
     if projects.dataset.is_sourced:
         projects.dataset.add_revision(old, new)
+
     print(f"Generated revision for {new.id}")
 
 
