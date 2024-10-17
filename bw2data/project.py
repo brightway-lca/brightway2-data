@@ -514,7 +514,6 @@ def _signal_dataset_saved(sender, old, new):
         import bw2data.backends.utils
 
         mapper = getattr(bw2data.backends.utils, f"dict_as_{cls}")
-        serializer = lambda x: json.dumps(x, indent=2)
         patch = DeepDiff(
             mapper(old.data) if old else None,
             mapper(new.data),
