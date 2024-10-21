@@ -23,6 +23,7 @@ import bw2data.signals as bw2signals
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
 
+
 READ_ONLY_PROJECT = """
 ***Read only project***
 
@@ -98,16 +99,15 @@ class ProjectDataset(Model):
           "data": {…}
         }
         """
-        metadata["parent_revision"] = str(self.revision)
-        self.revision = revision or new_uuid()
-        metadata["revision"] = str(self.revision)
-        metadata["authors"] = metadata.get("authors", "Anonymous")
-        metadata["title"] = metadata.get("title", "Untitled revision")
-        metadata["description"] = metadata.get("description", "No description")
-        metadata["type"] = metadata["type"]
-        writable = Delta(diff, serializer=lambda x: json_dumps({"metadata": metadata, "data": x}, indent=2)).dumps()
+        from bw2data import revisions
+
+        metadata = revisions.generate_metadata(metadata, self.revision)
+        writable = Delta(
+            diff, serializer=lambda x: json_dumps({"metadata": metadata, "data": x}, indent=2)
+        ).dumps()
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
             f.write(writable)
+        self.revision = metadata["revision"]
         self.save()
         print(f"Added revision {self.revision} for {metadata['type']} {metadata['id']}")
         return self.revision
