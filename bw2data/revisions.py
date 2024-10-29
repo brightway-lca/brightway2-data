@@ -1,10 +1,10 @@
 from typing import Mapping, Optional, Sequence
 
 
-class RevisionGraph(object):
+class RevisionGraph:
     """Graph of revisions, edges are based on `metadata.parent_revision`."""
 
-    class Iterator(object):
+    class Iterator:
         """Helper class implementing iteration from child to parent."""
 
         def __init__(self, g: "RevisionGraph"):
