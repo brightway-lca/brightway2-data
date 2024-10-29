@@ -39,10 +39,14 @@ def lockable():
     return False
 
 
+def new_uuid() -> str:
+    return uuid.uuid4().hex
+
+
 class ProjectDataset(Model):
     # Event sourcing
     is_sourced = BooleanField(default=False, constraints=[SQL("DEFAULT 0")])
-    revision = TextField(null=True, default=uuid.uuid4)
+    revision = TextField(null=True, default=new_uuid)
 
     data = PickleField()
     name = TextField(index=True, unique=True)
@@ -66,7 +70,7 @@ class ProjectDataset(Model):
     def set_sourced(self) -> None:
         """Set the project to be event sourced."""
         self.is_sourced = True
-        self.revision = uuid.uuid4()
+        self.revision = new_uuid()
         self.save()
 
     def add_revision(
@@ -91,7 +95,7 @@ class ProjectDataset(Model):
         }
         """
         metadata["parent_revision"] = str(self.revision)
-        self.revision = revision or uuid.uuid4()
+        self.revision = revision or new_uuid()
         metadata["revision"] = str(self.revision)
         metadata["authors"] = metadata.get("authors", "Anonymous")
         metadata["title"] = metadata.get("title", "Untitled revision")
