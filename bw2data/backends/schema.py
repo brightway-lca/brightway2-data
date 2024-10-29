@@ -1,10 +1,14 @@
-from typing import Callable, override
 from peewee import DoesNotExist, Model, TextField
 
 from bw2data.errors import UnknownObject
 from bw2data.sqlite import PickleField
 
 import bw2data.signals as bwsignals
+
+try:
+    from typing import override
+except ImportError:
+    from typing_extensions import override
 
 
 class SignaledDataset(Model):

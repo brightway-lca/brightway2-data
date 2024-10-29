@@ -45,6 +45,7 @@ dependencies = [
     "stats_arrays",
     "structlog",
     "tqdm",
+    "typing_extensions",
     "voluptuous",
     "wrapt",
 ]
