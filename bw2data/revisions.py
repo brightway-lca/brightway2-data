@@ -1,5 +1,18 @@
+import json
 import uuid
 from typing import Any, Optional
+
+
+import deepdiff
+
+
+class JSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if not isinstance(obj, deepdiff.Delta):
+            return super().default(obj)
+        # XXX
+        obj.serializer = deepdiff.serialization.json_dumps
+        return json.loads(obj.dumps())
 
 
 def generate_metadata(
