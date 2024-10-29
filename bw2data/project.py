@@ -112,6 +112,12 @@ class ProjectDataset(Model):
                     }, ...
                  ]
         }
+
+        {
+          "type": "database object type" (e.g. "activity", "exchange", "parameter"),
+          "id": "database object id" (e.g. "foo", "bar", "baz"),
+          "delta": <difference between revisions>
+        }
         """
         from bw2data import revisions
 
