@@ -1,10 +1,15 @@
 import json
-from typing import Any, Optional, Self, Sequence, TypeVar
+from typing import Any, Optional, Sequence, TypeVar
 
 import deepdiff
 from snowflake import SnowflakeGenerator as sfg
 
 from bw2data.backends import schema
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
 
 
 SD = TypeVar("SD", bound=schema.SignaledDataset)
@@ -13,7 +18,7 @@ SD = TypeVar("SD", bound=schema.SignaledDataset)
 class RevisionGraph:
     """Graph of revisions, edges are based on `metadata.parent_revision`."""
 
-    class Iterator(object):
+    class Iterator:
         """Helper class implementing iteration from child to parent."""
 
         def __init__(self, g: "RevisionGraph"):
