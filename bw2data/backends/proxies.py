@@ -183,7 +183,7 @@ class Exchanges(Iterable):
 
 
 class Activity(ActivityProxyBase):
-    Dataset = ActivityDataset
+    ORMDataset = ActivityDataset
 
     def __init__(self, document=None, **kwargs):
         """Create an `Activity` proxy object.
@@ -193,7 +193,7 @@ class Activity(ActivityProxyBase):
         If the activity exists in the database, `document` should be an `ActivityDataset`.
         """
         if document is None:
-            self._document = self.Dataset()
+            self._document = self.ORMDataset()
             self._data = kwargs
         else:
             self._document = document
@@ -349,19 +349,19 @@ class Activity(ActivityProxyBase):
             return
 
         if (
-            self.Dataset.select()
+            self.ORMDataset.select()
             .where(
-                self.Dataset.database == self["database"],
-                self.Dataset.code == new_code,
+                self.ORMDataset.database == self["database"],
+                self.ORMDataset.code == new_code,
             )
             .count()
         ):
             raise ValueError("Activity database with code `{}` already exists".format(new_code))
 
         with sqlite3_lci_db.atomic() as txn:
-            self.Dataset.update(code=new_code).where(
-                self.Dataset.database == self["database"],
-                self.Dataset.code == self["code"],
+            self.ORMDataset.update(code=new_code).where(
+                self.ORMDataset.database == self["database"],
+                self.ORMDataset.code == self["code"],
             ).execute()
             ExchangeDataset.update(output_code=new_code).where(
                 ExchangeDataset.output_database == self["database"],
@@ -389,9 +389,9 @@ class Activity(ActivityProxyBase):
             raise ValueError("Database {} does not exist".format(new_database))
 
         with sqlite3_lci_db.atomic() as txn:
-            self.Dataset.update(database=new_database).where(
-                self.Dataset.database == self["database"],
-                self.Dataset.code == self["code"],
+            self.ORMDataset.update(database=new_database).where(
+                self.ORMDataset.database == self["database"],
+                self.ORMDataset.code == self["code"],
             ).execute()
             ExchangeDataset.update(output_database=new_database).where(
                 ExchangeDataset.output_database == self["database"],
@@ -510,7 +510,7 @@ class Activity(ActivityProxyBase):
 
 
 class Exchange(ExchangeProxyBase):
-    Dataset = ExchangeDataset
+    ORMDataset = ExchangeDataset
 
     def __init__(self, document=None, **kwargs):
         """Create an `Exchange` proxy object.
@@ -520,7 +520,7 @@ class Exchange(ExchangeProxyBase):
         If the exchange exists in the database, `document` should be an `ExchangeDataset`.
         """
         if document is None:
-            self._document = self.Dataset()
+            self._document = self.ORMDataset()
             self._data = kwargs
         else:
             self._document = document
