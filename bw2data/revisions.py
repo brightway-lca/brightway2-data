@@ -67,7 +67,7 @@ def generate_delta(old: Optional[SD], new: SD) -> Delta:
     assert old is None or not old.id or old.id == new.id
     mapper = getattr(utils, f"dict_as_{obj_type.__name__.lower()}")
     return Delta.from_difference(
-        obj_type.__name__.lower(),
+        obj_type.__name__.removesuffix("Dataset").lower(),
         new.id,
         deepdiff.DeepDiff(
             mapper(old.data) if old else None,
