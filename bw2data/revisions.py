@@ -20,9 +20,13 @@ class Delta:
     @classmethod
     def from_difference(
         cls: Self,
+        obj_type: str,
+        obj_id: int,
         diff: deepdiff.DeepDiff,
     ) -> Self:
         ret = cls()
+        ret.type = obj_type
+        ret.id = obj_id
         ret.delta = deepdiff.Delta(diff)
         return ret
 
@@ -37,16 +41,16 @@ class JSONEncoder(json.JSONEncoder):
 
 
 def generate_metadata(
-    metadata: dict[str, Any],
     parent_revision: Optional[str] = None,
     revision: Optional[str] = None,
 ) -> dict[str, Any]:
-    metadata["parent_revision"] = parent_revision
-    metadata["revision"] = revision or uuid.uuid4().hex
-    metadata["authors"] = metadata.get("authors", "Anonymous")
-    metadata["title"] = metadata.get("title", "Untitled revision")
-    metadata["description"] = metadata.get("description", "No description")
-    return metadata
+    ret = {}
+    ret["parent_revision"] = parent_revision
+    ret["revision"] = revision or uuid.uuid4().hex
+    ret["authors"] = ret.get("authors", "Anonymous")
+    ret["title"] = ret.get("title", "Untitled revision")
+    ret["description"] = ret.get("description", "No description")
+    return ret
 
 
 def generate_delta(old: Optional[SD], new: SD) -> Delta:
@@ -63,6 +67,8 @@ def generate_delta(old: Optional[SD], new: SD) -> Delta:
     assert old is None or not old.id or old.id == new.id
     mapper = getattr(utils, f"dict_as_{obj_type.__name__.lower()}")
     return Delta.from_difference(
+        obj_type.__name__.lower(),
+        new.id,
         deepdiff.DeepDiff(
             mapper(old.data) if old else None,
             mapper(new.data),
