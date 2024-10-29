@@ -75,3 +75,10 @@ def generate_delta(old: Optional[SD], new: SD) -> Delta:
             verbose_level=2,
         ),
     )
+
+
+def generate_revision(metadata: dict, delta: Delta) -> dict:
+    return {
+        "metadata": metadata,
+        "data": {"type": delta.type, "id": delta.id, "delta": delta},
+    }
