@@ -108,9 +108,12 @@ class ProjectDataset(Model):
 
         metadata = revisions.generate_metadata(self.revision)
         delta = revisions.generate_delta(old, new)
-        writable = {"metadata": metadata, "data": delta}
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
-            f.write(revisions.JSONEncoder(indent=2).encode(writable))
+            f.write(
+                revisions.JSONEncoder(indent=2).encode(
+                    revisions.generate_revision(metadata, delta),
+                ),
+            )
         self.revision = metadata["revision"]
         self.save()
         print(f"Added revision {self.revision} for {delta.type} {delta.id}")
