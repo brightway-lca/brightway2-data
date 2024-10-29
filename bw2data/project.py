@@ -102,11 +102,10 @@ class ProjectDataset(Model):
         from bw2data import revisions
 
         metadata = revisions.generate_metadata(metadata, self.revision)
-        writable = Delta(
-            diff, serializer=lambda x: json_dumps({"metadata": metadata, "data": x}, indent=2)
-        ).dumps()
+        delta = Delta(diff)
+        writable = {"metadata": metadata, "data": delta}
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
-            f.write(writable)
+            f.write(revisions.JSONEncoder(indent=2).encode(writable))
         self.revision = metadata["revision"]
         self.save()
         print(f"Added revision {self.revision} for {metadata['type']} {metadata['id']}")
