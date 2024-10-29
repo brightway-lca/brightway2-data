@@ -1,6 +1,6 @@
 import json
 import uuid
-from typing import Any, Optional, TypeVar
+from typing import Any, Optional, Self, TypeVar
 
 import deepdiff
 
@@ -10,13 +10,30 @@ from bw2data.backends import schema
 SD = TypeVar("SD", bound=schema.SignaledDataset)
 
 
+class Delta:
+    """
+    The difference between two versions of an object.
+
+    Can be serialized, transfered, and applied to the same previous version to
+    change it to the new state.
+    """
+    @classmethod
+    def from_difference(
+        cls: Self,
+        diff: deepdiff.DeepDiff,
+    ) -> Self:
+        ret = cls()
+        ret.delta = deepdiff.Delta(diff)
+        return ret
+
+
 class JSONEncoder(json.JSONEncoder):
     def default(self, obj):
-        if not isinstance(obj, deepdiff.Delta):
+        if not isinstance(obj, Delta):
             return super().default(obj)
         # XXX
-        obj.serializer = deepdiff.serialization.json_dumps
-        return json.loads(obj.dumps())
+        obj.delta.serializer = deepdiff.serialization.json_dumps
+        return json.loads(obj.delta.dumps())
 
 
 def generate_metadata(
@@ -32,7 +49,7 @@ def generate_metadata(
     return metadata
 
 
-def generate_delta(old: Optional[SD], new: SD) -> deepdiff.Delta:
+def generate_delta(old: Optional[SD], new: SD) -> Delta:
     """
     Generates a patch object from one version of an object to another.
 
@@ -45,7 +62,7 @@ def generate_delta(old: Optional[SD], new: SD) -> deepdiff.Delta:
     assert old is None or old.__class__ == obj_type
     assert old is None or not old.id or old.id == new.id
     mapper = getattr(utils, f"dict_as_{obj_type.__name__.lower()}")
-    return deepdiff.Delta(
+    return Delta.from_difference(
         deepdiff.DeepDiff(
             mapper(old.data) if old else None,
             mapper(new.data),
