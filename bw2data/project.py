@@ -6,7 +6,7 @@ import warnings
 from collections.abc import Iterable
 from copy import copy
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TypeVar
 
 from deepdiff import DeepDiff, Delta
 from deepdiff.serialization import json_dumps
@@ -22,6 +22,9 @@ from bw2data.signals import project_changed, project_created
 import bw2data.signals as bw2signals
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
+
+
+SD = TypeVar("SD", bound="bw2data.backends.schema.SignaledDataset")
 
 
 READ_ONLY_PROJECT = """
@@ -81,9 +84,7 @@ class ProjectDataset(Model):
             (self.dir / "revisions").mkdir()
         self.save()
 
-    def add_revision(
-        self, metadata: dict[str, Any], diff: DeepDiff, revision: str | None = None
-    ) -> str:
+    def add_revision(self, old: SD, new: SD) -> str:
         """Add a revision to the project.
 
         At the moment, each object revision affects a single object.
@@ -104,8 +105,9 @@ class ProjectDataset(Model):
         """
         from bw2data import revisions
 
+        metadata = {"type": new.__class__.__name__.lower(), "id": new.id}
         metadata = revisions.generate_metadata(metadata, self.revision)
-        delta = Delta(diff)
+        delta = revisions.generate_delta(old, new)
         writable = {"metadata": metadata, "data": delta}
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
             f.write(revisions.JSONEncoder(indent=2).encode(writable))
@@ -496,22 +498,13 @@ class ProjectManager(Iterable):
             raise ex
 
 
-def _signal_dataset_saved(sender, old, new):
+def _signal_dataset_saved(sender, old: SD, new: SD):
     """Process dataset saved signal to add a event sourcing revision.
 
     If the current project is set to be sourced, generate a revision.
     """
     if projects.dataset.is_sourced:
-        cls = new.__class__.__name__.lower()
-        import bw2data.backends.utils
-
-        mapper = getattr(bw2data.backends.utils, f"dict_as_{cls}")
-        patch = DeepDiff(
-            mapper(old.data) if old else None,
-            mapper(new.data),
-            verbose_level=2,
-        )
-        projects.dataset.add_revision({"type": cls, "id": new.id}, patch)
+        projects.dataset.add_revision(old, new)
     print(f"Generated revision for {new.id}")
 
 
