@@ -73,6 +73,11 @@ class Delta:
         ret.delta = deepdiff.Delta(diff)
         return ret
 
+from bw2data.backends import schema
+
+
+SD = TypeVar("SD", bound=schema.SignaledDataset)
+
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, obj):

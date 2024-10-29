@@ -30,6 +30,9 @@ from snowflake import SnowflakeGenerator as sfg
 SD = TypeVar("SD", bound="bw2data.backends.schema.SignaledDataset")
 
 
+SD = TypeVar("SD", bound="bw2data.backends.schema.SignaledDataset")
+
+
 READ_ONLY_PROJECT = """
 ***Read only project***
 
