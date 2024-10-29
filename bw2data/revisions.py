@@ -1,6 +1,6 @@
 import json
 import uuid
-from typing import Any, Optional, Self, TypeVar
+from typing import Any, Optional, Self, Sequence, TypeVar
 
 import deepdiff
 
@@ -77,8 +77,8 @@ def generate_delta(old: Optional[SD], new: SD) -> Delta:
     )
 
 
-def generate_revision(metadata: dict, delta: Delta) -> dict:
+def generate_revision(metadata: dict, delta: Sequence[Delta]) -> dict:
     return {
         "metadata": metadata,
-        "data": {"type": delta.type, "id": delta.id, "delta": delta},
+        "data": [{"type": d.type, "id": d.id, "delta": d} for d in delta],
     }

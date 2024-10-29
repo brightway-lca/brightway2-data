@@ -84,9 +84,6 @@ class ProjectDataset(Model):
     def add_revision(self, old: SD, new: SD) -> str:
         """Add a revision to the project.
 
-        At the moment, each object revision affects a single object.
-        This will change in the future to allow for multiple objects to be
-        included in a single revision.
         {
           "metadata": {
             "revision": <this-revision-id>
@@ -111,7 +108,7 @@ class ProjectDataset(Model):
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
             f.write(
                 revisions.JSONEncoder(indent=2).encode(
-                    revisions.generate_revision(metadata, delta),
+                    revisions.generate_revision(metadata, (delta,)),
                 ),
             )
         self.revision = metadata["revision"]
