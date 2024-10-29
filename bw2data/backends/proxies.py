@@ -360,8 +360,7 @@ class Activity(ActivityProxyBase):
 
         with sqlite3_lci_db.atomic() as txn:
             self.ORMDataset.update(code=new_code).where(
-                self.ORMDataset.database == self["database"],
-                self.ORMDataset.code == self["code"],
+                self.ORMDataset.id == self.id
             ).execute()
             ExchangeDataset.update(output_code=new_code).where(
                 ExchangeDataset.output_database == self["database"],
@@ -390,8 +389,7 @@ class Activity(ActivityProxyBase):
 
         with sqlite3_lci_db.atomic() as txn:
             self.ORMDataset.update(database=new_database).where(
-                self.ORMDataset.database == self["database"],
-                self.ORMDataset.code == self["code"],
+                self.ORMDataset.id == self.id
             ).execute()
             ExchangeDataset.update(output_database=new_database).where(
                 ExchangeDataset.output_database == self["database"],
