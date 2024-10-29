@@ -157,12 +157,21 @@ class ProjectManager(Iterable):
         self.db = SubstitutableDatabase(self._base_data_dir / "projects.db", [ProjectDataset])
 
         columns = {o.name for o in self.db._database.get_columns("projectdataset")}
+
+        # We don't do this, as the column added doesn't have a default
+        # value, meaning that one would get error from using the
+        # development branch alongside the stable branch.
+
+        # from playhouse.migrate import SqliteMigrator, migrate
+        # migrator = SqliteMigrator(self.db._database)
+        # full_hash = BooleanField(default=True)
+        # migrate(migrator.add_column("projectdataset", "full_hash", full_hash),)
         if "full_hash" not in columns:
             src_filepath = self._base_data_dir / "projects.db"
             backup_filepath = self._base_data_dir / "projects.backup.db"
             shutil.copy(src_filepath, backup_filepath)
 
-            MIGRATION_WARNING = """Adding a column to the projects database. A backup copy of this database '{}' was made at '{}'; if you have problems, file an issue, and restore the backup data to use the stable version of Brightway2."""
+            MIGRATION_WARNING = """Adding a column to the projects database. A backup copy of this database '{}' was made at '{}'; if you have problems, file an issue, and restore the backup data to use the stable version of Brightway."""
 
             stdout_feedback_logger.warning(MIGRATION_WARNING.format(src_filepath, backup_filepath))
 
@@ -170,15 +179,22 @@ class ProjectManager(Iterable):
                 """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
             )
             self.db.execute_sql(ADD_FULL_HASH_COLUMN)
+        if "is_sourced" not in columns:
+            src_filepath = self._base_data_dir / "projects.db"
+            backup_filepath = self._base_data_dir / "projects.backup.db"
+            shutil.copy(src_filepath, backup_filepath)
 
-            # We don't do this, as the column added doesn't have a default
-            # value, meaning that one would get error from using the
-            # development branch alongside the stable branch.
+            MIGRATION_WARNING = """Adding two columns to the projects database. A backup copy of this database '{}' was made at '{}'; if you have problems, file an issue, and restore the backup data to use the stable version of Brightway."""
+            stdout_feedback_logger.warning(MIGRATION_WARNING.format(src_filepath, backup_filepath))
 
-            # from playhouse.migrate import SqliteMigrator, migrate
-            # migrator = SqliteMigrator(self.db._database)
-            # full_hash = BooleanField(default=True)
-            # migrate(migrator.add_column("projectdataset", "full_hash", full_hash),)
+            ADD_IS_SOURCED_COLUMN = (
+                """ALTER TABLE projectdataset ADD COLUMN "is_sourced" integer default 0"""
+            )
+            self.db.execute_sql(ADD_IS_SOURCED_COLUMN)
+            ADD_REVISION_COLUMN = (
+                """ALTER TABLE projectdataset ADD COLUMN "revision" text"""
+            )
+            self.db.execute_sql(ADD_REVISION_COLUMN)
         self.set_current("default", update=False)
 
     def __iter__(self):
