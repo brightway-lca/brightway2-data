@@ -97,23 +97,26 @@ class ProjectDataset(Model):
             "title": "<optional>"
             "description": "<optional>"
             "authors": "<optional>" (maybe shouldn't be optional)
-            "type": "database object type" (e.g. "activity", "exchange", "parameter")
-            "id": "database object id" (e.g. "foo", "bar", "baz")
           },
           "data": {…}
+        }
+
+        {
+          "type": "database object type" (e.g. "activity", "exchange", "parameter"),
+          "id": "database object id" (e.g. "foo", "bar", "baz"),
+          "delta": <difference between revisions>
         }
         """
         from bw2data import revisions
 
-        metadata = {"type": new.__class__.__name__.lower(), "id": new.id}
-        metadata = revisions.generate_metadata(metadata, self.revision)
+        metadata = revisions.generate_metadata(self.revision)
         delta = revisions.generate_delta(old, new)
         writable = {"metadata": metadata, "data": delta}
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
             f.write(revisions.JSONEncoder(indent=2).encode(writable))
         self.revision = metadata["revision"]
         self.save()
-        print(f"Added revision {self.revision} for {metadata['type']} {metadata['id']}")
+        print(f"Added revision {self.revision} for {delta.type} {delta.id}")
         return self.revision
 
     def load_revision(self, patch: str, revision: str) -> None:
