@@ -45,10 +45,6 @@ def lockable():
     return False
 
 
-def new_snowflakeid() -> int:
-    return next(sfg(0))
-
-
 class ProjectDataset(Model):
     # Event sourcing
     is_sourced = BooleanField(default=False, constraints=[SQL("DEFAULT 0")])
