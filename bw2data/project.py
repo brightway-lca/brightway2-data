@@ -232,6 +232,46 @@ If you have problems, file an issue, restore the backup data, and use a stable v
         self.revision = meta["revision"]
 
 
+def add_full_hash_column(base_data_dir: Path, db: SqliteDatabase) -> None:
+    src_filepath = base_data_dir / "projects.db"
+    backup_filepath = base_data_dir / "projects.backup-full-hash.db"
+    shutil.copy(src_filepath, backup_filepath)
+
+    MIGRATION_WARNING = """
+Adding a column to the projects database.
+A backup copy of this database '{}' was made at '{}'.
+If you have problems, file an issue, restore the backup data, and use a stable version of Brightway.
+""".format(src_filepath, backup_filepath)
+    stdout_feedback_logger.warning(MIGRATION_WARNING)
+
+    ADD_FULL_HASH_COLUMN = (
+        """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
+    )
+    db.execute_sql(ADD_FULL_HASH_COLUMN)
+
+
+def add_sourced_columns(base_data_dir: Path, db: SqliteDatabase) -> None:
+    src_filepath = base_data_dir / "projects.db"
+    backup_filepath = base_data_dir / "projects.backup-is-sourced.db"
+    shutil.copy(src_filepath, backup_filepath)
+
+    MIGRATION_WARNING = """
+Adding two columns to the projects database.
+A backup copy of this database '{}' was made at '{}'.
+If you have problems, file an issue, restore the backup data, and use a stable version of Brightway.
+""".format(src_filepath, backup_filepath)
+    stdout_feedback_logger.warning(MIGRATION_WARNING)
+
+    ADD_IS_SOURCED_COLUMN = (
+        """ALTER TABLE projectdataset ADD COLUMN "is_sourced" integer default 0"""
+    )
+    db.execute_sql(ADD_IS_SOURCED_COLUMN)
+    ADD_REVISION_COLUMN = (
+        """ALTER TABLE projectdataset ADD COLUMN "revision" integer"""
+    )
+    db.execute_sql(ADD_REVISION_COLUMN)
+
+
 class ProjectManager(Iterable):
     _basic_directories = (
         "backups",
