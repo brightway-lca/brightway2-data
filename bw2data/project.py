@@ -1,7 +1,6 @@
 import json
 import os
 import shutil
-import uuid
 import warnings
 from collections.abc import Iterable
 from copy import copy
@@ -12,7 +11,7 @@ from deepdiff import DeepDiff, Delta
 from deepdiff.serialization import json_dumps
 import wrapt
 from bw_processing import safe_filename
-from peewee import SQL, BooleanField, DoesNotExist, Model, TextField
+from peewee import SQL, BooleanField, DoesNotExist, Model, TextField, IntegerField
 from platformdirs import PlatformDirs
 
 from bw2data import config
@@ -22,6 +21,8 @@ from bw2data.signals import project_changed, project_created
 import bw2data.signals as bw2signals
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
+
+from snowflake import SnowflakeGenerator as sfg
 
 
 SD = TypeVar("SD", bound="bw2data.backends.schema.SignaledDataset")
@@ -43,14 +44,14 @@ def lockable():
     return False
 
 
-def new_uuid() -> str:
-    return uuid.uuid4().hex
+def new_snowflakeid() -> int:
+    return next(sfg(0))
 
 
 class ProjectDataset(Model):
     # Event sourcing
     is_sourced = BooleanField(default=False, constraints=[SQL("DEFAULT 0")])
-    revision = TextField(null=True, default=new_uuid)
+    revision = IntegerField(null=True, default=new_snowflakeid)
 
     data = PickleField()
     name = TextField(index=True, unique=True)
@@ -78,10 +79,10 @@ class ProjectDataset(Model):
     def set_sourced(self) -> None:
         """Set the project to be event sourced."""
         self.is_sourced = True
-        self.revision = new_uuid()
         # Backwards compatible with existing projects
         if not (self.dir / "revisions").is_dir():
             (self.dir / "revisions").mkdir()
+        self.revision = new_snowflakeid()
         self.save()
 
     def add_revision(self, old: SD, new: SD) -> str:

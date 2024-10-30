@@ -43,6 +43,7 @@ dependencies = [
     "pydantic-settings",
     "rapidfuzz; sys_platform != 'emscripten'",
     "scipy",
+    "snowflake-id~=1.0.2",
     "stats_arrays",
     "structlog",
     "tqdm",
