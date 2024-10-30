@@ -11,11 +11,7 @@ class SignaledDataset(Model):
     @override
     def save(self, *args, **kwargs):
         """Receives a mapper to convert the data to the expected dictionary format"""
-        old = None
-        try:
-            old = type(self).get(type(self).id == self.id)
-        except DoesNotExist:
-            pass
+        old = type(self).get_or_none(type(self).id == self.id)
         super().save(*args, **kwargs)
         bwsignals.database_saved.send(
             old=old,
