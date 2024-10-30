@@ -11,7 +11,7 @@ from deepdiff import DeepDiff, Delta
 from deepdiff.serialization import json_dumps
 import wrapt
 from bw_processing import safe_filename
-from peewee import SQL, BooleanField, DoesNotExist, Model, TextField, IntegerField
+from peewee import SQL, BooleanField, DoesNotExist, Model, TextField, IntegerField, SqliteDatabase
 from platformdirs import PlatformDirs
 
 from bw2data import config
@@ -144,6 +144,46 @@ class ProjectDataset(Model):
         self.revision = meta["revision"]
 
 
+def add_full_hash_column(base_data_dir: Path, db: SqliteDatabase) -> None:
+    src_filepath = base_data_dir / "projects.db"
+    backup_filepath = base_data_dir / "projects.backup-full-hash.db"
+    shutil.copy(src_filepath, backup_filepath)
+
+    MIGRATION_WARNING = """
+Adding a column to the projects database.
+A backup copy of this database '{}' was made at '{}'.
+If you have problems, file an issue, restore the backup data, and use a stable version of Brightway.
+""".format(src_filepath, backup_filepath)
+    stdout_feedback_logger.warning(MIGRATION_WARNING)
+
+    ADD_FULL_HASH_COLUMN = (
+        """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
+    )
+    db.execute_sql(ADD_FULL_HASH_COLUMN)
+
+
+def add_sourced_columns(base_data_dir: Path, db: SqliteDatabase) -> None:
+    src_filepath = base_data_dir / "projects.db"
+    backup_filepath = base_data_dir / "projects.backup-is-sourced.db"
+    shutil.copy(src_filepath, backup_filepath)
+
+    MIGRATION_WARNING = """
+Adding two columns to the projects database.
+A backup copy of this database '{}' was made at '{}'.
+If you have problems, file an issue, restore the backup data, and use a stable version of Brightway.
+""".format(src_filepath, backup_filepath)
+    stdout_feedback_logger.warning(MIGRATION_WARNING)
+
+    ADD_IS_SOURCED_COLUMN = (
+        """ALTER TABLE projectdataset ADD COLUMN "is_sourced" integer default 0"""
+    )
+    db.execute_sql(ADD_IS_SOURCED_COLUMN)
+    ADD_REVISION_COLUMN = (
+        """ALTER TABLE projectdataset ADD COLUMN "revision" integer"""
+    )
+    db.execute_sql(ADD_REVISION_COLUMN)
+
+
 class ProjectManager(Iterable):
     _basic_directories = (
         "backups",
@@ -161,28 +201,14 @@ class ProjectManager(Iterable):
         self.db = SubstitutableDatabase(self._base_data_dir / "projects.db", [ProjectDataset])
 
         columns = {o.name for o in self.db._database.get_columns("projectdataset")}
+
+        # We don't use Peewee migrations because it won't set default values for new columns.
+        # One could therefore get an error from using the development branch alongside the stable
+        # branch.
         if "full_hash" not in columns:
-            src_filepath = self._base_data_dir / "projects.db"
-            backup_filepath = self._base_data_dir / "projects.backup.db"
-            shutil.copy(src_filepath, backup_filepath)
-
-            MIGRATION_WARNING = """Adding a column to the projects database. A backup copy of this database '{}' was made at '{}'; if you have problems, file an issue, and restore the backup data to use the stable version of Brightway2."""
-
-            stdout_feedback_logger.warning(MIGRATION_WARNING.format(src_filepath, backup_filepath))
-
-            ADD_FULL_HASH_COLUMN = (
-                """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
-            )
-            self.db.execute_sql(ADD_FULL_HASH_COLUMN)
-
-            # We don't do this, as the column added doesn't have a default
-            # value, meaning that one would get error from using the
-            # development branch alongside the stable branch.
-
-            # from playhouse.migrate import SqliteMigrator, migrate
-            # migrator = SqliteMigrator(self.db._database)
-            # full_hash = BooleanField(default=True)
-            # migrate(migrator.add_column("projectdataset", "full_hash", full_hash),)
+            add_full_hash_column(base_data_dir=self._base_data_dir, db=self.db._database)
+        if "is_sourced" not in columns:
+            add_sourced_columns(base_data_dir=self._base_data_dir, db=self.db._database)
         self.set_current("default", update=False)
 
     def __iter__(self):
