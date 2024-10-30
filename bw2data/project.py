@@ -44,14 +44,10 @@ def lockable():
     return False
 
 
-def new_snowflakeid() -> int:
-    return next(sfg(0))
-
-
 class ProjectDataset(Model):
     # Event sourcing
     is_sourced = BooleanField(default=False, constraints=[SQL("DEFAULT 0")])
-    revision = IntegerField(null=True, default=new_snowflakeid)
+    revision = IntegerField(null=True)
 
     data = PickleField()
     name = TextField(index=True, unique=True)
@@ -79,7 +75,7 @@ class ProjectDataset(Model):
     def set_sourced(self) -> None:
         """Set the project to be event sourced."""
         self.is_sourced = True
-        self.revision = new_snowflakeid()
+        self.revision = next(sfg(0))
         self.save()
 
     def add_revision(self, old: SD, new: SD) -> str:
