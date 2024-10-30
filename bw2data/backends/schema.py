@@ -13,14 +13,15 @@ except ImportError:
 
 class SignaledDataset(Model):
     @override
-    def save(self, *args, **kwargs):
+    def save(self, signal = True, *args, **kwargs):
         """Receives a mapper to convert the data to the expected dictionary format"""
         old = type(self).get_or_none(type(self).id == self.id)
         super().save(*args, **kwargs)
-        bwsignals.signaleddataset_on_save.send(
-            old=old,
-            new=self,
-        )
+        if signal:
+            bwsignals.signaleddataset_on_save.send(
+                old=old,
+                new=self,
+            )
 
 
 class ActivityDataset(SignaledDataset):
