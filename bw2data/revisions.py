@@ -32,7 +32,7 @@ class RevisionGraph:
             self.head = ret["metadata"].get("parent_revision")
             return ret
 
-    def __init__(self, head: str, revisions: Sequence[dict]):
+    def __init__(self, head: int, revisions: Sequence[dict]):
         self.head = head
         self.revisions = revisions
         self.id_map = {r["metadata"]["revision"]: r for r in revisions}
@@ -84,8 +84,8 @@ class JSONEncoder(json.JSONEncoder):
 
 
 def generate_metadata(
-    parent_revision: Optional[str] = None,
-    revision: Optional[str] = None,
+    parent_revision: Optional[int] = None,
+    revision: Optional[int] = None,
 ) -> dict[str, Any]:
     ret = {}
     ret["parent_revision"] = parent_revision

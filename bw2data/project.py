@@ -1,3 +1,4 @@
+import itertools
 import json
 import os
 import shutil
@@ -84,7 +85,7 @@ class ProjectDataset(Model):
             (self.dir / "revisions").mkdir()
         self.save()
 
-    def add_revision(self, old: SD, new: SD) -> str:
+    def add_revision(self, old: SD, new: SD) -> int:
         """Add a revision to the project.
 
         {
@@ -95,13 +96,13 @@ class ProjectDataset(Model):
             "description": "<optional>"
             "authors": "<optional>" (maybe shouldn't be optional)
           },
-          "data": {…}
-        }
-
-        {
-          "type": "database object type" (e.g. "activity", "exchange", "parameter"),
-          "id": "database object id" (e.g. "foo", "bar", "baz"),
-          "delta": <difference between revisions>
+          "data": [
+                    {
+                      "type": "database object type" (e.g. "activity", "exchange", "parameter"),
+                      "id": "database object id" (e.g. "foo", "bar", "baz"),
+                      "delta": <difference between revisions>
+                    }, ...
+                 ]
         }
         """
         from bw2data import revisions
@@ -116,14 +117,10 @@ class ProjectDataset(Model):
             )
         self.revision = metadata["revision"]
         self.save()
+        with open(self.dir / "revisions" / "head", "w") as f:
+            f.write(str(self.revision))
         print(f"Added revision {self.revision} for {delta.type} {delta.id}")
         return self.revision
-
-    def load_revision(self, patch: str, revision: str) -> None:
-        from deepdiff import Delta  # this will move elsewhere, not the projects responsiblity
-
-        delta = Delta(patch)
-        self.revision = revision
 
     def apply_revision(self, revision: dict) -> None:
         """
@@ -135,13 +132,37 @@ class ProjectDataset(Model):
         meta = revision["metadata"]
         parent = meta.get("parent_revision")
         assert not parent or self.revision == parent
+        assert parent or not self.revision
         for d in revision["data"]:
             obj_class = getattr(proxies, d["type"].title())
             data_class = obj_class.ORMDataset
             data = utils.get_obj_as_dict(data_class, d.get("id"))
             data = revisions.Delta.from_dict(d["delta"]).apply(data)
-            obj_class(data_class(**data)).save()
+            obj_class(data_class(**data)).save(signal=False)
         self.revision = meta["revision"]
+        self.save()
+
+    def load_revisions(self, head: int | None = None) -> None:
+        """
+        Load all revisions unapplied for this project.
+        """
+        from bw2data import revisions
+
+        revs = []
+        if head is None:
+            with open(self.dir / "revisions" / "head", "r") as f:
+                head = int(f.read())
+        for filename in os.listdir(self.dir / "revisions"):
+            if not filename.endswith(".rev"):
+                continue
+            with open(self.dir / "revisions" / filename, "r") as f:
+                revs.append(json.load(f))
+        apply_to = self.revision
+        g = revisions.RevisionGraph(head, revs)
+        g = itertools.takewhile(
+            lambda x: x["metadata"]["revision"] != apply_to, g)
+        for rev in reversed(list(g)):
+            self.apply_revision(rev)
 
 
 def add_full_hash_column(base_data_dir: Path, db: SqliteDatabase) -> None:
