@@ -1,8 +1,8 @@
 import json
-import uuid
 from typing import Any, Optional, Self, Sequence, TypeVar
 
 import deepdiff
+from snowflake import SnowflakeGenerator as sfg
 
 from bw2data.backends import schema
 
@@ -84,7 +84,7 @@ def generate_metadata(
 ) -> dict[str, Any]:
     ret = {}
     ret["parent_revision"] = parent_revision
-    ret["revision"] = revision or uuid.uuid4().hex
+    ret["revision"] = revision or next(sfg(0))
     ret["authors"] = ret.get("authors", "Anonymous")
     ret["title"] = ret.get("title", "Untitled revision")
     ret["description"] = ret.get("description", "No description")
