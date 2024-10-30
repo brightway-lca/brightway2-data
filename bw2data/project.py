@@ -527,7 +527,7 @@ def _signal_dataset_saved(sender, old: SD, new: SD):
 
 
 projects = ProjectManager()
-bw2signals.database_saved.connect(_signal_dataset_saved)
+bw2signals.signaleddataset_on_save.connect(_signal_dataset_saved)
 
 
 @wrapt.decorator

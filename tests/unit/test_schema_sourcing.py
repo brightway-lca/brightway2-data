@@ -25,7 +25,7 @@ def test_signaleddataset_save_is_called(*mocks: Mock):
 
 
 @bw2test
-@patch("bw2data.signals.database_saved.send")
+@patch("bw2data.signals.signaleddataset_on_save.send")
 @patch("bw2data.backends.schema.SignaledDataset.get")
 def test_signal_is_sent(*mocks: Mock):
     # On saving an `Activity`, the signal is sent
