@@ -2,7 +2,6 @@ import itertools
 import json
 import os
 import shutil
-import uuid
 import warnings
 from collections.abc import Iterable
 from copy import copy
@@ -25,9 +24,6 @@ from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
 
 from snowflake import SnowflakeGenerator as sfg
-
-
-SD = TypeVar("SD", bound="bw2data.backends.schema.SignaledDataset")
 
 
 SD = TypeVar("SD", bound="bw2data.backends.schema.SignaledDataset")
