@@ -291,7 +291,7 @@ class Activity(ActivityProxyBase):
         self._document.delete_instance()
         self = None
 
-    def save(self):
+    def save(self, signal = True):
         """
         Saves the current activity to the database after performing various checks.
         This method validates the activity, updates the database status, and handles
@@ -336,7 +336,7 @@ class Activity(ActivityProxyBase):
         for key, value in dict_as_activitydataset(self._data).items():
             if key != "id":
                 setattr(self._document, key, value)
-        self._document.save()
+        self._document.save(signal)
 
         if self.get("location") and self["location"] not in geomapping:
             geomapping.add([self["location"]])
@@ -532,7 +532,7 @@ class Exchange(ExchangeProxyBase):
                 self._document.output_code,
             )
 
-    def save(self):
+    def save(self, signal = True):
         if not self.valid():
             raise ValidityError(
                 "This exchange can't be saved for the "
@@ -546,7 +546,7 @@ class Exchange(ExchangeProxyBase):
 
         for key, value in dict_as_exchangedataset(self._data).items():
             setattr(self._document, key, value)
-        self._document.save()
+        self._document.save(signal)
 
     def delete(self):
         from bw2data.parameters import ParameterizedExchange

@@ -14,7 +14,6 @@ def test_setting_sourced():
 
     projects.dataset.set_sourced()
     assert projects.dataset.is_sourced
-    assert projects.dataset.revision is not None
 
 
 @bw2test

@@ -65,13 +65,4 @@ def test_add_revision():
     new = copy.deepcopy(a)
     new["name"] = "B"
     new.save()
-    patch = DeepDiff(
-        a._document.data,
-        new._document.data,
-        verbose_level=2,
-    )
-    cls = a._document.__class__.__name__.lower()
-    mapper_str = f"dict_as_{cls}"
-    assert mapper_str == "dict_as_activitydataset"
-    mapper = getattr(bw2data.backends.utils, mapper_str)
-    projects.dataset.add_revision({"type": cls, "id": new.id}, patch)
+    projects.dataset.add_revision(a._document, new._document)
