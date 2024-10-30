@@ -51,7 +51,7 @@ def new_snowflakeid() -> int:
 class ProjectDataset(Model):
     # Event sourcing
     is_sourced = BooleanField(default=False, constraints=[SQL("DEFAULT 0")])
-    revision = IntegerField(null=True, default=new_snowflakeid)
+    revision = IntegerField(null=True)
 
     data = PickleField()
     name = TextField(index=True, unique=True)
@@ -82,7 +82,6 @@ class ProjectDataset(Model):
         # Backwards compatible with existing projects
         if not (self.dir / "revisions").is_dir():
             (self.dir / "revisions").mkdir()
-        self.revision = new_snowflakeid()
         self.save()
 
     def add_revision(self, old: SD, new: SD) -> str:
