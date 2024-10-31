@@ -687,6 +687,9 @@ class SQLiteBackend(ProcessedDataStore):
             kwargs.pop("database")
         obj["database"] = self.name
 
+        if "id" in kwargs:
+            raise ValueError(f"`id` must be created automatically, but `id={kwargs['id']}` given.")
+
         if code is None:
             obj["code"] = uuid.uuid4().hex
         else:

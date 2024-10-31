@@ -13,8 +13,8 @@ EPOCH_START_MS = 1704067200000
 # Timestamp: 41 bits. Milliseconds since the epoch or custom epoch.
 # Datacenter ID: 5 bits, which gives us 2 ^ 5 = 32 datacenters.
 # Machine ID: 5 bits, which gives us 2 ^ 5 = 32 machines per datacenter.
-# However, `snowflake-id` lumps these two values datacenter and machine id values together into an
-# `instance` value with 2 ^ 10 = 1024 possible values.
+# However, `snowflake-id` lumps the two datacenter and machine id values together into an
+# `instance` parameter with 2 ^ 10 = 1024 possible values.
 # Sequence number: 12 bits. For every ID generated on that machine/process, the sequence number is
 # incremented by 1. The number is reset to 0 every millisecond.
 snowflake_id_generator = SnowflakeGenerator(instance=uuid.getnode() % 1024, epoch=EPOCH_START_MS)

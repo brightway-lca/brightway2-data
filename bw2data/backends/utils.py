@@ -78,6 +78,8 @@ def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
         "product": ds.get("reference product"),
         "type": ds.get("type", labels.process_node_default),
     }
+    # Use during `insert_many` calls as these skip auto id generation because they don't call
+    # `.save()`
     if add_snowflake_id:
         val['id'] = next(snowflake_id_generator)
     return val

@@ -11,8 +11,10 @@ class SnowflakeIDBaseClass(SignaledDataset):
 
     def save(self, **kwargs):
         if self.id is None:
-            # If the primary key is already present, peewee will make an `UPDATE` query.
-            # This will have no effect if there isn't a matching row
+            # If the primary key column data is already present (even if the object doesn't exist in
+            # the database), peewee will make an `UPDATE` query. This will have no effect if there
+            # isn't a matching row. Need for force an `INSERT` query instead as we generate the ids
+            # ourselves.
             # https://docs.peewee-orm.com/en/latest/peewee/models.html#id4
             self.id = next(snowflake_id_generator)
             kwargs['force_insert'] = True

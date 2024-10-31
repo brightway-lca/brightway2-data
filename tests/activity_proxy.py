@@ -180,13 +180,7 @@ def test_copy(activity):
     assert cp["location"] == "bar"
     assert ExchangeDataset.select().count() == 2
 
-    for ds in ActivityDataset.select():
-        print(ds, ds.name, ds.code)
-
     cp.save()
-
-    for ds in ActivityDataset.select():
-        print(ds, ds.name, ds.code)
 
     assert ActivityDataset.select().count() == 2
     assert (
@@ -241,9 +235,6 @@ def test_copy_with_kwargs(activity):
 
 @bw2test
 def test_delete_activity_parameters():
-    from bw2data import projects
-    print(projects.dir)
-
     db = DatabaseChooser("example")
     db.register()
 
@@ -252,10 +243,6 @@ def test_delete_activity_parameters():
     b = db.new_activity(code="B", name="Another activity")
     b.save()
     a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4").save()
-
-    print("Iterating over exchanges:")
-    for exc in ExchangeDataset.select():
-        print("Next:", exc, exc.id)
 
     assert ExchangeDataset.select().count() == 1
 

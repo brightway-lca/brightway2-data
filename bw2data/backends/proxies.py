@@ -497,10 +497,10 @@ class Activity(ActivityProxyBase):
         """Create a new exchange linked to this activity"""
         exc = Exchange()
         exc.output = self.key
-        for key in kwargs:
+        for key, value in kwargs.items():
             if key == "id":
-                raise ValueError("`id` must be created automatically")
-            exc[key] = kwargs[key]
+                raise ValueError(f"`id` must be created automatically, but `id={value}` given.")
+            exc[key] = value
         return exc
 
     def copy(self, code: Optional[str] = None, signal: bool = True, **kwargs):
@@ -514,22 +514,19 @@ class Activity(ActivityProxyBase):
         activity = Activity()
         for key, value in self.items():
             if key != "id":
-                print(key, value)
                 activity[key] = value
-        for k, v in kwargs.items():
-            if k == "id":
-                raise ValueError("`id` must be generated automatically")
-            activity._data[k] = v
+        for key, value in kwargs.items():
+            if key == "id":
+                raise ValueError(f"`id` must be created automatically, but `id={value}` given.")
+            activity._data[key] = value
         activity._data["code"] = str(code or uuid.uuid4().hex)
         activity.save(signal=signal)
-
-        print("Copy Document ID", activity._document.id)
-        print("Original Document ID", self._document.id)
 
         for exc in self.exchanges():
             data = copy.deepcopy(exc._data)
             if 'id' in data:
-                # New snowflake ID will be inserted by `_dict_as_exchangedataset`
+                # New snowflake ID will be inserted by `.save()`; shouldn't be copied over
+                # or specified manually
                 del data['id']
             data["output"] = activity.key
             # Change `input` for production exchanges
