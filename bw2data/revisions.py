@@ -15,6 +15,17 @@ except ImportError:
 
 
 SD = TypeVar("SD", bound=SignaledDataset)
+OBJECT_AS_DICT = {
+    ActivityDataset: lambda x: x.data,
+    ExchangeDataset: dict_as_exchangedataset,
+}
+OBJECT_AS_LABEL = {
+    ActivityDataset: "lci_node",
+    ExchangeDataset: "lci_edge",
+}
+LABEL_AS_OBJECT = {
+    v: k for k, v in OBJECT_AS_LABEL.items()
+}
 
 
 class RevisionGraph:
@@ -51,15 +62,6 @@ class Delta:
     Can be serialized, transfered, and applied to the same previous version to
     change it to the new state.
     """
-    OBJECT_AS_DICT = {
-        ActivityDataset: lambda x: x.data,
-        ExchangeDataset: dict_as_exchangedataset,
-    }
-    OBJECT_AS_LABEL = {
-        ActivityDataset: "lci_node",
-        ExchangeDataset: "lci_edge",
-    }
-
     def apply(self, obj):
         return obj + self.delta
 
@@ -103,11 +105,11 @@ class Delta:
                 raise DifferentObjects(f"Can't diff different objects (ids {old.id} & {new.id})")
 
         return cls.from_difference(
-            cls.OBJECT_AS_LABEL[obj_type],
+            OBJECT_AS_LABEL[obj_type],
             new.id,
             deepdiff.DeepDiff(
-                cls.OBJECT_AS_DICT[obj_type](old) if old else None,
-                cls.OBJECT_AS_DICT[obj_type](new),
+                OBJECT_AS_DICT[obj_type](old) if old else None,
+                OBJECT_AS_DICT[obj_type](new),
                 verbose_level=2,
             ),
         )
