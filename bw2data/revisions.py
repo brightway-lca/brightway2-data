@@ -17,7 +17,7 @@ except ImportError:
 SD = TypeVar("SD", bound=SignaledDataset)
 OBJECT_AS_DICT = {
     ActivityDataset: lambda x: x.data,
-    ExchangeDataset: dict_as_exchangedataset,
+    ExchangeDataset: lambda x: dict_as_exchangedataset(x.data),
 }
 OBJECT_AS_LABEL = {
     ActivityDataset: "lci_node",
@@ -78,16 +78,18 @@ class Delta:
         cls: Self,
         obj_type: str,
         obj_id: int,
+        change_type: str,
         diff: deepdiff.DeepDiff,
     ) -> Self:
         ret = cls()
         ret.type = obj_type
         ret.id = obj_id
+        ret.change_type = change_type
         ret.delta = deepdiff.Delta(diff)
         return ret
 
     @classmethod
-    def generate(cls, old: Optional[SD], new: SD) -> Self:
+    def generate(cls: Self, old: Optional[SD], new: Optional[SD]) -> Self:
         """
         Generates a patch object from one version of an object to another.
 
@@ -95,21 +97,34 @@ class Delta:
 
         `old` can be `None` if an object is being created.
 
+        `new` can be `None` is an object is being deleted.
+
         Raises `IncompatibleClasses` is `old` and `new` have different classes.
         """
-        obj_type = new.__class__
-        if old is not None:
+        if old is None and new is None:
+            raise ValueError("Both `new` and `old` are `None`")
+
+        obj_type = new.__class__ if new is not None else old.__class__
+        if old is not None and new is not None:
             if old.__class__ != new.__class__:
                 raise IncompatibleClasses(f"Can't diff {old.__class__} and {new.__class__}")
             if old.id != new.id:
                 raise DifferentObjects(f"Can't diff different objects (ids {old.id} & {new.id})")
 
+        if old is not None and new is not None:
+            change_type = "update"
+        elif old is None and new is not None:
+            change_type = "create"
+        elif old is not None and new is None:
+            change_type = "delete"
+
         return cls.from_difference(
             OBJECT_AS_LABEL[obj_type],
             new.id,
+            change_type,
             deepdiff.DeepDiff(
                 OBJECT_AS_DICT[obj_type](old) if old else None,
-                OBJECT_AS_DICT[obj_type](new),
+                OBJECT_AS_DICT[obj_type](new) if new else None,
                 verbose_level=2,
             ),
         )
@@ -140,7 +155,7 @@ def generate_metadata(
 def generate_revision(metadata: dict, delta: Sequence[Delta]) -> dict:
     return {
         "metadata": metadata,
-        "data": [{"type": d.type, "id": d.id, "delta": d} for d in delta],
+        "data": [{"type": d.type, "id": d.id, "change_type": d.change_type, "delta": d} for d in delta],
     }
 
 

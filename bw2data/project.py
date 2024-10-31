@@ -130,7 +130,7 @@ class ProjectDataset(Model):
 
     def apply_revision(self, revision: dict) -> None:
         """
-        Load a patch generated from a previous `add_revision` into the database.
+        Load a patch generated from a previous `add_revision` into the project.
         """
         from bw2data.backends import proxies, utils
         from bw2data import revisions
@@ -140,7 +140,7 @@ class ProjectDataset(Model):
         assert not parent or self.revision == parent
         assert parent or not self.revision
         for d in revision["data"]:
-            obj_class = getattr(proxies, d["type"].title())
+            obj_class = revisions.LABEL_AS_OBJECT[d["type"]]
             data_class = obj_class.ORMDataset
             data = utils.get_obj_as_dict(data_class, d.get("id"))
             data = revisions.Delta.from_dict(d["delta"]).apply(data)
