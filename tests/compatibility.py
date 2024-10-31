@@ -9,6 +9,7 @@ from bw2data import (
     databases,
     geomapping,
     get_activity,
+    get_node,
     get_multilca_data_objs,
     get_node,
     methods,
@@ -65,27 +66,32 @@ def setup():
 def test_prepare_lca_inputs_basic(setup):
     d, objs, r = prepare_lca_inputs(demand={("food", "1"): 1}, method=("foo",))
     # ID is 3; two biosphere flows, then '1' is next written
-    assert d == {3: 1}
+    assert list(d.values()) == [1]
     assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in setup}
+
+    b1 = get_node(database="biosphere", code='1').id
+    b2 = get_node(database="biosphere", code='2').id
+    f1 = get_node(database="food", code='1').id
+    f2 = get_node(database="food", code='2').id
 
     remapping_expected = {
         "activity": {
-            1: ("biosphere", "1"),
-            2: ("biosphere", "2"),
-            3: ("food", "1"),
-            4: ("food", "2"),
+            b1: ("biosphere", "1"),
+            b2: ("biosphere", "2"),
+            f1: ("food", "1"),
+            f2: ("food", "2"),
         },
         "product": {
-            1: ("biosphere", "1"),
-            2: ("biosphere", "2"),
-            3: ("food", "1"),
-            4: ("food", "2"),
+            b1: ("biosphere", "1"),
+            b2: ("biosphere", "2"),
+            f1: ("food", "1"),
+            f2: ("food", "2"),
         },
         "biosphere": {
-            1: ("biosphere", "1"),
-            2: ("biosphere", "2"),
-            3: ("food", "1"),
-            4: ("food", "2"),
+            b1: ("biosphere", "1"),
+            b2: ("biosphere", "2"),
+            f1: ("food", "1"),
+            f2: ("food", "2"),
         },
     }
     assert r == remapping_expected
@@ -104,7 +110,7 @@ def test_prepare_lca_inputs_multiple_demands_data_types(setup):
     first = get_node(database="food", code="1")
     second = get_node(database="food", code="2")
     d, objs, r = prepare_lca_inputs(demands=[{first: 1}, {second.id: 10}], method=("foo",))
-    assert d == [{3: 1}, {4: 10}]
+    assert d == [{first.id: 1}, {second.id: 10}]
     assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in setup}
 
 
@@ -112,8 +118,9 @@ def test_prepare_lca_inputs_multiple_demands(setup):
     d, objs, r = prepare_lca_inputs(
         demands=[{("food", "1"): 1}, {("food", "2"): 10}], method=("foo",)
     )
-    # ID is 3; two biosphere flows, then '1' is next written
-    assert d == [{3: 1}, {4: 10}]
+    f1 = get_node(database="food", code='1').id
+    f2 = get_node(database="food", code='2').id
+    assert d == [{f1: 1}, {f2: 10}]
     assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in setup}
 
 

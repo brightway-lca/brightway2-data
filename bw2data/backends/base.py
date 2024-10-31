@@ -28,7 +28,7 @@ from bw2data.backends.typos import (
 from bw2data.backends.utils import (
     check_exchange,
     dict_as_activitydataset,
-    dict_as_exchangedataset,
+    _dict_as_exchangedataset,
     get_csv_data_dict,
     retupleize_geo_strings,
 )
@@ -525,7 +525,7 @@ class SQLiteBackend(ProcessedDataStore):
 
             if "output" not in exchange:
                 exchange["output"] = (ds["database"], ds["code"])
-            exchanges.append(dict_as_exchangedataset(exchange))
+            exchanges.append(_dict_as_exchangedataset(exchange))
 
             # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
             # SQLite3 has a limit of 999 variables,
@@ -542,7 +542,7 @@ class SQLiteBackend(ProcessedDataStore):
             check_activity_type(ds.get("type"))
             check_activity_keys(ds)
 
-        activities.append(dict_as_activitydataset(ds))
+        activities.append(dict_as_activitydataset(ds, add_snowflake_id=True))
 
         if len(activities) > 125:
             ActivityDataset.insert_many(activities).execute()
@@ -686,6 +686,9 @@ class SQLiteBackend(ProcessedDataStore):
                 )
             kwargs.pop("database")
         obj["database"] = self.name
+
+        if "id" in kwargs:
+            raise ValueError(f"`id` must be created automatically, but `id={kwargs['id']}` given.")
 
         if code is None:
             obj["code"] = uuid.uuid4().hex

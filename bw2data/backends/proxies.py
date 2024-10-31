@@ -14,7 +14,7 @@ from bw2data.backends.typos import (
     check_exchange_keys,
     check_exchange_type,
 )
-from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
+from bw2data.backends.utils import dict_as_activitydataset, _dict_as_exchangedataset
 from bw2data.configuration import labels
 from bw2data.errors import ValidityError
 from bw2data.logs import stdout_feedback_logger
@@ -338,6 +338,8 @@ class Activity(ActivityProxyBase):
             check_activity_keys(self)
 
             for key, value in dict_as_activitydataset(self._data).items():
+                # ID value is either already in `._document` (update) or will be created by
+                # `SnowflakeIDBaseClass.save()`.
                 if key != "id":
                     setattr(self._document, key, value)
 
@@ -495,8 +497,10 @@ class Activity(ActivityProxyBase):
         """Create a new exchange linked to this activity"""
         exc = Exchange()
         exc.output = self.key
-        for key in kwargs:
-            exc[key] = kwargs[key]
+        for key, value in kwargs.items():
+            if key == "id":
+                raise ValueError(f"`id` must be created automatically, but `id={value}` given.")
+            exc[key] = value
         return exc
 
     def copy(self, code: Optional[str] = None, signal: bool = True, **kwargs):
@@ -511,13 +515,19 @@ class Activity(ActivityProxyBase):
         for key, value in self.items():
             if key != "id":
                 activity[key] = value
-        for k, v in kwargs.items():
-            activity._data[k] = v
+        for key, value in kwargs.items():
+            if key == "id":
+                raise ValueError(f"`id` must be created automatically, but `id={value}` given.")
+            activity._data[key] = value
         activity._data["code"] = str(code or uuid.uuid4().hex)
         activity.save(signal=signal)
 
         for exc in self.exchanges():
             data = copy.deepcopy(exc._data)
+            if 'id' in data:
+                # New snowflake ID will be inserted by `.save()`; shouldn't be copied over
+                # or specified manually
+                del data['id']
             data["output"] = activity.key
             # Change `input` for production exchanges
             if exc["input"] == exc["output"]:
@@ -564,7 +574,7 @@ class Exchange(ExchangeProxyBase):
             check_exchange_type(self._data.get("type"))
             check_exchange_keys(self)
 
-            for key, value in dict_as_exchangedataset(self._data).items():
+            for key, value in _dict_as_exchangedataset(self._data).items():
                 setattr(self._document, key, value)
 
         self._document.save(signal=signal, force_insert=force_insert)
