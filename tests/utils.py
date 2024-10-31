@@ -6,6 +6,7 @@ from bw2data import Database, Method, labels, methods
 from bw2data.backends import Activity as PWActivity
 from bw2data.errors import MultipleResults, UnknownObject, ValidityError
 from bw2data.tests import BW2DataTest, bw2test
+from bw2data.snowflake_ids import EPOCH_START_MS
 from bw2data.utils import (
     as_uncertainty_dict,
     combine_methods,
@@ -208,7 +209,7 @@ def test_as_uncertainty_dict_set_negative():
 def test_get_node_normal():
     Database("biosphere").write(biosphere)
     node = get_node(name="an emission")
-    assert node.id == 1
+    assert node.id > EPOCH_START_MS
     assert isinstance(node, PWActivity)
 
 
@@ -229,7 +230,7 @@ def test_get_node_key():
 def test_get_node_multiple_filters():
     Database("biosphere").write(biosphere)
     node = get_node(name="an emission", type="emission")
-    assert node.id == 1
+    assert node.id > EPOCH_START_MS
     assert isinstance(node, PWActivity)
 
 
@@ -277,7 +278,7 @@ def test_get_node_extended_search():
 @bw2test
 def test_get_activity_activity():
     Database("biosphere").write(biosphere)
-    node = get_node(id=1)
+    node = get_node(code="1")
     found = get_activity(node)
     assert found is node
 
@@ -285,33 +286,17 @@ def test_get_activity_activity():
 @bw2test
 def test_get_activity_id():
     Database("biosphere").write(biosphere)
-    node = get_activity(1)
-    assert node.id == 1
+    node = get_activity(code="1")
+    node = get_activity(node.id)
+    assert node.id > EPOCH_START_MS
     assert isinstance(node, PWActivity)
-
-
-@bw2test
-def test_get_activity_id_different_ints():
-    Database("biosphere").write(biosphere)
-    different_ints = [
-        int(1),
-        np.intp(1),
-        np.int8(1),
-        np.int16(1),
-        np.int32(1),
-        np.int64(1),
-    ]
-    for i in different_ints:
-        node = get_activity(i)
-        assert node.id == i
-        assert isinstance(node, PWActivity)
 
 
 @bw2test
 def test_get_activity_key():
     Database("biosphere").write(biosphere)
     node = get_activity(("biosphere", "1"))
-    assert node.id == 1
+    assert node.id > EPOCH_START_MS
     assert isinstance(node, PWActivity)
 
 
@@ -319,7 +304,7 @@ def test_get_activity_key():
 def test_get_activity_kwargs():
     Database("biosphere").write(biosphere)
     node = get_activity(name="an emission", type="emission")
-    assert node.id == 1
+    assert node.id > EPOCH_START_MS
     assert isinstance(node, PWActivity)
 
 

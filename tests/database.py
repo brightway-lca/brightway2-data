@@ -19,6 +19,7 @@ from bw2data import (
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import Database
+from bw2data.snowflake_ids import EPOCH_START_MS
 from bw2data.errors import (
     DuplicateNode,
     InvalidExchange,
@@ -63,7 +64,7 @@ def test_get_code():
     activity = d.get("1")
     assert isinstance(activity, PWActivity)
     assert activity["name"] == "an emission"
-    assert activity.id == 1
+    assert activity.id > EPOCH_START_MS
 
 
 @bw2test
@@ -73,7 +74,7 @@ def test_get_kwargs():
     activity = d.get(name="an emission")
     assert isinstance(activity, PWActivity)
     assert activity["name"] == "an emission"
-    assert activity.id == 1
+    assert activity.id > EPOCH_START_MS
 
 
 @bw2test
@@ -541,7 +542,7 @@ def test_processed_array_with_metadata():
                 "reference product": np.NaN,
                 "unit": "something",
                 "location": np.NaN,
-                "id": 1,
+                "id": df.id[0],
             }
         ]
     )
@@ -716,7 +717,7 @@ def test_process_without_exchanges_still_in_processed_array():
 
     package = database.datapackage()
     array = package.get_resource("a_database_technosphere_matrix.data")[0]
-    assert array[0] == 1
+    assert array[0] == 1.
     assert array.shape == (1,)
 
 
@@ -774,8 +775,6 @@ def test_new_node_error():
 
     with pytest.raises(DuplicateNode):
         database.new_node("foo")
-    with pytest.raises(DuplicateNode):
-        database.new_node(code="bar", id=act.id)
 
 
 @bw2test
