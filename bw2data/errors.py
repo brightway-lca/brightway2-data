@@ -80,3 +80,15 @@ class InvalidDatapackage(BW2Exception):
     """The given datapackage can't be used for the requested task."""
 
     pass
+
+
+class IncompatibleClasses(BW2Exception):
+    """Revision comparison across two different classes doesn't make sense and isn't allowed"""
+
+    pass
+
+
+class DifferentObjects(BW2Exception):
+    """Revision comparison of two different objects doesn't make sense and isn't allowed"""
+
+    pass

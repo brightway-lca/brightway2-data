@@ -4,7 +4,9 @@ from typing import Any, Optional, Sequence, TypeVar
 import deepdiff
 from snowflake import SnowflakeGenerator as sfg
 
-from bw2data.backends import schema
+from bw2data.backends.schema import SignaledDataset, ActivityDataset, ExchangeDataset
+from bw2data.errors import IncompatibleClasses, DifferentObjects
+from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
 
 try:
     from typing import Self
@@ -12,7 +14,7 @@ except ImportError:
     from typing_extensions import Self
 
 
-SD = TypeVar("SD", bound=schema.SignaledDataset)
+SD = TypeVar("SD", bound=SignaledDataset)
 
 
 class RevisionGraph:
@@ -49,6 +51,15 @@ class Delta:
     Can be serialized, transfered, and applied to the same previous version to
     change it to the new state.
     """
+    OBJECT_AS_DICT = {
+        ActivityDataset: lambda x: x.data,
+        ExchangeDataset: dict_as_exchangedataset,
+    }
+    OBJECT_AS_LABEL = {
+        ActivityDataset: "lci_node",
+        ExchangeDataset: "lci_edge",
+    }
+
     def apply(self, obj):
         return obj + self.delta
 
@@ -73,10 +84,33 @@ class Delta:
         ret.delta = deepdiff.Delta(diff)
         return ret
 
-from bw2data.backends import schema
+    @classmethod
+    def generate(cls, old: Optional[SD], new: SD) -> Self:
+        """
+        Generates a patch object from one version of an object to another.
 
+        Both `old` and `new` should be instances of `bw2data.backends.schema.SignaledDataset`.
 
-SD = TypeVar("SD", bound=schema.SignaledDataset)
+        `old` can be `None` if an object is being created.
+
+        Raises `IncompatibleClasses` is `old` and `new` have different classes.
+        """
+        obj_type = new.__class__
+        if old is not None:
+            if old.__class__ != new.__class__:
+                raise IncompatibleClasses(f"Can't diff {old.__class__} and {new.__class__}")
+            if old.id != new.id:
+                raise DifferentObjects(f"Can't diff different objects (ids {old.id} & {new.id})")
+
+        return cls.from_difference(
+            cls.OBJECT_AS_LABEL[obj_type],
+            new.id,
+            deepdiff.DeepDiff(
+                cls.OBJECT_AS_DICT[obj_type](old) if old else None,
+                cls.OBJECT_AS_DICT[obj_type](new),
+                verbose_level=2,
+            ),
+        )
 
 
 class JSONEncoder(json.JSONEncoder):
@@ -101,32 +135,11 @@ def generate_metadata(
     return ret
 
 
-def generate_delta(old: Optional[SD], new: SD) -> Delta:
-    """
-    Generates a patch object from one version of an object to another.
-
-    Both objects are assumeed to be of the same type, but `old` can be `None` to
-    generate a creation event.
-    """
-    from bw2data.backends import utils
-
-    obj_type = new.__class__
-    assert old is None or old.__class__ == obj_type
-    assert old is None or not old.id or old.id == new.id
-    mapper = getattr(utils, f"dict_as_{obj_type.__name__.lower()}")
-    return Delta.from_difference(
-        obj_type.__name__.removesuffix("Dataset").lower(),
-        new.id,
-        deepdiff.DeepDiff(
-            mapper(old.data) if old else None,
-            mapper(new.data),
-            verbose_level=2,
-        ),
-    )
-
-
 def generate_revision(metadata: dict, delta: Sequence[Delta]) -> dict:
     return {
         "metadata": metadata,
         "data": [{"type": d.type, "id": d.id, "delta": d} for d in delta],
     }
+
+
+generate_delta = Delta.generate
