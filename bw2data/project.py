@@ -147,6 +147,9 @@ class ProjectDataset(Model):
 
         revs = []
         if head is None:
+            if not (self.dir / "revisions" / "head").is_file():
+                # No revisions recorded yet
+                return
             with open(self.dir / "revisions" / "head", "r") as f:
                 head = int(f.read())
         for filename in os.listdir(self.dir / "revisions"):
