@@ -83,7 +83,6 @@ class ProjectDataset(Model):
         # Backwards compatible with existing projects
         if not (self.dir / "revisions").is_dir():
             (self.dir / "revisions").mkdir()
-        self.revision = new_snowflakeid()
         self.save()
 
     def add_revision(self, old: SD, new: SD) -> int:
