@@ -59,7 +59,7 @@ def test_project_migration(tmp_path):
 
     config.cache = {}
     projects.db.change_path(new_projects_db)
-    projects._project_name = "default"
+    projects.set_current("default")
     default = projects.dataset = ProjectDataset.get(ProjectDataset.name == projects._project_name)
 
     assert not default.is_sourced
