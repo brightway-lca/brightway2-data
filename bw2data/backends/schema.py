@@ -1,27 +1,9 @@
-from peewee import DoesNotExist, Model, TextField
+from peewee import DoesNotExist, TextField
 
 from bw2data.errors import UnknownObject
 from bw2data.sqlite import PickleField
 
-import bw2data.signals as bwsignals
-
-try:
-    from typing import override
-except ImportError:
-    from typing_extensions import override
-
-
-class SignaledDataset(Model):
-    @override
-    def save(self, signal: bool = True, *args, **kwargs):
-        """Receives a mapper to convert the data to the expected dictionary format"""
-        old = type(self).get_or_none(type(self).id == self.id)
-        super().save(*args, **kwargs)
-        if signal:
-            bwsignals.signaleddataset_on_save.send(
-                old=old,
-                new=self,
-            )
+from bw2data.signals import SignaledDataset
 
 
 class ActivityDataset(SignaledDataset):

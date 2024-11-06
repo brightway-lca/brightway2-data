@@ -1,4 +1,11 @@
 from blinker import signal
+from peewee import Model
+
+try:
+    from typing import override
+except ImportError:
+    from typing_extensions import override
+
 
 signaleddataset_on_save = signal(
     "bw2data.signaleddataset_on_save",
@@ -35,3 +42,66 @@ Expected inputs:
 No expected return value.
 """,
 )
+
+
+class SignaledDataset(Model):
+    @override
+    def save(self, signal: bool = True, *args, **kwargs) -> None:
+        """Receives a mapper to convert the data to the expected dictionary format"""
+        old = type(self).get_or_none(type(self).id == self.id)
+        super().save(*args, **kwargs)
+        if signal:
+            signaleddataset_on_save.send(
+                old=old,
+                new=self,
+            )
+
+    @override
+    def delete_instance(self, signal: bool = True, *args, **kwargs) -> None:
+        if signal:
+            signaleddataset_on_save.send(
+                old=self,
+                new=None,
+            )
+        super().delete_instance(*args, **kwargs)
+
+    # From the peewee docs
+    # https://docs.peewee-orm.com/en/latest/peewee/playhouse.html#signal-support
+    # For what I hope are obvious reasons, Peewee signals do not work when you use the
+    # Model.insert(), Model.update(), or Model.delete() methods. These methods generate queries that
+    # execute beyond the scope of the ORM, and the ORM does not know about which model instances
+    # might or might not be affected when the query executes.
+
+    # def update(self, *args, **kwargs) -> None:
+    #     raise NotImplementedError("SQL update statements not compatible with signaled datasets")
+
+    # def delete(self, *args, **kwargs) -> None:
+    #     raise NotImplementedError("SQL delete statements not compatible with signaled datasets")
+
+    # def insert(self, *args, **kwargs) -> None:
+    #     raise NotImplementedError("SQL insert statements not compatible with signaled datasets")
+
+    # def _update_without_signal(self, *args, **kwargs) -> None:
+    #     """
+    #     Internal API for issuing SQL update statements.
+
+    #     Reserved for use by `bw2data`, and API can change at any time. Please use `.save()` instead.
+    #     """
+    #     return super().update(*args, **kwargs)
+
+    # def _delete_without_signal(self, *args, **kwargs) -> None:
+    #     """
+    #     Internal API for issuing SQL delete statements.
+
+    #     Reserved for use by `bw2data`, and API can change at any time. Please use
+    #     `.delete_instance()` instead.
+    #     """
+    #     return super().delete(*args, **kwargs)
+
+    # def _insert_without_signal(self, *args, **kwargs) -> None:
+    #     """
+    #     Internal API for issuing SQL insert statements.
+
+    #     Reserved for use by `bw2data`, and API can change at any time. Please use `.save()` instead.
+    #     """
+    #     return super().insert(*args, **kwargs)

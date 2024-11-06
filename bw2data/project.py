@@ -113,15 +113,15 @@ class ProjectDataset(Model):
         """
         from bw2data import revisions
 
-        metadata = revisions.generate_metadata(self.revision)
+        metadata = revisions.generate_metadata(parent_revision=self.revision)
         delta = revisions.generate_delta(old, new)
+        self.revision = metadata["revision"]
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
             f.write(
                 revisions.JSONEncoder(indent=2).encode(
                     revisions.generate_revision(metadata, (delta,)),
                 ),
             )
-        self.revision = metadata["revision"]
         self.save()
         with open(self.dir / "revisions" / "head", "w") as f:
             f.write(str(self.revision))
@@ -132,19 +132,15 @@ class ProjectDataset(Model):
         """
         Load a patch generated from a previous `add_revision` into the project.
         """
-        from bw2data.backends import proxies, utils
         from bw2data import revisions
 
         meta = revision["metadata"]
         parent = meta.get("parent_revision")
         assert not parent or self.revision == parent
         assert parent or not self.revision
-        for d in revision["data"]:
-            obj_class = revisions.LABEL_AS_OBJECT[d["type"]]
-            data_class = obj_class.ORMDataset
-            data = utils.get_obj_as_dict(data_class, d.get("id"))
-            data = revisions.Delta.from_dict(d["delta"]).apply(data)
-            obj_class(data_class(**data)).save(signal=False)
+        for revision_data in revision["data"]:
+            obj_class = revisions.REVISIONED_LABEL_AS_OBJECT[revision_data["type"]]
+            obj_class.handle(revision_data)
         self.revision = meta["revision"]
         self.save()
 
@@ -577,15 +573,13 @@ class ProjectManager(Iterable):
             raise ex
 
 
-def _signal_dataset_saved(sender, old: SD, new: SD):
+def _signal_dataset_saved(sender, old: Optional[Any], new: Optional[Any]):
     """Process dataset saved signal to add a event sourcing revision.
 
     If the current project is set to be sourced, generate a revision.
     """
     if projects.dataset.is_sourced:
         projects.dataset.add_revision(old, new)
-
-    print(f"Generated revision for {new.id}")
 
 
 projects = ProjectManager()

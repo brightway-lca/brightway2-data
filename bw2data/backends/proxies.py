@@ -71,7 +71,7 @@ class Exchanges(Iterable):
     def filter(self, expr):
         self._args.append(expr)
 
-    def delete(self):
+    def delete(self, signal: bool = True):
         databases.set_dirty(self._key[0])
         ExchangeDataset.delete().where(*self._args).execute()
 
@@ -256,7 +256,7 @@ class Activity(ActivityProxyBase):
     def key(self):
         return (self.get("database"), self.get("code"))
 
-    def delete(self):
+    def delete(self, signal: bool = True):
         from bw2data import Database, calculation_setups
         from bw2data.parameters import ActivityParameter, ParameterizedExchange
 
@@ -276,7 +276,7 @@ class Activity(ActivityProxyBase):
         except ActivityParameter.DoesNotExist:
             pass
         IndexManager(Database(self["database"]).filename).delete_dataset(self._data)
-        self.exchanges().delete()
+        self.exchanges().delete(signal=signal)
 
         for name, setup in calculation_setups.items():
             if any(
@@ -288,10 +288,10 @@ class Activity(ActivityProxyBase):
                 setup["inv"] = [purge(self, dct) for dct in setup["inv"] if purge(self, dct)]
         calculation_setups.flush()
 
-        self._document.delete_instance()
+        self._document.delete_instance(signal=signal)
         self = None
 
-    def save(self, signal = True):
+    def save(self, signal: bool = True, data_already_set: bool = False):
         """
         Saves the current activity to the database after performing various checks.
         This method validates the activity, updates the database status, and handles
@@ -321,7 +321,7 @@ class Activity(ActivityProxyBase):
         """
         from bw2data import Database
 
-        if not self.valid():
+        if not data_already_set and not self.valid():
             raise ValidityError(
                 "This activity can't be saved for the "
                 + "following reasons\n\t* "
@@ -330,12 +330,14 @@ class Activity(ActivityProxyBase):
 
         databases.set_dirty(self["database"])
 
-        check_activity_type(self._data.get("type"))
-        check_activity_keys(self)
+        if not data_already_set:
+            check_activity_type(self._data.get("type"))
+            check_activity_keys(self)
 
-        for key, value in dict_as_activitydataset(self._data).items():
-            if key != "id":
-                setattr(self._document, key, value)
+            for key, value in dict_as_activitydataset(self._data).items():
+                if key != "id":
+                    setattr(self._document, key, value)
+
         self._document.save(signal)
 
         if self.get("location") and self["location"] not in geomapping:
@@ -532,8 +534,8 @@ class Exchange(ExchangeProxyBase):
                 self._document.output_code,
             )
 
-    def save(self, signal = True):
-        if not self.valid():
+    def save(self, signal: bool = True, data_already_set: bool = False):
+        if not data_already_set and not self.valid():
             raise ValidityError(
                 "This exchange can't be saved for the "
                 "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
@@ -541,14 +543,16 @@ class Exchange(ExchangeProxyBase):
 
         databases.set_dirty(self["output"][0])
 
-        check_exchange_type(self._data.get("type"))
-        check_exchange_keys(self)
+        if not data_already_set:
+            check_exchange_type(self._data.get("type"))
+            check_exchange_keys(self)
 
-        for key, value in dict_as_exchangedataset(self._data).items():
-            setattr(self._document, key, value)
+            for key, value in dict_as_exchangedataset(self._data).items():
+                setattr(self._document, key, value)
+
         self._document.save(signal)
 
-    def delete(self):
+    def delete(self, signal: bool = True):
         from bw2data.parameters import ParameterizedExchange
 
         ParameterizedExchange.delete().where(

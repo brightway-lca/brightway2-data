@@ -5,8 +5,9 @@ import deepdiff
 from snowflake import SnowflakeGenerator as sfg
 
 from bw2data.backends.schema import SignaledDataset, ActivityDataset, ExchangeDataset
+from bw2data.backends.proxies import Activity, Exchange
 from bw2data.errors import IncompatibleClasses, DifferentObjects
-from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
+from bw2data.backends.utils import dict_as_exchangedataset, dict_as_activitydataset
 
 try:
     from typing import Self
@@ -15,17 +16,6 @@ except ImportError:
 
 
 SD = TypeVar("SD", bound=SignaledDataset)
-OBJECT_AS_DICT = {
-    ActivityDataset: lambda x: x.data,
-    ExchangeDataset: lambda x: dict_as_exchangedataset(x.data),
-}
-OBJECT_AS_LABEL = {
-    ActivityDataset: "lci_node",
-    ExchangeDataset: "lci_edge",
-}
-LABEL_AS_OBJECT = {
-    v: k for k, v in OBJECT_AS_LABEL.items()
-}
 
 
 class RevisionGraph:
@@ -59,7 +49,7 @@ class Delta:
     """
     The difference between two versions of an object.
 
-    Can be serialized, transfered, and applied to the same previous version to
+    Can be serialized, transferred, and applied to the same previous version to
     change it to the new state.
     """
     def apply(self, obj):
@@ -118,13 +108,16 @@ class Delta:
         elif old is not None and new is None:
             change_type = "delete"
 
+        label = SIGNALLEDOBJECT_TO_LABEL[obj_type]
+        handler = REVISIONED_LABEL_AS_OBJECT[label]
+
         return cls.from_difference(
-            OBJECT_AS_LABEL[obj_type],
-            new.id,
+            label,
+            old.id if old is not None else new.id,
             change_type,
             deepdiff.DeepDiff(
-                OBJECT_AS_DICT[obj_type](old) if old else None,
-                OBJECT_AS_DICT[obj_type](new) if new else None,
+                handler.current_state_as_dict(old) if old else None,
+                handler.current_state_as_dict(new) if new else None,
                 verbose_level=2,
             ),
         )
@@ -160,3 +153,81 @@ def generate_revision(metadata: dict, delta: Sequence[Delta]) -> dict:
 
 
 generate_delta = Delta.generate
+
+
+class RevisionedORMProxy:
+    """
+    Class that encapsulates logic around applying revisions. Used for `Activity` and `Exchange`.
+
+    We need a separate class because we apply the changes to `ActivityDataset`, but need to save
+    `Node` (and similar for edges).
+    """
+    @classmethod
+    def previous_state_as_dict(cls: Self, revision_data: dict) -> dict:
+        orm_object = cls.ORM_CLASS.get_by_id(revision_data['id'])
+        return cls.orm_as_dict(orm_object)
+
+    @classmethod
+    def current_state_as_dict(cls: Self, obj: SignaledDataset) -> dict:
+        return cls.orm_as_dict(obj)
+
+    @classmethod
+    def update(cls: Self, revision_data: dict) -> None:
+        print("Calling update")
+        previous = cls.previous_state_as_dict(revision_data)
+        updated_data = Delta.from_dict(revision_data["delta"]).apply(previous)
+        updated_orm_object = cls.ORM_CLASS(**updated_data)
+        updated_orm_object.id = revision_data['id']
+        cls.PROXY_CLASS(document=updated_orm_object).save(signal=False, data_already_set=True)
+
+    @classmethod
+    def create(cls: Self, revision_data: dict) -> None:
+        data = Delta.from_dict(revision_data["delta"]).apply({})
+        cls.PROXY_CLASS(document=None, **data).save(signal=False, data_already_set=False)
+
+    @classmethod
+    def delete(cls: Self, revision_data: dict) -> None:
+        cls.PROXY_CLASS(cls.ORM_CLASS.get_by_id(revision_data['id'])).delete(signal=False)
+
+    @classmethod
+    def handle(cls: Self, revision_data: dict) -> None:
+        getattr(cls, revision_data['change_type'])(revision_data)
+
+
+class RevisionedNode(RevisionedORMProxy):
+    PROXY_CLASS = Activity
+    ORM_CLASS = Activity.ORMDataset
+
+    @classmethod
+    def orm_as_dict(cls: Self, orm_object: Activity.ORMDataset) -> dict:
+        return orm_object.data
+
+    @classmethod
+    def update(cls: Self, revision_data: dict) -> None:
+        previous = cls.previous_state_as_dict(revision_data)
+        updated_data = Delta.from_dict(revision_data["delta"]).apply(previous)
+        updated_orm_object = cls.ORM_CLASS(**dict_as_activitydataset(updated_data))
+        updated_orm_object.id = revision_data['id']
+        cls.PROXY_CLASS(document=updated_orm_object).save(signal=False, data_already_set=True)
+
+
+class RevisionedEdge(RevisionedORMProxy):
+    PROXY_CLASS = Exchange
+    ORM_CLASS = Exchange.ORMDataset
+
+    @classmethod
+    def orm_as_dict(cls: Self, orm_object: Exchange.ORMDataset) -> dict:
+        return dict_as_exchangedataset(orm_object.data)
+
+
+SIGNALLEDOBJECT_TO_LABEL = {
+    ActivityDataset: "lci_node",
+    ExchangeDataset: "lci_edge",
+}
+REVISIONED_LABEL_AS_OBJECT = {
+    "lci_node": RevisionedNode,
+    "lci_edge": RevisionedEdge,
+}
+REVISIONS_OBJECT_AS_LABEL = {
+    v: k for k, v in REVISIONED_LABEL_AS_OBJECT.items()
+}
