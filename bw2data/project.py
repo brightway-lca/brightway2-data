@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import Any, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 import wrapt
 from bw_processing import safe_filename
@@ -22,7 +22,10 @@ from bw2data.signals import project_changed, project_created
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
 
-SD = TypeVar("SD", bound="bw2data.backends.schema.SignaledDataset")
+
+if TYPE_CHECKING:
+    from bw2data.backends import schema
+    SD = TypeVar("SD", bound=schema.SignaledDataset)
 
 
 READ_ONLY_PROJECT = """
@@ -79,7 +82,7 @@ class ProjectDataset(Model):
 
     def add_revision(
         self, old: Optional[Any], new: Optional[Any], operation: Optional[str] = None
-    ) -> int:
+    ) -> Optional[int]:
         """Add a revision to the project.
 
         At the moment, each object revision affects a single object.
@@ -110,7 +113,7 @@ class ProjectDataset(Model):
         }
         """
         if not self.is_sourced:
-            return
+            return None
 
         from bw2data import revisions
 
@@ -165,8 +168,8 @@ class ProjectDataset(Model):
                 revs.append(json.load(f))
         apply_to = self.revision
         g = revisions.RevisionGraph(head, revs)
-        g = itertools.takewhile(lambda x: x["metadata"]["revision"] != apply_to, g)
-        for rev in reversed(list(g)):
+        pruned = itertools.takewhile(lambda x: x["metadata"]["revision"] != apply_to, g)
+        for rev in reversed(list(pruned)):
             self.apply_revision(rev)
 
 

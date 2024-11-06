@@ -58,7 +58,7 @@ class Delta:
         return obj + self.delta
 
     @classmethod
-    def from_dict(cls: Self, d: dict) -> Self:
+    def from_dict(cls, d: dict) -> Self:
         ret = cls()
         ret.delta = deepdiff.Delta(
             JSONEncoder().encode(d), deserializer=deepdiff.serialization.json_loads
@@ -67,7 +67,7 @@ class Delta:
 
     @classmethod
     def from_difference(
-        cls: Self,
+        cls,
         obj_type: str,
         obj_id: int,
         change_type: str,
@@ -81,7 +81,7 @@ class Delta:
         return ret
 
     @classmethod
-    def _direct_difference(cls: Self, old: dict, new: dict, change_type: str) -> Self:
+    def _direct_difference(cls, old: dict, new: dict, change_type: str) -> Self:
         return cls.from_difference(
             "lci_node",
             old["id"],
@@ -94,18 +94,18 @@ class Delta:
         )
 
     @classmethod
-    def activity_code_change(cls: Self, old: dict, new: dict) -> Self:
+    def activity_code_change(cls, old: dict, new: dict) -> Self:
         """Special handling to change the `database` attribute of an activity node."""
         return cls._direct_difference(old, new, "activity_code_change")
 
     @classmethod
-    def activity_database_change(cls: Self, old: dict, new: dict) -> Self:
+    def activity_database_change(cls, old: dict, new: dict) -> Self:
         """Special handling to change the `database` attribute of an activity node."""
         return cls._direct_difference(old, new, "activity_database_change")
 
     @classmethod
     def generate(
-        cls: Self, old: Optional[Any], new: Optional[Any], operation: Optional[str] = None
+        cls, old: Optional[Any], new: Optional[Any], operation: Optional[str] = None
     ) -> Self:
         """
         Generates a patch object from one version of an object to another.
@@ -196,20 +196,20 @@ class RevisionedORMProxy:
     """
 
     @classmethod
-    def handle(cls: Self, revision_data: dict) -> None:
+    def handle(cls, revision_data: dict) -> None:
         getattr(cls, revision_data["change_type"])(revision_data)
 
     @classmethod
-    def previous_state_as_dict(cls: Self, revision_data: dict) -> dict:
+    def previous_state_as_dict(cls, revision_data: dict) -> dict:
         orm_object = cls.ORM_CLASS.get_by_id(revision_data["id"])
         return cls.orm_as_dict(orm_object)
 
     @classmethod
-    def current_state_as_dict(cls: Self, obj: SignaledDataset) -> dict:
+    def current_state_as_dict(cls, obj: SignaledDataset) -> dict:
         return cls.orm_as_dict(obj)
 
     @classmethod
-    def update(cls: Self, revision_data: dict) -> None:
+    def update(cls, revision_data: dict) -> None:
         previous = cls.previous_state_as_dict(revision_data)
         updated_data = Delta.from_dict(revision_data["delta"]).apply(previous)
         updated_orm_object = cls.ORM_CLASS(**cls.prepare_data_dict_for_orm_class(updated_data))
@@ -217,15 +217,15 @@ class RevisionedORMProxy:
         cls.PROXY_CLASS(document=updated_orm_object).save(signal=False, data_already_set=True)
 
     @classmethod
-    def delete(cls: Self, revision_data: dict) -> None:
+    def delete(cls, revision_data: dict) -> None:
         cls.PROXY_CLASS(cls.ORM_CLASS.get_by_id(revision_data["id"])).delete(signal=False)
 
     @classmethod
-    def prepare_data_dict_for_orm_class(cls: Self, data: dict) -> dict:
+    def prepare_data_dict_for_orm_class(cls, data: dict) -> dict:
         return data
 
     @classmethod
-    def create(cls: Self, revision_data: dict) -> None:
+    def create(cls, revision_data: dict) -> None:
         data = Delta.from_dict(revision_data["delta"]).apply({})
         orm_object = cls.ORM_CLASS(**cls.prepare_data_dict_for_orm_class(data))
         orm_object.id = revision_data["id"]
@@ -240,15 +240,15 @@ class RevisionedNode(RevisionedORMProxy):
     ORM_CLASS = Activity.ORMDataset
 
     @classmethod
-    def orm_as_dict(cls: Self, orm_object: Activity.ORMDataset) -> dict:
+    def orm_as_dict(cls, orm_object: Activity.ORMDataset) -> dict:
         return orm_object.data
 
     @classmethod
-    def prepare_data_dict_for_orm_class(cls: Self, data: dict) -> dict:
+    def prepare_data_dict_for_orm_class(cls, data: dict) -> dict:
         return dict_as_activitydataset(data)
 
     @classmethod
-    def activity_database_change(cls: Self, revision_data: dict) -> None:
+    def activity_database_change(cls, revision_data: dict) -> None:
         """Special handling for changing activity `database` attributes"""
         node = get_node(id=revision_data["id"])
         node._change_database(
@@ -257,7 +257,7 @@ class RevisionedNode(RevisionedORMProxy):
         )
 
     @classmethod
-    def activity_code_change(cls: Self, revision_data: dict) -> None:
+    def activity_code_change(cls, revision_data: dict) -> None:
         """Special handling for changing activity `code` attributes"""
         node = get_node(id=revision_data["id"])
         node._change_code(
@@ -271,7 +271,7 @@ class RevisionedEdge(RevisionedORMProxy):
     ORM_CLASS = Exchange.ORMDataset
 
     @classmethod
-    def orm_as_dict(cls: Self, orm_object: Exchange.ORMDataset) -> dict:
+    def orm_as_dict(cls, orm_object: Exchange.ORMDataset) -> dict:
         return dict_as_exchangedataset(orm_object.data)
 
 
