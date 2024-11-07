@@ -8,7 +8,6 @@ import pytest
 from pandas.testing import assert_frame_equal, assert_series_equal
 
 from bw2data import (
-    Database,
     calculation_setups,
     databases,
     geomapping,
@@ -452,6 +451,27 @@ def test_geomapping_array_includes_only_processes():
     array = package.get_resource("a_database_inventory_geomapping_matrix.indices")[0]
     assert array.shape == (1,)
     assert array[0]["col"] == geomapping["bar"]
+
+
+@bw2test
+def test_geomapping_array_normalization():
+    database = Database("a database")
+    database.register(location_normalization={'RoW': 'GLO'})
+    database.write(
+        {
+            ("a database", "foo"): {
+                "exchanges": [],
+                "type": "process",
+                "location": "bar",
+            },
+            ("a database", "baz"): {"exchanges": [], "type": "process", "location": "RoW"},
+        }
+    )
+    package = database.datapackage()
+    array = package.get_resource("a_database_inventory_geomapping_matrix.indices")[0]
+    assert array.shape == (2,)
+    assert array[0]["col"] == geomapping["bar"]
+    assert array[1]["col"] == geomapping["GLO"]
 
 
 @bw2test

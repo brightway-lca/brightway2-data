@@ -841,13 +841,19 @@ Here are the type values usually used for nodes:
             ActivityDataset.database == self.name,
             ActivityDataset.type << labels.process_node_types,
         )
+
+        if self.metadata.get("location_normalization"):
+            location_mapper = lambda x: self.metadata["location_normalization"].get(x, x)
+        else:
+            location_mapper = lambda x: x
+
         dp.add_persistent_vector_from_iterator(
             matrix="inv_geomapping_matrix",
             name=clean_datapackage_name(self.name + " inventory geomapping matrix"),
             dict_iterator=(
                 {
                     "row": row[0],
-                    "col": geomapping[retupleize_geo_strings(row[1]) or config.global_location],
+                    "col": geomapping[location_mapper(retupleize_geo_strings(row[1]) or config.global_location)],
                     "amount": 1,
                 }
                 for row in inv_mapping_qs.tuples()
