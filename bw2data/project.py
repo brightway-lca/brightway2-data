@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, Sequence, TypeVar
 
 import wrapt
 from bw_processing import safe_filename
@@ -24,6 +24,7 @@ from bw2data.utils import maybe_path
 
 
 if TYPE_CHECKING:
+    from bw2data import revisions
     from bw2data.backends import schema
     SD = TypeVar("SD", bound=schema.SignaledDataset)
 
@@ -82,16 +83,11 @@ class ProjectDataset(Model):
 
     def add_revision(
         self,
-        old: Optional[Any],
-        new: Optional[Any],
-        operation: Optional[str] = None,
+        delta: Sequence["revisions.Delta"],
         metadata: Optional[dict[str, Any]] = None,
     ) -> Optional[int]:
-        """Add a revision to the project.
-
-        At the moment, each object revision affects a single object.
-        This will change in the future to allow for multiple objects to be
-        included in a single revision.
+        """
+        Add a revision to the project changing the state of one or more objects.
 
         {
           "metadata": {
@@ -109,12 +105,6 @@ class ProjectDataset(Model):
                     }, ...
                  ]
         }
-
-        {
-          "type": "database object type" (e.g. "activity", "exchange", "parameter"),
-          "id": "database object id" (e.g. "foo", "bar", "baz"),
-          "delta": <difference between revisions>
-        }
         """
         if not self.is_sourced:
             return None
@@ -122,18 +112,16 @@ class ProjectDataset(Model):
         from bw2data import revisions
 
         ext_metadata = revisions.generate_metadata(metadata, parent_revision=self.revision)
-        delta = revisions.generate_delta(old, new, operation)
         self.revision = ext_metadata["revision"]
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
             f.write(
                 revisions.JSONEncoder(indent=2).encode(
-                    revisions.generate_revision(ext_metadata, (delta,)),
+                    revisions.generate_revision(ext_metadata, delta),
                 ),
             )
         self.save()
         with open(self.dir / "revisions" / "head", "w") as f:
             f.write(str(self.revision))
-        print(f"Added revision {self.revision} for {delta.type} {delta.id}")
         return self.revision
 
     def apply_revision(self, revision: dict) -> None:
@@ -584,7 +572,10 @@ def signal_dispatcher(
     sender, old: Optional[Any] = None, new: Optional[Any] = None, operation: Optional[str] = None
 ) -> int:
     """Not sure why this is necessary, but fails silently if call `add_revision` directly"""
-    return projects.dataset.add_revision(old=old, new=new, operation=operation)
+    from bw2data import revisions
+
+    delta = revisions.generate_delta(old, new, operation)
+    return projects.dataset.add_revision((delta,))
 
 
 # `.connect()` directly just fails silently...
