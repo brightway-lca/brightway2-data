@@ -37,6 +37,7 @@ dependencies = [
     "lxml",
     "numpy<2",
     "peewee>=3.9.4",
+    "pint<0.24",
     "platformdirs",
     "pydantic-settings",
     "rapidfuzz; sys_platform != 'emscripten'",
