@@ -27,11 +27,11 @@ def test_add_sourced_columns(tmp_path):
 
     columns = {o.name: o for o in db.get_columns("projectdataset")}
     assert "is_sourced" in columns
-    assert columns['is_sourced'].data_type == 'INTEGER'
+    assert columns['is_sourced'].data_type.upper() == 'INTEGER'
     assert columns['is_sourced'].default == '0'
     assert columns['is_sourced'].null is True
     assert "revision" in columns
-    assert columns['revision'].data_type == 'INTEGER'
+    assert columns['revision'].data_type.upper() == 'INTEGER'
     assert columns['revision'].default is None
     assert columns['revision'].null is True
 

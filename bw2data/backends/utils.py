@@ -1,6 +1,6 @@
 import copy
-from typing import Optional
 import warnings
+from typing import Optional
 
 import numpy as np
 
@@ -32,11 +32,15 @@ def convert_backend(database_name, backend):
     if database_name not in databases:
         raise ValueError(f"Can't find database {database_name}")
 
+    from bw2data import projects
     from bw2data.database import Database
 
     db = Database(database_name)
     if db.backend == backend:
         return False
+    if backend == "iotable" and projects.dataset.is_sourced:
+        raise ValueError("`iotable` backend not consistent with `sourced` project")
+
     # Needed to convert from async json dict
     data = db.load(as_dict=True)
     if database_name in config.cache:

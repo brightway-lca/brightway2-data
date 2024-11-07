@@ -1,12 +1,54 @@
 from blinker import signal
+from peewee import Model
+
+try:
+    from typing import override
+except ImportError:
+    from typing_extensions import override
+
 
 signaleddataset_on_save = signal(
     "bw2data.signaleddataset_on_save",
-    doc="""Emitted when a SignaledDataset is saved.
+    doc="""Emitted *after* SignaledDataset is saved.
 
 Expected inputs:
     * `old` - the previous version of the dataset
     * `new` - the new version of the dataset
+
+No expected return value.
+""",
+)
+
+signaleddataset_on_delete = signal(
+    "bw2data.signaleddataset_on_delete",
+    doc="""Emitted *before* a SignaledDataset is deleted.
+
+Expected inputs:
+    * `old` - the deleted version of the dataset
+
+No expected return value.
+""",
+)
+
+on_activity_database_change = signal(
+    "bw2data.on_activity_database_change",
+    doc="""Emitted *after* a sourced `Activity` has its `database` attribute changed.
+
+Expected inputs:
+    * `old` - dict like `{'id': int, 'database': str}` with the *previous* database name
+    * `new` - dict like `{'id': int, 'database': str}` with the *new* database name
+
+No expected return value.
+""",
+)
+
+on_activity_code_change = signal(
+    "bw2data.on_activity_code_change",
+    doc="""Emitted *after* a sourced `Activity` has its `code` attribute changed.
+
+Expected inputs:
+    * `old` - dict like `{'id': int, 'code': str}` with the *previous* code
+    * `new` - dict like `{'id': int, 'code': str}` with the *new* code
 
 No expected return value.
 """,
@@ -35,3 +77,63 @@ Expected inputs:
 No expected return value.
 """,
 )
+
+
+class SignaledDataset(Model):
+    @override
+    def save(self, signal: bool = True, *args, **kwargs) -> None:
+        """Receives a mapper to convert the data to the expected dictionary format"""
+        old = type(self).get_or_none(type(self).id == self.id)
+        super().save(*args, **kwargs)
+        if signal:
+            signaleddataset_on_save.send(
+                old=old,
+                new=self,
+            )
+
+    @override
+    def delete_instance(self, signal: bool = True, *args, **kwargs) -> None:
+        if signal:
+            signaleddataset_on_delete.send(old=self)
+        super().delete_instance(*args, **kwargs)
+
+    # From the peewee docs
+    # https://docs.peewee-orm.com/en/latest/peewee/playhouse.html#signal-support
+    # For what I hope are obvious reasons, Peewee signals do not work when you use the
+    # Model.insert(), Model.update(), or Model.delete() methods. These methods generate queries that
+    # execute beyond the scope of the ORM, and the ORM does not know about which model instances
+    # might or might not be affected when the query executes.
+
+    # def update(self, *args, **kwargs) -> None:
+    #     raise NotImplementedError("SQL update statements not compatible with signaled datasets")
+
+    # def delete(self, *args, **kwargs) -> None:
+    #     raise NotImplementedError("SQL delete statements not compatible with signaled datasets")
+
+    # def insert(self, *args, **kwargs) -> None:
+    #     raise NotImplementedError("SQL insert statements not compatible with signaled datasets")
+
+    # def _update_without_signal(self, *args, **kwargs) -> None:
+    #     """
+    #     Internal API for issuing SQL update statements.
+
+    #     Reserved for use by `bw2data`, and API can change at any time. Please use `.save()` instead.
+    #     """
+    #     return super().update(*args, **kwargs)
+
+    # def _delete_without_signal(self, *args, **kwargs) -> None:
+    #     """
+    #     Internal API for issuing SQL delete statements.
+
+    #     Reserved for use by `bw2data`, and API can change at any time. Please use
+    #     `.delete_instance()` instead.
+    #     """
+    #     return super().delete(*args, **kwargs)
+
+    # def _insert_without_signal(self, *args, **kwargs) -> None:
+    #     """
+    #     Internal API for issuing SQL insert statements.
+
+    #     Reserved for use by `bw2data`, and API can change at any time. Please use `.save()` instead.
+    #     """
+    #     return super().insert(*args, **kwargs)
