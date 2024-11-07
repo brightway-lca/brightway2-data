@@ -1,4 +1,4 @@
-from bw2data import databases
+from bw2data import databases, projects
 from bw2data.data_store import ProcessedDataStore
 
 
@@ -9,6 +9,9 @@ def DatabaseChooser(name: str, backend: str = "sqlite") -> ProcessedDataStore:
 
     """
     from bw2data.subclass_mapping import DATABASE_BACKEND_MAPPING
+
+    if backend == "iotable" and projects.dataset.is_sourced:
+        raise ValueError("`iotable` backend not consistent with `sourced` project")
 
     if name in databases:
         backend = databases[name].get("backend") or backend

@@ -255,9 +255,7 @@ class Updates:
 
         if missing:
             for name in missing:
-                stdout_feedback_logger.warning(
-                    f"Purging migration with missing data: {name}"
-                )
+                stdout_feedback_logger.warning(f"Purging migration with missing data: {name}")
                 del bi.migrations[name]
             bi.migrations.flush()
 
