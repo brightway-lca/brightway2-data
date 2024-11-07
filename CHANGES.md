@@ -1,5 +1,10 @@
 # `bw2data` Changelog
 
+## 4.0.DEV60 (2024-11-07)
+
+* Add possibility for location string normalization before geomapping array
+* Pin previous version of `pint` to skip frozen dataclass error
+
 ## 4.0.DEV59 (2024-10-14)
 
 * Add error handling in updating migrations files
