@@ -81,7 +81,11 @@ class ProjectDataset(Model):
         self.save()
 
     def add_revision(
-        self, old: Optional[Any], new: Optional[Any], operation: Optional[str] = None
+        self,
+        old: Optional[Any],
+        new: Optional[Any],
+        operation: Optional[str] = None,
+        metadata: Optional[dict[str, Any]] = None,
     ) -> Optional[int]:
         """Add a revision to the project.
 
@@ -117,13 +121,13 @@ class ProjectDataset(Model):
 
         from bw2data import revisions
 
-        metadata = revisions.generate_metadata(parent_revision=self.revision)
+        ext_metadata = revisions.generate_metadata(metadata, parent_revision=self.revision)
         delta = revisions.generate_delta(old, new, operation)
-        self.revision = metadata["revision"]
+        self.revision = ext_metadata["revision"]
         with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
             f.write(
                 revisions.JSONEncoder(indent=2).encode(
-                    revisions.generate_revision(metadata, (delta,)),
+                    revisions.generate_revision(ext_metadata, (delta,)),
                 ),
             )
         self.save()

@@ -180,16 +180,17 @@ class JSONEncoder(json.JSONEncoder):
 
 
 def generate_metadata(
+    metadata: Optional[dict[str, Any]] = None,
     parent_revision: Optional[int] = None,
     revision: Optional[int] = None,
 ) -> dict[str, Any]:
-    ret = {}
-    ret["parent_revision"] = parent_revision
-    ret["revision"] = revision or next(sfg(0))
-    ret["authors"] = ret.get("authors", "Anonymous")
-    ret["title"] = ret.get("title", "Untitled revision")
-    ret["description"] = ret.get("description", "No description")
-    return ret
+    metadata = metadata or {}
+    metadata["parent_revision"] = parent_revision
+    metadata["revision"] = revision or next(sfg(0))
+    metadata["authors"] = metadata.get("authors", "Anonymous")
+    metadata["title"] = metadata.get("title", "Untitled revision")
+    metadata["description"] = metadata.get("description", "No description")
+    return metadata
 
 
 def generate_revision(metadata: dict, delta: Sequence[Delta]) -> dict:
