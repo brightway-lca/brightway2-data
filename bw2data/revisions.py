@@ -54,16 +54,33 @@ class Delta:
     change it to the new state.
     """
 
+    def __init__(
+        self,
+        delta: deepdiff.Delta,
+        obj_type: Optional[str] = None,
+        obj_id: Optional[int] = None,
+        change_type: Optional[str] = None,
+    ):
+        """
+        Private, exists only for type-checking.
+
+        Use one of the class-method constructors to create objects.
+        """
+        self.type = obj_type
+        self.id = obj_id
+        self.change_type = change_type
+        self.delta = delta
+
     def apply(self, obj):
         return obj + self.delta
 
     @classmethod
     def from_dict(cls, d: dict) -> Self:
-        ret = cls()
-        ret.delta = deepdiff.Delta(
-            JSONEncoder().encode(d), deserializer=deepdiff.serialization.json_loads
+        return cls(
+            delta=deepdiff.Delta(
+                JSONEncoder().encode(d), deserializer=deepdiff.serialization.json_loads
+            ),
         )
-        return ret
 
     @classmethod
     def from_difference(
@@ -73,12 +90,12 @@ class Delta:
         change_type: str,
         diff: deepdiff.DeepDiff,
     ) -> Self:
-        ret = cls()
-        ret.type = obj_type
-        ret.id = obj_id
-        ret.change_type = change_type
-        ret.delta = deepdiff.Delta(diff)
-        return ret
+        return cls(
+            obj_type=obj_type,
+            obj_id=obj_id,
+            change_type=change_type,
+            delta=deepdiff.Delta(diff),
+        )
 
     @classmethod
     def _direct_difference(cls, old: dict, new: dict, change_type: str) -> Self:
