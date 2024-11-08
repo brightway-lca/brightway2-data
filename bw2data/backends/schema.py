@@ -1,24 +1,8 @@
-from peewee import DoesNotExist, Model, TextField, IntegerField
+from peewee import DoesNotExist, TextField
 
 from bw2data.errors import UnknownObject
-from bw2data.signals import SignaledDataset
+from bw2data.snowflake_ids import SnowflakeIDBaseClass
 from bw2data.sqlite import PickleField
-from bw2data.snowflake_ids import snowflake_id_generator
-
-
-class SnowflakeIDBaseClass(SignaledDataset):
-    id = IntegerField(primary_key=True)
-
-    def save(self, **kwargs):
-        if self.id is None:
-            # If the primary key column data is already present (even if the object doesn't exist in
-            # the database), peewee will make an `UPDATE` query. This will have no effect if there
-            # isn't a matching row. Need for force an `INSERT` query instead as we generate the ids
-            # ourselves.
-            # https://docs.peewee-orm.com/en/latest/peewee/models.html#id4
-            self.id = next(snowflake_id_generator)
-            kwargs['force_insert'] = True
-        super().save(**kwargs)
 
 
 class ActivityDataset(SnowflakeIDBaseClass):

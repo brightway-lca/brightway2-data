@@ -3,20 +3,18 @@ from typing import Any, Optional, Sequence, TypeVar
 
 import deepdiff
 
-from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.backends.proxies import Activity, Exchange
-from bw2data.backends.schema import ActivityDataset, ExchangeDataset, SignaledDataset
+from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
 from bw2data.errors import DifferentObjects, IncompatibleClasses, InconsistentData
+from bw2data.signals import SignaledDataset
+from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.utils import get_node
 
 try:
     from typing import Self
 except ImportError:
     from typing_extensions import Self
-
-
-SD = TypeVar("SD", bound=SignaledDataset)
 
 
 class RevisionGraph:

@@ -12,7 +12,7 @@ from bw2data.tests import bw2test
 
 
 @bw2test
-@patch("bw2data.backends.schema.SignaledDataset.save")
+@patch("bw2data.signals.SignaledDataset.save")
 def test_signaleddataset_save_is_called(*mocks: Mock):
     # On saving an `Activity`, the generic `SignaledDataset.save` method is called
     projects.set_current("activity-event")
@@ -26,7 +26,7 @@ def test_signaleddataset_save_is_called(*mocks: Mock):
 
 @bw2test
 @patch("bw2data.signals.signaleddataset_on_save.send")
-@patch("bw2data.backends.schema.SignaledDataset.get")
+@patch("bw2data.signals.SignaledDataset.get")
 def test_signal_is_sent(*mocks: Mock):
     # On saving an `Activity`, the signal is sent
     projects.set_current("activity-event")
@@ -48,7 +48,7 @@ def test_signal_received(*mocks: Mock):
     db.register()
     a = db.new_node(code="A", name="A")
     a.save()
-    bw2data.project._signal_dataset_saved("test", old=None, new=a._document)
+    bw2data.project.signal_dispatcher("test", old=None, new=a._document)
     for m in mocks:
         assert m.called
 

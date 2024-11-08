@@ -5,8 +5,8 @@ import stats_arrays as sa
 from bw2data import Database, Method, labels, methods
 from bw2data.backends import Activity as PWActivity
 from bw2data.errors import MultipleResults, UnknownObject, ValidityError
-from bw2data.tests import BW2DataTest, bw2test
 from bw2data.snowflake_ids import EPOCH_START_MS
+from bw2data.tests import BW2DataTest, bw2test
 from bw2data.utils import (
     as_uncertainty_dict,
     combine_methods,

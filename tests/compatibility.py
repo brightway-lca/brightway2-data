@@ -9,7 +9,6 @@ from bw2data import (
     databases,
     geomapping,
     get_activity,
-    get_node,
     get_multilca_data_objs,
     get_node,
     methods,
@@ -69,10 +68,10 @@ def test_prepare_lca_inputs_basic(setup):
     assert list(d.values()) == [1]
     assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in setup}
 
-    b1 = get_node(database="biosphere", code='1').id
-    b2 = get_node(database="biosphere", code='2').id
-    f1 = get_node(database="food", code='1').id
-    f2 = get_node(database="food", code='2').id
+    b1 = get_node(database="biosphere", code="1").id
+    b2 = get_node(database="biosphere", code="2").id
+    f1 = get_node(database="food", code="1").id
+    f2 = get_node(database="food", code="2").id
 
     remapping_expected = {
         "activity": {
@@ -118,8 +117,8 @@ def test_prepare_lca_inputs_multiple_demands(setup):
     d, objs, r = prepare_lca_inputs(
         demands=[{("food", "1"): 1}, {("food", "2"): 10}], method=("foo",)
     )
-    f1 = get_node(database="food", code='1').id
-    f2 = get_node(database="food", code='2').id
+    f1 = get_node(database="food", code="1").id
+    f2 = get_node(database="food", code="2").id
     assert d == [{f1: 1}, {f2: 10}]
     assert {o.metadata["id"] for o in objs} == {o.datapackage().metadata["id"] for o in setup}
 
