@@ -1,15 +1,15 @@
-from typing import Any
 import copy
 import warnings
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
 from bw2data import config
-from bw2data.backends.schema import SignaledDataset, get_id
+from bw2data.backends.schema import get_id
 from bw2data.configuration import labels
 from bw2data.errors import InvalidExchange, UntypedExchange
 from bw2data.meta import databases, methods
+from bw2data.signals import SignaledDataset
 from bw2data.snowflake_ids import snowflake_id_generator
 
 
@@ -81,7 +81,7 @@ def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
     # Use during `insert_many` calls as these skip auto id generation because they don't call
     # `.save()`
     if add_snowflake_id:
-        val['id'] = next(snowflake_id_generator)
+        val["id"] = next(snowflake_id_generator)
     return val
 
 

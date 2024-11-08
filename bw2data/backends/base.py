@@ -856,7 +856,9 @@ Here are the type values usually used for nodes:
             dict_iterator=(
                 {
                     "row": row[0],
-                    "col": geomapping[location_mapper(retupleize_geo_strings(row[1]) or config.global_location)],
+                    "col": geomapping[
+                        location_mapper(retupleize_geo_strings(row[1]) or config.global_location)
+                    ],
                     "amount": 1,
                 }
                 for row in inv_mapping_qs.tuples()

@@ -1,4 +1,5 @@
 """Fixtures for bw2data"""
+
 import sqlite3
 
 # import pytest

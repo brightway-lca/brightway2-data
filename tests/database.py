@@ -11,15 +11,14 @@ from bw2data import (
     calculation_setups,
     databases,
     geomapping,
-    projects,
     get_activity,
     get_id,
     get_node,
+    projects,
 )
 from bw2data.backends import Activity as PWActivity
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import Database
-from bw2data.snowflake_ids import EPOCH_START_MS
 from bw2data.errors import (
     DuplicateNode,
     InvalidExchange,
@@ -33,6 +32,7 @@ from bw2data.parameters import (
     ParameterizedExchange,
     parameters,
 )
+from bw2data.snowflake_ids import EPOCH_START_MS
 from bw2data.tests import bw2test
 
 from .fixtures import biosphere
@@ -105,10 +105,10 @@ def test_copy(food):
 
 def test_copy_metadata(food):
     d = Database("food")
-    d.metadata['custom'] = "something"
+    d.metadata["custom"] = "something"
     d.copy("repas")
     assert "repas" in databases
-    assert databases['repas']['custom'] == 'something'
+    assert databases["repas"]["custom"] == "something"
 
 
 @bw2test
@@ -458,7 +458,7 @@ def test_geomapping_array_includes_only_processes():
 @bw2test
 def test_geomapping_array_normalization():
     database = Database("a database")
-    database.register(location_normalization={'RoW': 'GLO'})
+    database.register(location_normalization={"RoW": "GLO"})
     database.write(
         {
             ("a database", "foo"): {
@@ -717,7 +717,7 @@ def test_process_without_exchanges_still_in_processed_array():
 
     package = database.datapackage()
     array = package.get_resource("a_database_technosphere_matrix.data")[0]
-    assert array[0] == 1.
+    assert array[0] == 1.0
     assert array.shape == (1,)
 
 

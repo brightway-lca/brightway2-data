@@ -524,10 +524,10 @@ class Activity(ActivityProxyBase):
 
         for exc in self.exchanges():
             data = copy.deepcopy(exc._data)
-            if 'id' in data:
+            if "id" in data:
                 # New snowflake ID will be inserted by `.save()`; shouldn't be copied over
                 # or specified manually
-                del data['id']
+                del data["id"]
             data["output"] = activity.key
             # Change `input` for production exchanges
             if exc["input"] == exc["output"]:
