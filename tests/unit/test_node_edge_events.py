@@ -1,13 +1,13 @@
 import json
 
 import pytest
-from snowflake import SnowflakeGenerator as sfg
 
 from bw2data import get_node
 from bw2data.backends.schema import ExchangeDataset
 from bw2data.database import DatabaseChooser
 from bw2data.project import projects
 from bw2data.tests import bw2test
+from bw2data.snowflake_ids import snowflake_id_generator
 
 
 @bw2test
@@ -68,7 +68,7 @@ def test_node_revision_apply_create():
     database = DatabaseChooser("db")
     database.register()
 
-    revision_id = next(sfg(0))
+    revision_id = next(snowflake_id_generator)
     revision = {
         "data": [
             {
@@ -172,7 +172,7 @@ def test_node_revision_apply_delete():
     node.save()
     assert len(database) == 1
 
-    revision_id = next(sfg(0))
+    revision_id = next(snowflake_id_generator)
 
     revision = {
         "data": [
@@ -261,7 +261,7 @@ def test_node_revision_apply_update():
     node = database.new_node(code="A", name="A", location="kalamazoo")
     node.save()
 
-    revision_id = next(sfg(0))
+    revision_id = next(snowflake_id_generator)
 
     revision = {
         "data": [
@@ -355,7 +355,7 @@ def test_node_revision_apply_activity_database_change():
     node.new_edge(input=node, type="production", amount=1.0).save()
     assert len(node.exchanges()) == 2
 
-    revision_id = next(sfg(0))
+    revision_id = next(snowflake_id_generator)
 
     num_revisions_before = len([
         fp
@@ -459,7 +459,7 @@ def test_node_revision_apply_activity_code_change():
     node.new_edge(input=node, type="production", amount=1.0).save()
     assert len(node.exchanges()) == 2
 
-    revision_id = next(sfg(0))
+    revision_id = next(snowflake_id_generator)
 
     num_revisions_before = len([
         fp
@@ -660,9 +660,9 @@ def test_node_revision_apply_activity_copy():
 
     projects.dataset.set_sourced()
 
-    revision_id_1 = next(sfg(0))
-    revision_id_2 = next(sfg(0))
-    revision_id_3 = next(sfg(0))
+    revision_id_1 = next(snowflake_id_generator)
+    revision_id_2 = next(snowflake_id_generator)
+    revision_id_3 = next(snowflake_id_generator)
 
     num_revisions_before = len([
         fp

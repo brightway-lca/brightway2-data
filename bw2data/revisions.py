@@ -2,8 +2,8 @@ import json
 from typing import Any, Optional, Sequence, TypeVar
 
 import deepdiff
-from snowflake import SnowflakeGenerator as sfg
 
+from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.backends.proxies import Activity, Exchange
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset, SignaledDataset
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
@@ -186,7 +186,7 @@ def generate_metadata(
 ) -> dict[str, Any]:
     metadata = metadata or {}
     metadata["parent_revision"] = parent_revision
-    metadata["revision"] = revision or next(sfg(0))
+    metadata["revision"] = revision or next(snowflake_id_generator)
     metadata["authors"] = metadata.get("authors", "Anonymous")
     metadata["title"] = metadata.get("title", "Untitled revision")
     metadata["description"] = metadata.get("description", "No description")
