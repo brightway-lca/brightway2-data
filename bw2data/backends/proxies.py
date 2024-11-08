@@ -5,7 +5,7 @@ from typing import Callable, List, Optional
 
 import pandas as pd
 
-from bw2data import databases, geomapping
+from bw2data import databases, geomapping, projects
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.typos import (
@@ -20,6 +20,7 @@ from bw2data.errors import ValidityError
 from bw2data.logs import stdout_feedback_logger
 from bw2data.proxies import ActivityProxyBase, ExchangeProxyBase
 from bw2data.search import IndexManager
+from bw2data.signals import on_activity_code_change, on_activity_database_change
 
 
 class Exchanges(Iterable):
@@ -71,7 +72,9 @@ class Exchanges(Iterable):
     def filter(self, expr):
         self._args.append(expr)
 
-    def delete(self):
+    def delete(self, allow_in_sourced_project: bool = False):
+        if projects.dataset.is_sourced and not allow_in_sourced_project:
+            raise NotImplementedError("Mass exchange deletion not supported in sourced projects")
         databases.set_dirty(self._key[0])
         ExchangeDataset.delete().where(*self._args).execute()
 
@@ -183,6 +186,8 @@ class Exchanges(Iterable):
 
 
 class Activity(ActivityProxyBase):
+    ORMDataset = ActivityDataset
+
     def __init__(self, document=None, **kwargs):
         """Create an `Activity` proxy object.
 
@@ -191,7 +196,7 @@ class Activity(ActivityProxyBase):
         If the activity exists in the database, `document` should be an `ActivityDataset`.
         """
         if document is None:
-            self._document = ActivityDataset()
+            self._document = self.ORMDataset()
             self._data = kwargs
         else:
             self._document = document
@@ -254,7 +259,7 @@ class Activity(ActivityProxyBase):
     def key(self):
         return (self.get("database"), self.get("code"))
 
-    def delete(self):
+    def delete(self, signal: bool = True):
         from bw2data import Database, calculation_setups
         from bw2data.parameters import ActivityParameter, ParameterizedExchange
 
@@ -274,7 +279,7 @@ class Activity(ActivityProxyBase):
         except ActivityParameter.DoesNotExist:
             pass
         IndexManager(Database(self["database"]).filename).delete_dataset(self._data)
-        self.exchanges().delete()
+        self.exchanges().delete(allow_in_sourced_project=True)
 
         for name, setup in calculation_setups.items():
             if any(
@@ -286,10 +291,10 @@ class Activity(ActivityProxyBase):
                 setup["inv"] = [purge(self, dct) for dct in setup["inv"] if purge(self, dct)]
         calculation_setups.flush()
 
-        self._document.delete_instance()
+        self._document.delete_instance(signal=signal)
         self = None
 
-    def save(self):
+    def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
         """
         Saves the current activity to the database after performing various checks.
         This method validates the activity, updates the database status, and handles
@@ -319,7 +324,7 @@ class Activity(ActivityProxyBase):
         """
         from bw2data import Database
 
-        if not self.valid():
+        if not data_already_set and not self.valid():
             raise ValidityError(
                 "This activity can't be saved for the "
                 + "following reasons\n\t* "
@@ -328,13 +333,15 @@ class Activity(ActivityProxyBase):
 
         databases.set_dirty(self["database"])
 
-        check_activity_type(self._data.get("type"))
-        check_activity_keys(self)
+        if not data_already_set:
+            check_activity_type(self._data.get("type"))
+            check_activity_keys(self)
 
-        for key, value in dict_as_activitydataset(self._data).items():
-            if key != "id":
-                setattr(self._document, key, value)
-        self._document.save()
+            for key, value in dict_as_activitydataset(self._data).items():
+                if key != "id":
+                    setattr(self._document, key, value)
+
+        self._document.save(signal=signal, force_insert=force_insert)
 
         if self.get("location") and self["location"] not in geomapping:
             geomapping.add([self["location"]])
@@ -342,25 +349,24 @@ class Activity(ActivityProxyBase):
         if databases[self["database"]].get("searchable", True):
             IndexManager(Database(self["database"]).filename).update_dataset(self._data)
 
-    def _change_code(self, new_code):
+    def _change_code(self, new_code: str, signal: bool = True):
         if self["code"] == new_code:
             return
 
+        previous = self["code"]
+
         if (
-            ActivityDataset.select()
+            self.ORMDataset.select()
             .where(
-                ActivityDataset.database == self["database"],
-                ActivityDataset.code == new_code,
+                self.ORMDataset.database == self["database"],
+                self.ORMDataset.code == new_code,
             )
             .count()
         ):
             raise ValueError("Activity database with code `{}` already exists".format(new_code))
 
         with sqlite3_lci_db.atomic() as txn:
-            ActivityDataset.update(code=new_code).where(
-                ActivityDataset.database == self["database"],
-                ActivityDataset.code == self["code"],
-            ).execute()
+            self.ORMDataset.update(code=new_code).where(self.ORMDataset.id == self.id).execute()
             ExchangeDataset.update(output_code=new_code).where(
                 ExchangeDataset.output_database == self["database"],
                 ExchangeDataset.output_code == self["code"],
@@ -379,17 +385,24 @@ class Activity(ActivityProxyBase):
         else:
             self._data["code"] = new_code
 
-    def _change_database(self, new_database):
+        if signal:
+            on_activity_code_change.send(
+                old={"id": self.id, "code": previous},
+                new={"id": self.id, "code": new_code},
+            )
+
+    def _change_database(self, new_database: str, signal: bool = True):
         if self["database"] == new_database:
             return
+
+        previous = self["database"]
 
         if new_database not in databases:
             raise ValueError("Database {} does not exist".format(new_database))
 
         with sqlite3_lci_db.atomic() as txn:
-            ActivityDataset.update(database=new_database).where(
-                ActivityDataset.database == self["database"],
-                ActivityDataset.code == self["code"],
+            self.ORMDataset.update(database=new_database).where(
+                self.ORMDataset.id == self.id
             ).execute()
             ExchangeDataset.update(output_database=new_database).where(
                 ExchangeDataset.output_database == self["database"],
@@ -408,6 +421,12 @@ class Activity(ActivityProxyBase):
             IndexManager(Database(self["database"]).filename).add_datasets([self])
         else:
             self._data["database"] = new_database
+
+        if signal:
+            on_activity_database_change.send(
+                old={"id": self.id, "database": previous},
+                new={"id": self.id, "database": new_database},
+            )
 
     def exchanges(self, exchanges_class=Exchanges):
         return exchanges_class(self.key)
@@ -480,7 +499,7 @@ class Activity(ActivityProxyBase):
             exc[key] = kwargs[key]
         return exc
 
-    def copy(self, code=None, **kwargs):
+    def copy(self, code: Optional[str] = None, signal: bool = True, **kwargs):
         """Copy the activity. Returns a new `Activity`.
 
         `code` is the new activity code; if not given, a UUID is used.
@@ -495,7 +514,7 @@ class Activity(ActivityProxyBase):
         for k, v in kwargs.items():
             activity._data[k] = v
         activity._data["code"] = str(code or uuid.uuid4().hex)
-        activity.save()
+        activity.save(signal=signal)
 
         for exc in self.exchanges():
             data = copy.deepcopy(exc._data)
@@ -503,11 +522,13 @@ class Activity(ActivityProxyBase):
             # Change `input` for production exchanges
             if exc["input"] == exc["output"]:
                 data["input"] = activity.key
-            ExchangeDataset.create(**dict_as_exchangedataset(data))
+            ExchangeDataset(**dict_as_exchangedataset(data)).save(signal=signal)
         return activity
 
 
 class Exchange(ExchangeProxyBase):
+    ORMDataset = ExchangeDataset
+
     def __init__(self, document=None, **kwargs):
         """Create an `Exchange` proxy object.
 
@@ -516,7 +537,7 @@ class Exchange(ExchangeProxyBase):
         If the exchange exists in the database, `document` should be an `ExchangeDataset`.
         """
         if document is None:
-            self._document = ExchangeDataset()
+            self._document = self.ORMDataset()
             self._data = kwargs
         else:
             self._document = document
@@ -530,8 +551,8 @@ class Exchange(ExchangeProxyBase):
                 self._document.output_code,
             )
 
-    def save(self):
-        if not self.valid():
+    def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
+        if not data_already_set and not self.valid():
             raise ValidityError(
                 "This exchange can't be saved for the "
                 "following reasons\n\t* " + "\n\t* ".join(self.valid(why=True)[1])
@@ -539,19 +560,21 @@ class Exchange(ExchangeProxyBase):
 
         databases.set_dirty(self["output"][0])
 
-        check_exchange_type(self._data.get("type"))
-        check_exchange_keys(self)
+        if not data_already_set:
+            check_exchange_type(self._data.get("type"))
+            check_exchange_keys(self)
 
-        for key, value in dict_as_exchangedataset(self._data).items():
-            setattr(self._document, key, value)
-        self._document.save()
+            for key, value in dict_as_exchangedataset(self._data).items():
+                setattr(self._document, key, value)
 
-    def delete(self):
+        self._document.save(signal=signal, force_insert=force_insert)
+
+    def delete(self, signal: bool = True):
         from bw2data.parameters import ParameterizedExchange
 
         ParameterizedExchange.delete().where(
             ParameterizedExchange.exchange == self._document.id
         ).execute()
-        self._document.delete_instance()
+        self._document.delete_instance(signal=signal)
         databases.set_dirty(self["output"][0])
         self = None

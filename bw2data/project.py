@@ -1,22 +1,33 @@
+import itertools
+import json
 import os
 import shutil
 import warnings
 from collections.abc import Iterable
 from copy import copy
+from functools import partial
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Optional, Sequence, TypeVar
 
 import wrapt
 from bw_processing import safe_filename
-from peewee import SQL, BooleanField, DoesNotExist, Model, TextField
+from peewee import SQL, BooleanField, DoesNotExist, IntegerField, Model, SqliteDatabase, TextField
 from platformdirs import PlatformDirs
 
+import bw2data.signals as bw2signals
 from bw2data import config
 from bw2data.filesystem import create_dir
 from bw2data.logs import stdout_feedback_logger
 from bw2data.signals import project_changed, project_created
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
+
+
+if TYPE_CHECKING:
+    from bw2data import revisions
+    from bw2data.backends import schema
+    SD = TypeVar("SD", bound=schema.SignaledDataset)
+
 
 READ_ONLY_PROJECT = """
 ***Read only project***
@@ -35,6 +46,10 @@ def lockable():
 
 
 class ProjectDataset(Model):
+    # Event sourcing
+    is_sourced = BooleanField(default=False, constraints=[SQL("DEFAULT 0")])
+    revision = IntegerField(null=True)
+
     data = PickleField()
     name = TextField(index=True, unique=True)
     # Peewee doesn't set defaults in the database but rather in Python.
@@ -54,6 +69,141 @@ class ProjectDataset(Model):
         else:
             return self.name.lower() < other.name.lower()
 
+    @property
+    def dir(self):
+        return projects._project_dir(self)
+
+    def set_sourced(self) -> None:
+        """Set the project to be event sourced."""
+        self.is_sourced = True
+        # Backwards compatible with existing projects
+        if not (self.dir / "revisions").is_dir():
+            (self.dir / "revisions").mkdir()
+        self.save()
+
+    def add_revision(
+        self,
+        delta: Sequence["revisions.Delta"],
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> Optional[int]:
+        """
+        Add a revision to the project changing the state of one or more objects.
+
+        {
+          "metadata": {
+            "revision": <this-revision-id>
+            "parent_revision": <parent-revision-id>
+            "title": "<optional>"
+            "description": "<optional>"
+            "authors": "<optional>" (maybe shouldn't be optional)
+          },
+          "data": [
+                    {
+                      "type": "database object type" (e.g. "activity", "exchange", "parameter"),
+                      "id": "database object id" (e.g. "foo", "bar", "baz"),
+                      "delta": <difference between revisions>
+                    }, ...
+                 ]
+        }
+        """
+        if not self.is_sourced:
+            return None
+
+        from bw2data import revisions
+
+        ext_metadata = revisions.generate_metadata(metadata, parent_revision=self.revision)
+        self.revision = ext_metadata["revision"]
+        with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
+            f.write(
+                revisions.JSONEncoder(indent=2).encode(
+                    revisions.generate_revision(ext_metadata, delta),
+                ),
+            )
+        self.save()
+        with open(self.dir / "revisions" / "head", "w") as f:
+            f.write(str(self.revision))
+        return self.revision
+
+    def apply_revision(self, revision: dict) -> None:
+        """
+        Load a patch generated from a previous `add_revision` into the project.
+        """
+        from bw2data import revisions
+
+        meta = revision["metadata"]
+        parent = meta.get("parent_revision")
+        assert not parent or self.revision == parent
+        assert parent or not self.revision
+        for revision_data in revision["data"]:
+            obj_class = revisions.REVISIONED_LABEL_AS_OBJECT[revision_data["type"]]
+            obj_class.handle(revision_data)
+        self.revision = meta["revision"]
+        self.save()
+
+    def load_revisions(self, head: Optional[int] = None) -> None:
+        """
+        Load all revisions unapplied for this project.
+        """
+        from bw2data import revisions
+
+        revs = []
+        if head is None:
+            if not (self.dir / "revisions" / "head").is_file():
+                # No revisions recorded yet
+                return
+            with open(self.dir / "revisions" / "head", "r") as f:
+                head = int(f.read())
+        for filename in os.listdir(self.dir / "revisions"):
+            if not filename.endswith(".rev"):
+                continue
+            with open(self.dir / "revisions" / filename, "r") as f:
+                revs.append(json.load(f))
+        apply_to = self.revision
+        g = revisions.RevisionGraph(head, revs)
+        pruned = itertools.takewhile(lambda x: x["metadata"]["revision"] != apply_to, g)
+        for rev in reversed(list(pruned)):
+            self.apply_revision(rev)
+
+
+def add_full_hash_column(base_data_dir: Path, db: SqliteDatabase) -> None:
+    src_filepath = base_data_dir / "projects.db"
+    backup_filepath = base_data_dir / "projects.backup-full-hash.db"
+    shutil.copy(src_filepath, backup_filepath)
+
+    MIGRATION_WARNING = """
+Adding a column to the projects database.
+A backup copy of this database '{}' was made at '{}'.
+If you have problems, file an issue, restore the backup data, and use a stable version of Brightway.
+""".format(
+        src_filepath, backup_filepath
+    )
+    stdout_feedback_logger.warning(MIGRATION_WARNING)
+
+    ADD_FULL_HASH_COLUMN = """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
+    db.execute_sql(ADD_FULL_HASH_COLUMN)
+
+
+def add_sourced_columns(base_data_dir: Path, db: SqliteDatabase) -> None:
+    src_filepath = base_data_dir / "projects.db"
+    backup_filepath = base_data_dir / "projects.backup-is-sourced.db"
+    shutil.copy(src_filepath, backup_filepath)
+
+    MIGRATION_WARNING = """
+Adding two columns to the projects database.
+A backup copy of this database '{}' was made at '{}'.
+If you have problems, file an issue, restore the backup data, and use a stable version of Brightway.
+""".format(
+        src_filepath, backup_filepath
+    )
+    stdout_feedback_logger.warning(MIGRATION_WARNING)
+
+    ADD_IS_SOURCED_COLUMN = (
+        """ALTER TABLE projectdataset ADD COLUMN "is_sourced" integer default 0"""
+    )
+    db.execute_sql(ADD_IS_SOURCED_COLUMN)
+    ADD_REVISION_COLUMN = """ALTER TABLE projectdataset ADD COLUMN "revision" integer"""
+    db.execute_sql(ADD_REVISION_COLUMN)
+
 
 class ProjectManager(Iterable):
     _basic_directories = (
@@ -61,6 +211,7 @@ class ProjectManager(Iterable):
         "intermediate",
         "lci",
         "processed",
+        "revisions",
     )
     _is_temp_dir = False
     read_only = False
@@ -71,28 +222,14 @@ class ProjectManager(Iterable):
         self.db = SubstitutableDatabase(self._base_data_dir / "projects.db", [ProjectDataset])
 
         columns = {o.name for o in self.db._database.get_columns("projectdataset")}
+
+        # We don't use Peewee migrations because it won't set default values for new columns.
+        # One could therefore get an error from using the development branch alongside the stable
+        # branch.
         if "full_hash" not in columns:
-            src_filepath = self._base_data_dir / "projects.db"
-            backup_filepath = self._base_data_dir / "projects.backup.db"
-            shutil.copy(src_filepath, backup_filepath)
-
-            MIGRATION_WARNING = """Adding a column to the projects database. A backup copy of this database '{}' was made at '{}'; if you have problems, file an issue, and restore the backup data to use the stable version of Brightway2."""
-
-            stdout_feedback_logger.warning(MIGRATION_WARNING.format(src_filepath, backup_filepath))
-
-            ADD_FULL_HASH_COLUMN = (
-                """ALTER TABLE projectdataset ADD COLUMN "full_hash" integer default 1"""
-            )
-            self.db.execute_sql(ADD_FULL_HASH_COLUMN)
-
-            # We don't do this, as the column added doesn't have a default
-            # value, meaning that one would get error from using the
-            # development branch alongside the stable branch.
-
-            # from playhouse.migrate import SqliteMigrator, migrate
-            # migrator = SqliteMigrator(self.db._database)
-            # full_hash = BooleanField(default=True)
-            # migrate(migrator.add_column("projectdataset", "full_hash", full_hash),)
+            add_full_hash_column(base_data_dir=self._base_data_dir, db=self.db._database)
+        if "is_sourced" not in columns:
+            add_sourced_columns(base_data_dir=self._base_data_dir, db=self.db._database)
         self.set_current("default", update=False)
 
     def __iter__(self):
@@ -178,6 +315,10 @@ class ProjectManager(Iterable):
         self.db.change_path(base_dir / "projects.db")
         self.set_current(project_name, update=update)
 
+    def _project_dir(self, p: Optional[ProjectDataset] = None) -> Path:
+        p = p or self.dataset
+        return Path(self._base_data_dir) / safe_filename(p.name, full=p.full_hash)
+
     @property
     def current(self):
         return self._project_name
@@ -223,7 +364,7 @@ class ProjectManager(Iterable):
     ### Public API
     @property
     def dir(self):
-        return Path(self._base_data_dir) / safe_filename(self.current, full=self.dataset.full_hash)
+        return self._project_dir()
 
     @property
     def logs_dir(self):
@@ -279,9 +420,11 @@ class ProjectManager(Iterable):
             self.set_current(new_name)
 
     def request_directory(self, name):
-        """Return the absolute path to the subdirectory ``dirname``, creating it if necessary.
+        """
+        Return the absolute path to the subdirectory `dirname`, creating it if necessary.
 
-        Returns ``False`` if directory can't be created."""
+        Returns `False` if directory can't be created.
+        """
         fp = self.dir / str(name)
         create_dir(fp)
         if not fp.is_dir():
@@ -425,7 +568,29 @@ class ProjectManager(Iterable):
             raise ex
 
 
+def signal_dispatcher(
+    sender, old: Optional[Any] = None, new: Optional[Any] = None, operation: Optional[str] = None
+) -> int:
+    """Not sure why this is necessary, but fails silently if call `add_revision` directly"""
+    from bw2data import revisions
+
+    delta = revisions.generate_delta(old, new, operation)
+    return projects.dataset.add_revision((delta,))
+
+
+# `.connect()` directly just fails silently...
+signal_dispatcher_on_activity_database_change = partial(
+    signal_dispatcher, operation="activity_database_change"
+)
+signal_dispatcher_on_activity_code_change = partial(
+    signal_dispatcher, operation="activity_code_change"
+)
+
 projects = ProjectManager()
+bw2signals.signaleddataset_on_save.connect(signal_dispatcher)
+bw2signals.signaleddataset_on_delete.connect(signal_dispatcher)
+bw2signals.on_activity_database_change.connect(signal_dispatcher_on_activity_database_change)
+bw2signals.on_activity_code_change.connect(signal_dispatcher_on_activity_code_change)
 
 
 @wrapt.decorator

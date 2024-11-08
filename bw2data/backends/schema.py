@@ -1,10 +1,11 @@
-from peewee import DoesNotExist, Model, TextField
+from peewee import DoesNotExist, TextField
 
 from bw2data.errors import UnknownObject
+from bw2data.signals import SignaledDataset
 from bw2data.sqlite import PickleField
 
 
-class ActivityDataset(Model):
+class ActivityDataset(SignaledDataset):
     data = PickleField()  # Canonical, except for other C fields
     code = TextField()  # Canonical
     database = TextField()  # Canonical
@@ -18,7 +19,7 @@ class ActivityDataset(Model):
         return (self.database, self.code)
 
 
-class ExchangeDataset(Model):
+class ExchangeDataset(SignaledDataset):
     data = PickleField()  # Canonical, except for other C fields
     input_code = TextField()  # Canonical
     input_database = TextField()  # Canonical

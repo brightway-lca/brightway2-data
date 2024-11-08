@@ -1,10 +1,11 @@
 import copy
 import warnings
+from typing import Optional
 
 import numpy as np
 
 from bw2data import config
-from bw2data.backends.schema import get_id
+from bw2data.backends.schema import SignaledDataset, get_id
 from bw2data.configuration import labels
 from bw2data.errors import InvalidExchange, UntypedExchange
 from bw2data.meta import databases, methods
@@ -31,11 +32,15 @@ def convert_backend(database_name, backend):
     if database_name not in databases:
         raise ValueError(f"Can't find database {database_name}")
 
+    from bw2data import projects
     from bw2data.database import Database
 
     db = Database(database_name)
     if db.backend == backend:
         return False
+    if backend == "iotable" and projects.dataset.is_sourced:
+        raise ValueError("`iotable` backend not consistent with `sourced` project")
+
     # Needed to convert from async json dict
     data = db.load(as_dict=True)
     if database_name in config.cache:
@@ -82,6 +87,23 @@ def dict_as_exchangedataset(ds):
         "output_code": ds["output"][1],
         "type": ds["type"],
     }
+
+
+def get_obj_as_dict(cls: SignaledDataset, obj_id: Optional[int]) -> dict:
+    """
+    Loads an object's data from the database as a dictionary.
+
+    The format used is that of the serialization of revisions (see also the
+    `dict_as_*` functions above); in particular, an empty dictionary is returned
+    if the ID is `None` (but not if the object does not exist).
+    """
+    if obj_id is None:
+        return {}
+    to_dict = globals()["dict_as_" + cls.__name__.lower()]
+    obj = cls.get_by_id(obj_id)
+    ret = to_dict(obj.data)
+    ret["id"] = obj_id
+    return ret
 
 
 def replace_cfs(old_key, new_key):
