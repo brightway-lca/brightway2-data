@@ -85,7 +85,7 @@ def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
     return val
 
 
-def _dict_as_exchangedataset(ds: Any) -> dict:
+def dict_as_exchangedataset(ds: Any) -> dict:
     return {
         "data": ds,
         "input_database": ds["input"][0],

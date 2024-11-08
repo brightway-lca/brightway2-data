@@ -14,7 +14,7 @@ from bw2data.backends.typos import (
     check_exchange_keys,
     check_exchange_type,
 )
-from bw2data.backends.utils import dict_as_activitydataset, _dict_as_exchangedataset
+from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
 from bw2data.configuration import labels
 from bw2data.errors import ValidityError
 from bw2data.logs import stdout_feedback_logger
@@ -574,7 +574,7 @@ class Exchange(ExchangeProxyBase):
             check_exchange_type(self._data.get("type"))
             check_exchange_keys(self)
 
-            for key, value in _dict_as_exchangedataset(self._data).items():
+            for key, value in dict_as_exchangedataset(self._data).items():
                 setattr(self._document, key, value)
 
         self._document.save(signal=signal, force_insert=force_insert)
