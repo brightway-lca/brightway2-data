@@ -28,7 +28,7 @@ from bw2data.backends.typos import (
 from bw2data.backends.utils import (
     check_exchange,
     dict_as_activitydataset,
-    _dict_as_exchangedataset,
+    dict_as_exchangedataset,
     get_csv_data_dict,
     retupleize_geo_strings,
 )
@@ -525,7 +525,7 @@ class SQLiteBackend(ProcessedDataStore):
 
             if "output" not in exchange:
                 exchange["output"] = (ds["database"], ds["code"])
-            exchanges.append(_dict_as_exchangedataset(exchange))
+            exchanges.append(dict_as_exchangedataset(exchange))
 
             # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
             # SQLite3 has a limit of 999 variables,
