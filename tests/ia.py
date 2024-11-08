@@ -278,8 +278,11 @@ def test_method_geocollection():
         }
     )
 
+    f1 = get_node(code="1").id
+    f2 = get_node(code="2").id
+
     m = Method(("foo",))
-    m.write([(1, 2, "RU"), (3, 4, ("foo", "bar"))])
+    m.write([(f1, 2, "RU"), (f2, 4, ("foo", "bar"))])
     assert m.metadata["geocollections"] == ["foo", "world"]
 
 
@@ -294,11 +297,14 @@ def test_method_geocollection_missing_ok():
         }
     )
 
+    f1 = get_node(code="1").id
+    f3 = get_node(code="3").id
+
     m = Method(("foo",))
     m.write(
         [
-            (1, 2, None),
-            (3, 4),
+            (f1, 2, None),
+            (f3, 4),
         ]
     )
     assert m.metadata["geocollections"] == ["world"]
@@ -313,10 +319,12 @@ def test_method_geocollection_warning():
         }
     )
 
+    f1 = get_node(code="1").id
+
     m = Method(("foo",))
     m.write(
         [
-            (1, 2, "Russia"),
+            (f1, 2, "Russia"),
         ]
     )
     assert m.metadata["geocollections"] == []

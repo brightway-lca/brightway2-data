@@ -179,6 +179,9 @@ def test_copy(activity):
     assert cp["name"] == "baz"
     assert cp["location"] == "bar"
     assert ExchangeDataset.select().count() == 2
+
+    cp.save()
+
     assert ActivityDataset.select().count() == 2
     assert (
         ActivityDataset.select()
@@ -241,6 +244,8 @@ def test_delete_activity_parameters():
     b.save()
     a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4").save()
 
+    assert ExchangeDataset.select().count() == 1
+
     activity_data = [
         {
             "name": "reference_me",
@@ -257,6 +262,8 @@ def test_delete_activity_parameters():
     ]
     parameters.new_activity_parameters(activity_data, "my group")
     parameters.add_exchanges_to_group("my group", a)
+
+    assert ExchangeDataset.select().count() == 1
 
     assert ActivityParameter.select().count() == 2
     assert ParameterizedExchange.select().count() == 1

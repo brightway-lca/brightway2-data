@@ -1,11 +1,11 @@
 from peewee import DoesNotExist, TextField
 
 from bw2data.errors import UnknownObject
-from bw2data.signals import SignaledDataset
+from bw2data.snowflake_ids import SnowflakeIDBaseClass
 from bw2data.sqlite import PickleField
 
 
-class ActivityDataset(SignaledDataset):
+class ActivityDataset(SnowflakeIDBaseClass):
     data = PickleField()  # Canonical, except for other C fields
     code = TextField()  # Canonical
     database = TextField()  # Canonical
@@ -19,7 +19,7 @@ class ActivityDataset(SignaledDataset):
         return (self.database, self.code)
 
 
-class ExchangeDataset(SignaledDataset):
+class ExchangeDataset(SnowflakeIDBaseClass):
     data = PickleField()  # Canonical, except for other C fields
     input_code = TextField()  # Canonical
     input_database = TextField()  # Canonical

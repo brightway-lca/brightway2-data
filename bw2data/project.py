@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 import wrapt
 from bw_processing import safe_filename
@@ -25,8 +25,6 @@ from bw2data.utils import maybe_path
 
 if TYPE_CHECKING:
     from bw2data import revisions
-    from bw2data.backends import schema
-    SD = TypeVar("SD", bound=schema.SignaledDataset)
 
 
 READ_ONLY_PROJECT = """

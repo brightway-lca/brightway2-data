@@ -542,7 +542,7 @@ class SQLiteBackend(ProcessedDataStore):
             check_activity_type(ds.get("type"))
             check_activity_keys(ds)
 
-        activities.append(dict_as_activitydataset(ds))
+        activities.append(dict_as_activitydataset(ds, add_snowflake_id=True))
 
         if len(activities) > 125:
             ActivityDataset.insert_many(activities).execute()
@@ -686,6 +686,9 @@ class SQLiteBackend(ProcessedDataStore):
                 )
             kwargs.pop("database")
         obj["database"] = self.name
+
+        if "id" in kwargs:
+            raise ValueError(f"`id` must be created automatically, but `id={kwargs['id']}` given.")
 
         if code is None:
             obj["code"] = uuid.uuid4().hex
@@ -853,7 +856,9 @@ Here are the type values usually used for nodes:
             dict_iterator=(
                 {
                     "row": row[0],
-                    "col": geomapping[location_mapper(retupleize_geo_strings(row[1]) or config.global_location)],
+                    "col": geomapping[
+                        location_mapper(retupleize_geo_strings(row[1]) or config.global_location)
+                    ],
                     "amount": 1,
                 }
                 for row in inv_mapping_qs.tuples()

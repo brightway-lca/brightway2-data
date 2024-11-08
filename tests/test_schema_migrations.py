@@ -1,9 +1,10 @@
-from pathlib import Path
-from bw2data.project import add_sourced_columns, projects, ProjectDataset, config
-from bw2data.tests import bw2test
 import shutil
+from pathlib import Path
+
 from peewee import SqliteDatabase
 
+from bw2data.project import ProjectDataset, add_sourced_columns, config, projects
+from bw2data.tests import bw2test
 
 original_projects_db = Path(__file__).parent / "fixtures" / "projects.db"
 
@@ -27,13 +28,13 @@ def test_add_sourced_columns(tmp_path):
 
     columns = {o.name: o for o in db.get_columns("projectdataset")}
     assert "is_sourced" in columns
-    assert columns['is_sourced'].data_type.upper() == 'INTEGER'
-    assert columns['is_sourced'].default == '0'
-    assert columns['is_sourced'].null is True
+    assert columns["is_sourced"].data_type.upper() == "INTEGER"
+    assert columns["is_sourced"].default == "0"
+    assert columns["is_sourced"].null is True
     assert "revision" in columns
-    assert columns['revision'].data_type.upper() == 'INTEGER'
-    assert columns['revision'].default is None
-    assert columns['revision'].null is True
+    assert columns["revision"].data_type.upper() == "INTEGER"
+    assert columns["revision"].default is None
+    assert columns["revision"].null is True
 
     db = SqliteDatabase(tmp_path / "projects.backup-is-sourced.db")
     db.connect()
