@@ -98,3 +98,9 @@ class InconsistentData(BW2Exception):
     """Attempted a change on data which was in an inconsistent state with the changeset."""
 
     pass
+
+
+class PossibleInconsistentData(BW2Exception):
+    """Attempted a change on data which was in an inconsistent state with the changeset."""
+
+    pass
