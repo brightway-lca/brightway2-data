@@ -518,22 +518,30 @@ def test_node_revision_expected_format_activity_copy():
 
     database = DatabaseChooser("db")
     database.register()
-    DatabaseChooser("db2").register()
     node = database.new_node(code="A", name="A")
     node.save()
     other = database.new_node(code="B", name="B2", type="product")
     other.save()
     node.new_edge(input=other, type="technosphere", amount=0.1).save()
-    node.new_edge(input=other, type="production", amount=1.0).save()
+    node.new_edge(input=node, type="production", amount=1.0).save()
 
     projects.dataset.set_sourced()
 
     node.copy(code="foo")
+    for prod_exc in node.production():
+        assert prod_exc.output == node
+        assert prod_exc.input == node
+    for tech_exc in node.technosphere():
+        assert tech_exc.output == node
+        assert tech_exc.input == other
+
     foo_node = get_node(code="foo")
     for prod_exc in foo_node.production():
-        pass
+        assert prod_exc.output == foo_node
+        assert prod_exc.input == foo_node
     for tech_exc in foo_node.technosphere():
-        pass
+        assert tech_exc.output == foo_node
+        assert tech_exc.input == other
 
     revisions = [
         (int(fp.stem), json.load(open(fp)))
@@ -621,14 +629,163 @@ def test_node_revision_expected_format_activity_copy():
                                 "new_value": {
                                     "data": {
                                         "amount": 1.0,
-                                        "input": ["db", "B"],
+                                        "input": ["db", "foo"],
                                         "output": ["db", "foo"],
                                         "type": "production",
+                                    },
+                                    "input_code": "foo",
+                                    "input_database": "db",
+                                    "output_code": "foo",
+                                    "output_database": "db",
+                                    "type": "production",
+                                },
+                                "old_type": "NoneType",
+                            }
+                        }
+                    },
+                    "id": prod_exc._document.id,
+                    "type": "lci_edge",
+                }
+            ],
+            "metadata": {
+                "authors": "Anonymous",
+                "description": "No description",
+                "parent_revision": revisions[1][0],
+                "revision": revisions[2][0],
+                "title": "Untitled revision",
+            },
+        },
+    ]
+
+    assert [x[1] for x in revisions] == expected
+
+
+@bw2test
+def test_node_revision_expected_format_activity_copy_new_database():
+    projects.set_current("activity-event")
+
+    database = DatabaseChooser("db")
+    database.register()
+    DatabaseChooser("db2").register()
+    node = database.new_node(code="A", name="A")
+    node.save()
+    other = database.new_node(code="B", name="B2", type="product")
+    other.save()
+    node.new_edge(input=other, type="technosphere", amount=0.1).save()
+    node.new_edge(input=node, type="production", amount=1.0).save()
+
+    projects.dataset.set_sourced()
+
+    node.copy(code="foo", database="db2")
+    for prod_exc in node.production():
+        assert prod_exc.output == node
+        assert prod_exc.input == node
+    for tech_exc in node.technosphere():
+        assert tech_exc.output == node
+        assert tech_exc.input == other
+
+    foo_node = get_node(code="foo")
+    for prod_exc in foo_node.production():
+        assert prod_exc.output == foo_node
+        assert prod_exc.input == foo_node
+    for tech_exc in foo_node.technosphere():
+        assert tech_exc.output == foo_node
+        assert tech_exc.input == other
+
+    revisions = [
+        (int(fp.stem), json.load(open(fp)))
+        for fp in sorted((projects.dataset.dir / "revisions").iterdir())
+        if fp.is_file()
+        if fp.stem.lower() != "head"
+    ]
+
+    expected = [
+        {
+            "data": [
+                {
+                    "change_type": "create",
+                    "delta": {
+                        "type_changes": {
+                            "root": {
+                                "new_type": "dict",
+                                "new_value": {
+                                    "code": "foo",
+                                    "database": "db2",
+                                    "location": "GLO",
+                                    "name": "A",
+                                },
+                                "old_type": "NoneType",
+                            }
+                        }
+                    },
+                    "id": foo_node.id,
+                    "type": "lci_node",
+                }
+            ],
+            "metadata": {
+                "authors": "Anonymous",
+                "description": "No description",
+                "parent_revision": None,
+                "revision": revisions[0][0],
+                "title": "Untitled revision",
+            },
+        },
+        {
+            "data": [
+                {
+                    "change_type": "create",
+                    "delta": {
+                        "type_changes": {
+                            "root": {
+                                "new_type": "dict",
+                                "new_value": {
+                                    "data": {
+                                        "amount": 0.1,
+                                        "input": ["db", "B"],
+                                        "output": ["db2", "foo"],
+                                        "type": "technosphere",
                                     },
                                     "input_code": "B",
                                     "input_database": "db",
                                     "output_code": "foo",
-                                    "output_database": "db",
+                                    "output_database": "db2",
+                                    "type": "technosphere",
+                                },
+                                "old_type": "NoneType",
+                            }
+                        }
+                    },
+                    "id": tech_exc._document.id,
+                    "type": "lci_edge",
+                }
+            ],
+            "metadata": {
+                "authors": "Anonymous",
+                "description": "No description",
+                "parent_revision": revisions[0][0],
+                "revision": revisions[1][0],
+                "title": "Untitled revision",
+            },
+        },
+        {
+            "data": [
+                {
+                    "change_type": "create",
+                    "delta": {
+                        "type_changes": {
+                            "root": {
+                                "new_type": "dict",
+                                "new_value": {
+                                    "data": {
+                                        "amount": 1.0,
+                                        "input": ["db2", "foo"],
+                                        "output": ["db2", "foo"],
+                                        "type": "production",
+                                    },
+                                    "input_code": "foo",
+                                    "input_database": "db2",
+                                    "output_code": "foo",
+                                    "output_database": "db2",
                                     "type": "production",
                                 },
                                 "old_type": "NoneType",
