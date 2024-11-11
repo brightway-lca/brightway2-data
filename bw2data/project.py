@@ -22,7 +22,6 @@ from bw2data.signals import project_changed, project_created
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
 
-
 if TYPE_CHECKING:
     from bw2data import revisions
 
