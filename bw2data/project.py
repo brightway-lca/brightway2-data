@@ -16,7 +16,7 @@ from platformdirs import PlatformDirs
 
 import bw2data.signals as bw2signals
 from bw2data import config
-from bw2data.errors import InconsistentData, PossibleInconsistentData
+from bw2data.errors import InconsistentData, PossibleInconsistentData, NoRevisionNeeded
 from bw2data.filesystem import create_dir
 from bw2data.logs import stdout_feedback_logger
 from bw2data.signals import project_changed, project_created
@@ -605,7 +605,10 @@ def signal_dispatcher(
     """Not sure why this is necessary, but fails silently if call `add_revision` directly"""
     from bw2data import revisions
 
-    delta = revisions.generate_delta(old, new, operation)
+    try:
+        delta = revisions.generate_delta(old, new, operation)
+    except NoRevisionNeeded:
+        return
     return projects.dataset.add_revision((delta,))
 
 
@@ -616,12 +619,16 @@ signal_dispatcher_on_activity_database_change = partial(
 signal_dispatcher_on_activity_code_change = partial(
     signal_dispatcher, operation="activity_code_change"
 )
+signal_dispatcher_on_database_metadata_change = partial(
+    signal_dispatcher, operation="database_metadata_change"
+)
 
 projects = ProjectManager()
 bw2signals.signaleddataset_on_save.connect(signal_dispatcher)
 bw2signals.signaleddataset_on_delete.connect(signal_dispatcher)
 bw2signals.on_activity_database_change.connect(signal_dispatcher_on_activity_database_change)
 bw2signals.on_activity_code_change.connect(signal_dispatcher_on_activity_code_change)
+bw2signals.on_database_metadata_change.connect(signal_dispatcher_on_database_metadata_change)
 
 
 @wrapt.decorator

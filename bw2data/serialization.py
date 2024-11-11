@@ -4,6 +4,8 @@ import pickle
 import random
 from collections.abc import MutableMapping
 from time import time
+from typing import Union
+from pathlib import Path
 
 from bw2data import projects
 from bw2data.errors import PickleError
@@ -114,11 +116,12 @@ class SerializedDict(MutableMapping):
         except IOError:
             # Create if not present
             self.data = {}
-            self.flush()
+            # No need to send signal when there is no data
+            self.flush(signal=False)
 
-    def flush(self):
+    def flush(self, signal: bool = True):
         """Serialize the current data to disk."""
-        self.serialize()
+        self.serialize(signal=signal)
 
     @property
     def list(self):
@@ -177,15 +180,24 @@ class SerializedDict(MutableMapping):
     def values(self):
         return self.data.values()
 
-    def serialize(self, filepath=None):
+    def serialize(self, filepath: Union[str, Path]=None, signal: bool = True):
         """Method to do the actual serialization. Can be replaced with other serialization formats.
 
         Args:
             * *filepath* (str, optional): Provide an alternate filepath (e.g. for backup).
 
         """
+        if signal and hasattr(self, "_save_signal"):
+            try:
+                previous = self.deserialize()
+            except IOError:
+                previous = {}
+
         with atomic_open(filepath or self.filepath, "w") as f:
             f.write(JsonWrapper.dumps(self.pack(self.data)))
+
+        if signal and hasattr(self, "_save_signal"):
+            self._save_signal.send(old=previous, new=self.data)
 
     def deserialize(self):
         """Load the serialized data. Can be replaced with other serialization formats."""
@@ -215,9 +227,15 @@ class SerializedDict(MutableMapping):
 class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
 
-    def serialize(self):
+    def serialize(self, signal: bool = True):
+        if signal and hasattr(self, "_save_signal"):
+            previous = self.deserialize()
+
         with atomic_open(self.filepath, "wb") as f:
             pickle.dump(self.pack(self.data), f, protocol=4)
+
+        if signal and hasattr(self, "_save_signal"):
+            self._save_signal.send(old=previous, new=self.data)
 
     def deserialize(self):
         try:

@@ -44,6 +44,7 @@ from bw2data.errors import (
 from bw2data.logs import stdout_feedback_logger
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
+from bw2data.signals import database_on_reset
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
 _VALID_KEYS = {"location", "name", "product", "type"}
@@ -589,6 +590,7 @@ class SQLiteBackend(ProcessedDataStore):
         process: bool = True,
         searchable: bool = True,
         check_typos: bool = True,
+        signal: Optional[bool] = None,
     ):
         """Write ``data`` to database.
 
@@ -599,6 +601,9 @@ class SQLiteBackend(ProcessedDataStore):
             }
 
         Writing a database will first deletes all existing data."""
+        from bw2data import projects
+        if signal is None:
+            signal = projects.dataset.is_sourced
 
         def merger(d1: dict, d2: dict) -> dict:
             """The joys of 3.9 compatibility"""
@@ -642,7 +647,7 @@ class SQLiteBackend(ProcessedDataStore):
                 self._efficient_write_many_data(data, check_typos=check_typos)
             except:
                 # Purge all data from database, then reraise
-                self.delete(warn=False)
+                self.delete(warn=False, signal=signal)
                 raise
 
         if searchable:
@@ -738,7 +743,7 @@ Here are the type values usually used for nodes:
         databases.flush()
         IndexManager(self.filename).delete_database()
 
-    def delete(self, keep_params=False, warn=True, vacuum=True):
+    def delete(self, keep_params: bool=False, warn: bool=True, vacuum: bool=True, signal: bool = True):
         """Delete all data from SQLite database and search index"""
         if warn:
             MESSAGE = """
@@ -797,6 +802,9 @@ Here are the type values usually used for nodes:
 
         if vacuum_needed:
             sqlite3_lci_db.vacuum()
+
+        if signal:
+            database_on_reset.send(name=self.name)
 
     def exchange_data_iterator(self, qs_func, dependents, flip=False):
         """Iterate over exchanges and format for ``bw_processing`` arrays.

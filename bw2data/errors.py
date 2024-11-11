@@ -104,3 +104,8 @@ class PossibleInconsistentData(BW2Exception):
     """Attempted a change on data which was in an inconsistent state with the changeset."""
 
     pass
+
+class NoRevisionNeeded(BW2Exception):
+    """No revision needed given the presented previous and current data"""
+
+    pass
