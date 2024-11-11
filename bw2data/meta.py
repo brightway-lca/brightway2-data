@@ -124,6 +124,8 @@ Metadata state is unchanged, but database state is unknown.
         if signal:
             on_database_delete.send(name=name)
 
+        on_database_delete.send(name)
+
 
 class CalculationSetups(PickledDict):
     """A dictionary for calculation setups.

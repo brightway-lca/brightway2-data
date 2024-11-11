@@ -17,7 +17,7 @@ from platformdirs import PlatformDirs
 
 import bw2data.signals as bw2signals
 from bw2data import config
-from bw2data.errors import InconsistentData, PossibleInconsistentData
+from bw2data.errors import InconsistentData, NoRevisionNeeded, PossibleInconsistentData
 from bw2data.filesystem import create_dir
 from bw2data.logs import stdout_feedback_logger
 from bw2data.signals import project_changed, project_created
