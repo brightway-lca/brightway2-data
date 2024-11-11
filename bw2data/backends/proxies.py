@@ -528,9 +528,9 @@ class Activity(ActivityProxyBase):
                 # New snowflake ID will be inserted by `.save()`; shouldn't be copied over
                 # or specified manually
                 del data["id"]
-            data["output"] = activity.key
-            # Change `input` for production exchanges
-            if exc["input"] == exc["output"]:
+            if data["output"] == self.key:
+                data["output"] = activity.key
+            if exc["input"] == self.key:
                 data["input"] = activity.key
             ExchangeDataset(**dict_as_exchangedataset(data)).save(signal=signal)
         return activity
