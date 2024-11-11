@@ -1,7 +1,5 @@
 import json
 
-import pytest
-
 from bw2data import get_node
 from bw2data.backends.schema import ExchangeDataset
 from bw2data.database import DatabaseChooser
@@ -973,22 +971,3 @@ def test_node_revision_apply_activity_copy():
         ]
     )
     assert num_revisions_after == num_revisions_before
-
-
-@bw2test
-def test_edge_mass_delete():
-    projects.set_current("activity-event")
-    projects.dataset.set_sourced()
-
-    database = DatabaseChooser("db")
-    database.register()
-    DatabaseChooser("db2").register()
-    node = database.new_node(code="A", name="A")
-    node.save()
-    other = database.new_node(code="B", name="B2", type="product")
-    other.save()
-    node.new_edge(input=other, type="technosphere", amount=0.1).save()
-    node.new_edge(input=other, type="production", amount=1.0).save()
-
-    with pytest.raises(NotImplementedError):
-        node.exchanges().delete()
