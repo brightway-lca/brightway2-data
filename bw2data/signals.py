@@ -77,8 +77,8 @@ No expected return value.
 """,
 )
 
-database_on_reset = signal(
-    "bw2data.database_on_reset",
+on_database_reset = signal(
+    "bw2data.on_database_reset",
     doc="""Emitted *after* a `Database` has all its data deleted from SQLite and search indices, but
 not from `bw2data.databases`.
 

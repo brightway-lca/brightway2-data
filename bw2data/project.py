@@ -9,6 +9,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
+import deepdiff
 import wrapt
 from bw_processing import safe_filename
 from peewee import SQL, BooleanField, DoesNotExist, IntegerField, Model, SqliteDatabase, TextField
@@ -612,6 +613,19 @@ def signal_dispatcher(
     return projects.dataset.add_revision((delta,))
 
 
+def signal_dispatcher_on_database_reset(sender, name: str) -> int:
+    from bw2data import revisions
+
+    delta = revisions.Delta(
+        # Seems awkward but the whole toolchain assumes a `Delta` object
+        delta=deepdiff.Delta(deepdiff.DeepDiff({}, {}, verbose_level=2)),
+        obj_type="lci_database",
+        obj_id=name,
+        change_type="database_reset",
+    )
+    return projects.dataset.add_revision((delta,))
+
+
 # `.connect()` directly just fails silently...
 signal_dispatcher_on_activity_database_change = partial(
     signal_dispatcher, operation="activity_database_change"
@@ -629,6 +643,7 @@ bw2signals.signaleddataset_on_delete.connect(signal_dispatcher)
 bw2signals.on_activity_database_change.connect(signal_dispatcher_on_activity_database_change)
 bw2signals.on_activity_code_change.connect(signal_dispatcher_on_activity_code_change)
 bw2signals.on_database_metadata_change.connect(signal_dispatcher_on_database_metadata_change)
+bw2signals.on_database_reset.connect(signal_dispatcher_on_database_reset)
 
 
 @wrapt.decorator

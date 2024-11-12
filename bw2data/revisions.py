@@ -4,6 +4,7 @@ from typing import Any, Optional, Sequence, Union
 import deepdiff
 
 from bw2data import databases
+from bw2data.database import DatabaseChooser
 from bw2data.backends.proxies import Activity, Exchange
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
@@ -55,9 +56,9 @@ class Delta:
 
     def __init__(
         self,
-        delta: deepdiff.Delta,
+        delta: Optional[deepdiff.Delta],
         obj_type: Optional[str] = None,
-        obj_id: Optional[int] = None,
+        obj_id: Optional[Union[int, str]] = None,
         change_type: Optional[str] = None,
     ):
         """
@@ -318,6 +319,8 @@ class RevisionedDatabase:
         if revision_data["change_type"] == "database_metadata_change":
             databases.data = Delta.from_dict(revision_data["delta"]).apply(databases.data)
             databases.flush(signal=False)
+        if revision_data["change_type"] == "database_reset":
+            DatabaseChooser(revision_data["id"]).delete(warn=False, signal=False)
 
 
 SIGNALLEDOBJECT_TO_LABEL = {

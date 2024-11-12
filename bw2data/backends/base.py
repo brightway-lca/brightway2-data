@@ -44,7 +44,7 @@ from bw2data.errors import (
 from bw2data.logs import stdout_feedback_logger
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
-from bw2data.signals import database_on_reset
+from bw2data.signals import on_database_reset
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
 _VALID_KEYS = {"location", "name", "product", "type"}
@@ -807,7 +807,7 @@ Here are the type values usually used for nodes:
             sqlite3_lci_db.vacuum()
 
         if signal:
-            database_on_reset.send(name=self.name)
+            on_database_reset.send(name=self.name)
 
     def exchange_data_iterator(self, qs_func, dependents, flip=False):
         """Iterate over exchanges and format for ``bw_processing`` arrays.
