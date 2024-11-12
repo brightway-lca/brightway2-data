@@ -127,7 +127,7 @@ class Delta:
             # (i.e. changing the graph will set database['dirty']) or are not worth propagating
             # so we can safely remove them from the diff generation.
             for value in dct.values():
-                for forgotten in ("processed", "modified", "dirty"):
+                for forgotten in ("processed", "modified", "dirty", "number"):
                     if forgotten in value:
                         del value[forgotten]
         diff = deepdiff.DeepDiff(
@@ -137,12 +137,7 @@ class Delta:
         )
         if not diff:
             raise NoRevisionNeeded
-        return cls.from_difference(
-            "lci_database",
-            None,
-            "database_metadata_change",
-            diff
-        )
+        return cls.from_difference("lci_database", None, "database_metadata_change", diff)
 
     @classmethod
     def generate(

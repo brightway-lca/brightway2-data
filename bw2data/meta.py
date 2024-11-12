@@ -1,7 +1,7 @@
 import datetime
 import warnings
-from typing import Union
 from pathlib import Path
+from typing import Union
 
 from bw2data.serialization import CompoundJSONDict, PickledDict, SerializedDict
 from bw2data.signals import database_on_delete, on_database_metadata_change

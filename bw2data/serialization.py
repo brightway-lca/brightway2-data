@@ -3,10 +3,10 @@ import os
 import pickle
 import random
 from collections.abc import MutableMapping
+from copy import deepcopy
+from pathlib import Path
 from time import time
 from typing import Union
-from pathlib import Path
-from copy import deepcopy
 
 from bw2data import projects
 from bw2data.errors import PickleError
@@ -181,7 +181,7 @@ class SerializedDict(MutableMapping):
     def values(self):
         return self.data.values()
 
-    def serialize(self, filepath: Union[str, Path]=None, signal: bool = True):
+    def serialize(self, filepath: Union[str, Path] = None, signal: bool = True):
         """Method to do the actual serialization. Can be replaced with other serialization formats.
 
         Args:

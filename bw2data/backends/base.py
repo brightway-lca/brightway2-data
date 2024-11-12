@@ -602,6 +602,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         Writing a database will first deletes all existing data."""
         from bw2data import projects
+
         if signal is None:
             signal = projects.dataset.is_sourced
 
@@ -743,7 +744,9 @@ Here are the type values usually used for nodes:
         databases.flush()
         IndexManager(self.filename).delete_database()
 
-    def delete(self, keep_params: bool=False, warn: bool=True, vacuum: bool=True, signal: bool = True):
+    def delete(
+        self, keep_params: bool = False, warn: bool = True, vacuum: bool = True, signal: bool = True
+    ):
         """Delete all data from SQLite database and search index"""
         if warn:
             MESSAGE = """
