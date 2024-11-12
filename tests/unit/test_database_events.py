@@ -1,7 +1,6 @@
-# Test database delete
 # Test database write
-# Test database copy
-# Test database rename
+# Test database copy (create and then write)
+# Test database rename (metadata, write, delete)
 # Test no signal on `write` with unsourced database
 
 
@@ -199,51 +198,51 @@ def test_database_metadata_revision_expected_format_create():
     assert projects.dataset.revision == revisions[1][0]
 
 
-# @bw2test
-# def test_database_metadata_revision_apply_create():
-#     projects.set_current("activity-event")
-#     assert projects.dataset.revision is None
+@bw2test
+def test_database_metadata_revision_apply_create(num_revisions):
+    projects.set_current("activity-event")
+    assert projects.dataset.revision is None
 
-#     database = DatabaseChooser("db")
-#     database.register()
+    revision_id = next(snowflake_id_generator)
+    revision = {
+        "metadata": {
+            "parent_revision": None,
+            "revision": revision_id,
+            "authors": "Anonymous",
+            "title": "Untitled revision",
+            "description": "No description",
+        },
+        "data": [
+            {
+                "type": "lci_database",
+                "id": None,
+                "change_type": "database_metadata_change",
+                "delta": {
+                    "dictionary_item_added": {
+                        "root['db']": {
+                            "foo": "bar",
+                            "other": 7,
+                            "depends": [],
+                            "backend": "sqlite",
+                            "geocollections": [],
+                        }
+                    }
+                },
+            }
+        ],
+    }
 
-#     revision_id = next(snowflake_id_generator)
-#     revision = {
-#         "metadata": {
-#             "parent_revision": None,
-#             "revision": revision_id,
-#             "authors": "Anonymous",
-#             "title": "Untitled revision",
-#             "description": "No description",
-#         },
-#         "data": [
-#             {
-#                 "type": "lci_database",
-#                 "id": None,
-#                 "change_type": "database_metadata_change",
-#                 "delta": {
-#                     "dictionary_item_added": {"root['db']['foo']": True, "root['db']['other']": 7}
-#                 },
-#             }
-#         ],
-#     }
+    projects.dataset.apply_revision(revision)
+    assert projects.dataset.revision == revision_id
 
-#     projects.dataset.apply_revision(revision)
-#     assert projects.dataset.revision == revision_id
+    assert not num_revisions(projects)
 
-#     revision_files = [
-#         fp
-#         for fp in (projects.dataset.dir / "revisions").iterdir()
-#         if fp.stem.lower() != "head" and fp.is_file()
-#     ]
-#     assert not revision_files
+    database = DatabaseChooser("db")
+    assert database.metadata["foo"] == "bar"
+    assert database.metadata["other"] == 7
 
-#     database = DatabaseChooser("db")
-#     assert database.metadata["foo"] is True
-#     assert database.metadata["other"] == 7
-
-#     assert databases["db"]["foo"] is True
-#     assert databases["db"]["other"] == 7
+    assert databases["db"]["foo"] == "bar"
+    assert databases["db"]["other"] == 7
 
 
 @bw2test
