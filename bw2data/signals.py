@@ -66,8 +66,8 @@ No expected return value.
 """,
 )
 
-database_on_delete = signal(
-    "bw2data.database_on_delete",
+on_database_delete = signal(
+    "bw2data.on_database_delete",
     doc="""Emitted *after* a database is deleted from SQLite and `bw2data.databases`.
 
 Expected inputs:

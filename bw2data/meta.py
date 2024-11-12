@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Union
 
 from bw2data.serialization import CompoundJSONDict, PickledDict, SerializedDict
-from bw2data.signals import database_on_delete, on_database_metadata_change
+from bw2data.signals import on_database_delete, on_database_metadata_change
 
 
 class GeoMapping(PickledDict):
@@ -119,9 +119,9 @@ Metadata state is unchanged, but database state is unknown.
             )
             return
 
-        super(Databases, self).__delitem__(name)
+        super(Databases, self).__delitem__(name=name, signal=False)
 
-        database_on_delete.send(name)
+        on_database_delete.send(name=name)
 
 
 class CalculationSetups(PickledDict):

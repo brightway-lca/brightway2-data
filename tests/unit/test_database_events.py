@@ -1,4 +1,3 @@
-# Test database .delete()
 # Test database delete
 # Test database write
 # Test database copy
@@ -329,4 +328,88 @@ def test_database_reset_revision_apply(num_revisions):
     assert not num_revisions(projects)
     database = DatabaseChooser("db")
     assert not len(database)
+    assert not ExchangeDataset.select().count()
+
+
+@bw2test
+def test_database_delete_revision_expected_format(num_revisions):
+    projects.set_current("activity-event")
+
+    database = DatabaseChooser("db")
+    database.register()
+    node = database.new_node(code="A", name="A")
+    node.save()
+    other = database.new_node(code="B", name="B2", type="product")
+    other.save()
+    node.new_edge(input=other, type="technosphere", amount=0.1).save()
+    node.new_edge(input=node, type="production", amount=1.0).save()
+
+    assert len(database) == 2
+    assert ExchangeDataset.select().count() == 2
+
+    projects.dataset.set_sourced()
+    assert projects.dataset.revision is None
+
+    del databases[database.name]
+
+    assert projects.dataset.revision is not None
+    assert num_revisions(projects) == 1
+    assert database.name not in databases
+    assert not ExchangeDataset.select().count()
+
+    with open(projects.dataset.dir / "revisions" / f"{projects.dataset.revision}.rev", "r") as f:
+        revision = json.load(f)
+
+    expected = {
+        "metadata": {
+            "parent_revision": None,
+            "revision": projects.dataset.revision,
+            "authors": "Anonymous",
+            "title": "Untitled revision",
+            "description": "No description",
+        },
+        "data": [
+            {"type": "lci_database", "id": "db", "change_type": "database_delete", "delta": {}}
+        ],
+    }
+
+    assert revision == expected
+
+
+@bw2test
+def test_database_delete_revision_apply(num_revisions):
+    projects.set_current("activity-event")
+    assert projects.dataset.revision is None
+
+    database = DatabaseChooser("db")
+    database.register()
+    node = database.new_node(code="A", name="A")
+    node.save()
+    other = database.new_node(code="B", name="B2", type="product")
+    other.save()
+    node.new_edge(input=other, type="technosphere", amount=0.1).save()
+    node.new_edge(input=node, type="production", amount=1.0).save()
+
+    assert len(database) == 2
+    assert ExchangeDataset.select().count() == 2
+
+    revision_id = next(snowflake_id_generator)
+    revision = {
+        "metadata": {
+            "parent_revision": None,
+            "revision": revision_id,
+            "authors": "Anonymous",
+            "title": "Untitled revision",
+            "description": "No description",
+        },
+        "data": [
+            {"type": "lci_database", "id": "db", "change_type": "database_delete", "delta": {}}
+        ],
+    }
+
+    projects.dataset.apply_revision(revision)
+    assert projects.dataset.revision == revision_id
+
+    assert not num_revisions(projects)
+    assert "db" not in databases
     assert not ExchangeDataset.select().count()

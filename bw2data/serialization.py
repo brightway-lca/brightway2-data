@@ -162,9 +162,9 @@ class SerializedDict(MutableMapping):
 
     __repr__ = lambda x: str(x)
 
-    def __delitem__(self, name):
+    def __delitem__(self, name: str, signal: bool = True):
         del self.data[name]
-        self.flush()
+        self.flush(signal=signal)
 
     def __len__(self):
         return len(self.data)

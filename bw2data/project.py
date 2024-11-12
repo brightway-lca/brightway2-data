@@ -613,7 +613,7 @@ def signal_dispatcher(
     return projects.dataset.add_revision((delta,))
 
 
-def signal_dispatcher_on_database_reset(sender, name: str) -> int:
+def signal_dispatcher_on_database(sender, name: str, verb: str) -> int:
     from bw2data import revisions
 
     delta = revisions.Delta(
@@ -621,7 +621,7 @@ def signal_dispatcher_on_database_reset(sender, name: str) -> int:
         delta=deepdiff.Delta(deepdiff.DeepDiff({}, {}, verbose_level=2)),
         obj_type="lci_database",
         obj_id=name,
-        change_type="database_reset",
+        change_type=f"database_{verb}",
     )
     return projects.dataset.add_revision((delta,))
 
@@ -636,6 +636,8 @@ signal_dispatcher_on_activity_code_change = partial(
 signal_dispatcher_on_database_metadata_change = partial(
     signal_dispatcher, operation="database_metadata_change"
 )
+signal_dispatcher_on_database_reset = partial(signal_dispatcher_on_database, verb="reset")
+signal_dispatcher_on_database_delete = partial(signal_dispatcher_on_database, verb="delete")
 
 projects = ProjectManager()
 bw2signals.signaleddataset_on_save.connect(signal_dispatcher)
@@ -644,6 +646,7 @@ bw2signals.on_activity_database_change.connect(signal_dispatcher_on_activity_dat
 bw2signals.on_activity_code_change.connect(signal_dispatcher_on_activity_code_change)
 bw2signals.on_database_metadata_change.connect(signal_dispatcher_on_database_metadata_change)
 bw2signals.on_database_reset.connect(signal_dispatcher_on_database_reset)
+bw2signals.on_database_delete.connect(signal_dispatcher_on_database_delete)
 
 
 @wrapt.decorator
