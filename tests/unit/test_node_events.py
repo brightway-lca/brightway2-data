@@ -11,11 +11,12 @@ from bw2data.tests import bw2test
 @bw2test
 def test_node_revision_expected_format_create():
     projects.set_current("activity-event")
+    database = DatabaseChooser("db")
+    database.register()
+
     projects.dataset.set_sourced()
     assert projects.dataset.revision is None
 
-    database = DatabaseChooser("db")
-    database.register()
     node = database.new_node(code="A", name="A")
     node.save()
 
@@ -60,11 +61,11 @@ def test_node_revision_expected_format_create():
 @bw2test
 def test_node_revision_apply_create():
     projects.set_current("activity-event")
-    projects.dataset.set_sourced()
-    assert projects.dataset.revision is None
-
     database = DatabaseChooser("db")
     database.register()
+
+    projects.dataset.set_sourced()
+    assert projects.dataset.revision is None
 
     revision_id = next(snowflake_id_generator)
     revision = {
@@ -116,10 +117,12 @@ def test_node_revision_apply_create():
 @bw2test
 def test_node_revision_expected_format_delete():
     projects.set_current("activity-event")
-    projects.dataset.set_sourced()
-
     database = DatabaseChooser("db")
     database.register()
+
+    projects.dataset.set_sourced()
+    assert projects.dataset.revision is None
+
     node = database.new_node(code="A", name="A")
     node.save()
 
@@ -162,10 +165,12 @@ def test_node_revision_expected_format_delete():
 @bw2test
 def test_node_revision_apply_delete():
     projects.set_current("activity-event")
-    projects.dataset.set_sourced()
-
     database = DatabaseChooser("db")
     database.register()
+
+    projects.dataset.set_sourced()
+    assert projects.dataset.revision is None
+
     node = database.new_node(code="A", name="A")
     node.save()
     assert len(database) == 1
@@ -213,10 +218,12 @@ def test_node_revision_apply_delete():
 @bw2test
 def test_node_revision_expected_format_update():
     projects.set_current("activity-event")
-    projects.dataset.set_sourced()
-
     database = DatabaseChooser("db")
     database.register()
+
+    projects.dataset.set_sourced()
+    assert projects.dataset.revision is None
+
     node = database.new_node(code="A", name="A")
     node.save()
 
@@ -252,10 +259,12 @@ def test_node_revision_expected_format_update():
 @bw2test
 def test_node_revision_apply_update():
     projects.set_current("activity-event")
-    projects.dataset.set_sourced()
-
     database = DatabaseChooser("db")
     database.register()
+
+    projects.dataset.set_sourced()
+    assert projects.dataset.revision is None
+
     node = database.new_node(code="A", name="A", location="kalamazoo")
     node.save()
 
@@ -296,11 +305,13 @@ def test_node_revision_apply_update():
 @bw2test
 def test_node_revision_expected_format_activity_database_change():
     projects.set_current("activity-event")
-    projects.dataset.set_sourced()
-
     database = DatabaseChooser("db")
     database.register()
     DatabaseChooser("db2").register()
+
+    projects.dataset.set_sourced()
+    assert projects.dataset.revision is None
+
     node = database.new_node(code="A", name="A")
     node.save()
     other = database.new_node(code="B", name="B2", type="product")

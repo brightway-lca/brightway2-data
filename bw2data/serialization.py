@@ -6,6 +6,7 @@ from collections.abc import MutableMapping
 from time import time
 from typing import Union
 from pathlib import Path
+from copy import deepcopy
 
 from bw2data import projects
 from bw2data.errors import PickleError
@@ -197,7 +198,7 @@ class SerializedDict(MutableMapping):
             f.write(JsonWrapper.dumps(self.pack(self.data)))
 
         if signal and hasattr(self, "_save_signal"):
-            self._save_signal.send(old=previous, new=self.data)
+            self._save_signal.send(old=previous, new=deepcopy(self.data))
 
     def deserialize(self):
         """Load the serialized data. Can be replaced with other serialization formats."""
@@ -235,7 +236,7 @@ class PickledDict(SerializedDict):
             pickle.dump(self.pack(self.data), f, protocol=4)
 
         if signal and hasattr(self, "_save_signal"):
-            self._save_signal.send(old=previous, new=self.data)
+            self._save_signal.send(old=previous, new=deepcopy(self.data))
 
     def deserialize(self):
         try:
