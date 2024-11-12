@@ -317,7 +317,14 @@ class RevisionedDatabase:
     @classmethod
     def handle(cls, revision_data: dict) -> None:
         if revision_data["change_type"] == "database_metadata_change":
-            databases.data = Delta.from_dict(revision_data["delta"]).apply(databases.data)
+            new_data = Delta.from_dict(revision_data["delta"]).apply(databases.data)
+            for name, value in new_data.items():
+                # Need to call this method to create search index database file
+                if value.get("searchable") and not databases.get(name, {}).get("searchable"):
+                    DatabaseChooser(name).make_searchable(reset=False)
+                elif not value.get("searchable") and databases.get(name, {}).get("searchable"):
+                    DatabaseChooser(name).make_unsearchable(reset=False)
+            databases.data = new_data
             databases.flush(signal=False)
         if revision_data["change_type"] == "database_reset":
             DatabaseChooser(revision_data["id"]).delete(warn=False, signal=False)

@@ -626,6 +626,20 @@ def signal_dispatcher_on_database(sender, name: str, verb: str) -> int:
     return projects.dataset.add_revision((delta,))
 
 
+def signal_dispatcher_on_database_write(sender, name: str) -> int:
+    from bw2data import revisions
+    from bw2data.backends.schema import ActivityDataset, ExchangeDataset
+
+    deltas = [
+        revisions.Delta.generate(old=None, new=ds)
+        for ds in ActivityDataset.select().where(ActivityDataset.database == name)
+    ] + [
+        revisions.Delta.generate(old=None, new=exc)
+        for exc in ExchangeDataset.select().where(ExchangeDataset.output_database == name)
+    ]
+    return projects.dataset.add_revision(deltas)
+
+
 # `.connect()` directly just fails silently...
 signal_dispatcher_on_activity_database_change = partial(
     signal_dispatcher, operation="activity_database_change"
@@ -647,6 +661,7 @@ bw2signals.on_activity_code_change.connect(signal_dispatcher_on_activity_code_ch
 bw2signals.on_database_metadata_change.connect(signal_dispatcher_on_database_metadata_change)
 bw2signals.on_database_reset.connect(signal_dispatcher_on_database_reset)
 bw2signals.on_database_delete.connect(signal_dispatcher_on_database_delete)
+bw2signals.on_database_write.connect(signal_dispatcher_on_database_write)
 
 
 @wrapt.decorator

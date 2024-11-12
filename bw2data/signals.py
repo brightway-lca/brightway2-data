@@ -89,6 +89,17 @@ No expected return value.
 """,
 )
 
+on_database_write = signal(
+    "bw2data.on_database_write",
+    doc="""Emitted *after* a `Database` has new data written (replacing all previous data).
+
+Expected inputs:
+    * `name`: str - database name
+
+No expected return value.
+""",
+)
+
 project_changed = signal(
     "bw2data.project_changed",
     doc="""

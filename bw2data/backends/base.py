@@ -44,7 +44,7 @@ from bw2data.errors import (
 from bw2data.logs import stdout_feedback_logger
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
-from bw2data.signals import on_database_reset
+from bw2data.signals import on_database_reset, on_database_write
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
 _VALID_KEYS = {"location", "name", "product", "type"}
@@ -308,7 +308,7 @@ class SQLiteBackend(ProcessedDataStore):
         kwargs["backend"] = self.backend
         super().register(**kwargs)
         if write_empty:
-            self.write({}, searchable=False)
+            self.write({}, searchable=False, signal=False)
 
     def relabel_data(self, data: dict, old_name: str, new_name: str) -> dict:
         """Relabel database keys and exchanges.
@@ -656,6 +656,9 @@ class SQLiteBackend(ProcessedDataStore):
 
         if process:
             self.process()
+
+        if signal:
+            on_database_write.send(name=self.name)
 
     def load(self, *args, **kwargs):
         # Should not be used, in general; relatively slow
