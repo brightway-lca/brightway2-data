@@ -348,7 +348,7 @@ def test_node_revision_expected_format_activity_database_change():
 
 
 @bw2test
-def test_node_revision_apply_activity_database_change():
+def test_node_revision_apply_activity_database_change(num_revisions):
     projects.set_current("activity-event")
     projects.dataset.set_sourced()
 
@@ -366,13 +366,7 @@ def test_node_revision_apply_activity_database_change():
 
     revision_id = next(snowflake_id_generator)
 
-    num_revisions_before = len(
-        [
-            fp
-            for fp in (projects.dataset.dir / "revisions").iterdir()
-            if fp.stem.lower() != "head" and fp.is_file()
-        ]
-    )
+    num_revisions_before = num_revisions(projects)
 
     revision = {
         "data": [
@@ -404,13 +398,7 @@ def test_node_revision_apply_activity_database_change():
         assert exc.input == node
         assert exc.output == node
 
-    num_revisions_after = len(
-        [
-            fp
-            for fp in (projects.dataset.dir / "revisions").iterdir()
-            if fp.stem.lower() != "head" and fp.is_file()
-        ]
-    )
+    num_revisions_after = num_revisions(projects)
     assert num_revisions_after == num_revisions_before
 
 
@@ -457,7 +445,7 @@ def test_node_revision_expected_format_activity_code_change():
 
 
 @bw2test
-def test_node_revision_apply_activity_code_change():
+def test_node_revision_apply_activity_code_change(num_revisions):
     projects.set_current("activity-event")
     projects.dataset.set_sourced()
 
@@ -474,13 +462,7 @@ def test_node_revision_apply_activity_code_change():
 
     revision_id = next(snowflake_id_generator)
 
-    num_revisions_before = len(
-        [
-            fp
-            for fp in (projects.dataset.dir / "revisions").iterdir()
-            if fp.stem.lower() != "head" and fp.is_file()
-        ]
-    )
+    num_revisions_before = num_revisions(projects)
 
     revision = {
         "data": [
@@ -511,13 +493,7 @@ def test_node_revision_apply_activity_code_change():
         assert exc.input == node
         assert exc.output == node
 
-    num_revisions_after = len(
-        [
-            fp
-            for fp in (projects.dataset.dir / "revisions").iterdir()
-            if fp.stem.lower() != "head" and fp.is_file()
-        ]
-    )
+    num_revisions_after = num_revisions(projects)
     assert num_revisions_after == num_revisions_before
 
 
@@ -819,7 +795,7 @@ def test_node_revision_expected_format_activity_copy_new_database():
 
 
 @bw2test
-def test_node_revision_apply_activity_copy():
+def test_node_revision_apply_activity_copy(num_revisions):
     projects.set_current("activity-event")
 
     database = DatabaseChooser("db")
@@ -838,13 +814,7 @@ def test_node_revision_apply_activity_copy():
     revision_id_2 = next(snowflake_id_generator)
     revision_id_3 = next(snowflake_id_generator)
 
-    num_revisions_before = len(
-        [
-            fp
-            for fp in (projects.dataset.dir / "revisions").iterdir()
-            if fp.stem.lower() != "head" and fp.is_file()
-        ]
-    )
+    num_revisions_before = num_revisions(projects)
 
     revisions = [
         {
@@ -974,11 +944,5 @@ def test_node_revision_apply_activity_copy():
         assert exc.output == new_node
         assert exc["amount"] == 0.1
 
-    num_revisions_after = len(
-        [
-            fp
-            for fp in (projects.dataset.dir / "revisions").iterdir()
-            if fp.stem.lower() != "head" and fp.is_file()
-        ]
-    )
+    num_revisions_after = num_revisions(projects)
     assert num_revisions_after == num_revisions_before
