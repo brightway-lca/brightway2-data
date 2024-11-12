@@ -4,7 +4,6 @@ from typing import Any, Optional, Sequence, Union
 import deepdiff
 
 from bw2data import databases
-from bw2data.database import DatabaseChooser
 from bw2data.backends.proxies import Activity, Exchange
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
