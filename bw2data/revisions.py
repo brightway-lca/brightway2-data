@@ -8,7 +8,7 @@ from bw2data.backends.proxies import Activity, Exchange
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
 from bw2data.database import DatabaseChooser
-from bw2data.errors import DifferentObjects, IncompatibleClasses, InconsistentData, NoRevisionNeeded
+from bw2data.errors import DifferentObjects, IncompatibleClasses
 from bw2data.signals import SignaledDataset
 from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.utils import get_node
@@ -121,7 +121,7 @@ class Delta:
         return cls._direct_lci_node_difference(old, new, "activity_database_change")
 
     @classmethod
-    def database_metadata_change(cls, old: dict, new: dict) -> Self:
+    def database_metadata_change(cls, old: dict, new: dict) -> Union[Self, None]:
         """Special handling to change the `database` attribute of an activity node."""
         for dct in (old, new):
             # Changes to these values are "noise" - they will either be captured by other events
@@ -137,7 +137,7 @@ class Delta:
             verbose_level=2,
         )
         if not diff:
-            raise NoRevisionNeeded
+            return None
         return cls.from_difference("lci_database", None, "database_metadata_change", diff)
 
     @classmethod

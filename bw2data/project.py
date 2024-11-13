@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
 
 import deepdiff
 import wrapt
@@ -17,7 +17,7 @@ from platformdirs import PlatformDirs
 
 import bw2data.signals as bw2signals
 from bw2data import config
-from bw2data.errors import InconsistentData, PossibleInconsistentData, NoRevisionNeeded
+from bw2data.errors import InconsistentData, PossibleInconsistentData
 from bw2data.filesystem import create_dir
 from bw2data.logs import stdout_feedback_logger
 from bw2data.signals import project_changed, project_created
@@ -602,14 +602,13 @@ class ProjectManager(Iterable):
 
 def signal_dispatcher(
     sender, old: Optional[Any] = None, new: Optional[Any] = None, operation: Optional[str] = None
-) -> int:
+) -> Union[int, None]:
     """Not sure why this is necessary, but fails silently if call `add_revision` directly"""
     from bw2data import revisions
 
-    try:
-        delta = revisions.generate_delta(old, new, operation)
-    except NoRevisionNeeded:
-        return
+    delta = revisions.generate_delta(old, new, operation)
+    if not delta:
+        return None
     return projects.dataset.add_revision((delta,))
 
 
