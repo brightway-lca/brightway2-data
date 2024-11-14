@@ -16,6 +16,7 @@ from platformdirs import PlatformDirs
 
 import bw2data.signals as bw2signals
 from bw2data import config
+from bw2data.errors import InconsistentData, PossibleInconsistentData
 from bw2data.filesystem import create_dir
 from bw2data.logs import stdout_feedback_logger
 from bw2data.signals import project_changed, project_created
@@ -127,15 +128,48 @@ class ProjectDataset(Model):
         """
         from bw2data import revisions
 
+        # Once *any* revision is applied, we need to track changes
+        # Otherwise we could apply a patch, then make an untracked change, and we wouldn't know if
+        # a second patch could be safely applied in the future.
+        if not self.is_sourced:
+            self.set_sourced()
+
         meta = revision["metadata"]
-        parent = meta.get("parent_revision")
-        assert not parent or self.revision == parent
-        assert parent or not self.revision
+        self._check_local_versus_remote_revision(self.revision, meta.get("parent_revision"))
+
         for revision_data in revision["data"]:
             obj_class = revisions.REVISIONED_LABEL_AS_OBJECT[revision_data["type"]]
             obj_class.handle(revision_data)
         self.revision = meta["revision"]
         self.save()
+
+    def _check_local_versus_remote_revision(self, local: Optional[str], remote: Optional[str]) -> None:
+        # Patch parent can be a revision ID or `None`
+        # Local state can be a revision ID or `None`
+        # There are five possible cases:
+        # 1. patch parent: None | local: None
+        # Beginning of event sourcing, applying patch leads to new local state
+        # No real guarantee that they start from the same state, but we can hope for the best
+        # 2. patch parent: int | local: None
+        # Can't apply safely as patch state could be different than local
+        # Raise `PossibleInconsistentData`
+        # 3. patch parent: None | local: int
+        # Can't apply safely as local state could be different than patch
+        # Raise `PossibleInconsistentData`
+        # 4. patch parent: int | local: int | patch parent == local
+        # Can apply safely, starting state is consistent
+        # 5. patch parent: int | local: int | patch parent != local
+        # Raise `InconsistentData`
+        if local is remote is None:
+            pass
+        elif local and not remote:
+            raise PossibleInconsistentData
+        elif not local and remote:
+            raise PossibleInconsistentData
+        elif local and remote and local == remote:
+            pass
+        elif local and remote and local != remote:
+            raise InconsistentData
 
     def load_revisions(self, head: Optional[int] = None) -> None:
         """
