@@ -321,9 +321,9 @@ class RevisionedDatabase:
             for name, value in new_data.items():
                 # Need to call this method to create search index database file
                 if value.get("searchable") and not databases.get(name, {}).get("searchable"):
-                    DatabaseChooser(name).make_searchable(reset=False)
+                    DatabaseChooser(name).make_searchable(reset=False, signal=False)
                 elif not value.get("searchable") and databases.get(name, {}).get("searchable"):
-                    DatabaseChooser(name).make_unsearchable(reset=False)
+                    DatabaseChooser(name).make_unsearchable(reset=False, signal=False)
             databases.data = new_data
             databases.flush(signal=False)
         if revision_data["change_type"] == "database_reset":

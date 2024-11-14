@@ -144,7 +144,9 @@ class ProjectDataset(Model):
         self.revision = meta["revision"]
         self.save()
 
-    def _check_local_versus_remote_revision(self, local: Optional[str], remote: Optional[str]) -> None:
+    def _check_local_versus_remote_revision(
+        self, local: Optional[str], remote: Optional[str]
+    ) -> None:
         # Patch parent can be a revision ID or `None`
         # Local state can be a revision ID or `None`
         # There are five possible cases:

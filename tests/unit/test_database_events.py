@@ -372,6 +372,7 @@ def test_database_delete_revision_expected_format(num_revisions):
 @bw2test
 def test_database_delete_revision_apply(num_revisions):
     projects.set_current("activity-event")
+    assert not num_revisions(projects)
     assert projects.dataset.revision is None
 
     database = DatabaseChooser("db")
@@ -480,12 +481,7 @@ def test_database_write_revision_expected_format():
                     "type": "lci_database",
                     "id": None,
                     "change_type": "database_metadata_change",
-                    "delta": {
-                        "dictionary_item_added": {
-                            "root['food']['geocollections']": ["world"],
-                            "root['food']['searchable']": True,
-                        }
-                    },
+                    "delta": {"iterable_item_added": {"root['food']['depends'][0]": "biosphere"}},
                 }
             ],
         },
@@ -493,23 +489,6 @@ def test_database_write_revision_expected_format():
             "metadata": {
                 "parent_revision": revisions[2][0],
                 "revision": revisions[3][0],
-                "authors": "Anonymous",
-                "title": "Untitled revision",
-                "description": "No description",
-            },
-            "data": [
-                {
-                    "type": "lci_database",
-                    "id": None,
-                    "change_type": "database_metadata_change",
-                    "delta": {"iterable_item_added": {"root['food']['depends'][0]": "biosphere"}},
-                }
-            ],
-        },
-        {
-            "metadata": {
-                "parent_revision": revisions[3][0],
-                "revision": revisions[4][0],
                 "authors": "Anonymous",
                 "title": "Untitled revision",
                 "description": "No description",
@@ -692,13 +671,13 @@ def test_database_write_revision_expected_format():
     ]
 
     assert [x[1] for x in revisions] == expected
-    assert projects.dataset.revision == revisions[4][0]
+    assert projects.dataset.revision == revisions[3][0]
 
 
 @bw2test
 def test_database_write_revision_apply(num_revisions):
     projects.set_current("activity-event")
-    DatabaseChooser("biosphere").write(basic.biosphere)
+    DatabaseChooser("biosphere").write(basic.biosphere, searchable=True)
 
     r1 = next(snowflake_id_generator)
     r2 = next(snowflake_id_generator)
@@ -1088,7 +1067,7 @@ def test_database_copy_revision_expected_format():
                     "type": "lci_database",
                     "id": None,
                     "change_type": "database_metadata_change",
-                    "delta": {"iterable_item_added": {"root['yum']['geocollections'][0]": "world"}},
+                    "delta": {"iterable_item_added": {"root['yum']['depends'][0]": "biosphere"}},
                 }
             ],
         },
@@ -1096,23 +1075,6 @@ def test_database_copy_revision_expected_format():
             "metadata": {
                 "parent_revision": revisions[3][0],
                 "revision": revisions[4][0],
-                "authors": "Anonymous",
-                "title": "Untitled revision",
-                "description": "No description",
-            },
-            "data": [
-                {
-                    "type": "lci_database",
-                    "id": None,
-                    "change_type": "database_metadata_change",
-                    "delta": {"iterable_item_added": {"root['yum']['depends'][0]": "biosphere"}},
-                }
-            ],
-        },
-        {
-            "metadata": {
-                "parent_revision": revisions[4][0],
-                "revision": revisions[5][0],
                 "authors": "Anonymous",
                 "title": "Untitled revision",
                 "description": "No description",
@@ -1295,15 +1257,15 @@ def test_database_copy_revision_expected_format():
     ]
 
     assert [x[1] for x in revisions] == expected
-    assert projects.dataset.revision == revisions[5][0]
+    assert projects.dataset.revision == revisions[4][0]
 
     assert [x[1] for x in revisions][:-1] == expected[:-1]
-    assert revisions[-1][1]['metadata'] == expected[-1]['metadata']
+    assert revisions[-1][1]["metadata"] == expected[-1]["metadata"]
     for x in range(2):
-        assert revisions[-1][1]['data'][x] in expected[-1]['data'][:2]
+        assert revisions[-1][1]["data"][x] in expected[-1]["data"][:2]
     for x in range(2, 5):
-        assert revisions[-1][1]['data'][x] in expected[-1]['data'][2:]
-    assert projects.dataset.revision == revisions[5][0]
+        assert revisions[-1][1]["data"][x] in expected[-1]["data"][2:]
+    assert projects.dataset.revision == revisions[4][0]
 
 
 @bw2test
@@ -1575,9 +1537,9 @@ def test_database_rename_revision_expected_format():
 
     assert [x[1] for x in revisions][:-2] == expected[:-2]
     assert revisions[-1][1] == expected[-1]
-    assert revisions[-2][1]['metadata'] == expected[-2]['metadata']
+    assert revisions[-2][1]["metadata"] == expected[-2]["metadata"]
     for x in range(2):
-        assert revisions[-2][1]['data'][x] in expected[-2]['data'][:2]
+        assert revisions[-2][1]["data"][x] in expected[-2]["data"][:2]
     for x in range(2, 5):
-        assert revisions[-2][1]['data'][x] in expected[-2]['data'][2:]
+        assert revisions[-2][1]["data"][x] in expected[-2]["data"][2:]
     assert projects.dataset.revision == revisions[3][0]

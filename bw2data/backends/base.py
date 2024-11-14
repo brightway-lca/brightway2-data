@@ -652,7 +652,7 @@ class SQLiteBackend(ProcessedDataStore):
                 raise
 
         if searchable:
-            self.make_searchable(reset=True)
+            self.make_searchable(reset=True, signal=False)
 
         if process:
             self.process()
@@ -731,20 +731,20 @@ Here are the type values usually used for nodes:
         obj.update(kwargs)
         return obj
 
-    def make_searchable(self, reset=False):
+    def make_searchable(self, reset: bool = False, signal: bool = True):
         if self.name not in databases:
             raise UnknownObject("This database is not yet registered")
         if self._searchable and not reset:
             stdout_feedback_logger.info("This database is already searchable")
             return
         databases[self.name]["searchable"] = True
-        databases.flush()
+        databases.flush(signal=signal)
         IndexManager(self.filename).create()
         IndexManager(self.filename).add_datasets(self)
 
-    def make_unsearchable(self):
+    def make_unsearchable(self, signal: bool = True):
         databases[self.name]["searchable"] = False
-        databases.flush()
+        databases.flush(signal=signal)
         IndexManager(self.filename).delete_database()
 
     def delete(
