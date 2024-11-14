@@ -9,6 +9,7 @@ from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
 from bw2data.database import DatabaseChooser
 from bw2data.errors import DifferentObjects, IncompatibleClasses
+from bw2data.parameters import ParameterBase, ProjectParameter
 from bw2data.signals import SignaledDataset
 from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.utils import get_node
@@ -273,6 +274,46 @@ class RevisionedORMProxy:
         )
 
 
+class RevisionedParameter(RevisionedORMProxy):
+    @classmethod
+    def _state_as_dict(cls, obj: ParameterBase) -> dict:
+        return {key: getattr(obj, key) for key in cls.KEYS}
+
+    @classmethod
+    def current_state_as_dict(cls, obj: ParameterBase) -> dict:
+        return cls._state_as_dict(obj)
+
+    @classmethod
+    def previous_state_as_dict(cls, revision_data: dict) -> dict:
+        orm_object = cls.ORM_CLASS.get_by_id(revision_data["id"])
+        return cls._state_as_dict(orm_object)
+
+    @classmethod
+    def update(cls, revision_data: dict) -> None:
+        previous = cls.previous_state_as_dict(revision_data)
+        updated_data = Delta.from_dict(revision_data["delta"]).apply(previous)
+        updated_orm_object = cls.ORM_CLASS(**updated_data)
+        updated_orm_object.id = revision_data["id"]
+        updated_orm_object.save(signal=False)
+
+    @classmethod
+    def delete(cls, revision_data: dict) -> None:
+        cls.ORM_CLASS.get_by_id(revision_data["id"]).delete_instance(signal=False)
+
+    @classmethod
+    def create(cls, revision_data: dict) -> None:
+        data = Delta.from_dict(revision_data["delta"]).apply({})
+        orm_object = cls.ORM_CLASS(**data)
+        orm_object.id = revision_data["id"]
+        # Force insert because we specify the primary key already but object not in database
+        orm_object.save(signal=False, force_insert=True)
+
+
+class RevisionedProjectParameter(RevisionedParameter):
+    KEYS = ("id", "name", "formula", "amount", "data")
+    ORM_CLASS = ProjectParameter
+
+
 class RevisionedNode(RevisionedORMProxy):
     PROXY_CLASS = Activity
     ORM_CLASS = Activity.ORMDataset
@@ -335,10 +376,12 @@ class RevisionedDatabase:
 SIGNALLEDOBJECT_TO_LABEL = {
     ActivityDataset: "lci_node",
     ExchangeDataset: "lci_edge",
+    ProjectParameter: "project_parameter",
 }
 REVISIONED_LABEL_AS_OBJECT = {
     "lci_node": RevisionedNode,
     "lci_edge": RevisionedEdge,
     "lci_database": RevisionedDatabase,
+    "project_parameter": RevisionedProjectParameter,
 }
 REVISIONS_OBJECT_AS_LABEL = {v: k for k, v in REVISIONED_LABEL_AS_OBJECT.items()}

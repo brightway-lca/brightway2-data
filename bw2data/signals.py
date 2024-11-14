@@ -100,6 +100,16 @@ No expected return value.
 """,
 )
 
+on_project_parameter_recalculate = signal(
+    "bw2data.on_project_parameter_recalculate",
+    doc="""Emitted *after* a call to `bw2data.parameters.ProjectParameter.recalculate()`.
+
+No expected inputs.
+
+No expected return value.
+""",
+)
+
 project_changed = signal(
     "bw2data.project_changed",
     doc="""

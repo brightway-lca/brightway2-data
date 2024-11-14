@@ -21,7 +21,9 @@ from peewee import BooleanField, Check, DateTimeField, FloatField, IntegerField,
 
 from bw2data import config, databases, get_activity, projects
 from bw2data.backends.schema import ExchangeDataset
+from bw2data.snowflake_ids import SnowflakeIDBaseClass
 from bw2data.sqlite import PickleField, SubstitutableDatabase
+from bw2data.signals import on_project_parameter_recalculate
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
 clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)
@@ -77,7 +79,7 @@ PE_INSERT_TRIGGER = _PE_GROUP_TEMPLATE.format(action="INSERT")
 PE_UPDATE_TRIGGER = _PE_GROUP_TEMPLATE.format(action="UPDATE")
 
 
-class ParameterBase(Model):
+class ParameterBase(SnowflakeIDBaseClass):
     __repr__ = lambda x: str(x)
 
     def __lt__(self, other):
@@ -167,7 +169,7 @@ class ProjectParameter(ParameterBase):
             return False
 
     @staticmethod
-    def recalculate(ignored=None):
+    def recalculate(ignored=None, signal: bool = True):
         """Recalculate all parameters.
 
         ``ignored`` included for API compatibility with other ``recalculate`` methods - it will really be ignored.
@@ -185,6 +187,9 @@ class ProjectParameter(ParameterBase):
                 ).where(ProjectParameter.name == key).execute()
             Group.get_or_create(name="project")[0].freshen()
             ProjectParameter.expire_downstream("project")
+
+        if signal:
+            on_project_parameter_recalculate.send()
 
     @staticmethod
     def dependency_chain():
