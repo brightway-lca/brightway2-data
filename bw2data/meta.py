@@ -102,7 +102,7 @@ class Databases(SerializedDict):
         else:
             return _clean()
 
-    def __delitem__(self, name):
+    def __delitem__(self, name: str, signal: bool = True):
         from bw2data import Database
 
         if name not in self:
@@ -121,7 +121,8 @@ Metadata state is unchanged, but database state is unknown.
 
         super(Databases, self).__delitem__(name=name, signal=False)
 
-        on_database_delete.send(name=name)
+        if signal:
+            on_database_delete.send(name=name)
 
 
 class CalculationSetups(PickledDict):

@@ -329,7 +329,7 @@ class RevisionedDatabase:
         if revision_data["change_type"] == "database_reset":
             DatabaseChooser(revision_data["id"]).delete(warn=False, signal=False)
         if revision_data["change_type"] == "database_delete":
-            del databases[revision_data["id"]]
+            databases.__delitem__(revision_data["id"], signal=False)
 
 
 SIGNALLEDOBJECT_TO_LABEL = {
