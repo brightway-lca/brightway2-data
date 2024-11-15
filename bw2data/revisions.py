@@ -9,7 +9,7 @@ from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
 from bw2data.database import DatabaseChooser
 from bw2data.errors import DifferentObjects, IncompatibleClasses
-from bw2data.parameters import DatabaseParameter, ParameterBase, ProjectParameter
+from bw2data.parameters import ActivityParameter, DatabaseParameter, ParameterBase, ProjectParameter
 from bw2data.signals import SignaledDataset
 from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.utils import get_node
@@ -326,7 +326,9 @@ class RevisionedProjectParameter(RevisionedParameter):
 
     @classmethod
     def project_parameter_update_formula_parameter_name(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.update_formula_parameter_name(signal=False, **cls._unwrap_diff_dict(revision_data))
+        cls.ORM_CLASS.update_formula_parameter_name(
+            signal=False, **cls._unwrap_diff_dict(revision_data)
+        )
 
 
 class RevisionedDatabaseParameter(RevisionedParameter):
@@ -339,30 +341,51 @@ class RevisionedDatabaseParameter(RevisionedParameter):
 
     @classmethod
     def database_parameter_update_formula_project_parameter_name(cls, revision_data: dict) -> None:
-        print(revision_data)
-        cls.ORM_CLASS.update_formula_project_parameter_name(signal=False, **cls._unwrap_diff_dict(revision_data))
+        cls.ORM_CLASS.update_formula_project_parameter_name(
+            signal=False, **cls._unwrap_diff_dict(revision_data)
+        )
 
     @classmethod
     def database_parameter_update_formula_database_parameter_name(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.update_formula_database_parameter_name(signal=False, **cls._unwrap_diff_dict(revision_data))
+        cls.ORM_CLASS.update_formula_database_parameter_name(
+            signal=False, **cls._unwrap_diff_dict(revision_data)
+        )
 
 
 class RevisionedActivityParameter(RevisionedParameter):
-    KEYS = ("id", "database", "name", "formula", "amount", "data")
-    ORM_CLASS = DatabaseParameter
+    KEYS = ("id", "group", "database", "code", "name", "formula", "amount", "data")
+    ORM_CLASS = ActivityParameter
 
     @classmethod
-    def database_parameter_recalculate(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.recalculate(database=revision_data["id"], signal=False)
+    def activity_parameter_recalculate(cls, revision_data: dict) -> None:
+        cls.ORM_CLASS.recalculate(group=revision_data["id"], signal=False)
 
     @classmethod
-    def database_parameter_update_formula_project_parameter_name(cls, revision_data: dict) -> None:
-        print(revision_data)
-        cls.ORM_CLASS.update_formula_project_parameter_name(signal=False, **cls._unwrap_diff_dict(revision_data))
+    def activity_parameter_recalculate_exchanges(cls, revision_data: dict) -> None:
+        cls.ORM_CLASS.recalculate_exchanges(group=revision_data["id"], signal=False)
 
     @classmethod
-    def database_parameter_update_formula_database_parameter_name(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.update_formula_database_parameter_name(signal=False, **cls._unwrap_diff_dict(revision_data))
+    def activity_parameter_update_formula_project_parameter_name(cls, revision_data: dict) -> None:
+        cls.ORM_CLASS.update_formula_project_parameter_name(
+            signal=False, **cls._unwrap_diff_dict(revision_data)
+        )
+
+    @classmethod
+    def activity_parameter_update_formula_database_parameter_name(cls, revision_data: dict) -> None:
+        cls.ORM_CLASS.update_formula_database_parameter_name(
+            signal=False, **cls._unwrap_diff_dict(revision_data)
+        )
+
+    @classmethod
+    def activity_parameter_update_formula_activity_parameter_name(cls, revision_data: dict) -> None:
+        dct = {
+            "old": revision_data["delta"]["dictionary_item_removed"]["root['old']"],
+            "new": revision_data["delta"]["dictionary_item_added"]["root['new']"],
+            "include_order": revision_data["delta"]["dictionary_item_added"][
+                "root['include_order']"
+            ],
+        }
+        cls.ORM_CLASS.update_formula_activity_parameter_name(signal=False, **dct)
 
 
 class RevisionedNode(RevisionedORMProxy):
@@ -429,6 +452,7 @@ SIGNALLEDOBJECT_TO_LABEL = {
     ExchangeDataset: "lci_edge",
     ProjectParameter: "project_parameter",
     DatabaseParameter: "database_parameter",
+    ActivityParameter: "activity_parameter",
 }
 REVISIONED_LABEL_AS_OBJECT = {
     "lci_node": RevisionedNode,
@@ -436,5 +460,6 @@ REVISIONED_LABEL_AS_OBJECT = {
     "lci_database": RevisionedDatabase,
     "project_parameter": RevisionedProjectParameter,
     "database_parameter": RevisionedDatabaseParameter,
+    "activity_parameter": RevisionedActivityParameter,
 }
 REVISIONS_OBJECT_AS_LABEL = {v: k for k, v in REVISIONED_LABEL_AS_OBJECT.items()}

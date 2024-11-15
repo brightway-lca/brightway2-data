@@ -638,6 +638,9 @@ signal_dispatcher_on_project_parameter = partial(
 signal_dispatcher_on_database_parameter = partial(
     signal_dispatcher_generic_no_diff, prefix="database_parameter", obj_type="database_parameter"
 )
+signal_dispatcher_on_activity_parameter = partial(
+    signal_dispatcher_generic_no_diff, prefix="activity_parameter", obj_type="activity_parameter"
+)
 
 
 def signal_dispatcher_on_database_write(sender, name: str) -> int:
@@ -678,6 +681,15 @@ signal_dispatcher_on_database_parameter_update_formula_project_parameter_name = 
 signal_dispatcher_on_database_parameter_update_formula_database_parameter_name = partial(
     signal_dispatcher_on_update_formula_parameter_name, kind="database", extra="database_"
 )
+signal_dispatcher_on_activity_parameter_update_formula_project_parameter_name = partial(
+    signal_dispatcher_on_update_formula_parameter_name, kind="activity", extra="project_"
+)
+signal_dispatcher_on_activity_parameter_update_formula_database_parameter_name = partial(
+    signal_dispatcher_on_update_formula_parameter_name, kind="activity", extra="database_"
+)
+signal_dispatcher_on_activity_parameter_update_formula_activity_parameter_name = partial(
+    signal_dispatcher_on_update_formula_parameter_name, kind="activity", extra="activity_"
+)
 
 # `.connect()` directly just fails silently...
 signal_dispatcher_on_activity_database_change = partial(
@@ -697,6 +709,12 @@ signal_dispatcher_on_project_parameter_recalculate = partial(
 signal_dispatcher_on_database_parameter_recalculate = partial(
     signal_dispatcher_on_database_parameter, verb="recalculate"
 )
+signal_dispatcher_on_activity_parameter_recalculate = partial(
+    signal_dispatcher_on_activity_parameter, verb="recalculate"
+)
+signal_dispatcher_on_activity_parameter_recalculate_exchanges = partial(
+    signal_dispatcher_on_activity_parameter, verb="recalculate_exchanges"
+)
 
 projects = ProjectManager()
 bw2signals.signaleddataset_on_save.connect(signal_dispatcher)
@@ -713,6 +731,13 @@ bw2signals.on_project_parameter_recalculate.connect(
 bw2signals.on_database_parameter_recalculate.connect(
     signal_dispatcher_on_database_parameter_recalculate
 )
+bw2signals.on_activity_parameter_recalculate.connect(
+    signal_dispatcher_on_activity_parameter_recalculate
+)
+bw2signals.on_activity_parameter_recalculate_exchanges.connect(
+    signal_dispatcher_on_activity_parameter_recalculate_exchanges
+)
+
 bw2signals.on_project_parameter_update_formula_parameter_name.connect(
     signal_dispatcher_on_project_parameter_update_formula_parameter_name
 )
@@ -721,6 +746,15 @@ bw2signals.on_database_parameter_update_formula_project_parameter_name.connect(
 )
 bw2signals.on_database_parameter_update_formula_database_parameter_name.connect(
     signal_dispatcher_on_database_parameter_update_formula_database_parameter_name
+)
+bw2signals.on_activity_parameter_update_formula_project_parameter_name.connect(
+    signal_dispatcher_on_activity_parameter_update_formula_project_parameter_name
+)
+bw2signals.on_activity_parameter_update_formula_database_parameter_name.connect(
+    signal_dispatcher_on_activity_parameter_update_formula_database_parameter_name
+)
+bw2signals.on_activity_parameter_update_formula_activity_parameter_name.connect(
+    signal_dispatcher_on_activity_parameter_update_formula_activity_parameter_name
 )
 
 

@@ -393,9 +393,7 @@ def test_project_parameter_revision_expected_format_update_formula_parameter_nam
 
 
 @bw2test
-def project_parameter_revision_apply_update_formula_parameter_name(
-    num_revisions, monkeypatch
-):
+def project_parameter_revision_apply_update_formula_parameter_name(num_revisions, monkeypatch):
     def fake_update(old, new, signal=True):
         assert old == "one2three"
         assert new == "123"

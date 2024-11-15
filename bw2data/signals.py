@@ -126,7 +126,8 @@ on_database_parameter_recalculate = signal(
     "bw2data.on_database_parameter_recalculate",
     doc="""Emitted *after* a call to `bw2data.parameters.DatabaseParameter.recalculate()`.
 
-No expected inputs.
+Expected inputs:
+    * `name`: str - database name
 
 No expected return value.
 """,
@@ -151,6 +152,64 @@ on_database_parameter_update_formula_database_parameter_name = signal(
 Expected inputs:
     * `old` - dict like {"old": str} with *previous* parameter name
     * `new` - dict like {"new": str} with *new* parameter name
+
+No expected return value.
+""",
+)
+
+on_activity_parameter_recalculate = signal(
+    "bw2data.on_activity_parameter_recalculate",
+    doc="""Emitted *after* a call to `bw2data.parameters.ActivityParameter.recalculate()`.
+
+Expected inputs:
+    * `name`: str - group name
+
+No expected return value.
+""",
+)
+
+on_activity_parameter_recalculate_exchanges = signal(
+    "bw2data.on_activity_parameter_recalculate_exchanges",
+    doc="""Emitted *after* a call to `bw2data.parameters.ActivityParameter.recalculate_exchanges()`.
+
+Expected inputs:
+    * `name`: str - group name
+
+No expected return value.
+""",
+)
+
+on_activity_parameter_update_formula_project_parameter_name = signal(
+    "bw2data.on_activity_parameter_update_formula_project_parameter_name",
+    doc="""Emitted *after* a call to `bw2data.parameters.ActivityParameter.update_formula_project_parameter_name()`.
+
+Expected inputs:
+    * `old` - dict like {"old": str} with *previous* parameter name
+    * `new` - dict like {"new": str} with *new* parameter name
+
+No expected return value.
+""",
+)
+
+on_activity_parameter_update_formula_database_parameter_name = signal(
+    "bw2data.on_activity_parameter_update_formula_database_parameter_name",
+    doc="""Emitted *after* a call to `bw2data.parameters.ActivityParameter.update_formula_database_parameter_name()`.
+
+Expected inputs:
+    * `old` - dict like {"old": str} with *previous* parameter name
+    * `new` - dict like {"new": str} with *new* parameter name
+
+No expected return value.
+""",
+)
+
+on_activity_parameter_update_formula_activity_parameter_name = signal(
+    "bw2data.on_activity_parameter_update_formula_activity_parameter_name",
+    doc="""Emitted *after* a call to `bw2data.parameters.ActivityParameter.update_formula_activity_parameter_name()`.
+
+Expected inputs:
+    * `old` - dict like {"old": str} with *previous* parameter name
+    * `new` - dict like {"new": str, "include_order": bool} with *new* parameter name
 
 No expected return value.
 """,
