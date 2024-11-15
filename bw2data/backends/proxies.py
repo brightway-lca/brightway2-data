@@ -561,6 +561,10 @@ class Exchange(ExchangeProxyBase):
                 self._document.output_code,
             )
 
+    @property
+    def id(self):
+        return self._document.id
+
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
         if not data_already_set and not self.valid():
             raise ValidityError(

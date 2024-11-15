@@ -1090,7 +1090,7 @@ class ParameterizedExchange(SnowflakeIDBaseClass):
         exc = ExchangeDataset.get_or_none(id=self.exchange)
         if exc and exc.data.get("formula") != self.formula:
             exc.data["formula"] = self.formula
-            exc.save()
+            exc.save(signal=False)
 
     @staticmethod
     def load(group):

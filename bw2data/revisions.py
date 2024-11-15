@@ -9,7 +9,13 @@ from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
 from bw2data.database import DatabaseChooser
 from bw2data.errors import DifferentObjects, IncompatibleClasses
-from bw2data.parameters import ActivityParameter, DatabaseParameter, ParameterBase, ProjectParameter
+from bw2data.parameters import (
+    ActivityParameter,
+    DatabaseParameter,
+    ParameterBase,
+    ParameterizedExchange,
+    ProjectParameter,
+)
 from bw2data.signals import SignaledDataset
 from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.utils import get_node
@@ -316,6 +322,11 @@ class RevisionedParameter(RevisionedORMProxy):
         }
 
 
+class RevisionedParameterizedExchange(RevisionedParameter):
+    KEYS = ("id", "group", "formula", "exchange")
+    ORM_CLASS = ParameterizedExchange
+
+
 class RevisionedProjectParameter(RevisionedParameter):
     KEYS = ("id", "name", "formula", "amount", "data")
     ORM_CLASS = ProjectParameter
@@ -453,6 +464,7 @@ SIGNALLEDOBJECT_TO_LABEL = {
     ProjectParameter: "project_parameter",
     DatabaseParameter: "database_parameter",
     ActivityParameter: "activity_parameter",
+    ParameterizedExchange: "parameterized_exchange",
 }
 REVISIONED_LABEL_AS_OBJECT = {
     "lci_node": RevisionedNode,
@@ -461,5 +473,6 @@ REVISIONED_LABEL_AS_OBJECT = {
     "project_parameter": RevisionedProjectParameter,
     "database_parameter": RevisionedDatabaseParameter,
     "activity_parameter": RevisionedActivityParameter,
+    "parameterized_exchange": RevisionedParameterizedExchange,
 }
 REVISIONS_OBJECT_AS_LABEL = {v: k for k, v in REVISIONED_LABEL_AS_OBJECT.items()}
