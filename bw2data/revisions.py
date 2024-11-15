@@ -57,7 +57,7 @@ class Delta:
 
     def __init__(
         self,
-        delta: Optional[deepdiff.Delta],
+        delta: Optional[Union[deepdiff.Delta, dict]],
         obj_type: Optional[str] = None,
         obj_id: Optional[Union[int, str]] = None,
         change_type: Optional[str] = None,
@@ -312,6 +312,14 @@ class RevisionedParameter(RevisionedORMProxy):
 class RevisionedProjectParameter(RevisionedParameter):
     KEYS = ("id", "name", "formula", "amount", "data")
     ORM_CLASS = ProjectParameter
+
+    @classmethod
+    def project_parameter_recalculate(cls, revision_data: dict) -> None:
+        cls.ORM_CLASS.recalculate(signal=False)
+
+    @classmethod
+    def project_parameter_update_formula_parameter_name(cls, revision_data: dict) -> None:
+        cls.ORM_CLASS.update_formula_parameter_name(signal=False, **revision_data["delta"])
 
 
 class RevisionedNode(RevisionedORMProxy):

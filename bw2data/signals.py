@@ -110,6 +110,18 @@ No expected return value.
 """,
 )
 
+on_project_parameter_update_formula_parameter_name = signal(
+    "bw2data.on_project_parameter_update_formula_parameter_name",
+    doc="""Emitted *after* a call to `bw2data.parameters.ProjectParameter.update_formula_parameter_name()`.
+
+Expected inputs:
+    * `old` - dict like {"old": str} with *previous* parameter name
+    * `new` - dict like {"new": str} with *new* parameter name
+
+No expected return value.
+""",
+)
+
 project_changed = signal(
     "bw2data.project_changed",
     doc="""

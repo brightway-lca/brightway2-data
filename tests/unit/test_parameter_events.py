@@ -248,8 +248,6 @@ def test_project_parameter_revision_apply_delete(num_revisions):
     projects.set_current("activity-event")
     pp = ProjectParameter.create(name="example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"})
     assert ProjectParameter.select().count() == 1
-
-    projects.dataset.set_sourced()
     assert projects.dataset.revision is None
 
     revision_id = next(snowflake_id_generator)
@@ -280,3 +278,115 @@ def test_project_parameter_revision_apply_delete(num_revisions):
 
     assert not num_revisions(projects)
     assert not ProjectParameter.select().count()
+
+
+@bw2test
+def test_project_parameter_revision_expected_format_recalculate(num_revisions):
+    projects.set_current("activity-event")
+
+    # Needed to have a parameter which could be obsolete - otherwise `recalculate` just
+    # no-op exits
+    ProjectParameter.create(name="example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"})
+
+    assert projects.dataset.revision is None
+    projects.dataset.set_sourced()
+
+    ProjectParameter.recalculate()
+
+    assert num_revisions(projects) == 1
+    assert projects.dataset.revision is not None
+    with open(projects.dataset.dir / "revisions" / f"{projects.dataset.revision}.rev", "r") as f:
+        revision = json.load(f)
+
+    expected = {
+        "metadata": {
+            "parent_revision": None,
+            "revision": projects.dataset.revision,
+            "authors": "Anonymous",
+            "title": "Untitled revision",
+            "description": "No description",
+        },
+        "data": [
+            {
+                "type": "project_parameter",
+                "id": "__recalculate_dummy__",
+                "change_type": "project_parameter_recalculate",
+                "delta": {},
+            }
+        ],
+    }
+
+    assert revision == expected
+
+
+@bw2test
+def test_project_parameter_revision_apply_recalculate(num_revisions, monkeypatch):
+    def fake_recalculate(ignored=None, signal=True):
+        assert not signal
+
+    monkeypatch.setattr(ProjectParameter, "recalculate", fake_recalculate)
+
+    projects.set_current("activity-event")
+    assert projects.dataset.revision is None
+
+    revision_id = next(snowflake_id_generator)
+    revision = {
+        "metadata": {
+            "parent_revision": None,
+            "revision": revision_id,
+            "authors": "Anonymous",
+            "title": "Untitled revision",
+            "description": "No description",
+        },
+        "data": [
+            {
+                "type": "project_parameter",
+                "id": "__recalculate_dummy__",
+                "change_type": "project_parameter_recalculate",
+                "delta": {},
+            }
+        ],
+    }
+
+    projects.dataset.apply_revision(revision)
+    assert projects.dataset.revision == revision_id
+
+    assert not num_revisions(projects)
+
+
+@bw2test
+def test_project_parameter_revision_expected_format_update_formula_parameter_name(num_revisions):
+    projects.set_current("activity-event")
+
+    assert projects.dataset.revision is None
+    projects.dataset.set_sourced()
+
+    ProjectParameter.update_formula_parameter_name(old="one2three", new="123")
+
+    assert num_revisions(projects) == 1
+    assert projects.dataset.revision is not None
+    with open(projects.dataset.dir / "revisions" / f"{projects.dataset.revision}.rev", "r") as f:
+        revision = json.load(f)
+
+    expected = {
+        "metadata": {
+            "parent_revision": None,
+            "revision": projects.dataset.revision,
+            "authors": "Anonymous",
+            "title": "Untitled revision",
+            "description": "No description",
+        },
+        "data": [
+            {
+                "type": "project_parameter",
+                "id": "__update_formula_parameter_name_dummy__",
+                "change_type": "project_parameter_update_formula_parameter_name",
+                "delta": {
+                    "dictionary_item_added": {"root['new']": "123"},
+                    "dictionary_item_removed": {"root['old']": "one2three"},
+                },
+            }
+        ],
+    }
+
+    assert revision == expected

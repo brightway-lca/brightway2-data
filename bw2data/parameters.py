@@ -12,6 +12,7 @@ import datetime
 import itertools
 import re
 import uuid
+from typing import Optional
 
 import asteval
 from asteval import Interpreter
@@ -21,9 +22,12 @@ from peewee import BooleanField, Check, DateTimeField, FloatField, IntegerField,
 
 from bw2data import config, databases, get_activity, projects
 from bw2data.backends.schema import ExchangeDataset
+from bw2data.signals import (
+    on_project_parameter_recalculate,
+    on_project_parameter_update_formula_parameter_name,
+)
 from bw2data.snowflake_ids import SnowflakeIDBaseClass
 from bw2data.sqlite import PickleField, SubstitutableDatabase
-from bw2data.signals import on_project_parameter_recalculate
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
 clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)
@@ -169,7 +173,7 @@ class ProjectParameter(ParameterBase):
             return False
 
     @staticmethod
-    def recalculate(ignored=None, signal: bool = True):
+    def recalculate(ignored: Optional[bool] = None, signal: bool = True):
         """Recalculate all parameters.
 
         ``ignored`` included for API compatibility with other ``recalculate`` methods - it will really be ignored.
@@ -189,6 +193,7 @@ class ProjectParameter(ParameterBase):
             ProjectParameter.expire_downstream("project")
 
         if signal:
+            print("Calling signal")
             on_project_parameter_recalculate.send()
 
     @staticmethod
@@ -244,7 +249,7 @@ class ProjectParameter(ParameterBase):
         return True
 
     @classmethod
-    def update_formula_parameter_name(cls, old, new):
+    def update_formula_parameter_name(cls, old: str, new: str, signal: bool = True):
         """Performs an update of the formula of relevant parameters.
 
         NOTE: Make sure to wrap this in an .atomic() statement!
@@ -255,6 +260,8 @@ class ProjectParameter(ParameterBase):
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         Group.get_or_create(name="project")[0].expire()
+
+        on_project_parameter_update_formula_parameter_name.send(old={"old": old}, new={"new": new})
 
     @property
     def dict(self):

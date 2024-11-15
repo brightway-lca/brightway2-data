@@ -614,17 +614,27 @@ def signal_dispatcher(
     return projects.dataset.add_revision((delta,))
 
 
-def signal_dispatcher_on_database(sender, name: str, verb: str) -> int:
+def signal_dispatcher_generic_no_diff(
+    sender, name: str, verb: str, prefix: str, obj_type: str
+) -> int:
     from bw2data import revisions
 
     delta = revisions.Delta(
         # Seems awkward but the whole toolchain assumes a `Delta` object
         delta=deepdiff.Delta(deepdiff.DeepDiff({}, {}, verbose_level=2)),
-        obj_type="lci_database",
+        obj_type=obj_type,
         obj_id=name,
-        change_type=f"database_{verb}",
+        change_type=f"{prefix}_{verb}",
     )
     return projects.dataset.add_revision((delta,))
+
+
+signal_dispatcher_on_database = partial(
+    signal_dispatcher_generic_no_diff, prefix="database", obj_type="lci_database"
+)
+signal_dispatcher_on_project_parameter = partial(
+    signal_dispatcher_generic_no_diff, prefix="project_parameter", obj_type="project_parameter"
+)
 
 
 def signal_dispatcher_on_database_write(sender, name: str) -> int:
@@ -641,6 +651,20 @@ def signal_dispatcher_on_database_write(sender, name: str) -> int:
     return projects.dataset.add_revision(deltas)
 
 
+def signal_dispatcher_on_project_parameter_update_formula_parameter_name(
+    sender, old: str, new: str
+) -> int:
+    from bw2data import revisions
+
+    delta = revisions.Delta(
+        delta=deepdiff.Delta(deepdiff.DeepDiff(old, new, verbose_level=2)),
+        obj_type="project_parameter",
+        obj_id="__update_formula_parameter_name_dummy__",
+        change_type=f"project_parameter_update_formula_parameter_name",
+    )
+    return projects.dataset.add_revision((delta,))
+
+
 # `.connect()` directly just fails silently...
 signal_dispatcher_on_activity_database_change = partial(
     signal_dispatcher, operation="activity_database_change"
@@ -653,6 +677,9 @@ signal_dispatcher_on_database_metadata_change = partial(
 )
 signal_dispatcher_on_database_reset = partial(signal_dispatcher_on_database, verb="reset")
 signal_dispatcher_on_database_delete = partial(signal_dispatcher_on_database, verb="delete")
+signal_dispatcher_on_project_parameter_recalculate = partial(
+    signal_dispatcher_on_project_parameter, verb="recalculate", name="__recalculate_dummy__"
+)
 
 projects = ProjectManager()
 bw2signals.signaleddataset_on_save.connect(signal_dispatcher)
@@ -663,6 +690,12 @@ bw2signals.on_database_metadata_change.connect(signal_dispatcher_on_database_met
 bw2signals.on_database_reset.connect(signal_dispatcher_on_database_reset)
 bw2signals.on_database_delete.connect(signal_dispatcher_on_database_delete)
 bw2signals.on_database_write.connect(signal_dispatcher_on_database_write)
+bw2signals.on_project_parameter_recalculate.connect(
+    signal_dispatcher_on_project_parameter_recalculate
+)
+bw2signals.on_project_parameter_update_formula_parameter_name.connect(
+    signal_dispatcher_on_project_parameter_update_formula_parameter_name
+)
 
 
 @wrapt.decorator
