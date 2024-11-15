@@ -122,6 +122,40 @@ No expected return value.
 """,
 )
 
+on_database_parameter_recalculate = signal(
+    "bw2data.on_database_parameter_recalculate",
+    doc="""Emitted *after* a call to `bw2data.parameters.DatabaseParameter.recalculate()`.
+
+No expected inputs.
+
+No expected return value.
+""",
+)
+
+on_database_parameter_update_formula_project_parameter_name = signal(
+    "bw2data.on_database_parameter_update_formula_project_parameter_name",
+    doc="""Emitted *after* a call to `bw2data.parameters.DatabaseParameter.update_formula_project_parameter_name()`.
+
+Expected inputs:
+    * `old` - dict like {"old": str} with *previous* parameter name
+    * `new` - dict like {"new": str} with *new* parameter name
+
+No expected return value.
+""",
+)
+
+on_database_parameter_update_formula_database_parameter_name = signal(
+    "bw2data.on_database_parameter_update_formula_database_parameter_name",
+    doc="""Emitted *after* a call to `bw2data.parameters.DatabaseParameter.update_formula_database_parameter_name()`.
+
+Expected inputs:
+    * `old` - dict like {"old": str} with *previous* parameter name
+    * `new` - dict like {"new": str} with *new* parameter name
+
+No expected return value.
+""",
+)
+
 project_changed = signal(
     "bw2data.project_changed",
     doc="""

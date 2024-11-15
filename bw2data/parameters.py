@@ -23,6 +23,9 @@ from peewee import BooleanField, Check, DateTimeField, FloatField, IntegerField,
 from bw2data import config, databases, get_activity, projects
 from bw2data.backends.schema import ExchangeDataset
 from bw2data.signals import (
+    on_database_parameter_recalculate,
+    on_database_parameter_update_formula_database_parameter_name,
+    on_database_parameter_update_formula_project_parameter_name,
     on_project_parameter_recalculate,
     on_project_parameter_update_formula_parameter_name,
 )
@@ -193,7 +196,6 @@ class ProjectParameter(ParameterBase):
             ProjectParameter.expire_downstream("project")
 
         if signal:
-            print("Calling signal")
             on_project_parameter_recalculate.send()
 
     @staticmethod
@@ -261,7 +263,10 @@ class ProjectParameter(ParameterBase):
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         Group.get_or_create(name="project")[0].expire()
 
-        on_project_parameter_update_formula_parameter_name.send(old={"old": old}, new={"new": new})
+        if signal:
+            on_project_parameter_update_formula_parameter_name.send(
+                old={"old": old}, new={"new": new}
+            )
 
     @property
     def dict(self):
@@ -345,7 +350,7 @@ class DatabaseParameter(ParameterBase):
         return result
 
     @staticmethod
-    def recalculate(database):
+    def recalculate(database: str, signal: bool = True):
         """Recalculate all database parameters for ``database``, if expired."""
         if ProjectParameter.expired():
             ProjectParameter.recalculate()
@@ -389,6 +394,9 @@ class DatabaseParameter(ParameterBase):
                 ).execute()
             Group.get(name=database).freshen()
             DatabaseParameter.expire_downstream(database)
+
+        if signal:
+            on_database_parameter_recalculate.send(name=database)
 
     @staticmethod
     def dependency_chain(group, include_self=False):
@@ -490,7 +498,7 @@ class DatabaseParameter(ParameterBase):
         return False
 
     @classmethod
-    def update_formula_project_parameter_name(cls, old, new):
+    def update_formula_project_parameter_name(cls, old: str, new: str, signal: bool = True):
         """Performs an update of the formula of relevant parameters.
 
         This method specifically targets project parameters used in database
@@ -519,8 +527,13 @@ class DatabaseParameter(ParameterBase):
         for db in dbs:
             Group.get_or_create(name=db)[0].expire()
 
+        if signal:
+            on_database_parameter_update_formula_project_parameter_name.send(
+                old={"old": old}, new={"new": new}
+            )
+
     @classmethod
-    def update_formula_database_parameter_name(cls, old, new):
+    def update_formula_database_parameter_name(cls, old: str, new: str, signal: bool = True):
         """Performs an update of the formula of relevant parameters.
 
         This method specifically targets database parameters used in database
@@ -539,6 +552,11 @@ class DatabaseParameter(ParameterBase):
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         for db in dbs:
             Group.get_or_create(name=db)[0].expire()
+
+        if signal:
+            on_database_parameter_update_formula_database_parameter_name.send(
+                old={"old": old}, new={"new": new}
+            )
 
     @property
     def dict(self):

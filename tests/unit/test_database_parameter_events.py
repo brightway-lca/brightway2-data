@@ -1,22 +1,27 @@
 import json
 
 from bw2data.database import DatabaseChooser
-from bw2data.parameters import ProjectParameter
+from bw2data.parameters import DatabaseParameter
 from bw2data.project import projects
 from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.tests import bw2test
 
 
 @bw2test
-def test_project_parameter_revision_expected_format_create(num_revisions):
+def test_database_parameter_revision_expected_format_create(num_revisions):
     projects.set_current("activity-event")
 
-    assert not ProjectParameter.select().count()
+    assert not DatabaseParameter.select().count()
     assert projects.dataset.revision is None
+
+    DatabaseChooser("test-example").register()
+
     projects.dataset.set_sourced()
 
-    pp = ProjectParameter.create(name="example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"})
-    assert pp.id > 1e6
+    dp = DatabaseParameter.create(
+        database="test-example", name="example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"}
+    )
+    assert dp.id > 1e6
     assert num_revisions(projects) == 1
 
     assert projects.dataset.revision is not None
@@ -33,8 +38,8 @@ def test_project_parameter_revision_expected_format_create(num_revisions):
         },
         "data": [
             {
-                "type": "project_parameter",
-                "id": pp.id,
+                "type": "database_parameter",
+                "id": dp.id,
                 "change_type": "create",
                 "delta": {
                     "type_changes": {
@@ -42,7 +47,8 @@ def test_project_parameter_revision_expected_format_create(num_revisions):
                             "old_type": "NoneType",
                             "new_type": "dict",
                             "new_value": {
-                                "id": pp.id,
+                                "id": dp.id,
+                                "database": "test-example",
                                 "name": "example",
                                 "formula": "1 * 2 + 3",
                                 "amount": 5,
@@ -59,13 +65,13 @@ def test_project_parameter_revision_expected_format_create(num_revisions):
 
 
 @bw2test
-def test_project_parameter_revision_apply_create(num_revisions):
+def test_database_parameter_revision_apply_create(num_revisions):
     projects.set_current("activity-event")
-    projects.dataset.set_sourced()
+    DatabaseChooser("test-example").register()
     assert projects.dataset.revision is None
 
     revision_id = next(snowflake_id_generator)
-    pp_id = next(snowflake_id_generator)
+    dp_id = next(snowflake_id_generator)
     revision = {
         "metadata": {
             "parent_revision": None,
@@ -76,8 +82,8 @@ def test_project_parameter_revision_apply_create(num_revisions):
         },
         "data": [
             {
-                "type": "project_parameter",
-                "id": pp_id,
+                "type": "database_parameter",
+                "id": dp_id,
                 "change_type": "create",
                 "delta": {
                     "type_changes": {
@@ -85,7 +91,8 @@ def test_project_parameter_revision_apply_create(num_revisions):
                             "old_type": "NoneType",
                             "new_type": "dict",
                             "new_value": {
-                                "id": pp_id,
+                                "id": dp_id,
+                                "database": "test-example",
                                 "name": "example",
                                 "formula": "1 * 2 + 3",
                                 "amount": 5,
@@ -103,26 +110,30 @@ def test_project_parameter_revision_apply_create(num_revisions):
 
     assert not num_revisions(projects)
 
-    assert ProjectParameter.select().count() == 1
-    pp = ProjectParameter.get(id=pp_id)
-    assert pp.data == {"foo": "bar"}
-    assert pp.amount == 5
-    assert pp.formula == "1 * 2 + 3"
-    assert pp.name == "example"
+    assert DatabaseParameter.select().count() == 1
+    dp = DatabaseParameter.get(id=dp_id)
+    assert dp.data == {"foo": "bar"}
+    assert dp.database == "test-example"
+    assert dp.amount == 5
+    assert dp.formula == "1 * 2 + 3"
+    assert dp.name == "example"
 
 
 @bw2test
-def test_project_parameter_revision_expected_format_update(num_revisions):
+def test_database_parameter_revision_expected_format_update(num_revisions):
     projects.set_current("activity-event")
 
-    pp = ProjectParameter.create(name="example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"})
+    DatabaseChooser("test-example").register()
+    dp = DatabaseParameter.create(
+        name="example", database="test-example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"}
+    )
 
     assert projects.dataset.revision is None
     projects.dataset.set_sourced()
 
-    pp.name = "another"
-    pp.amount = 7
-    pp.save()
+    dp.name = "another"
+    dp.amount = 7
+    dp.save()
 
     assert num_revisions(projects) == 1
 
@@ -140,8 +151,8 @@ def test_project_parameter_revision_expected_format_update(num_revisions):
         },
         "data": [
             {
-                "type": "project_parameter",
-                "id": pp.id,
+                "type": "database_parameter",
+                "id": dp.id,
                 "change_type": "update",
                 "delta": {
                     "type_changes": {
@@ -157,11 +168,14 @@ def test_project_parameter_revision_expected_format_update(num_revisions):
 
 
 @bw2test
-def test_project_parameter_revision_apply_update(num_revisions):
+def test_database_parameter_revision_apply_update(num_revisions):
     projects.set_current("activity-event")
-    pp = ProjectParameter.create(name="example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"})
 
-    projects.dataset.set_sourced()
+    DatabaseChooser("test-example").register()
+    dp = DatabaseParameter.create(
+        name="example", database="test-example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"}
+    )
+
     assert projects.dataset.revision is None
 
     revision_id = next(snowflake_id_generator)
@@ -175,8 +189,8 @@ def test_project_parameter_revision_apply_update(num_revisions):
         },
         "data": [
             {
-                "type": "project_parameter",
-                "id": pp.id,
+                "type": "database_parameter",
+                "id": dp.id,
                 "change_type": "update",
                 "delta": {
                     "type_changes": {
@@ -193,24 +207,27 @@ def test_project_parameter_revision_apply_update(num_revisions):
 
     assert not num_revisions(projects)
 
-    assert ProjectParameter.select().count() == 1
-    pp = ProjectParameter.get(id=pp.id)
-    assert pp.data == {"foo": "bar"}
-    assert pp.amount == 7
-    assert pp.formula == "1 * 2 + 3"
-    assert pp.name == "another"
+    assert DatabaseParameter.select().count() == 1
+    dp = DatabaseParameter.get(id=dp.id)
+    assert dp.data == {"foo": "bar"}
+    assert dp.amount == 7
+    assert dp.formula == "1 * 2 + 3"
+    assert dp.name == "another"
 
 
 @bw2test
-def test_project_parameter_revision_expected_format_delete(num_revisions):
+def test_database_parameter_revision_expected_format_delete(num_revisions):
     projects.set_current("activity-event")
 
-    pp = ProjectParameter.create(name="example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"})
+    DatabaseChooser("test-example").register()
+    dp = DatabaseParameter.create(
+        name="example", database="test-example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"}
+    )
 
     assert projects.dataset.revision is None
     projects.dataset.set_sourced()
 
-    pp.delete_instance()
+    dp.delete_instance()
 
     assert num_revisions(projects) == 1
 
@@ -228,8 +245,8 @@ def test_project_parameter_revision_expected_format_delete(num_revisions):
         },
         "data": [
             {
-                "type": "project_parameter",
-                "id": pp.id,
+                "type": "database_parameter",
+                "id": dp.id,
                 "change_type": "delete",
                 "delta": {
                     "type_changes": {
@@ -244,10 +261,14 @@ def test_project_parameter_revision_expected_format_delete(num_revisions):
 
 
 @bw2test
-def test_project_parameter_revision_apply_delete(num_revisions):
+def test_database_parameter_revision_apply_delete(num_revisions):
     projects.set_current("activity-event")
-    pp = ProjectParameter.create(name="example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"})
-    assert ProjectParameter.select().count() == 1
+
+    DatabaseChooser("test-example").register()
+    dp = DatabaseParameter.create(
+        name="example", database="test-example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"}
+    )
+    assert DatabaseParameter.select().count() == 1
     assert projects.dataset.revision is None
 
     revision_id = next(snowflake_id_generator)
@@ -261,8 +282,8 @@ def test_project_parameter_revision_apply_delete(num_revisions):
         },
         "data": [
             {
-                "type": "project_parameter",
-                "id": pp.id,
+                "type": "database_parameter",
+                "id": dp.id,
                 "change_type": "delete",
                 "delta": {
                     "type_changes": {
@@ -277,21 +298,24 @@ def test_project_parameter_revision_apply_delete(num_revisions):
     assert projects.dataset.revision == revision_id
 
     assert not num_revisions(projects)
-    assert not ProjectParameter.select().count()
+    assert not DatabaseParameter.select().count()
 
 
 @bw2test
-def test_project_parameter_revision_expected_format_recalculate(num_revisions):
+def test_database_parameter_revision_expected_format_recalculate(num_revisions):
     projects.set_current("activity-event")
 
     # Needed to have a parameter which could be obsolete - otherwise `recalculate` just
     # no-op exits
-    ProjectParameter.create(name="example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"})
+    DatabaseChooser("test-example").register()
+    DatabaseParameter.create(
+        name="example", database="test-example", formula="1 * 2 + 3", amount=5, data={"foo": "bar"}
+    )
 
     assert projects.dataset.revision is None
     projects.dataset.set_sourced()
 
-    ProjectParameter.recalculate()
+    DatabaseParameter.recalculate("test-example")
 
     assert num_revisions(projects) == 1
     assert projects.dataset.revision is not None
@@ -308,9 +332,9 @@ def test_project_parameter_revision_expected_format_recalculate(num_revisions):
         },
         "data": [
             {
-                "type": "project_parameter",
-                "id": "__recalculate_dummy__",
-                "change_type": "project_parameter_recalculate",
+                "type": "database_parameter",
+                "id": "test-example",
+                "change_type": "database_parameter_recalculate",
                 "delta": {},
             }
         ],
@@ -320,11 +344,12 @@ def test_project_parameter_revision_expected_format_recalculate(num_revisions):
 
 
 @bw2test
-def test_project_parameter_revision_apply_recalculate(num_revisions, monkeypatch):
-    def fake_recalculate(ignored=None, signal=True):
+def test_database_parameter_revision_apply_recalculate(num_revisions, monkeypatch):
+    def fake_recalculate(database, signal=True):
+        assert database == "test-example"
         assert not signal
 
-    monkeypatch.setattr(ProjectParameter, "recalculate", fake_recalculate)
+    monkeypatch.setattr(DatabaseParameter, "recalculate", fake_recalculate)
 
     projects.set_current("activity-event")
     assert projects.dataset.revision is None
@@ -340,9 +365,9 @@ def test_project_parameter_revision_apply_recalculate(num_revisions, monkeypatch
         },
         "data": [
             {
-                "type": "project_parameter",
-                "id": "__recalculate_dummy__",
-                "change_type": "project_parameter_recalculate",
+                "type": "database_parameter",
+                "id": "test-example",
+                "change_type": "database_parameter_recalculate",
                 "delta": {},
             }
         ],
@@ -355,13 +380,23 @@ def test_project_parameter_revision_apply_recalculate(num_revisions, monkeypatch
 
 
 @bw2test
-def test_project_parameter_revision_expected_format_update_formula_parameter_name(num_revisions):
+def test_database_parameter_revision_expected_format_update_formula_project_parameter_name(
+    num_revisions,
+):
     projects.set_current("activity-event")
+    DatabaseChooser("test-example").register()
 
     assert projects.dataset.revision is None
     projects.dataset.set_sourced()
 
-    ProjectParameter.update_formula_parameter_name(old="one2three", new="123")
+    DatabaseParameter.update_formula_project_parameter_name(old="one2three", new="123")
+
+    # from pprint import pprint
+    # pprint([
+    #     json.load(open(fp))
+    #     for fp in (projects.dataset.dir / "revisions").iterdir()
+    #     if fp.stem.lower() != "head" and fp.is_file()
+    # ])
 
     assert num_revisions(projects) == 1
     assert projects.dataset.revision is not None
@@ -378,9 +413,9 @@ def test_project_parameter_revision_expected_format_update_formula_parameter_nam
         },
         "data": [
             {
-                "type": "project_parameter",
+                "type": "database_parameter",
                 "id": "__update_formula_parameter_name_dummy__",
-                "change_type": "project_parameter_update_formula_parameter_name",
+                "change_type": "database_parameter_update_formula_project_parameter_name",
                 "delta": {
                     "dictionary_item_added": {"root['new']": "123"},
                     "dictionary_item_removed": {"root['old']": "one2three"},
@@ -390,3 +425,128 @@ def test_project_parameter_revision_expected_format_update_formula_parameter_nam
     }
 
     assert revision == expected
+
+
+@bw2test
+def test_database_parameter_revision_apply_update_formula_project_parameter_name(
+    num_revisions, monkeypatch
+):
+    def fake_update(old, new, signal=True):
+        assert old == "one2three"
+        assert new == "123"
+        assert not signal
+
+    monkeypatch.setattr(DatabaseParameter, "update_formula_project_parameter_name", fake_update)
+
+    projects.set_current("activity-event")
+    assert projects.dataset.revision is None
+
+    revision_id = next(snowflake_id_generator)
+    revision = {
+        "metadata": {
+            "parent_revision": None,
+            "revision": revision_id,
+            "authors": "Anonymous",
+            "title": "Untitled revision",
+            "description": "No description",
+        },
+        "data": [
+            {
+                "type": "database_parameter",
+                "id": "__update_formula_parameter_name_dummy__",
+                "change_type": "database_parameter_update_formula_project_parameter_name",
+                "delta": {
+                    "dictionary_item_added": {"root['new']": "123"},
+                    "dictionary_item_removed": {"root['old']": "one2three"},
+                },
+            }
+        ],
+    }
+
+    projects.dataset.apply_revision(revision)
+    assert projects.dataset.revision == revision_id
+
+    assert not num_revisions(projects)
+
+
+@bw2test
+def test_database_parameter_revision_expected_format_update_formula_database_parameter_name(
+    num_revisions,
+):
+    projects.set_current("activity-event")
+    DatabaseChooser("test-example").register()
+
+    assert projects.dataset.revision is None
+    projects.dataset.set_sourced()
+
+    DatabaseParameter.update_formula_database_parameter_name(old="one2three", new="123")
+
+    assert num_revisions(projects) == 1
+    assert projects.dataset.revision is not None
+    with open(projects.dataset.dir / "revisions" / f"{projects.dataset.revision}.rev", "r") as f:
+        revision = json.load(f)
+
+    expected = {
+        "metadata": {
+            "parent_revision": None,
+            "revision": projects.dataset.revision,
+            "authors": "Anonymous",
+            "title": "Untitled revision",
+            "description": "No description",
+        },
+        "data": [
+            {
+                "type": "database_parameter",
+                "id": "__update_formula_parameter_name_dummy__",
+                "change_type": "database_parameter_update_formula_database_parameter_name",
+                "delta": {
+                    "dictionary_item_added": {"root['new']": "123"},
+                    "dictionary_item_removed": {"root['old']": "one2three"},
+                },
+            }
+        ],
+    }
+
+    assert revision == expected
+
+
+@bw2test
+def test_database_parameter_revision_apply_update_formula_database_parameter_name(
+    num_revisions, monkeypatch
+):
+    def fake_update(old, new, signal=True):
+        assert old == "one2three"
+        assert new == "123"
+        assert not signal
+
+    monkeypatch.setattr(DatabaseParameter, "update_formula_database_parameter_name", fake_update)
+
+    projects.set_current("activity-event")
+    assert projects.dataset.revision is None
+
+    revision_id = next(snowflake_id_generator)
+    revision = {
+        "metadata": {
+            "parent_revision": None,
+            "revision": revision_id,
+            "authors": "Anonymous",
+            "title": "Untitled revision",
+            "description": "No description",
+        },
+        "data": [
+            {
+                "type": "database_parameter",
+                "id": "__update_formula_parameter_name_dummy__",
+                "change_type": "database_parameter_update_formula_database_parameter_name",
+                "delta": {
+                    "dictionary_item_added": {"root['new']": "123"},
+                    "dictionary_item_removed": {"root['old']": "one2three"},
+                },
+            }
+        ],
+    }
+
+    projects.dataset.apply_revision(revision)
+    assert projects.dataset.revision == revision_id
+
+    assert not num_revisions(projects)
