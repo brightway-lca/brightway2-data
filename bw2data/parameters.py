@@ -12,6 +12,7 @@ import datetime
 import itertools
 import re
 import uuid
+from typing import Optional
 
 import asteval
 from asteval import Interpreter
@@ -21,6 +22,19 @@ from peewee import BooleanField, Check, DateTimeField, FloatField, IntegerField,
 
 from bw2data import config, databases, get_activity, projects
 from bw2data.backends.schema import ExchangeDataset
+from bw2data.signals import (
+    on_activity_parameter_recalculate,
+    on_activity_parameter_recalculate_exchanges,
+    on_activity_parameter_update_formula_activity_parameter_name,
+    on_activity_parameter_update_formula_database_parameter_name,
+    on_activity_parameter_update_formula_project_parameter_name,
+    on_database_parameter_recalculate,
+    on_database_parameter_update_formula_database_parameter_name,
+    on_database_parameter_update_formula_project_parameter_name,
+    on_project_parameter_recalculate,
+    on_project_parameter_update_formula_parameter_name,
+)
+from bw2data.snowflake_ids import SnowflakeIDBaseClass
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
@@ -77,7 +91,7 @@ PE_INSERT_TRIGGER = _PE_GROUP_TEMPLATE.format(action="INSERT")
 PE_UPDATE_TRIGGER = _PE_GROUP_TEMPLATE.format(action="UPDATE")
 
 
-class ParameterBase(Model):
+class ParameterBase(SnowflakeIDBaseClass):
     __repr__ = lambda x: str(x)
 
     def __lt__(self, other):
@@ -167,7 +181,7 @@ class ProjectParameter(ParameterBase):
             return False
 
     @staticmethod
-    def recalculate(ignored=None):
+    def recalculate(ignored: Optional[bool] = None, signal: bool = True):
         """Recalculate all parameters.
 
         ``ignored`` included for API compatibility with other ``recalculate`` methods - it will really be ignored.
@@ -185,6 +199,9 @@ class ProjectParameter(ParameterBase):
                 ).where(ProjectParameter.name == key).execute()
             Group.get_or_create(name="project")[0].freshen()
             ProjectParameter.expire_downstream("project")
+
+        if signal:
+            on_project_parameter_recalculate.send()
 
     @staticmethod
     def dependency_chain():
@@ -239,7 +256,7 @@ class ProjectParameter(ParameterBase):
         return True
 
     @classmethod
-    def update_formula_parameter_name(cls, old, new):
+    def update_formula_parameter_name(cls, old: str, new: str, signal: bool = True):
         """Performs an update of the formula of relevant parameters.
 
         NOTE: Make sure to wrap this in an .atomic() statement!
@@ -250,6 +267,11 @@ class ProjectParameter(ParameterBase):
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         Group.get_or_create(name="project")[0].expire()
+
+        if signal:
+            on_project_parameter_update_formula_parameter_name.send(
+                old={"old": old}, new={"new": new}
+            )
 
     @property
     def dict(self):
@@ -333,7 +355,7 @@ class DatabaseParameter(ParameterBase):
         return result
 
     @staticmethod
-    def recalculate(database):
+    def recalculate(database: str, signal: bool = True):
         """Recalculate all database parameters for ``database``, if expired."""
         if ProjectParameter.expired():
             ProjectParameter.recalculate()
@@ -377,6 +399,9 @@ class DatabaseParameter(ParameterBase):
                 ).execute()
             Group.get(name=database).freshen()
             DatabaseParameter.expire_downstream(database)
+
+        if signal:
+            on_database_parameter_recalculate.send(name=database)
 
     @staticmethod
     def dependency_chain(group, include_self=False):
@@ -478,7 +503,7 @@ class DatabaseParameter(ParameterBase):
         return False
 
     @classmethod
-    def update_formula_project_parameter_name(cls, old, new):
+    def update_formula_project_parameter_name(cls, old: str, new: str, signal: bool = True):
         """Performs an update of the formula of relevant parameters.
 
         This method specifically targets project parameters used in database
@@ -507,8 +532,13 @@ class DatabaseParameter(ParameterBase):
         for db in dbs:
             Group.get_or_create(name=db)[0].expire()
 
+        if signal:
+            on_database_parameter_update_formula_project_parameter_name.send(
+                old={"old": old}, new={"new": new}
+            )
+
     @classmethod
-    def update_formula_database_parameter_name(cls, old, new):
+    def update_formula_database_parameter_name(cls, old: str, new: str, signal: bool = True):
         """Performs an update of the formula of relevant parameters.
 
         This method specifically targets database parameters used in database
@@ -527,6 +557,11 @@ class DatabaseParameter(ParameterBase):
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         for db in dbs:
             Group.get_or_create(name=db)[0].expire()
+
+        if signal:
+            on_database_parameter_update_formula_database_parameter_name.send(
+                old={"old": old}, new={"new": new}
+            )
 
     @property
     def dict(self):
@@ -643,7 +678,7 @@ class ActivityParameter(ParameterBase):
         return result
 
     @staticmethod
-    def insert_dummy(group, activity):
+    def insert_dummy(group: str, activity: tuple, signal: bool = True):
         code, database = activity[1], activity[0]
         if (
             not ActivityParameter.select()
@@ -654,13 +689,13 @@ class ActivityParameter(ParameterBase):
             )
             .count()
         ):
-            ActivityParameter.create(
+            ActivityParameter(
                 group=group,
                 name="__dummy_{}__".format(uuid.uuid4().hex),
                 code=code,
                 database=database,
                 amount=0,
-            )
+            ).save(signal=signal)
 
     @staticmethod
     def expired(group):
@@ -767,7 +802,7 @@ class ActivityParameter(ParameterBase):
         return True if name in names else False
 
     @staticmethod
-    def recalculate(group):
+    def recalculate(group: str, signal: bool = True):
         """Recalculate all values for activity parameters in this group, and update their underlying `Activity` and `Exchange` values."""
         # Start by traversing and updating the list of dependencies
         if not ActivityParameter.expired(group):
@@ -817,10 +852,13 @@ class ActivityParameter(ParameterBase):
             Group.get(name=group).freshen()
             ActivityParameter.expire_downstream(group)
 
-        ActivityParameter.recalculate_exchanges(group)
+        ActivityParameter.recalculate_exchanges(group, signal=False)
+
+        if signal:
+            on_activity_parameter_recalculate.send(name=group)
 
     @staticmethod
-    def recalculate_exchanges(group):
+    def recalculate_exchanges(group: str, signal: bool = True):
         """Recalculate formulas for all parameterized exchanges in group ``group``."""
         if ActivityParameter.expired(group):
             return ActivityParameter.recalculate(group)
@@ -832,14 +870,17 @@ class ActivityParameter(ParameterBase):
         for obj in ParameterizedExchange.select().where(ParameterizedExchange.group == group):
             exc = ExchangeDataset.get(id=obj.exchange)
             exc.data["amount"] = interpreter(obj.formula)
-            exc.save()
+            exc.save(signal=False)
 
         databases.set_dirty(ActivityParameter.get(group=group).database)
+
+        if signal:
+            on_activity_parameter_recalculate_exchanges.send(name=group)
 
     def save(self, *args, **kwargs):
         """Save this model instance"""
         Group.get_or_create(name=self.group)[0].expire()
-        super(ActivityParameter, self).save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
     def is_deletable(self):
         """Perform a test to see if the current parameter can be deleted."""
@@ -871,7 +912,7 @@ class ActivityParameter(ParameterBase):
         return False
 
     @classmethod
-    def update_formula_project_parameter_name(cls, old, new):
+    def update_formula_project_parameter_name(cls, old: str, new: str, signal: bool = True):
         """Performs an update of the formula of relevant parameters.
 
         This method specifically targets project parameters used in activity
@@ -910,11 +951,16 @@ class ActivityParameter(ParameterBase):
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         for param_exc in exchanges:
-            param_exc.save()
+            param_exc.save(signal=False)
         Group.update(fresh=False).where(Group.name << groups).execute()
 
+        if signal:
+            on_activity_parameter_update_formula_project_parameter_name.send(
+                old={"old": old}, new={"new": new}
+            )
+
     @classmethod
-    def update_formula_database_parameter_name(cls, old, new):
+    def update_formula_database_parameter_name(cls, old: str, new: str, signal: bool = True):
         """Performs an update of the formula of relevant parameters.
 
         This method specifically targets database parameters used in activity
@@ -953,11 +999,18 @@ class ActivityParameter(ParameterBase):
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         for param_exc in exchanges:
-            param_exc.save()
+            param_exc.save(signal=False)
         Group.update(fresh=False).where(Group.name << groups).execute()
 
+        if signal:
+            on_activity_parameter_update_formula_database_parameter_name.send(
+                old={"old": old}, new={"new": new}
+            )
+
     @classmethod
-    def update_formula_activity_parameter_name(cls, old, new, include_order=False):
+    def update_formula_activity_parameter_name(
+        cls, old: str, new: str, include_order: bool = False, signal: bool = True
+    ):
         """Performs an update of the formula of relevant parameters.
 
         This method specifically targets activity parameters used in activity
@@ -987,8 +1040,13 @@ class ActivityParameter(ParameterBase):
         )
         cls.bulk_update(data, fields=[cls.formula], batch_size=50)
         for param_exc in exchanges:
-            param_exc.save()
+            param_exc.save(signal=False)
         Group.update(fresh=False).where(Group.name << groups).execute()
+
+        if signal:
+            on_activity_parameter_update_formula_activity_parameter_name.send(
+                old={"old": old}, new={"new": new, "include_order": include_order}
+            )
 
     @classmethod
     def create_table(cls):
@@ -1014,7 +1072,7 @@ class ActivityParameter(ParameterBase):
         return obj
 
 
-class ParameterizedExchange(Model):
+class ParameterizedExchange(SnowflakeIDBaseClass):
     group = TextField()
     exchange = IntegerField(unique=True)
     formula = TextField()
@@ -1027,12 +1085,12 @@ class ParameterizedExchange(Model):
 
     def save(self, *args, **kwargs):
         Group.get_or_create(name=self.group)[0].expire()
-        super(ParameterizedExchange, self).save(*args, **kwargs)
+        super().save(*args, **kwargs)
         # Push the changed formula to the Exchange.
         exc = ExchangeDataset.get_or_none(id=self.exchange)
         if exc and exc.data.get("formula") != self.formula:
             exc.data["formula"] = self.formula
-            exc.save()
+            exc.save(signal=False)
 
     @staticmethod
     def load(group):

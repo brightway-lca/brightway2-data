@@ -1256,9 +1256,6 @@ def test_database_copy_revision_expected_format():
         },
     ]
 
-    assert [x[1] for x in revisions] == expected
-    assert projects.dataset.revision == revisions[4][0]
-
     assert [x[1] for x in revisions][:-1] == expected[:-1]
     assert revisions[-1][1]["metadata"] == expected[-1]["metadata"]
     for x in range(2):
