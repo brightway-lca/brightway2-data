@@ -29,9 +29,9 @@ def test_iter_graph():
 @bw2test
 def test_load_revisions():
     projects.set_current("test_load_revisions")
-    projects.dataset.set_sourced()
     database = DatabaseChooser("db")
     database.register()
+    projects.dataset.set_sourced()
     d = projects.dataset.dir
     head = 2
     for r, p in ((0, None), (1, 0), (head, 1)):
@@ -52,9 +52,9 @@ def test_load_revisions():
 @bw2test
 def test_load_revisions_partial():
     projects.set_current("test_load_revisions_partial")
-    projects.dataset.set_sourced()
     database = DatabaseChooser("db")
     database.register()
+    projects.dataset.set_sourced()
     d = projects.dataset.dir
     head0, head1 = 1, 2
     for r, p in ((0, None), (head0, 0), (head1, head0)):

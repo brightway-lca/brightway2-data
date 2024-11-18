@@ -7,8 +7,9 @@ from collections.abc import Iterable
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
 
+import deepdiff
 import wrapt
 from bw_processing import safe_filename
 from peewee import SQL, BooleanField, DoesNotExist, IntegerField, Model, SqliteDatabase, TextField
@@ -143,7 +144,9 @@ class ProjectDataset(Model):
         self.revision = meta["revision"]
         self.save()
 
-    def _check_local_versus_remote_revision(self, local: Optional[str], remote: Optional[str]) -> None:
+    def _check_local_versus_remote_revision(
+        self, local: Optional[str], remote: Optional[str]
+    ) -> None:
         # Patch parent can be a revision ID or `None`
         # Local state can be a revision ID or `None`
         # There are five possible cases:
@@ -601,12 +604,41 @@ class ProjectManager(Iterable):
 
 def signal_dispatcher(
     sender, old: Optional[Any] = None, new: Optional[Any] = None, operation: Optional[str] = None
-) -> int:
+) -> Union[int, None]:
     """Not sure why this is necessary, but fails silently if call `add_revision` directly"""
     from bw2data import revisions
 
     delta = revisions.generate_delta(old, new, operation)
+    if not delta:
+        return None
     return projects.dataset.add_revision((delta,))
+
+
+def signal_dispatcher_on_database(sender, name: str, verb: str) -> int:
+    from bw2data import revisions
+
+    delta = revisions.Delta(
+        # Seems awkward but the whole toolchain assumes a `Delta` object
+        delta=deepdiff.Delta(deepdiff.DeepDiff({}, {}, verbose_level=2)),
+        obj_type="lci_database",
+        obj_id=name,
+        change_type=f"database_{verb}",
+    )
+    return projects.dataset.add_revision((delta,))
+
+
+def signal_dispatcher_on_database_write(sender, name: str) -> int:
+    from bw2data import revisions
+    from bw2data.backends.schema import ActivityDataset, ExchangeDataset
+
+    deltas = [
+        revisions.Delta.generate(old=None, new=ds)
+        for ds in ActivityDataset.select().where(ActivityDataset.database == name)
+    ] + [
+        revisions.Delta.generate(old=None, new=exc)
+        for exc in ExchangeDataset.select().where(ExchangeDataset.output_database == name)
+    ]
+    return projects.dataset.add_revision(deltas)
 
 
 # `.connect()` directly just fails silently...
@@ -616,12 +648,21 @@ signal_dispatcher_on_activity_database_change = partial(
 signal_dispatcher_on_activity_code_change = partial(
     signal_dispatcher, operation="activity_code_change"
 )
+signal_dispatcher_on_database_metadata_change = partial(
+    signal_dispatcher, operation="database_metadata_change"
+)
+signal_dispatcher_on_database_reset = partial(signal_dispatcher_on_database, verb="reset")
+signal_dispatcher_on_database_delete = partial(signal_dispatcher_on_database, verb="delete")
 
 projects = ProjectManager()
 bw2signals.signaleddataset_on_save.connect(signal_dispatcher)
 bw2signals.signaleddataset_on_delete.connect(signal_dispatcher)
 bw2signals.on_activity_database_change.connect(signal_dispatcher_on_activity_database_change)
 bw2signals.on_activity_code_change.connect(signal_dispatcher_on_activity_code_change)
+bw2signals.on_database_metadata_change.connect(signal_dispatcher_on_database_metadata_change)
+bw2signals.on_database_reset.connect(signal_dispatcher_on_database_reset)
+bw2signals.on_database_delete.connect(signal_dispatcher_on_database_delete)
+bw2signals.on_database_write.connect(signal_dispatcher_on_database_write)
 
 
 @wrapt.decorator

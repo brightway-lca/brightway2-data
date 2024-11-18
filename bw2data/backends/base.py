@@ -44,6 +44,7 @@ from bw2data.errors import (
 from bw2data.logs import stdout_feedback_logger
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
+from bw2data.signals import on_database_reset, on_database_write
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
 _VALID_KEYS = {"location", "name", "product", "type"}
@@ -307,7 +308,7 @@ class SQLiteBackend(ProcessedDataStore):
         kwargs["backend"] = self.backend
         super().register(**kwargs)
         if write_empty:
-            self.write({}, searchable=False)
+            self.write({}, searchable=False, signal=False)
 
     def relabel_data(self, data: dict, old_name: str, new_name: str) -> dict:
         """Relabel database keys and exchanges.
@@ -589,6 +590,7 @@ class SQLiteBackend(ProcessedDataStore):
         process: bool = True,
         searchable: bool = True,
         check_typos: bool = True,
+        signal: Optional[bool] = None,
     ):
         """Write ``data`` to database.
 
@@ -599,6 +601,10 @@ class SQLiteBackend(ProcessedDataStore):
             }
 
         Writing a database will first deletes all existing data."""
+        from bw2data import projects
+
+        if signal is None:
+            signal = projects.dataset.is_sourced
 
         def merger(d1: dict, d2: dict) -> dict:
             """The joys of 3.9 compatibility"""
@@ -642,14 +648,17 @@ class SQLiteBackend(ProcessedDataStore):
                 self._efficient_write_many_data(data, check_typos=check_typos)
             except:
                 # Purge all data from database, then reraise
-                self.delete(warn=False)
+                self.delete(warn=False, signal=signal)
                 raise
 
         if searchable:
-            self.make_searchable(reset=True)
+            self.make_searchable(reset=True, signal=False)
 
         if process:
             self.process()
+
+        if signal:
+            on_database_write.send(name=self.name)
 
     def load(self, *args, **kwargs):
         # Should not be used, in general; relatively slow
@@ -722,23 +731,25 @@ Here are the type values usually used for nodes:
         obj.update(kwargs)
         return obj
 
-    def make_searchable(self, reset=False):
+    def make_searchable(self, reset: bool = False, signal: bool = True):
         if self.name not in databases:
             raise UnknownObject("This database is not yet registered")
         if self._searchable and not reset:
             stdout_feedback_logger.info("This database is already searchable")
             return
         databases[self.name]["searchable"] = True
-        databases.flush()
+        databases.flush(signal=signal)
         IndexManager(self.filename).create()
         IndexManager(self.filename).add_datasets(self)
 
-    def make_unsearchable(self):
+    def make_unsearchable(self, signal: bool = True):
         databases[self.name]["searchable"] = False
-        databases.flush()
+        databases.flush(signal=signal)
         IndexManager(self.filename).delete_database()
 
-    def delete(self, keep_params=False, warn=True, vacuum=True):
+    def delete(
+        self, keep_params: bool = False, warn: bool = True, vacuum: bool = True, signal: bool = True
+    ):
         """Delete all data from SQLite database and search index"""
         if warn:
             MESSAGE = """
@@ -797,6 +808,9 @@ Here are the type values usually used for nodes:
 
         if vacuum_needed:
             sqlite3_lci_db.vacuum()
+
+        if signal:
+            on_database_reset.send(name=self.name)
 
     def exchange_data_iterator(self, qs_func, dependents, flip=False):
         """Iterate over exchanges and format for ``bw_processing`` arrays.

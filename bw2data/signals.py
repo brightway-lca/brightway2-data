@@ -12,8 +12,8 @@ signaleddataset_on_save = signal(
     doc="""Emitted *after* SignaledDataset is saved.
 
 Expected inputs:
-    * `old` - the previous version of the dataset
-    * `new` - the new version of the dataset
+    * `old`: dict - the previous version of the dataset
+    * `new`: dict - the new version of the dataset
 
 No expected return value.
 """,
@@ -24,7 +24,7 @@ signaleddataset_on_delete = signal(
     doc="""Emitted *before* a SignaledDataset is deleted.
 
 Expected inputs:
-    * `old` - the deleted version of the dataset
+    * `old`: dict - the deleted version of the dataset
 
 No expected return value.
 """,
@@ -35,8 +35,8 @@ on_activity_database_change = signal(
     doc="""Emitted *after* a sourced `Activity` has its `database` attribute changed.
 
 Expected inputs:
-    * `old` - dict like `{'id': int, 'database': str}` with the *previous* database name
-    * `new` - dict like `{'id': int, 'database': str}` with the *new* database name
+    * `old`: dict - dict like `{'id': int, 'database': str}` with the *previous* database name
+    * `new`: dict - dict like `{'id': int, 'database': str}` with the *new* database name
 
 No expected return value.
 """,
@@ -47,8 +47,54 @@ on_activity_code_change = signal(
     doc="""Emitted *after* a sourced `Activity` has its `code` attribute changed.
 
 Expected inputs:
-    * `old` - dict like `{'id': int, 'code': str}` with the *previous* code
-    * `new` - dict like `{'id': int, 'code': str}` with the *new* code
+    * `old`: dict - dict like `{'id': int, 'code': str}` with the *previous* code
+    * `new`: dict - dict like `{'id': int, 'code': str}` with the *new* code
+
+No expected return value.
+""",
+)
+
+on_database_metadata_change = signal(
+    "bw2data.on_database_metadata_change",
+    doc="""Emitted *after* any element of `databases.json` has changed.
+
+Expected inputs:
+    * `old`: dict - previous `databases.json` metadata dict
+    * `new`: dict - current `databases.json` metadata dict
+
+No expected return value.
+""",
+)
+
+on_database_delete = signal(
+    "bw2data.on_database_delete",
+    doc="""Emitted *after* a database is deleted from SQLite and `bw2data.databases`.
+
+Expected inputs:
+    * `name`: str - database name
+
+No expected return value.
+""",
+)
+
+on_database_reset = signal(
+    "bw2data.on_database_reset",
+    doc="""Emitted *after* a `Database` has all its data deleted from SQLite and search indices, but
+not from `bw2data.databases`.
+
+Expected inputs:
+    * `name`: str - database name
+
+No expected return value.
+""",
+)
+
+on_database_write = signal(
+    "bw2data.on_database_write",
+    doc="""Emitted *after* a `Database` has new data written (replacing all previous data).
+
+Expected inputs:
+    * `name`: str - database name
 
 No expected return value.
 """,

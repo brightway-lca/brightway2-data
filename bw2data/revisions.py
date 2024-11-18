@@ -1,12 +1,14 @@
 import json
-from typing import Any, Optional, Sequence, TypeVar
+from typing import Any, Optional, Sequence, Union
 
 import deepdiff
 
+from bw2data import databases
 from bw2data.backends.proxies import Activity, Exchange
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
-from bw2data.errors import DifferentObjects, IncompatibleClasses, InconsistentData
+from bw2data.database import DatabaseChooser
+from bw2data.errors import DifferentObjects, IncompatibleClasses
 from bw2data.signals import SignaledDataset
 from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.utils import get_node
@@ -54,9 +56,9 @@ class Delta:
 
     def __init__(
         self,
-        delta: deepdiff.Delta,
+        delta: Optional[deepdiff.Delta],
         obj_type: Optional[str] = None,
-        obj_id: Optional[int] = None,
+        obj_id: Optional[Union[int, str]] = None,
         change_type: Optional[str] = None,
     ):
         """
@@ -84,7 +86,7 @@ class Delta:
     def from_difference(
         cls,
         obj_type: str,
-        obj_id: int,
+        obj_id: Optional[Union[int, str]],
         change_type: str,
         diff: deepdiff.DeepDiff,
     ) -> Self:
@@ -96,7 +98,7 @@ class Delta:
         )
 
     @classmethod
-    def _direct_difference(cls, old: dict, new: dict, change_type: str) -> Self:
+    def _direct_lci_node_difference(cls, old: dict, new: dict, change_type: str) -> Self:
         return cls.from_difference(
             "lci_node",
             old["id"],
@@ -111,12 +113,32 @@ class Delta:
     @classmethod
     def activity_code_change(cls, old: dict, new: dict) -> Self:
         """Special handling to change the `database` attribute of an activity node."""
-        return cls._direct_difference(old, new, "activity_code_change")
+        return cls._direct_lci_node_difference(old, new, "activity_code_change")
 
     @classmethod
     def activity_database_change(cls, old: dict, new: dict) -> Self:
         """Special handling to change the `database` attribute of an activity node."""
-        return cls._direct_difference(old, new, "activity_database_change")
+        return cls._direct_lci_node_difference(old, new, "activity_database_change")
+
+    @classmethod
+    def database_metadata_change(cls, old: dict, new: dict) -> Union[Self, None]:
+        """Special handling to change the `database` attribute of an activity node."""
+        for dct in (old, new):
+            # Changes to these values are "noise" - they will either be captured by other events
+            # (i.e. changing the graph will set database['dirty']) or are not worth propagating
+            # so we can safely remove them from the diff generation.
+            for value in dct.values():
+                for forgotten in ("processed", "modified", "dirty", "number"):
+                    if forgotten in value:
+                        del value[forgotten]
+        diff = deepdiff.DeepDiff(
+            old,
+            new,
+            verbose_level=2,
+        )
+        if not diff:
+            return None
+        return cls.from_difference("lci_database", None, "database_metadata_change", diff)
 
     @classmethod
     def generate(
@@ -291,6 +313,25 @@ class RevisionedEdge(RevisionedORMProxy):
         return dict_as_exchangedataset(orm_object.data)
 
 
+class RevisionedDatabase:
+    @classmethod
+    def handle(cls, revision_data: dict) -> None:
+        if revision_data["change_type"] == "database_metadata_change":
+            new_data = Delta.from_dict(revision_data["delta"]).apply(databases.data)
+            for name, value in new_data.items():
+                # Need to call this method to create search index database file
+                if value.get("searchable") and not databases.get(name, {}).get("searchable"):
+                    DatabaseChooser(name).make_searchable(reset=False, signal=False)
+                elif not value.get("searchable") and databases.get(name, {}).get("searchable"):
+                    DatabaseChooser(name).make_unsearchable(reset=False, signal=False)
+            databases.data = new_data
+            databases.flush(signal=False)
+        if revision_data["change_type"] == "database_reset":
+            DatabaseChooser(revision_data["id"]).delete(warn=False, signal=False)
+        if revision_data["change_type"] == "database_delete":
+            databases.__delitem__(revision_data["id"], signal=False)
+
+
 SIGNALLEDOBJECT_TO_LABEL = {
     ActivityDataset: "lci_node",
     ExchangeDataset: "lci_edge",
@@ -298,5 +339,6 @@ SIGNALLEDOBJECT_TO_LABEL = {
 REVISIONED_LABEL_AS_OBJECT = {
     "lci_node": RevisionedNode,
     "lci_edge": RevisionedEdge,
+    "lci_database": RevisionedDatabase,
 }
 REVISIONS_OBJECT_AS_LABEL = {v: k for k, v in REVISIONED_LABEL_AS_OBJECT.items()}

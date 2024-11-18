@@ -1,7 +1,10 @@
 import datetime
 import warnings
+from pathlib import Path
+from typing import Union
 
 from bw2data.serialization import CompoundJSONDict, PickledDict, SerializedDict
+from bw2data.signals import on_database_delete, on_database_metadata_change
 
 
 class GeoMapping(PickledDict):
@@ -58,6 +61,7 @@ class Databases(SerializedDict):
     """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
 
     filename = "databases.json"
+    _save_signal = on_database_metadata_change
 
     def increment_version(self, database, number=None):
         """Increment the ``database`` version. Returns the new version."""
@@ -98,14 +102,14 @@ class Databases(SerializedDict):
         else:
             return _clean()
 
-    def __delitem__(self, name):
+    def __delitem__(self, name: str, signal: bool = True):
         from bw2data import Database
 
         if name not in self:
             raise KeyError
 
         try:
-            Database(name).delete(warn=False)
+            Database(name).delete(warn=False, signal=False)
         except:
             warnings.warn(
                 """
@@ -115,7 +119,10 @@ Metadata state is unchanged, but database state is unknown.
             )
             return
 
-        super(Databases, self).__delitem__(name)
+        super(Databases, self).__delitem__(name=name, signal=False)
+
+        if signal:
+            on_database_delete.send(name=name)
 
 
 class CalculationSetups(PickledDict):

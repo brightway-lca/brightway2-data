@@ -76,7 +76,7 @@ def test_edge_revision_expected_format_create():
 
 
 @bw2test
-def test_edge_revision_apply_create():
+def test_edge_revision_apply_create(num_revisions):
     projects.set_current("activity-event")
     assert projects.dataset.revision is None
 
@@ -132,13 +132,7 @@ def test_edge_revision_apply_create():
     projects.dataset.apply_revision(revision)
     assert projects.dataset.revision == revision_id
 
-    revision_files = [
-        fp
-        for fp in (projects.dataset.dir / "revisions").iterdir()
-        if fp.stem.lower() != "head" and fp.is_file()
-    ]
-    assert not revision_files
-
+    assert not num_revisions(projects)
     assert len(get_node(code="A").exchanges()) == 1
     for edge in get_node(code="A").exchanges():
         assert edge["arbitrary"] == "foo"
@@ -198,7 +192,7 @@ def test_edge_revision_expected_format_delete():
 
 
 @bw2test
-def test_edge_revision_apply_delete():
+def test_edge_revision_apply_delete(num_revisions):
     projects.set_current("activity-event")
 
     database = DatabaseChooser("db")
@@ -241,19 +235,13 @@ def test_edge_revision_apply_delete():
     projects.dataset.apply_revision(revision)
     assert projects.dataset.revision == revision_id
 
-    revision_files = [
-        fp
-        for fp in (projects.dataset.dir / "revisions").iterdir()
-        if fp.stem.lower() != "head" and fp.is_file()
-    ]
-    assert not revision_files
-
+    assert not num_revisions(projects)
     assert ExchangeDataset.select().count() == 0
     assert len(get_node(code="A").exchanges()) == 0
 
 
 @bw2test
-def test_edge_revision_expected_format_modify():
+def test_edge_revision_expected_format_modify(num_revisions):
     projects.set_current("activity-event")
 
     database = DatabaseChooser("db")
@@ -272,13 +260,7 @@ def test_edge_revision_expected_format_modify():
         edge["arbitrary"] = "foo"
         edge.save()
 
-    revision_files = [
-        fp
-        for fp in (projects.dataset.dir / "revisions").iterdir()
-        if fp.stem.lower() != "head" and fp.is_file()
-    ]
-    assert len(revision_files) == 1
-
+    assert num_revisions(projects) == 1
     assert projects.dataset.revision is not None
     with open(projects.dataset.dir / "revisions" / f"{projects.dataset.revision}.rev", "r") as f:
         revision = json.load(f)
@@ -316,7 +298,7 @@ def test_edge_revision_expected_format_modify():
 
 
 @bw2test
-def test_edge_revision_apply_modify():
+def test_edge_revision_apply_modify(num_revisions):
     projects.set_current("activity-event")
     assert projects.dataset.revision is None
 
@@ -365,13 +347,7 @@ def test_edge_revision_apply_modify():
     projects.dataset.apply_revision(revision)
     assert projects.dataset.revision == revision_id
 
-    revision_files = [
-        fp
-        for fp in (projects.dataset.dir / "revisions").iterdir()
-        if fp.stem.lower() != "head" and fp.is_file()
-    ]
-    assert not revision_files
-
+    assert not num_revisions(projects)
     assert len(get_node(code="A").exchanges()) == 1
     for edge in get_node(code="A").exchanges():
         assert edge["arbitrary"] == "foo"
