@@ -1106,7 +1106,7 @@ class ParameterizedExchange(SnowflakeIDBaseClass):
         return ActivityParameter.recalculate_exchanges(group)
 
 
-class Group(Model):
+class Group(SnowflakeIDBaseClass):
     name = TextField(unique=True)
     fresh = BooleanField(default=True)
     updated = DateTimeField(default=datetime.datetime.now)

@@ -12,6 +12,7 @@ from bw2data.errors import DifferentObjects, IncompatibleClasses
 from bw2data.parameters import (
     ActivityParameter,
     DatabaseParameter,
+    Group,
     ParameterBase,
     ParameterizedExchange,
     ProjectParameter,
@@ -322,6 +323,12 @@ class RevisionedParameter(RevisionedORMProxy):
         }
 
 
+class RevisionedGroup(RevisionedParameter):
+    KEYS = ("id", "name", "order")
+    ORM_CLASS = Group
+    # Implicitly skips `fresh` and `updated` fields because they are in `KEYS`.
+
+
 class RevisionedParameterizedExchange(RevisionedParameter):
     KEYS = ("id", "group", "formula", "exchange")
     ORM_CLASS = ParameterizedExchange
@@ -465,6 +472,7 @@ SIGNALLEDOBJECT_TO_LABEL = {
     DatabaseParameter: "database_parameter",
     ActivityParameter: "activity_parameter",
     ParameterizedExchange: "parameterized_exchange",
+    Group: "group",
 }
 REVISIONED_LABEL_AS_OBJECT = {
     "lci_node": RevisionedNode,
@@ -474,5 +482,6 @@ REVISIONED_LABEL_AS_OBJECT = {
     "database_parameter": RevisionedDatabaseParameter,
     "activity_parameter": RevisionedActivityParameter,
     "parameterized_exchange": RevisionedParameterizedExchange,
+    "group": RevisionedGroup,
 }
 REVISIONS_OBJECT_AS_LABEL = {v: k for k, v in REVISIONED_LABEL_AS_OBJECT.items()}
