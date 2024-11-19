@@ -1187,10 +1187,12 @@ class ParameterManager:
             return
 
         # Avoid duplicate by deleting existing parameters
-        ActivityParameter.delete().where(
+        # Call in loop to get event handling
+        for ap in ActivityParameter.select().where(
             ActivityParameter.database == activity["database"],
             ActivityParameter.code == activity["code"],
-        ).execute()
+        ):
+            ap.delete_instance()
 
         def reformat(o):
             skipped = ("name", "amount", "formula")
@@ -1258,10 +1260,12 @@ class ParameterManager:
 
         with self.db.atomic():
             self.remove_exchanges_from_group(group, activity, restore_amounts)
-            ActivityParameter.delete().where(
+            # Call in loop to get event handling
+            for ap in ActivityParameter.select().where(
                 ActivityParameter.database == activity[0],
                 ActivityParameter.code == activity[1],
-            ).execute()
+            ):
+                ap.delete_instance()
             activity.save()
 
     def add_exchanges_to_group(self, group, activity):
@@ -1315,10 +1319,12 @@ class ParameterManager:
                 del exc["original_amount"]
                 exc.save()
 
-        ParameterizedExchange.delete().where(ParameterizedExchange.group == group).execute()
+        # Call in loop to get event handling
+        for pe in ParameterizedExchange.select().where(ParameterizedExchange.group == group):
+            pe.delete_instance()
 
     def new_project_parameters(self, data, overwrite=True):
-        """Efficiently and correctly enter multiple parameters.
+        """Correctly enter multiple parameters.
 
         Will overwrite existing project parameters with the same name, unless ``overwrite`` is false, in which case a ``ValueError`` is raised.
 
@@ -1361,14 +1367,16 @@ class ParameterManager:
 
         with self.db.atomic():
             # Remove existing values
-            ProjectParameter.delete().where(ProjectParameter.name << tuple(new)).execute()
-            for idx in range(0, len(data), 100):
-                ProjectParameter.insert_many(data[idx : idx + 100]).execute()
+            # Call in loop to get event handling
+            for pp in ProjectParameter.select().where(ProjectParameter.name << tuple(new)):
+                pp.delete_instance()
+            for dataset in data:
+                ProjectParameter.create(**dataset)
             Group.get_or_create(name="project")[0].expire()
             ProjectParameter.recalculate()
 
     def new_database_parameters(self, data, database, overwrite=True):
-        """Efficiently and correctly enter multiple parameters. Deletes **all** existing database parameters for this database.
+        """Correctly enter multiple parameters. Deletes **all** existing database parameters for this database.
 
         Will overwrite existing database parameters with the same name, unless ``overwrite`` is false, in which case a ``ValueError`` is raised.
 
@@ -1419,17 +1427,18 @@ class ParameterManager:
 
         with self.db.atomic():
             # Remove existing values
-            DatabaseParameter.delete().where(
+            for dp in DatabaseParameter.select().where(
                 DatabaseParameter.database == database,
                 DatabaseParameter.name << tuple(new),
-            ).execute()
-            for idx in range(0, len(data), 100):
-                DatabaseParameter.insert_many(data[idx : idx + 100]).execute()
+            ):
+                dp.delete_instance()
+            for dataset in data:
+                DatabaseParameter.create(**dataset)
             Group.get_or_create(name=database)[0].expire()
             DatabaseParameter.recalculate(database)
 
     def new_activity_parameters(self, data, group, overwrite=True):
-        """Efficiently and correctly enter multiple parameters. Deletes **all** existing activity parameters for this group.
+        """Correctly enter multiple parameters. Deletes **all** existing activity parameters for this group.
 
         Will overwrite existing parameters in the same group with the same name, unless ``overwrite`` is false, in which case a ``ValueError`` is raised.
 
@@ -1490,11 +1499,12 @@ class ParameterManager:
 
         with self.db.atomic():
             # Remove existing values
-            ActivityParameter.delete().where(
+            for ap in ActivityParameter.select().where(
                 ActivityParameter.group == group, ActivityParameter.name << new
-            ).execute()
-            for idx in range(0, len(data), 100):
-                ActivityParameter.insert_many(data[idx : idx + 100]).execute()
+            ):
+                ap.delete_instance()
+            for dataset in data:
+                ActivityParameter.create(**dataset)
             Group.get_or_create(name=group)[0].expire()
             ActivityParameter.recalculate(group)
 
