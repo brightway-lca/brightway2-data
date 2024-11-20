@@ -186,15 +186,19 @@ class Delta:
         label = SIGNALLEDOBJECT_TO_LABEL[obj_type]
         handler = REVISIONED_LABEL_AS_OBJECT[label]
 
+        diff = deepdiff.DeepDiff(
+            handler.current_state_as_dict(old) if old else None,
+            handler.current_state_as_dict(new) if new else None,
+            verbose_level=2,
+        )
+        if not diff:
+            return None
+
         return cls.from_difference(
             label,
             old.id if old is not None else new.id,
             change_type,
-            deepdiff.DeepDiff(
-                handler.current_state_as_dict(old) if old else None,
-                handler.current_state_as_dict(new) if new else None,
-                verbose_level=2,
-            ),
+            diff,
         )
 
 
