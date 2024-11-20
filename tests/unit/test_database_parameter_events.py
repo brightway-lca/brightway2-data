@@ -1,14 +1,20 @@
 import json
 
 from bw2data.database import DatabaseChooser
-from bw2data.parameters import DatabaseParameter
+from bw2data.parameters import DatabaseParameter, Group
 from bw2data.project import projects
 from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.tests import bw2test
 
 
 @bw2test
-def test_database_parameter_revision_expected_format_create(num_revisions):
+def test_database_parameter_revision_expected_format_create(num_revisions, monkeypatch):
+    def no_signal_save(self, *args, **kwargs):
+        kwargs["signal"] = False
+        return super(Group, self).save(*args, **kwargs)
+
+    monkeypatch.setattr(Group, "save", no_signal_save)
+
     projects.set_current("activity-event")
 
     assert not DatabaseParameter.select().count()
@@ -65,7 +71,13 @@ def test_database_parameter_revision_expected_format_create(num_revisions):
 
 
 @bw2test
-def test_database_parameter_revision_apply_create(num_revisions):
+def test_database_parameter_revision_apply_create(num_revisions, monkeypatch):
+    def no_signal_save(self, *args, **kwargs):
+        kwargs["signal"] = False
+        return super(Group, self).save(*args, **kwargs)
+
+    monkeypatch.setattr(Group, "save", no_signal_save)
+
     projects.set_current("activity-event")
     DatabaseChooser("test-example").register()
     assert projects.dataset.revision is None

@@ -8,7 +8,13 @@ from bw2data.tests import bw2test
 
 
 @bw2test
-def test_activity_parameter_revision_expected_format_create(num_revisions):
+def test_activity_parameter_revision_expected_format_create(num_revisions, monkeypatch):
+    def no_signal_save(self, *args, **kwargs):
+        kwargs["signal"] = False
+        return super(Group, self).save(*args, **kwargs)
+
+    monkeypatch.setattr(Group, "save", no_signal_save)
+
     projects.set_current("activity-event")
 
     assert not ActivityParameter.select().count()
@@ -27,6 +33,17 @@ def test_activity_parameter_revision_expected_format_create(num_revisions):
         amount=5,
         data={"foo": "bar"},
     )
+
+    from pprint import pprint
+
+    pprint(
+        [
+            json.load(open(fp))
+            for fp in (projects.dataset.dir / "revisions").iterdir()
+            if fp.stem.lower() != "head" and fp.is_file()
+        ]
+    )
+
     assert dp.id > 1e6
     assert num_revisions(projects) == 1
 
@@ -73,7 +90,13 @@ def test_activity_parameter_revision_expected_format_create(num_revisions):
 
 
 @bw2test
-def test_activity_parameter_revision_apply_create(num_revisions):
+def test_activity_parameter_revision_apply_create(num_revisions, monkeypatch):
+    def no_signal_save(self, *args, **kwargs):
+        kwargs["signal"] = False
+        return super(Group, self).save(*args, **kwargs)
+
+    monkeypatch.setattr(Group, "save", no_signal_save)
+
     projects.set_current("activity-event")
     DatabaseChooser("test-database").register()
     assert projects.dataset.revision is None
