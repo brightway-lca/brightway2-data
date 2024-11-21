@@ -12,6 +12,7 @@ from bw2data.errors import DifferentObjects, IncompatibleClasses
 from bw2data.parameters import (
     ActivityParameter,
     DatabaseParameter,
+    Group,
     ParameterBase,
     ParameterizedExchange,
     ProjectParameter,
@@ -185,15 +186,19 @@ class Delta:
         label = SIGNALLEDOBJECT_TO_LABEL[obj_type]
         handler = REVISIONED_LABEL_AS_OBJECT[label]
 
+        diff = deepdiff.DeepDiff(
+            handler.current_state_as_dict(old) if old else None,
+            handler.current_state_as_dict(new) if new else None,
+            verbose_level=2,
+        )
+        if not diff:
+            return None
+
         return cls.from_difference(
             label,
             old.id if old is not None else new.id,
             change_type,
-            deepdiff.DeepDiff(
-                handler.current_state_as_dict(old) if old else None,
-                handler.current_state_as_dict(new) if new else None,
-                verbose_level=2,
-            ),
+            diff,
         )
 
 
@@ -320,6 +325,12 @@ class RevisionedParameter(RevisionedORMProxy):
             "old": data["delta"]["dictionary_item_removed"]["root['old']"],
             "new": data["delta"]["dictionary_item_added"]["root['new']"],
         }
+
+
+class RevisionedGroup(RevisionedParameter):
+    KEYS = ("id", "name", "order")
+    ORM_CLASS = Group
+    # Implicitly skips `fresh` and `updated` fields because they are in `KEYS`.
 
 
 class RevisionedParameterizedExchange(RevisionedParameter):
@@ -465,6 +476,7 @@ SIGNALLEDOBJECT_TO_LABEL = {
     DatabaseParameter: "database_parameter",
     ActivityParameter: "activity_parameter",
     ParameterizedExchange: "parameterized_exchange",
+    Group: "group",
 }
 REVISIONED_LABEL_AS_OBJECT = {
     "lci_node": RevisionedNode,
@@ -474,5 +486,6 @@ REVISIONED_LABEL_AS_OBJECT = {
     "database_parameter": RevisionedDatabaseParameter,
     "activity_parameter": RevisionedActivityParameter,
     "parameterized_exchange": RevisionedParameterizedExchange,
+    "group": RevisionedGroup,
 }
 REVISIONS_OBJECT_AS_LABEL = {v: k for k, v in REVISIONED_LABEL_AS_OBJECT.items()}
