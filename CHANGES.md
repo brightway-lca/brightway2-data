@@ -1,5 +1,11 @@
 # `bw2data` Changelog
 
+# 4.0 (2024-11-25)
+
+* Switch all ID generation to client side instead of database side, and use [snowflake ids](https://en.wikipedia.org/wiki/Snowflake_ID) with a starting epoch of 2024-01-01.
+* Add optional ability to serialize data state changes via [DeepDiff](https://pypi.org/project/deepdiff/). This implementation is well tested but is not recommended for casual use as it doesn't have any built-in conflict resolution or other functionality which would be needed to a production-level distributed data generation service using Brightway.
+* Add signals based on [blinker](https://pypi.org/project/blinker/).
+
 ## 4.0.DEV60 (2024-11-07)
 
 * Add possibility for location string normalization before geomapping array
