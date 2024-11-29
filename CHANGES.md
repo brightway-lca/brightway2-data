@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.1 (2024-11-29)
+
+* Delete upstream edges on node deletion
+
 # 4.0 (2024-11-25)
 
 * Switch all ID generation to client side instead of database side, and use [snowflake ids](https://en.wikipedia.org/wiki/Snowflake_ID) with a starting epoch of 2024-01-01.
