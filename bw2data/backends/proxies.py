@@ -280,6 +280,7 @@ class Activity(ActivityProxyBase):
             pass
         IndexManager(Database(self["database"]).filename).delete_dataset(self._data)
         self.exchanges().delete(allow_in_sourced_project=True)
+        self.upstream().delete(allow_in_sourced_project=True)
 
         for name, setup in calculation_setups.items():
             if any(

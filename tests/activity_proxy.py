@@ -171,6 +171,71 @@ def test_delete_activity_only_self_references():
     assert ActivityDataset.select().count() == 0
 
 
+@bw2test
+def test_delete_activity_upstream():
+    database = DatabaseChooser("a database")
+    database.write(
+        {
+            ("a database", "foo"): {
+                "exchanges": [
+                    {
+                        "input": ("a database", "foo"),
+                        "amount": 1,
+                        "type": "production",
+                    },
+                    {
+                        "input": ("a database", "baz"),
+                        "amount": 0.1,
+                        "type": "technosphere",
+                    },
+                ],
+                "location": "foo",
+                "name": "foo",
+            },
+            ("a database", "bar"): {
+                "exchanges": [
+                    {
+                        "input": ("a database", "bar"),
+                        "amount": 1,
+                        "type": "production",
+                    },
+                    {
+                        "input": ("a database", "foo"),
+                        "amount": 0.1,
+                        "type": "technosphere",
+                    },
+                ],
+                "location": "bar",
+                "name": "bar",
+            },
+            ("a database", "baz"): {
+                "exchanges": [
+                    {
+                        "input": ("a database", "baz"),
+                        "amount": 1,
+                        "type": "production",
+                    },
+                ],
+                "location": "baz",
+                "name": "baz",
+            },
+        }
+    )
+    foo = database.get("foo")
+    bar = database.get("bar")
+    baz = database.get("baz")
+
+    assert ExchangeDataset.select().count() == 5
+    assert ActivityDataset.select().count() == 3
+    foo.delete()
+    assert ExchangeDataset.select().count() == 2
+    assert ActivityDataset.select().count() == 2
+    for exc in baz.exchanges():
+        assert exc.input == exc.output
+    for exc in bar.exchanges():
+        assert exc.input == exc.output
+
+
 def test_copy(activity):
     assert ExchangeDataset.select().count() == 1
     assert ActivityDataset.select().count() == 1
