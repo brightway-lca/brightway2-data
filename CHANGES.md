@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.2.1 (2024-12-03)
+
+* Make `__version__` a tuple again to avoid breaking downstream libraries
+
 ## 4.2 (2024-12-03)
 
 * Don't try to look up attributes in reference product edge if node type is not "process"
