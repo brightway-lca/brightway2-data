@@ -460,7 +460,22 @@ class Activity(ActivityProxyBase):
         * The ``production`` exchange with the same name as the activity ``reference product``.
 
         Raises ``ValueError`` if no suitable exchange is found."""
-        candidates = list(self.production())
+        candidates = list(self.exchanges())
+        functional = [exc for exc in candidates if exc.get("functional")]
+        if len(functional) > 1:
+            # Multifunctional process, but can try with "reference product"
+            candidates = functional
+        elif len(functional) == 1:
+            return functional[0]
+
+        candidates = [
+            exc
+            for exc in candidates
+            if exc.get("type")
+            in set(labels.technosphere_positive_edge_types).difference(
+                labels.substitution_edge_types
+            )
+        ]
         if len(candidates) == 1:
             return candidates[0]
         candidates2 = [
