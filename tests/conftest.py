@@ -9,7 +9,6 @@ sqlite3.enable_callback_tracebacks(True)
 
 @pytest.fixture
 def num_revisions():
-
     def _num_revisions(projects) -> int:
         return len(
             [

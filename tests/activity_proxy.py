@@ -597,6 +597,25 @@ def test_rp_exchange_value_error_only_substitution():
         a.rp_exchange()
 
 
+@bw2test
+def test_rp_exchange_functional_input():
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity", type="process")
+    a.save()
+    b = db.new_activity(code="B", name="else", type="product")
+    b.save()
+    a.new_exchange(
+        amount=2,
+        input=b,
+        type="technosphere",
+        functional=True
+    ).save()
+
+    assert a.rp_exchange()['amount'] == 2
+
+
 @pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")
 @bw2test
 def test_warning_on_type_typo():

@@ -227,15 +227,16 @@ class Activity(ActivityProxyBase):
                 elif key in self._data[section]:
                     return self._data[section][key]
 
-        try:
-            rp = self.rp_exchange()
-        except ValueError:
-            raise KeyError
+        if self._data.get("type", labels.process_node_default) in labels.process_node_types:
+            try:
+                rp = self.rp_exchange()
+            except ValueError:
+                raise KeyError
 
-        if key in rp.get("classifications", []):
-            return rp["classifications"][key]
-        if key in rp.get("properties", []):
-            return rp["properties"][key]
+            if key in rp.get("classifications", []):
+                return rp["classifications"][key]
+            if key in rp.get("properties", []):
+                return rp["properties"][key]
 
         raise KeyError
 
