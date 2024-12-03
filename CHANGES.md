@@ -1,5 +1,10 @@
 # `bw2data` Changelog
 
+## 4.2 (2024-12-03)
+
+* Don't try to look up attributes in reference product edge if node type is not "process"
+* Allow reference product exchange to be a functional input
+
 ## 4.1 (2024-11-29)
 
 * Delete upstream edges on node deletion
