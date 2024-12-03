@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.3 (2024-12-03)
+
+* BREAKING CHANGE: Removed looking up node attributes in reference product edges using `node['foo']` (i.e. `node.__getitem__()`). The code searching for reference product edges was incorrect - when it was correct to search for both functional inputs and outputs, there was a severe performance degradation as all edges needed to be loaded and examined.
+
 ## 4.2.1 (2024-12-03)
 
 * Make `__version__` a tuple again to avoid breaking downstream libraries
