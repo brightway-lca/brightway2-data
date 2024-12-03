@@ -359,7 +359,7 @@ def test_delete_calculation_setups(capsys):
 
 
 @bw2test
-def test_get_classifications_ref_product():
+def test_get_classifications_ref_product_no_longer_works_4_3():
     db = DatabaseChooser("example")
     db.register()
 
@@ -374,7 +374,8 @@ def test_get_classifications_ref_product():
         classifications={"CPC": ["17300: Steam and hot water"]},
     ).save()
 
-    assert a["CPC"] == ["17300: Steam and hot water"]
+    with pytest.raises(KeyError):
+        a["CPC"]
 
 
 @bw2test
@@ -439,7 +440,7 @@ def test_get_classifications_also_in_activity():
 
 
 @bw2test
-def test_get_properties_ref_product():
+def test_get_properties_ref_product_no_longer_works_4_3():
     db = DatabaseChooser("example")
     db.register()
 
@@ -454,7 +455,8 @@ def test_get_properties_ref_product():
         properties={"corresponding fuel use, propane, furnace >100kW": 7},
     ).save()
 
-    assert a["corresponding fuel use, propane, furnace >100kW"] == 7
+    with pytest.raises(KeyError):
+        a["corresponding fuel use, propane, furnace >100kW"]
 
 
 @bw2test

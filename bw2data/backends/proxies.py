@@ -227,16 +227,18 @@ class Activity(ActivityProxyBase):
                 elif key in self._data[section]:
                     return self._data[section][key]
 
-        if self._data.get("type", labels.process_node_default) in labels.process_node_types:
-            try:
-                rp = self.rp_exchange()
-            except ValueError:
-                raise KeyError
+        # Removed in 4.3. A correct implementation of a search for a reference product
+        # exchange led to sever performance degradation.
+        # if self._data.get("type", labels.process_node_default) in labels.process_node_types:
+        #     try:
+        #         rp = self.rp_exchange()
+        #     except ValueError:
+        #         raise KeyError
 
-            if key in rp.get("classifications", []):
-                return rp["classifications"][key]
-            if key in rp.get("properties", []):
-                return rp["properties"][key]
+        #     if key in rp.get("classifications", []):
+        #         return rp["classifications"][key]
+        #     if key in rp.get("properties", []):
+        #         return rp["properties"][key]
 
         raise KeyError
 
