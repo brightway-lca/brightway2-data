@@ -337,3 +337,23 @@ def test_search_single_char():
                 "synonyms": "",
             }
         ]
+
+
+@bw2test
+def test_search_with_parentheses():
+    """Test that searching with parentheses works correctly"""
+    im = IndexManager("foo")
+    im.add_dataset({"database": "foo", "code": "bar", "name": "beam dried (u=10%) planed"})
+    with Searcher("foo") as s:
+        assert s.search("dried (u=10%)", proxy=False) == [
+            {
+                "comment": "",
+                "product": "",
+                "name": "beam dried (u=10%) planed",
+                "database": "foo",
+                "location": "",
+                "code": "bar",
+                "categories": "",
+                "synonyms": "",
+            }
+        ]

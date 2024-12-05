@@ -100,7 +100,14 @@ class IndexManager:
             if string == "*":
                 query = BW2Schema
             else:
-                query = BW2Schema.search_bm25(string.replace(",", ""), weights=weights)
+                query = BW2Schema.search_bm25(
+                    string.replace(",", "")
+                    .replace("(", "")
+                    .replace(")", "")
+                    .replace("{", "")
+                    .replace("}", ""),
+                    weights=weights,
+                )
             return list(
                 query.select(
                     BW2Schema.name,
