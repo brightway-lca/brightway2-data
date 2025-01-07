@@ -481,7 +481,14 @@ def test_database_write_revision_expected_format():
                     "type": "lci_database",
                     "id": None,
                     "change_type": "database_metadata_change",
-                    "delta": {"iterable_item_added": {"root['food']['depends'][0]": "biosphere"}},
+                    "delta": {
+                        "dictionary_item_added": {
+                            "root['food']['geocollections']": ["world"]
+                        },
+                        "iterable_item_added": {
+                            "root['food']['depends'][0]": "biosphere"
+                        },
+                    },
                 }
             ],
         },
@@ -1066,7 +1073,12 @@ def test_database_copy_revision_expected_format():
                     "type": "lci_database",
                     "id": None,
                     "change_type": "database_metadata_change",
-                    "delta": {"iterable_item_added": {"root['yum']['depends'][0]": "biosphere"}},
+                    "delta": {
+                        "iterable_item_added": {
+                            "root['yum']['depends'][0]": "biosphere",
+                            "root['yum']['geocollections'][0]": "world",
+                        }
+                    },
                 }
             ],
         },
