@@ -139,11 +139,6 @@ class DatabaseQuerysetTest(BW2DataTest):
         self.db.filters = {"product": "widget"}
         self.assertEqual(len(self.db), 2)
 
-    def test_make_searchable_unknown_object(self):
-        db = DatabaseChooser("mysterious")
-        with self.assertRaises(UnknownObject):
-            db.make_searchable()
-
     def test_convert_same_backend(self):
         database = DatabaseChooser("a database")
         database.write(

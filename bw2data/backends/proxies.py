@@ -19,7 +19,7 @@ from bw2data.configuration import labels
 from bw2data.errors import ValidityError
 from bw2data.logs import stdout_feedback_logger
 from bw2data.proxies import ActivityProxyBase, ExchangeProxyBase
-from bw2data.search import IndexManager
+# from bw2data.search import IndexManager
 from bw2data.signals import on_activity_code_change, on_activity_database_change
 
 
@@ -281,7 +281,7 @@ class Activity(ActivityProxyBase):
             ).execute()
         except ActivityParameter.DoesNotExist:
             pass
-        IndexManager(Database(self["database"]).filename).delete_dataset(self._data)
+        # IndexManager(Database(self["database"]).filename).delete_dataset(self._data)
         self.exchanges().delete(allow_in_sourced_project=True)
         self.upstream().delete(allow_in_sourced_project=True)
 
@@ -352,8 +352,8 @@ class Activity(ActivityProxyBase):
         if self.get("location") and self["location"] not in geomapping:
             geomapping.add([self["location"]])
 
-        if databases[self["database"]].get("searchable", True):
-            IndexManager(Database(self["database"]).filename).update_dataset(self._data)
+        # if databases[self["database"]].get("searchable", True):
+        #     IndexManager(Database(self["database"]).filename).update_dataset(self._data)
 
     def _change_code(self, new_code: str, signal: bool = True):
         if self["code"] == new_code:
@@ -383,11 +383,11 @@ class Activity(ActivityProxyBase):
             ).execute()
 
         if databases[self["database"]].get("searchable"):
-            from bw2data import Database
+            # from bw2data import Database
 
-            IndexManager(Database(self["database"]).filename).delete_dataset(self)
+            # IndexManager(Database(self["database"]).filename).delete_dataset(self)
             self._data["code"] = new_code
-            IndexManager(Database(self["database"]).filename).add_datasets([self])
+            # IndexManager(Database(self["database"]).filename).add_datasets([self])
         else:
             self._data["code"] = new_code
 
@@ -420,11 +420,11 @@ class Activity(ActivityProxyBase):
             ).execute()
 
         if databases[self["database"]].get("searchable"):
-            from bw2data import Database
+            # from bw2data import Database
 
-            IndexManager(Database(self["database"]).filename).delete_dataset(self)
+            # IndexManager(Database(self["database"]).filename).delete_dataset(self)
             self._data["database"] = new_database
-            IndexManager(Database(self["database"]).filename).add_datasets([self])
+            # IndexManager(Database(self["database"]).filename).add_datasets([self])
         else:
             self._data["database"] = new_database
 

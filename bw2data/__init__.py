@@ -27,7 +27,7 @@ __all__ = [
     "prepare_lca_inputs",
     "ProcessedDataStore",
     "projects",
-    "Searcher",
+    # "Searcher",
     "set_data_dir",
     "Weighting",
     "weightings",
@@ -71,7 +71,7 @@ from bw2data.database import DatabaseChooser as Database
 from bw2data.utils import get_activity, get_node
 from bw2data.data_store import DataStore, ProcessedDataStore
 from bw2data.method import Method
-from bw2data.search import Searcher, IndexManager
+# from bw2data.search import Searcher, IndexManager
 from bw2data.weighting_normalization import Weighting, Normalization
 from bw2data.backends import convert_backend, get_id, Node, Edge
 from bw2data.compat import prepare_lca_inputs, Mapping, get_multilca_data_objs

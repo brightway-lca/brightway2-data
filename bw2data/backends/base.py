@@ -43,7 +43,7 @@ from bw2data.errors import (
 )
 from bw2data.logs import stdout_feedback_logger
 from bw2data.query import Query
-from bw2data.search import IndexManager, Searcher
+# from bw2data.search import IndexManager, Searcher
 from bw2data.signals import on_database_reset, on_database_write
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
@@ -732,20 +732,24 @@ Here are the type values usually used for nodes:
         return obj
 
     def make_searchable(self, reset: bool = False, signal: bool = True):
-        if self.name not in databases:
-            raise UnknownObject("This database is not yet registered")
-        if self._searchable and not reset:
-            stdout_feedback_logger.info("This database is already searchable")
-            return
-        databases[self.name]["searchable"] = True
-        databases.flush(signal=signal)
-        IndexManager(self.filename).create()
-        IndexManager(self.filename).add_datasets(self)
+        return
+
+        # if self.name not in databases:
+        #     raise UnknownObject("This database is not yet registered")
+        # if self._searchable and not reset:
+        #     stdout_feedback_logger.info("This database is already searchable")
+        #     return
+        # databases[self.name]["searchable"] = True
+        # databases.flush(signal=signal)
+        # IndexManager(self.filename).create()
+        # IndexManager(self.filename).add_datasets(self)
 
     def make_unsearchable(self, signal: bool = True):
-        databases[self.name]["searchable"] = False
-        databases.flush(signal=signal)
-        IndexManager(self.filename).delete_database()
+        return
+
+        # databases[self.name]["searchable"] = False
+        # databases.flush(signal=signal)
+        # IndexManager(self.filename).delete_database()
 
     def delete(
         self, keep_params: bool = False, warn: bool = True, vacuum: bool = True, signal: bool = True
@@ -785,7 +789,7 @@ Here are the type values usually used for nodes:
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
         ExchangeDataset.delete().where(ExchangeDataset.output_database == self.name).execute()
-        IndexManager(self.filename).delete_database()
+        # IndexManager(self.filename).delete_database()
 
         if not keep_params:
             from bw2data.parameters import (
@@ -1003,9 +1007,11 @@ Here are the type values usually used for nodes:
         * ``proxy``: Return ``Activity`` proxies instead of dictionary index Models. Default is ``True``.
 
         Returns a list of ``Activity`` datasets."""
-        with Searcher(self.filename) as s:
-            results = s.search(string=string, **kwargs)
-        return results
+        raise NotImplementedError
+
+        # with Searcher(self.filename) as s:
+        #     results = s.search(string=string, **kwargs)
+        # return results
 
     def set_geocollections(self):
         """Set ``geocollections`` attribute for databases which don't currently have it."""

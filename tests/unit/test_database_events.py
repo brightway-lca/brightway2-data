@@ -1007,7 +1007,6 @@ def test_database_copy_revision_expected_format():
                                 "depends": ["biosphere"],
                                 "backend": "sqlite",
                                 "geocollections": ["world"],
-                                "searchable": True,
                                 "format": "Copied from 'food'",
                             }
                         }
@@ -1306,7 +1305,6 @@ def test_database_rename_revision_expected_format():
                                 "depends": ["biosphere"],
                                 "backend": "sqlite",
                                 "geocollections": ["world"],
-                                "searchable": True,
                             }
                         }
                     },
