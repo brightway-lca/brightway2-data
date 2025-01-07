@@ -264,7 +264,7 @@ class Activity(ActivityProxyBase):
 
     def delete(self, signal: bool = True):
         from bw2data import Database, calculation_setups
-        from bw2data.parameters import ActivityParameter, ParameterizedExchange
+        # from bw2data.parameters import ActivityParameter, ParameterizedExchange
 
         def purge(obj: Activity, dct: dict) -> dict:
             return {
@@ -273,15 +273,15 @@ class Activity(ActivityProxyBase):
                 if key != obj._data["id"] and key != (obj._data["database"], obj._data["code"])
             }
 
-        try:
-            ap = ActivityParameter.get(database=self[0], code=self[1])
-            ParameterizedExchange.delete().where(ParameterizedExchange.group == ap.group).execute()
-            ActivityParameter.delete().where(
-                ActivityParameter.database == self[0], ActivityParameter.code == self[1]
-            ).execute()
-        except ActivityParameter.DoesNotExist:
-            pass
-        IndexManager(Database(self["database"]).filename).delete_dataset(self._data)
+        # try:
+        #     ap = ActivityParameter.get(database=self[0], code=self[1])
+        #     ParameterizedExchange.delete().where(ParameterizedExchange.group == ap.group).execute()
+        #     ActivityParameter.delete().where(
+        #         ActivityParameter.database == self[0], ActivityParameter.code == self[1]
+        #     ).execute()
+        # except ActivityParameter.DoesNotExist:
+        #     pass
+        # IndexManager(Database(self["database"]).filename).delete_dataset(self._data)
         self.exchanges().delete(allow_in_sourced_project=True)
         self.upstream().delete(allow_in_sourced_project=True)
 
@@ -603,11 +603,11 @@ class Exchange(ExchangeProxyBase):
         self._document.save(signal=signal, force_insert=force_insert)
 
     def delete(self, signal: bool = True):
-        from bw2data.parameters import ParameterizedExchange
+        # from bw2data.parameters import ParameterizedExchange
 
-        ParameterizedExchange.delete().where(
-            ParameterizedExchange.exchange == self._document.id
-        ).execute()
+        # ParameterizedExchange.delete().where(
+        #     ParameterizedExchange.exchange == self._document.id
+        # ).execute()
         self._document.delete_instance(signal=signal)
         databases.set_dirty(self["output"][0])
         self = None

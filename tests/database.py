@@ -26,12 +26,6 @@ from bw2data.errors import (
     UntypedExchange,
     WrongDatabase,
 )
-from bw2data.parameters import (
-    ActivityParameter,
-    DatabaseParameter,
-    ParameterizedExchange,
-    parameters,
-)
 from bw2data.snowflake_ids import EPOCH_START_MS
 from bw2data.tests import bw2test
 
@@ -898,53 +892,6 @@ def test_no_distributions_if_no_uncertainty():
     package = database.datapackage()
     with pytest.raises(KeyError):
         package.get_resource("a_database_technosphere_matrix.distributions")
-
-
-@bw2test
-def test_database_delete_parameters():
-    db = Database("example")
-    db.register()
-
-    a = db.new_activity(code="A", name="An activity")
-    a.save()
-    b = db.new_activity(code="B", name="Another activity")
-    b.save()
-    a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4").save()
-
-    database_data = [
-        {
-            "name": "red",
-            "formula": "(blue ** 2) / 5",
-        },
-        {"name": "blue", "amount": 12},
-    ]
-    parameters.new_database_parameters(database_data, "example")
-
-    activity_data = [
-        {
-            "name": "reference_me",
-            "formula": "sqrt(red - 20)",
-            "database": "example",
-            "code": "B",
-        },
-        {
-            "name": "bar",
-            "formula": "reference_me + 2",
-            "database": "example",
-            "code": "A",
-        },
-    ]
-    parameters.new_activity_parameters(activity_data, "my group")
-    parameters.add_exchanges_to_group("my group", a)
-
-    assert ActivityParameter.select().count() == 2
-    assert ParameterizedExchange.select().count() == 1
-    assert DatabaseParameter.select().count() == 2
-    assert len(parameters) == 4
-
-    del databases["example"]
-    assert not len(parameters)
-    assert not ParameterizedExchange.select().count()
 
 
 @bw2test

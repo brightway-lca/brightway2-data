@@ -22,7 +22,7 @@ __all__ = [
     "Node",
     "Normalization",
     "normalizations",
-    "parameters",
+    # "parameters",
     "preferences",
     "prepare_lca_inputs",
     "ProcessedDataStore",
@@ -80,7 +80,7 @@ from bw2data.backends.wurst_extraction import extract_brightway_databases
 mapping = Mapping()
 
 from bw2data.updates import Updates
-from bw2data.parameters import parameters
+# from bw2data.parameters import parameters
 
 Updates.check_status()
 

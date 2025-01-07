@@ -9,14 +9,6 @@ from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
 from bw2data.database import DatabaseChooser
 from bw2data.errors import DifferentObjects, IncompatibleClasses
-from bw2data.parameters import (
-    ActivityParameter,
-    DatabaseParameter,
-    Group,
-    ParameterBase,
-    ParameterizedExchange,
-    ProjectParameter,
-)
 from bw2data.signals import SignaledDataset
 from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.utils import get_node
@@ -285,131 +277,6 @@ class RevisionedORMProxy:
         )
 
 
-class RevisionedParameter(RevisionedORMProxy):
-    @classmethod
-    def _state_as_dict(cls, obj: ParameterBase) -> dict:
-        return {key: getattr(obj, key) for key in cls.KEYS}
-
-    @classmethod
-    def current_state_as_dict(cls, obj: ParameterBase) -> dict:
-        return cls._state_as_dict(obj)
-
-    @classmethod
-    def previous_state_as_dict(cls, revision_data: dict) -> dict:
-        orm_object = cls.ORM_CLASS.get_by_id(revision_data["id"])
-        return cls._state_as_dict(orm_object)
-
-    @classmethod
-    def update(cls, revision_data: dict) -> None:
-        previous = cls.previous_state_as_dict(revision_data)
-        updated_data = Delta.from_dict(revision_data["delta"]).apply(previous)
-        updated_orm_object = cls.ORM_CLASS(**updated_data)
-        updated_orm_object.id = revision_data["id"]
-        updated_orm_object.save(signal=False)
-
-    @classmethod
-    def delete(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.get_by_id(revision_data["id"]).delete_instance(signal=False)
-
-    @classmethod
-    def create(cls, revision_data: dict) -> None:
-        data = Delta.from_dict(revision_data["delta"]).apply({})
-        orm_object = cls.ORM_CLASS(**data)
-        orm_object.id = revision_data["id"]
-        # Force insert because we specify the primary key already but object not in database
-        orm_object.save(signal=False, force_insert=True)
-
-    @classmethod
-    def _unwrap_diff_dict(cls, data: dict) -> dict:
-        return {
-            "old": data["delta"]["dictionary_item_removed"]["root['old']"],
-            "new": data["delta"]["dictionary_item_added"]["root['new']"],
-        }
-
-
-class RevisionedGroup(RevisionedParameter):
-    KEYS = ("id", "name", "order")
-    ORM_CLASS = Group
-    # Implicitly skips `fresh` and `updated` fields because they are in `KEYS`.
-
-
-class RevisionedParameterizedExchange(RevisionedParameter):
-    KEYS = ("id", "group", "formula", "exchange")
-    ORM_CLASS = ParameterizedExchange
-
-
-class RevisionedProjectParameter(RevisionedParameter):
-    KEYS = ("id", "name", "formula", "amount", "data")
-    ORM_CLASS = ProjectParameter
-
-    @classmethod
-    def project_parameter_recalculate(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.recalculate(signal=False)
-
-    @classmethod
-    def project_parameter_update_formula_parameter_name(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.update_formula_parameter_name(
-            signal=False, **cls._unwrap_diff_dict(revision_data)
-        )
-
-
-class RevisionedDatabaseParameter(RevisionedParameter):
-    KEYS = ("id", "database", "name", "formula", "amount", "data")
-    ORM_CLASS = DatabaseParameter
-
-    @classmethod
-    def database_parameter_recalculate(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.recalculate(database=revision_data["id"], signal=False)
-
-    @classmethod
-    def database_parameter_update_formula_project_parameter_name(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.update_formula_project_parameter_name(
-            signal=False, **cls._unwrap_diff_dict(revision_data)
-        )
-
-    @classmethod
-    def database_parameter_update_formula_database_parameter_name(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.update_formula_database_parameter_name(
-            signal=False, **cls._unwrap_diff_dict(revision_data)
-        )
-
-
-class RevisionedActivityParameter(RevisionedParameter):
-    KEYS = ("id", "group", "database", "code", "name", "formula", "amount", "data")
-    ORM_CLASS = ActivityParameter
-
-    @classmethod
-    def activity_parameter_recalculate(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.recalculate(group=revision_data["id"], signal=False)
-
-    @classmethod
-    def activity_parameter_recalculate_exchanges(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.recalculate_exchanges(group=revision_data["id"], signal=False)
-
-    @classmethod
-    def activity_parameter_update_formula_project_parameter_name(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.update_formula_project_parameter_name(
-            signal=False, **cls._unwrap_diff_dict(revision_data)
-        )
-
-    @classmethod
-    def activity_parameter_update_formula_database_parameter_name(cls, revision_data: dict) -> None:
-        cls.ORM_CLASS.update_formula_database_parameter_name(
-            signal=False, **cls._unwrap_diff_dict(revision_data)
-        )
-
-    @classmethod
-    def activity_parameter_update_formula_activity_parameter_name(cls, revision_data: dict) -> None:
-        dct = {
-            "old": revision_data["delta"]["dictionary_item_removed"]["root['old']"],
-            "new": revision_data["delta"]["dictionary_item_added"]["root['new']"],
-            "include_order": revision_data["delta"]["dictionary_item_added"][
-                "root['include_order']"
-            ],
-        }
-        cls.ORM_CLASS.update_formula_activity_parameter_name(signal=False, **dct)
-
-
 class RevisionedNode(RevisionedORMProxy):
     PROXY_CLASS = Activity
     ORM_CLASS = Activity.ORMDataset
@@ -472,20 +339,10 @@ class RevisionedDatabase:
 SIGNALLEDOBJECT_TO_LABEL = {
     ActivityDataset: "lci_node",
     ExchangeDataset: "lci_edge",
-    ProjectParameter: "project_parameter",
-    DatabaseParameter: "database_parameter",
-    ActivityParameter: "activity_parameter",
-    ParameterizedExchange: "parameterized_exchange",
-    Group: "group",
 }
 REVISIONED_LABEL_AS_OBJECT = {
     "lci_node": RevisionedNode,
     "lci_edge": RevisionedEdge,
     "lci_database": RevisionedDatabase,
-    "project_parameter": RevisionedProjectParameter,
-    "database_parameter": RevisionedDatabaseParameter,
-    "activity_parameter": RevisionedActivityParameter,
-    "parameterized_exchange": RevisionedParameterizedExchange,
-    "group": RevisionedGroup,
 }
 REVISIONS_OBJECT_AS_LABEL = {v: k for k, v in REVISIONED_LABEL_AS_OBJECT.items()}

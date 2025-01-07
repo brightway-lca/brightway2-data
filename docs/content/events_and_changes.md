@@ -7,10 +7,6 @@
 * `bw2data.backends.proxies.Exchange` (via `bw2data.backends.schema.ExchangeDataset`)
 * `bw2data.backends.schema.ExchangeDataset`
 * `bw2data.meta.databases`
-* `bw2data.parameters.ProjectParameter`
-* `bw2data.parameters.DatabaseParameter`
-* `bw2data.parameters.ActivityParameter`
-* `bw2data.parameters.ParameterizedExchange`
 
 These change events can grouped into three types: `create`, `update`, and `delete`.
 
@@ -23,10 +19,6 @@ Higher-level objects can cause changes to lower level objects. The object hierar
 1. Database
 2. Activity
 3. Exchange
-4a. ProjectParameter
-4b. DatabaseParameter
-4c. ActivityParameter
-5. ParameterizedExchange (but a change to a `ParameterizedExchange` can change the amount in an `Exchange`)
 
 So changing the name of a `Database` will cause changes to `Activity` and `Exchange` objects, deleting an `Activity` object will delete `Exchange` objects and possibly `ParameterizedExchange` objects, and changing the value of a `DatabaseParameter` could change a `ParameterizedExchange` which would then cause a change in an `Exchange`.
 

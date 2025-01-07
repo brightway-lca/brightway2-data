@@ -632,15 +632,6 @@ def signal_dispatcher_generic_no_diff(
 signal_dispatcher_on_database = partial(
     signal_dispatcher_generic_no_diff, prefix="database", obj_type="lci_database"
 )
-signal_dispatcher_on_project_parameter = partial(
-    signal_dispatcher_generic_no_diff, prefix="project_parameter", obj_type="project_parameter"
-)
-signal_dispatcher_on_database_parameter = partial(
-    signal_dispatcher_generic_no_diff, prefix="database_parameter", obj_type="database_parameter"
-)
-signal_dispatcher_on_activity_parameter = partial(
-    signal_dispatcher_generic_no_diff, prefix="activity_parameter", obj_type="activity_parameter"
-)
 
 
 def signal_dispatcher_on_database_write(sender, name: str) -> int:
@@ -656,41 +647,6 @@ def signal_dispatcher_on_database_write(sender, name: str) -> int:
     ]
     return projects.dataset.add_revision(deltas)
 
-
-def signal_dispatcher_on_update_formula_parameter_name(
-    sender, old: str, new: str, kind: str, extra: str = ""
-) -> int:
-    from bw2data import revisions
-
-    delta = revisions.Delta(
-        delta=deepdiff.Delta(deepdiff.DeepDiff(old, new, verbose_level=2)),
-        obj_type=f"{kind}_parameter",
-        obj_id="__update_formula_parameter_name_dummy__",
-        change_type=f"{kind}_parameter_update_formula_{extra}parameter_name",
-    )
-    return projects.dataset.add_revision((delta,))
-
-
-signal_dispatcher_on_project_parameter_update_formula_parameter_name = partial(
-    signal_dispatcher_on_update_formula_parameter_name,
-    kind="project",
-)
-signal_dispatcher_on_database_parameter_update_formula_project_parameter_name = partial(
-    signal_dispatcher_on_update_formula_parameter_name, kind="database", extra="project_"
-)
-signal_dispatcher_on_database_parameter_update_formula_database_parameter_name = partial(
-    signal_dispatcher_on_update_formula_parameter_name, kind="database", extra="database_"
-)
-signal_dispatcher_on_activity_parameter_update_formula_project_parameter_name = partial(
-    signal_dispatcher_on_update_formula_parameter_name, kind="activity", extra="project_"
-)
-signal_dispatcher_on_activity_parameter_update_formula_database_parameter_name = partial(
-    signal_dispatcher_on_update_formula_parameter_name, kind="activity", extra="database_"
-)
-signal_dispatcher_on_activity_parameter_update_formula_activity_parameter_name = partial(
-    signal_dispatcher_on_update_formula_parameter_name, kind="activity", extra="activity_"
-)
-
 # `.connect()` directly just fails silently...
 signal_dispatcher_on_activity_database_change = partial(
     signal_dispatcher, operation="activity_database_change"
@@ -703,18 +659,6 @@ signal_dispatcher_on_database_metadata_change = partial(
 )
 signal_dispatcher_on_database_reset = partial(signal_dispatcher_on_database, verb="reset")
 signal_dispatcher_on_database_delete = partial(signal_dispatcher_on_database, verb="delete")
-signal_dispatcher_on_project_parameter_recalculate = partial(
-    signal_dispatcher_on_project_parameter, verb="recalculate", name="__recalculate_dummy__"
-)
-signal_dispatcher_on_database_parameter_recalculate = partial(
-    signal_dispatcher_on_database_parameter, verb="recalculate"
-)
-signal_dispatcher_on_activity_parameter_recalculate = partial(
-    signal_dispatcher_on_activity_parameter, verb="recalculate"
-)
-signal_dispatcher_on_activity_parameter_recalculate_exchanges = partial(
-    signal_dispatcher_on_activity_parameter, verb="recalculate_exchanges"
-)
 
 projects = ProjectManager()
 bw2signals.signaleddataset_on_save.connect(signal_dispatcher)
@@ -725,37 +669,6 @@ bw2signals.on_database_metadata_change.connect(signal_dispatcher_on_database_met
 bw2signals.on_database_reset.connect(signal_dispatcher_on_database_reset)
 bw2signals.on_database_delete.connect(signal_dispatcher_on_database_delete)
 bw2signals.on_database_write.connect(signal_dispatcher_on_database_write)
-bw2signals.on_project_parameter_recalculate.connect(
-    signal_dispatcher_on_project_parameter_recalculate
-)
-bw2signals.on_database_parameter_recalculate.connect(
-    signal_dispatcher_on_database_parameter_recalculate
-)
-bw2signals.on_activity_parameter_recalculate.connect(
-    signal_dispatcher_on_activity_parameter_recalculate
-)
-bw2signals.on_activity_parameter_recalculate_exchanges.connect(
-    signal_dispatcher_on_activity_parameter_recalculate_exchanges
-)
-
-bw2signals.on_project_parameter_update_formula_parameter_name.connect(
-    signal_dispatcher_on_project_parameter_update_formula_parameter_name
-)
-bw2signals.on_database_parameter_update_formula_project_parameter_name.connect(
-    signal_dispatcher_on_database_parameter_update_formula_project_parameter_name
-)
-bw2signals.on_database_parameter_update_formula_database_parameter_name.connect(
-    signal_dispatcher_on_database_parameter_update_formula_database_parameter_name
-)
-bw2signals.on_activity_parameter_update_formula_project_parameter_name.connect(
-    signal_dispatcher_on_activity_parameter_update_formula_project_parameter_name
-)
-bw2signals.on_activity_parameter_update_formula_database_parameter_name.connect(
-    signal_dispatcher_on_activity_parameter_update_formula_database_parameter_name
-)
-bw2signals.on_activity_parameter_update_formula_activity_parameter_name.connect(
-    signal_dispatcher_on_activity_parameter_update_formula_activity_parameter_name
-)
 
 
 @wrapt.decorator

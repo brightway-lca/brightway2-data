@@ -4,7 +4,6 @@ from bw2data import calculation_setups, get_node
 from bw2data.backends import ActivityDataset, ExchangeDataset
 from bw2data.database import DatabaseChooser
 from bw2data.errors import UnknownObject, ValidityError
-from bw2data.parameters import ActivityParameter, ParameterizedExchange, parameters
 from bw2data.tests import bw2test
 from bw2data.utils import get_activity
 
@@ -296,46 +295,6 @@ def test_copy_with_kwargs(activity):
     assert cp["widget"] == "squirt gun"
     assert ExchangeDataset.select().count() == 2
     assert ActivityDataset.select().count() == 2
-
-
-@bw2test
-def test_delete_activity_parameters():
-    db = DatabaseChooser("example")
-    db.register()
-
-    a = db.new_activity(code="A", name="An activity")
-    a.save()
-    b = db.new_activity(code="B", name="Another activity")
-    b.save()
-    a.new_exchange(amount=0, input=b, type="technosphere", formula="foo * bar + 4").save()
-
-    assert ExchangeDataset.select().count() == 1
-
-    activity_data = [
-        {
-            "name": "reference_me",
-            "formula": "sqrt(25)",
-            "database": "example",
-            "code": "B",
-        },
-        {
-            "name": "bar",
-            "formula": "reference_me + 2",
-            "database": "example",
-            "code": "A",
-        },
-    ]
-    parameters.new_activity_parameters(activity_data, "my group")
-    parameters.add_exchanges_to_group("my group", a)
-
-    assert ExchangeDataset.select().count() == 1
-
-    assert ActivityParameter.select().count() == 2
-    assert ParameterizedExchange.select().count() == 1
-
-    a.delete()
-    assert ActivityParameter.select().count() == 1
-    assert not ParameterizedExchange.select().count()
 
 
 @bw2test

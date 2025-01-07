@@ -787,24 +787,24 @@ Here are the type values usually used for nodes:
         ExchangeDataset.delete().where(ExchangeDataset.output_database == self.name).execute()
         IndexManager(self.filename).delete_database()
 
-        if not keep_params:
-            from bw2data.parameters import (
-                ActivityParameter,
-                DatabaseParameter,
-                ParameterizedExchange,
-            )
+        # if not keep_params:
+        #     from bw2data.parameters import (
+        #         ActivityParameter,
+        #         DatabaseParameter,
+        #         ParameterizedExchange,
+        #     )
 
-            groups = tuple(
-                {
-                    o[0]
-                    for o in ActivityParameter.select(ActivityParameter.group)
-                    .where(ActivityParameter.database == self.name)
-                    .tuples()
-                }
-            )
-            ParameterizedExchange.delete().where(ParameterizedExchange.group << groups).execute()
-            ActivityParameter.delete().where(ActivityParameter.database == self.name).execute()
-            DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
+        #     groups = tuple(
+        #         {
+        #             o[0]
+        #             for o in ActivityParameter.select(ActivityParameter.group)
+        #             .where(ActivityParameter.database == self.name)
+        #             .tuples()
+        #         }
+        #     )
+        #     ParameterizedExchange.delete().where(ParameterizedExchange.group << groups).execute()
+        #     ActivityParameter.delete().where(ActivityParameter.database == self.name).execute()
+        #     DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
 
         if vacuum_needed:
             sqlite3_lci_db.vacuum()

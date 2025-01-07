@@ -9,7 +9,6 @@ from pathlib import Path
 import wrapt
 
 from bw2data import config, databases, geomapping, methods
-from bw2data.parameters import parameters
 from bw2data.project import projects
 
 
@@ -40,7 +39,6 @@ class BW2DataTest(unittest.TestCase):
         self.assertTrue("GLO" in geomapping)
         self.assertEqual(len(projects), 1)  # Default project
         self.assertTrue("default" not in projects)
-        self.assertFalse(len(parameters))
 
 
 @wrapt.decorator
