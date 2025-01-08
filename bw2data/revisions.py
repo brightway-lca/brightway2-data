@@ -1,6 +1,6 @@
 import itertools
 import json
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, Sequence, TypeVar, Union
 
 import deepdiff
 
@@ -31,12 +31,26 @@ if TYPE_CHECKING:
     import typing
 
 
+T = TypeVar("T")
 ID = int
 Revision = dict
 
 
 def _id(revision: Revision) -> ID:
     return revision["metadata"]["revision"]
+
+
+def _parent(revision: Revision) -> Optional[ID]:
+    return revision["metadata"].get("parent_revision")
+
+
+def _last(x: Iterable[T]) -> T:
+    """Returns the last element of a (non-empty) series."""
+    i = iter(x)
+    ret = next(i)
+    for ret in i:
+        pass
+    return ret
 
 
 class RevisionGraph:
@@ -56,7 +70,7 @@ class RevisionGraph:
             if self.head is None:
                 raise StopIteration
             ret = self.id_map[self.head]
-            self.head = ret["metadata"].get("parent_revision")
+            self.head = _parent(ret)
             return ret
 
     def __init__(self, head: ID, revisions: Sequence[Revision]):
@@ -89,6 +103,17 @@ class RevisionGraph:
             return i
         p = self.id_map[r0]
         return itertools.takewhile(lambda x: x is not p, i)
+
+    def set_head(self, revision: ID):
+        self.head = revision
+
+    def rebase(self, onto: ID, upstream: ID, revision: ID) -> Revision:
+        """Transplants the sequence `upstream..revision` on top of `onto`."""
+        r = _last(self.range(upstream, revision))
+        assert _parent(r) == upstream, f"invalid range {upstream}..{revision}"
+        r["metadata"]["parent_revision"] = onto
+        return r
+
 
 class Delta:
     """

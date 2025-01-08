@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from bw2data import revisions
 from bw2data.backends.schema import ActivityDataset
 from bw2data.database import DatabaseChooser
@@ -24,6 +26,29 @@ def test_iter_graph():
     r2 = {"metadata": {"revision": "r2", "parent_revision": "r1"}}
     g = RevisionGraph("r2", (r1, r2, r0))
     assert list(g) == [r2, r1, r0]
+
+
+def test_rebase():
+    r0 = {"metadata": {"revision": "r0"}}
+    r01 = {"metadata": {"revision": "r01", "parent_revision": "r0"}}
+    r02 = {"metadata": {"revision": "r02", "parent_revision": "r01"}}
+    r11 = {"metadata": {"revision": "r11", "parent_revision": "r0"}}
+    r12 = {"metadata": {"revision": "r12", "parent_revision": "r11"}}
+    g = RevisionGraph("r02", (r0, r01, r02, r11, r12))
+    assert list(g) == [r02, r01, r0]
+    g.rebase("r02", "r0", "r12")
+    g.set_head("r12")
+    assert list(g) == [r12, r11, r02, r01, r0]
+
+
+def test_rebase_invalid_range():
+    r0 = {"metadata": {"revision": "r0"}}
+    r1 = {"metadata": {"revision": "r1", "parent_revision": "r0"}}
+    r2 = {"metadata": {"revision": "r2", "parent_revision": "r1"}}
+    g = RevisionGraph("r02", (r0, r1, r2))
+    with pytest.raises(AssertionError) as ex:
+        g.rebase("r0", "r2", "r0")
+    assert str(ex.value) == "invalid range r2..r0"
 
 
 @bw2test
