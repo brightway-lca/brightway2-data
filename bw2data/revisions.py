@@ -1,5 +1,5 @@
 import json
-from typing import Any, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence, Union
 
 import deepdiff
 
@@ -26,6 +26,13 @@ try:
 except ImportError:
     from typing_extensions import Self
 
+if TYPE_CHECKING:
+    import typing
+
+
+ID = int
+Revision = dict
+
 
 class RevisionGraph:
     """Graph of revisions, edges are based on `metadata.parent_revision`."""
@@ -33,9 +40,12 @@ class RevisionGraph:
     class Iterator:
         """Helper class implementing iteration from child to parent."""
 
-        def __init__(self, g: "RevisionGraph"):
-            self.head = g.head
+        def __init__(self, g: "RevisionGraph", head: Optional[ID] = None):
+            self.head: Optional[ID] = head if head is not None else g.head
             self.id_map = g.id_map
+
+        def __iter__(self) -> "typing.Iterator":
+            return self
 
         def __next__(self) -> Optional[dict]:
             if self.head is None:
@@ -44,7 +54,7 @@ class RevisionGraph:
             self.head = ret["metadata"].get("parent_revision")
             return ret
 
-    def __init__(self, head: int, revisions: Sequence[dict]):
+    def __init__(self, head: ID, revisions: Sequence[Revision]):
         self.head = head
         self.revisions = revisions
         self.id_map = {r["metadata"]["revision"]: r for r in revisions}
