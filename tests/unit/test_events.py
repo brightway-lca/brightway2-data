@@ -20,12 +20,87 @@ def test_setting_sourced():
     assert projects.dataset.is_sourced
 
 
+@pytest.mark.parametrize(
+    "r0,r1,expected",
+    (
+        ((0, 3), (0, 0), [0, 1, 2]),
+        ((0, 0), (0, 3), [0, 1, 2]),
+        ((0, 3), (3, 6), [0, 3, 1, 4, 2, 5]),
+        ((0, 3), (3, 8), [0, 3, 1, 4, 2, 5, 6, 7]),
+        ((3, 8), (0, 3), [3, 0, 4, 1, 5, 2, 6, 7]),
+    ),
+)
+def test_interleave(r0, r1, expected):
+    i0 = iter(range(*r0))
+    i1 = iter(range(*r1))
+    assert list(revisions._interleave(i0, i1)) == expected
+
+
 def test_iter_graph():
     r0 = {"metadata": {"revision": "r0"}}
     r1 = {"metadata": {"revision": "r1", "parent_revision": "r0"}}
     r2 = {"metadata": {"revision": "r2", "parent_revision": "r1"}}
     g = RevisionGraph("r2", (r1, r2, r0))
     assert list(g) == [r2, r1, r0]
+
+
+@pytest.mark.parametrize(
+    "head0,head1,expected",
+    (
+        (None, None, None),
+        (None, "r0", None),
+        (None, "r01", None),
+        (None, "r02", None),
+        (None, "r11", None),
+        (None, "r12", None),
+        ("r0", None, None),
+        ("r0", "r0", "r0"),
+        ("r0", "r01", "r0"),
+        ("r0", "r02", "r0"),
+        ("r0", "r11", "r0"),
+        ("r0", "r12", "r0"),
+        ("r0", "r1", None),
+        ("r01", None, None),
+        ("r01", "r0", "r0"),
+        ("r01", "r01", "r01"),
+        ("r01", "r02", "r01"),
+        ("r01", "r11", "r0"),
+        ("r01", "r12", "r0"),
+        ("r01", "r1", None),
+        ("r02", None, None),
+        ("r02", "r0", "r0"),
+        ("r02", "r01", "r01"),
+        ("r02", "r02", "r02"),
+        ("r02", "r11", "r0"),
+        ("r02", "r12", "r0"),
+        ("r02", "r1", None),
+        ("r11", None, None),
+        ("r11", "r0", "r0"),
+        ("r11", "r01", "r0"),
+        ("r11", "r02", "r0"),
+        ("r11", "r11", "r11"),
+        ("r11", "r12", "r11"),
+        ("r11", "r1", None),
+        ("r12", None, None),
+        ("r12", "r0", "r0"),
+        ("r12", "r01", "r0"),
+        ("r12", "r02", "r0"),
+        ("r12", "r11", "r11"),
+        ("r12", "r12", "r12"),
+        ("r12", "r1", None),
+        ("r1", "r1", "r1"),
+    ),
+)
+def test_merge_base(head0, head1, expected):
+    r0 = {"metadata": {"revision": "r0"}}
+    r01 = {"metadata": {"revision": "r01", "parent_revision": "r0"}}
+    r02 = {"metadata": {"revision": "r02", "parent_revision": "r01"}}
+    r11 = {"metadata": {"revision": "r11", "parent_revision": "r0"}}
+    r12 = {"metadata": {"revision": "r12", "parent_revision": "r11"}}
+    r1 = {"metadata": {"revision": "r1"}}
+    g = RevisionGraph("r02", (r0, r01, r02, r11, r12, r1))
+    expected = expected and g.id_map[expected]["metadata"]["revision"]
+    assert g.merge_base(head0, head1) == expected
 
 
 def test_rebase():

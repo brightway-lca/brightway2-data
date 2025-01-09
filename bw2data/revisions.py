@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
 
 T = TypeVar("T")
+U = TypeVar("U")
 ID = int
 Revision = dict
 
@@ -51,6 +52,19 @@ def _last(x: Iterable[T]) -> T:
     for ret in i:
         pass
     return ret
+
+
+def _interleave(i0: Iterator[T], i1: Iterator[U]) -> Iterator[Union[T, U]]:
+    """Similar to a flat zip, but also yields remaining elements."""
+    c0: Iterator[Union[T, U]] = i0
+    c1: Iterator[Union[T, U]] = i1
+    while True:
+        try:
+            yield next(c0)
+        except StopIteration:
+            yield from c1
+            break
+        c0, c1 = c1, c0
 
 
 class RevisionGraph:
@@ -103,6 +117,27 @@ class RevisionGraph:
             return i
         p = self.id_map[r0]
         return itertools.takewhile(lambda x: x is not p, i)
+
+    def merge_base(
+        self,
+        revision0: Optional[ID],
+        revision1: Optional[ID],
+    ) -> Optional[ID]:
+        """Finds the nearest common ancestor between two revisions."""
+        if revision0 is None or revision1 is None:
+            return None
+        seen = set()
+        # Iteration order doesn't matter, but forks are expected to be much
+        # shorter than the full history, so interleave them as a heuristic.
+        for r in _interleave(
+            self.Iterator(self, revision0),
+            self.Iterator(self, revision1),
+        ):
+            r = _id(r)
+            if r in seen:
+                return r
+            seen.add(r)
+        return None
 
     def set_head(self, revision: ID):
         self.head = revision
