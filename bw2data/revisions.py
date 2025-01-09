@@ -118,6 +118,10 @@ class RevisionGraph:
         p = self.id_map[r0]
         return itertools.takewhile(lambda x: x is not p, i)
 
+    def is_ancestor(self, parent: Optional[ID], child: ID) -> bool:
+        """Checks whether a revision can be reached by another."""
+        return parent is None or self.id_map[parent] in self.range(child)
+
     def merge_base(
         self,
         revision0: Optional[ID],

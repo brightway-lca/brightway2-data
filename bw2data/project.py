@@ -201,6 +201,46 @@ class ProjectDataset(Model):
                 revs.append(json.load(f))
         return head, revs
 
+    def _rebase(
+        self,
+        graph: "revisions.RevisionGraph",
+    ) -> Iterable["revisions.Revision"]:
+        """
+        Rebases current revision list on top of remote head, if necessary.
+
+        In a trivial fast-forward merge, this function will simply return the
+        revisions which need to be applied.  If a rebase is necessary, it will:
+        - move the head to the merge base
+        - return the (remote) revision range to be applied on top of it
+        - move the head of the graph to the rebased head, the project head can
+          be fast-forwarded to it after the application of the remote revisions
+        """
+        local_id, remote_id = self.revision, graph.head
+        base = graph.merge_base(local_id, remote_id)
+        if base == local_id:
+            ret = graph.range(local_id, remote_id)
+        elif base is None:
+            raise PossibleInconsistentData
+        else:
+            self._write_revision(graph.rebase(remote_id, base, local_id))
+            graph.set_head(local_id)
+            self.revision = base
+            ret = graph.range(base, remote_id)
+        return reversed(list(ret))
+
+    def _fast_forward(
+        self,
+        graph: "revisions.RevisionGraph",
+        revision: "revisions.ID",
+    ):
+        """Moves the current head forward, if necessary."""
+        if self.revision == revision:
+            return
+        assert graph.is_ancestor(self.revision, revision)
+        self.revision = revision
+        self.save()
+        self._write_head()
+
     def load_revisions(self, head: Optional[int] = None) -> None:
         """
         Load all revisions unapplied for this project.
@@ -211,8 +251,9 @@ class ProjectDataset(Model):
         if loaded is None:
             return
         g = revisions.RevisionGraph(*loaded)
-        for rev in reversed(list(g.range(self.revision, g.head))):
+        for rev in self._rebase(g):
             self.apply_revision(rev)
+        self._fast_forward(g, g.head)
 
 
 def add_full_hash_column(base_data_dir: Path, db: SqliteDatabase) -> None:

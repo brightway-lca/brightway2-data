@@ -3,7 +3,7 @@ from typing import Sequence, Tuple
 
 import pytest
 
-from bw2data import revisions
+from bw2data import errors, revisions
 from bw2data.backends.schema import ActivityDataset
 from bw2data.database import DatabaseChooser
 from bw2data.project import projects
@@ -34,6 +34,11 @@ def create_project(
             parent = r
     project._write_head(head)
     return project
+
+
+def revision_list(project):
+    g = revisions.RevisionGraph(*project._load_revisions())
+    return list(reversed([x["metadata"]["revision"] for x in g]))
 
 
 @bw2test
@@ -168,3 +173,62 @@ def test_load_revisions_partial():
     assert projects.dataset.revision == head0
     projects.dataset.load_revisions()
     assert projects.dataset.revision == head1
+
+
+@bw2test
+def test_load_revisions_rebase():
+    head0, head1 = 2, 4
+    project = create_project(
+        "test_load_revisions_rebase",
+        head0,
+        ((0, 1, head0), (0, 3, head1)),
+    )
+    projects.dataset.load_revisions()
+    assert project.revision == head0
+    assert revision_list(project) == [0, 1, head0]
+    project._write_head(head1)
+    project.load_revisions()
+    assert project.revision == head0
+    assert revision_list(project) == [0, 3, head1, 1, head0]
+    project.load_revisions()
+    assert project.revision == head0
+    assert revision_list(project) == [0, 3, head1, 1, head0]
+
+
+@bw2test
+def test_load_revisions_apply(monkeypatch):
+    head0, head1 = 2, 4
+    project = create_project(
+        "test_load_revisions_rebase",
+        head0,
+        ((0, 1, head0), (0, 3, head1)),
+    )
+    applied, patch = [], lambda x: applied.append(x)
+    with monkeypatch.context() as m:
+        m.setattr(project, "apply_revision", patch)
+        projects.dataset.load_revisions()
+    ids = lambda l: [x["metadata"]["revision"] for x in l]
+    assert ids(applied) == [0, 1, head0]
+    project.revision = head0
+    project.save()
+    project._write_head(head1)
+    with monkeypatch.context() as m:
+        m.setattr(project, "apply_revision", patch)
+        project.load_revisions()
+    assert ids(applied) == [0, 1, head0, 3, head1]
+
+
+@bw2test
+def test_load_revisions_divergent():
+    head0, head1 = 2, 5
+    project = create_project(
+        "test_load_revisions_rebase",
+        head0,
+        ((0, 1, head0), (3, 4, head1)),
+    )
+    projects.dataset.load_revisions()
+    assert project.revision == head0
+    assert revision_list(project) == [0, 1, head0]
+    project._write_head(head1)
+    with pytest.raises(errors.PossibleInconsistentData):
+        project.load_revisions()
