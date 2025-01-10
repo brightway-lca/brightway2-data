@@ -1,4 +1,5 @@
 import json
+from typing import Sequence, Tuple
 
 import pytest
 
@@ -8,6 +9,31 @@ from bw2data.database import DatabaseChooser
 from bw2data.project import projects
 from bw2data.revisions import RevisionGraph
 from bw2data.tests import bw2test
+
+
+def create_project(
+    name: str,
+    head: revisions.ID,
+    branches: Sequence[Sequence[revisions.ID]],
+):
+    projects.set_current(name)
+    database = DatabaseChooser("db")
+    database.register()
+    project = projects.dataset
+    project.set_sourced()
+    directory = project.dir
+    for revisions in branches:
+        parent = None
+        for r in revisions:
+            project._write_revision(
+                {
+                    "metadata": {"revision": r, "parent_revision": parent},
+                    "data": {},
+                }
+            )
+            parent = r
+    project._write_head(head)
+    return project
 
 
 @bw2test
@@ -128,46 +154,16 @@ def test_rebase_invalid_range():
 
 @bw2test
 def test_load_revisions():
-    projects.set_current("test_load_revisions")
-    database = DatabaseChooser("db")
-    database.register()
-    projects.dataset.set_sourced()
-    d = projects.dataset.dir
     head = 2
-    for r, p in ((0, None), (1, 0), (head, 1)):
-        with open(f"{d}/revisions/{r}.rev", "w") as f:
-            json.dump(
-                {
-                    "metadata": {"revision": r, "parent_revision": p},
-                    "data": {},
-                },
-                f,
-            )
-    with open(f"{d}/revisions/head", "w") as f:
-        f.write(str(head))
+    create_project("test_load_revisions", head, ((0, 1, head),))
     projects.dataset.load_revisions()
     assert projects.dataset.revision == head
 
 
 @bw2test
 def test_load_revisions_partial():
-    projects.set_current("test_load_revisions_partial")
-    database = DatabaseChooser("db")
-    database.register()
-    projects.dataset.set_sourced()
-    d = projects.dataset.dir
     head0, head1 = 1, 2
-    for r, p in ((0, None), (head0, 0), (head1, head0)):
-        with open(f"{d}/revisions/{r}.rev", "w") as f:
-            json.dump(
-                {
-                    "metadata": {"revision": r, "parent_revision": p},
-                    "data": {},
-                },
-                f,
-            )
-    with open(f"{d}/revisions/head", "w") as f:
-        f.write(str(head1))
+    create_project("test_load_revisions_partial", head1, ((0, head0, head1),))
     projects.dataset.load_revisions(head0)
     assert projects.dataset.revision == head0
     projects.dataset.load_revisions()

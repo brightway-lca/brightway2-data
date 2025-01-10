@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Tuple, Union
 
 import deepdiff
 import wrapt
@@ -80,6 +80,20 @@ class ProjectDataset(Model):
             (self.dir / "revisions").mkdir()
         self.save()
 
+    def _write_revision(self, revision: "revisions.Revision"):
+        """Write revision to disk."""
+        from bw2data import revisions
+
+        rev_id = revision["metadata"]["revision"]
+        with open(self.dir / "revisions" / f"{rev_id}.rev", "w") as f:
+            f.write(revisions.JSONEncoder(indent=2).encode(revision))
+
+    def _write_head(self, head: Optional["revisions.ID"] = None):
+        """Write starting revision to disk."""
+        head = head if head is not None else self.revision
+        with open(self.dir / "revisions" / "head", "w") as f:
+            f.write(str(head))
+
     def add_revision(
         self,
         delta: Sequence["revisions.Delta"],
@@ -112,15 +126,9 @@ class ProjectDataset(Model):
 
         ext_metadata = revisions.generate_metadata(metadata, parent_revision=self.revision)
         self.revision = ext_metadata["revision"]
-        with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
-            f.write(
-                revisions.JSONEncoder(indent=2).encode(
-                    revisions.generate_revision(ext_metadata, delta),
-                ),
-            )
+        self._write_revision(revisions.generate_revision(ext_metadata, delta))
         self.save()
-        with open(self.dir / "revisions" / "head", "w") as f:
-            f.write(str(self.revision))
+        self._write_head()
         return self.revision
 
     def apply_revision(self, revision: dict) -> None:
@@ -174,17 +182,16 @@ class ProjectDataset(Model):
         elif local and remote and local != remote:
             raise InconsistentData
 
-    def load_revisions(self, head: Optional[int] = None) -> None:
-        """
-        Load all revisions unapplied for this project.
-        """
-        from bw2data import revisions
-
+    def _load_revisions(
+        self,
+        head: Optional["revisions.ID"] = None,
+    ) -> Optional[Tuple["revisions.ID", Sequence["revisions.Revision"]]]:
+        """Reads all revisions from disk."""
         revs = []
         if head is None:
             if not (self.dir / "revisions" / "head").is_file():
                 # No revisions recorded yet
-                return
+                return None
             with open(self.dir / "revisions" / "head", "r") as f:
                 head = int(f.read())
         for filename in os.listdir(self.dir / "revisions"):
@@ -192,7 +199,18 @@ class ProjectDataset(Model):
                 continue
             with open(self.dir / "revisions" / filename, "r") as f:
                 revs.append(json.load(f))
-        g = revisions.RevisionGraph(head, revs)
+        return head, revs
+
+    def load_revisions(self, head: Optional[int] = None) -> None:
+        """
+        Load all revisions unapplied for this project.
+        """
+        from bw2data import revisions
+
+        loaded = self._load_revisions(head)
+        if loaded is None:
+            return
+        g = revisions.RevisionGraph(*loaded)
         for rev in reversed(list(g.range(self.revision, g.head))):
             self.apply_revision(rev)
 
