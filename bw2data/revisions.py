@@ -1,5 +1,6 @@
+import itertools
 import json
-from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, Sequence, Union
 
 import deepdiff
 
@@ -34,6 +35,10 @@ ID = int
 Revision = dict
 
 
+def _id(revision: Revision) -> ID:
+    return revision["metadata"]["revision"]
+
+
 class RevisionGraph:
     """Graph of revisions, edges are based on `metadata.parent_revision`."""
 
@@ -57,12 +62,33 @@ class RevisionGraph:
     def __init__(self, head: ID, revisions: Sequence[Revision]):
         self.head = head
         self.revisions = revisions
-        self.id_map = {r["metadata"]["revision"]: r for r in revisions}
+        self.id_map = {_id(r): r for r in revisions}
 
     def __iter__(self):
         """Iterates the graph from head to root."""
         return self.Iterator(self)
 
+    def range(
+        self,
+        r0: Optional[ID] = None,
+        r1: Optional[ID] = None,
+    ) -> Iterable[Revision]:
+        """
+        Creates an iterator for a revision range (reversed).
+
+        - `range()`: same as `range(self.head)`
+        - `range(r)`: all revisions starting from `r`
+        - `range(None, r)`: same as `range(r)`
+        - `range(r0, r1)`: `r0..r1`
+        """
+        if r1 is None:
+            return self.Iterator(self, r0 if r0 is not None else self.head)
+        i = self.Iterator(self, r1)
+        # Redundant, but avoids the cost of unnecessary predicate applications.
+        if r0 is None:
+            return i
+        p = self.id_map[r0]
+        return itertools.takewhile(lambda x: x is not p, i)
 
 class Delta:
     """

@@ -192,10 +192,8 @@ class ProjectDataset(Model):
                 continue
             with open(self.dir / "revisions" / filename, "r") as f:
                 revs.append(json.load(f))
-        apply_to = self.revision
         g = revisions.RevisionGraph(head, revs)
-        pruned = itertools.takewhile(lambda x: x["metadata"]["revision"] != apply_to, g)
-        for rev in reversed(list(pruned)):
+        for rev in reversed(list(g.range(self.revision, g.head))):
             self.apply_revision(rev)
 
 
