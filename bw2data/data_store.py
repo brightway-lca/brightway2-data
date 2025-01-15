@@ -1,4 +1,5 @@
 import pickle
+from abc import abstractmethod
 
 from bw_processing import (
     clean_datapackage_name,
@@ -147,6 +148,24 @@ class ProcessedDataStore(DataStore):
     """
 
     matrix = "unknown"
+
+    @abstractmethod
+    def make_searchable(self, reset: bool = False, signal: bool = True) -> bool:
+        pass
+
+    @abstractmethod
+    def make_unsearchable(self, signal: bool = False) -> bool:
+        pass
+
+    @abstractmethod
+    def delete(
+        self,
+        keep_params: bool = False,
+        warn: bool = True,
+        vacuum: bool = True,
+        signal: bool = True,
+    ):
+        pass
 
     def dirpath_processed(self):
         return projects.dir / "processed"

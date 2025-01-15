@@ -1,6 +1,17 @@
 import itertools
 import json
-from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, Sequence, TypeVar, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Iterable,
+    Iterator,
+    Optional,
+    Sequence,
+    TypeAlias,
+    TypeVar,
+    Union,
+)
 
 import deepdiff
 
@@ -29,6 +40,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     import typing
+    import peewee
 
 
 T = TypeVar("T")
@@ -250,8 +262,11 @@ class Delta:
 
     @classmethod
     def generate(
-        cls, old: Optional[Any], new: Optional[Any], operation: Optional[str] = None
-    ) -> Self:
+        cls,
+        old: Optional[SignaledDataset],
+        new: Optional[SignaledDataset],
+        operation: Optional[str] = None,
+    ) -> Optional[Self]:
         """
         Generates a patch object from one version of an object to another.
 
@@ -266,10 +281,15 @@ class Delta:
         if operation is not None:
             return getattr(cls, operation)(old, new)
 
-        if old is None and new is None:
+        if old is not None:
+            obj_id = old.id
+            obj_type = old.__class__
+        elif new is not None:
+            obj_id = new.id
+            obj_type = new.__class__
+        else:
             raise ValueError("Both `new` and `old` are `None`")
 
-        obj_type = new.__class__ if new is not None else old.__class__
         if old is not None and new is not None:
             if old.__class__ != new.__class__:
                 raise IncompatibleClasses(f"Can't diff {old.__class__} and {new.__class__}")
@@ -294,12 +314,7 @@ class Delta:
         if not diff:
             return None
 
-        return cls.from_difference(
-            label,
-            old.id if old is not None else new.id,
-            change_type,
-            diff,
-        )
+        return cls.from_difference(label, obj_id, change_type, diff)
 
 
 class JSONEncoder(json.JSONEncoder):
@@ -345,6 +360,10 @@ class RevisionedORMProxy:
     `Node` (and similar for edges).
     """
 
+    ORM_CLASS: type["peewee.Model"]
+    PROXY_CLASS: type["peewee.Model"]
+    orm_as_dict: Callable[["peewee.Model"], dict]
+
     @classmethod
     def handle(cls, revision_data: dict) -> None:
         getattr(cls, revision_data["change_type"])(revision_data)
@@ -386,6 +405,8 @@ class RevisionedORMProxy:
 
 
 class RevisionedParameter(RevisionedORMProxy):
+    KEYS: Sequence[str]
+
     @classmethod
     def _state_as_dict(cls, obj: ParameterBase) -> dict:
         return {key: getattr(obj, key) for key in cls.KEYS}
@@ -512,10 +533,10 @@ class RevisionedActivityParameter(RevisionedParameter):
 
 class RevisionedNode(RevisionedORMProxy):
     PROXY_CLASS = Activity
-    ORM_CLASS = Activity.ORMDataset
+    ORM_CLASS: TypeAlias = Activity.ORMDataset
 
     @classmethod
-    def orm_as_dict(cls, orm_object: Activity.ORMDataset) -> dict:
+    def orm_as_dict(cls, orm_object: ORM_CLASS) -> dict:
         return orm_object.data
 
     @classmethod
@@ -543,10 +564,10 @@ class RevisionedNode(RevisionedORMProxy):
 
 class RevisionedEdge(RevisionedORMProxy):
     PROXY_CLASS = Exchange
-    ORM_CLASS = Exchange.ORMDataset
+    ORM_CLASS: TypeAlias = Exchange.ORMDataset
 
     @classmethod
-    def orm_as_dict(cls, orm_object: Exchange.ORMDataset) -> dict:
+    def orm_as_dict(cls, orm_object: ORM_CLASS) -> dict:
         return dict_as_exchangedataset(orm_object.data)
 
 
@@ -578,9 +599,10 @@ SIGNALLEDOBJECT_TO_LABEL = {
     ParameterizedExchange: "parameterized_exchange",
     Group: "group",
 }
-REVISIONED_LABEL_AS_OBJECT = {
+REVISIONED_LABEL_AS_OBJECT: dict[str, type[RevisionedORMProxy]] = {
     "lci_node": RevisionedNode,
     "lci_edge": RevisionedEdge,
+    # TODO separate uses
     "lci_database": RevisionedDatabase,
     "project_parameter": RevisionedProjectParameter,
     "database_parameter": RevisionedDatabaseParameter,
