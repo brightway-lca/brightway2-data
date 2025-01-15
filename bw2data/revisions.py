@@ -1,5 +1,6 @@
+import itertools
 import json
-from typing import Any, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Iterable, Iterator, Optional, Sequence, TypeVar, Union
 
 import deepdiff
 
@@ -26,6 +27,45 @@ try:
 except ImportError:
     from typing_extensions import Self
 
+if TYPE_CHECKING:
+    import typing
+
+
+T = TypeVar("T")
+U = TypeVar("U")
+ID = int
+Revision = dict
+
+
+def _id(revision: Revision) -> ID:
+    return revision["metadata"]["revision"]
+
+
+def _parent(revision: Revision) -> Optional[ID]:
+    return revision["metadata"].get("parent_revision")
+
+
+def _last(x: Iterable[T]) -> T:
+    """Returns the last element of a (non-empty) series."""
+    i = iter(x)
+    ret = next(i)
+    for ret in i:
+        pass
+    return ret
+
+
+def _interleave(i0: Iterator[T], i1: Iterator[U]) -> Iterator[Union[T, U]]:
+    """Similar to a flat zip, but also yields remaining elements."""
+    c0: Iterator[Union[T, U]] = i0
+    c1: Iterator[Union[T, U]] = i1
+    while True:
+        try:
+            yield next(c0)
+        except StopIteration:
+            yield from c1
+            break
+        c0, c1 = c1, c0
+
 
 class RevisionGraph:
     """Graph of revisions, edges are based on `metadata.parent_revision`."""
@@ -33,25 +73,85 @@ class RevisionGraph:
     class Iterator:
         """Helper class implementing iteration from child to parent."""
 
-        def __init__(self, g: "RevisionGraph"):
-            self.head = g.head
+        def __init__(self, g: "RevisionGraph", head: Optional[ID] = None):
+            self.head: Optional[ID] = head if head is not None else g.head
             self.id_map = g.id_map
+
+        def __iter__(self) -> "typing.Iterator":
+            return self
 
         def __next__(self) -> Optional[dict]:
             if self.head is None:
                 raise StopIteration
             ret = self.id_map[self.head]
-            self.head = ret["metadata"].get("parent_revision")
+            self.head = _parent(ret)
             return ret
 
-    def __init__(self, head: int, revisions: Sequence[dict]):
+    def __init__(self, head: ID, revisions: Sequence[Revision]):
         self.head = head
         self.revisions = revisions
-        self.id_map = {r["metadata"]["revision"]: r for r in revisions}
+        self.id_map = {_id(r): r for r in revisions}
 
     def __iter__(self):
         """Iterates the graph from head to root."""
         return self.Iterator(self)
+
+    def range(
+        self,
+        r0: Optional[ID] = None,
+        r1: Optional[ID] = None,
+    ) -> Iterable[Revision]:
+        """
+        Creates an iterator for a revision range (reversed).
+
+        - `range()`: same as `range(self.head)`
+        - `range(r)`: all revisions starting from `r`
+        - `range(None, r)`: same as `range(r)`
+        - `range(r0, r1)`: `r0..r1`
+        """
+        if r1 is None:
+            return self.Iterator(self, r0 if r0 is not None else self.head)
+        i = self.Iterator(self, r1)
+        # Redundant, but avoids the cost of unnecessary predicate applications.
+        if r0 is None:
+            return i
+        p = self.id_map[r0]
+        return itertools.takewhile(lambda x: x is not p, i)
+
+    def is_ancestor(self, parent: Optional[ID], child: ID) -> bool:
+        """Checks whether a revision can be reached by another."""
+        return parent is None or self.id_map[parent] in self.range(child)
+
+    def merge_base(
+        self,
+        revision0: Optional[ID],
+        revision1: Optional[ID],
+    ) -> Optional[ID]:
+        """Finds the nearest common ancestor between two revisions."""
+        if revision0 is None or revision1 is None:
+            return None
+        seen = set()
+        # Iteration order doesn't matter, but forks are expected to be much
+        # shorter than the full history, so interleave them as a heuristic.
+        for r in _interleave(
+            self.Iterator(self, revision0),
+            self.Iterator(self, revision1),
+        ):
+            r = _id(r)
+            if r in seen:
+                return r
+            seen.add(r)
+        return None
+
+    def set_head(self, revision: ID):
+        self.head = revision
+
+    def rebase(self, onto: ID, upstream: ID, revision: ID) -> Revision:
+        """Transplants the sequence `upstream..revision` on top of `onto`."""
+        r = _last(self.range(upstream, revision))
+        assert _parent(r) == upstream, f"invalid range {upstream}..{revision}"
+        r["metadata"]["parent_revision"] = onto
+        return r
 
 
 class Delta:

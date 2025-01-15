@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from copy import copy
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Tuple, Union
 
 import deepdiff
 import wrapt
@@ -80,6 +80,20 @@ class ProjectDataset(Model):
             (self.dir / "revisions").mkdir()
         self.save()
 
+    def _write_revision(self, revision: "revisions.Revision"):
+        """Write revision to disk."""
+        from bw2data import revisions
+
+        rev_id = revision["metadata"]["revision"]
+        with open(self.dir / "revisions" / f"{rev_id}.rev", "w") as f:
+            f.write(revisions.JSONEncoder(indent=2).encode(revision))
+
+    def _write_head(self, head: Optional["revisions.ID"] = None):
+        """Write starting revision to disk."""
+        head = head if head is not None else self.revision
+        with open(self.dir / "revisions" / "head", "w") as f:
+            f.write(str(head))
+
     def add_revision(
         self,
         delta: Sequence["revisions.Delta"],
@@ -112,15 +126,9 @@ class ProjectDataset(Model):
 
         ext_metadata = revisions.generate_metadata(metadata, parent_revision=self.revision)
         self.revision = ext_metadata["revision"]
-        with open(self.dir / "revisions" / f"{self.revision}.rev", "w") as f:
-            f.write(
-                revisions.JSONEncoder(indent=2).encode(
-                    revisions.generate_revision(ext_metadata, delta),
-                ),
-            )
+        self._write_revision(revisions.generate_revision(ext_metadata, delta))
         self.save()
-        with open(self.dir / "revisions" / "head", "w") as f:
-            f.write(str(self.revision))
+        self._write_head()
         return self.revision
 
     def apply_revision(self, revision: dict) -> None:
@@ -174,17 +182,16 @@ class ProjectDataset(Model):
         elif local and remote and local != remote:
             raise InconsistentData
 
-    def load_revisions(self, head: Optional[int] = None) -> None:
-        """
-        Load all revisions unapplied for this project.
-        """
-        from bw2data import revisions
-
+    def _load_revisions(
+        self,
+        head: Optional["revisions.ID"] = None,
+    ) -> Optional[Tuple["revisions.ID", Sequence["revisions.Revision"]]]:
+        """Reads all revisions from disk."""
         revs = []
         if head is None:
             if not (self.dir / "revisions" / "head").is_file():
                 # No revisions recorded yet
-                return
+                return None
             with open(self.dir / "revisions" / "head", "r") as f:
                 head = int(f.read())
         for filename in os.listdir(self.dir / "revisions"):
@@ -192,11 +199,61 @@ class ProjectDataset(Model):
                 continue
             with open(self.dir / "revisions" / filename, "r") as f:
                 revs.append(json.load(f))
-        apply_to = self.revision
-        g = revisions.RevisionGraph(head, revs)
-        pruned = itertools.takewhile(lambda x: x["metadata"]["revision"] != apply_to, g)
-        for rev in reversed(list(pruned)):
+        return head, revs
+
+    def _rebase(
+        self,
+        graph: "revisions.RevisionGraph",
+    ) -> Iterable["revisions.Revision"]:
+        """
+        Rebases current revision list on top of remote head, if necessary.
+
+        In a trivial fast-forward merge, this function will simply return the
+        revisions which need to be applied.  If a rebase is necessary, it will:
+        - move the head to the merge base
+        - return the (remote) revision range to be applied on top of it
+        - move the head of the graph to the rebased head, the project head can
+          be fast-forwarded to it after the application of the remote revisions
+        """
+        local_id, remote_id = self.revision, graph.head
+        base = graph.merge_base(local_id, remote_id)
+        if base == local_id:
+            ret = graph.range(local_id, remote_id)
+        elif base is None:
+            raise PossibleInconsistentData
+        else:
+            self._write_revision(graph.rebase(remote_id, base, local_id))
+            graph.set_head(local_id)
+            self.revision = base
+            ret = graph.range(base, remote_id)
+        return reversed(list(ret))
+
+    def _fast_forward(
+        self,
+        graph: "revisions.RevisionGraph",
+        revision: "revisions.ID",
+    ):
+        """Moves the current head forward, if necessary."""
+        if self.revision == revision:
+            return
+        assert graph.is_ancestor(self.revision, revision)
+        self.revision = revision
+        self.save()
+        self._write_head()
+
+    def load_revisions(self, head: Optional[int] = None) -> None:
+        """
+        Load all revisions unapplied for this project.
+        """
+        from bw2data import revisions
+
+        loaded = self._load_revisions(head)
+        if loaded is None:
+            return
+        g = revisions.RevisionGraph(*loaded)
+        for rev in self._rebase(g):
             self.apply_revision(rev)
+        self._fast_forward(g, g.head)
 
 
 def add_full_hash_column(base_data_dir: Path, db: SqliteDatabase) -> None:
