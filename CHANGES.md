@@ -1,5 +1,11 @@
 # `bw2data` Changelog
 
+## 4.4 (2025-01-15)
+
+* [PR #226: Rebase revisions when necessary](https://github.com/brightway-lca/brightway2-data/pull/226)
+* [Fix #227: Setting impact category `num_cfs` not saved to disk](https://github.com/brightway-lca/brightway2-data/issues/227)
+* [PR #213: Remove parentheses and curly braces from FTS5 search queries](https://github.com/brightway-lca/brightway2-data/pull/213)
+
 ## 4.3 (2024-12-03)
 
 * BREAKING CHANGE: Removed looking up node attributes in reference product edges using `node['foo']` (i.e. `node.__getitem__()`). The code searching for reference product edges was incorrect - when it was correct to search for both functional inputs and outputs, there was a severe performance degradation as all edges needed to be loaded and examined.
