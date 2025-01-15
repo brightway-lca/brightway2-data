@@ -1,7 +1,7 @@
 import copy
 import uuid
 from collections.abc import Iterable
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, TypeAlias
 
 import pandas as pd
 
@@ -186,7 +186,7 @@ class Exchanges(Iterable):
 
 
 class Activity(ActivityProxyBase):
-    ORMDataset = ActivityDataset
+    ORMDataset: TypeAlias = ActivityDataset
 
     def __init__(self, document=None, **kwargs):
         """Create an `Activity` proxy object.
@@ -556,7 +556,7 @@ class Activity(ActivityProxyBase):
 
 
 class Exchange(ExchangeProxyBase):
-    ORMDataset = ExchangeDataset
+    ORMDataset: TypeAlias = ExchangeDataset
 
     def __init__(self, document=None, **kwargs):
         """Create an `Exchange` proxy object.
