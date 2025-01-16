@@ -84,6 +84,23 @@ class IndexManager:
     def close(self):
         self.db.close()
 
+    @staticmethod
+    def escape_search_for_fts5(string: str) -> str:
+        # Use SQL Escape syntax to properly escape specials chars
+        # see https://stackoverflow.com/a/43756146
+        #
+        # We split each word and enclose it inside "" to escape the specials characters that it may contain
+        # If the word was ending with a * wildcard, we keep it but outside the escaped string
+        #
+        # `Com* cheese cow's` is converted to `"com"* "cheese" "cow's"`
+
+        return " ".join(
+            [
+                f'"{term[:-1]}"*' if term.endswith("*") else f'"{term}"'
+                for term in string.split()
+            ]
+        )
+
     def search(self, string, limit=None, weights=None, mask=None, filter=None):
         if mask:
             warnings.warn(
@@ -101,11 +118,7 @@ class IndexManager:
                 query = BW2Schema
             else:
                 query = BW2Schema.search_bm25(
-                    string.replace(",", "")
-                    .replace("(", "")
-                    .replace(")", "")
-                    .replace("{", "")
-                    .replace("}", ""),
+                    self.escape_search_for_fts5(string),
                     weights=weights,
                 )
             return list(
