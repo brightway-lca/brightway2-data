@@ -7,7 +7,9 @@ from bw2data.tests import bw2test
 @bw2test
 def test_search_dataset_containing_stop_word():
     im = IndexManager("foo")
-    im.add_dataset({"database": "foo", "code": "bar", "name": "foo of bar, high voltage"})
+    im.add_dataset(
+        {"database": "foo", "code": "bar", "name": "foo of bar, high voltage"}
+    )
     with Searcher("foo") as s:
         assert s.search("foo of bar, high voltage", proxy=False)
 
@@ -207,7 +209,10 @@ def test_categories_term():
 def test_limit():
     im = IndexManager("foo")
     im.add_datasets(
-        [{"database": "foo", "code": "bar", "name": "lollipop {}".format(x)} for x in range(50)]
+        [
+            {"database": "foo", "code": "bar", "name": "lollipop {}".format(x)}
+            for x in range(50)
+        ]
     )
     with Searcher("foo") as s:
         assert len(s.search("lollipop", limit=25, proxy=False)) == 25
@@ -217,7 +222,10 @@ def test_limit():
 def test_star_search():
     im = IndexManager("foo")
     im.add_datasets(
-        [{"database": "foo", "code": "bar", "name": "lollipop {}".format(x)} for x in range(50)]
+        [
+            {"database": "foo", "code": "bar", "name": "lollipop {}".format(x)}
+            for x in range(50)
+        ]
     )
     with Searcher("foo") as s:
         assert len(s.search("*", limit=25, proxy=False)) == 25
@@ -284,6 +292,7 @@ def test_case_sensitivity_convert_lowercase():
     assert db.search("LOLL*")
     assert db.search("Lollipop")
     assert not db.search("nope")
+    assert not db.search("Lolipop")
 
 
 @bw2test
@@ -343,7 +352,9 @@ def test_search_single_char():
 def test_search_with_parentheses():
     """Test that searching with parentheses works correctly"""
     im = IndexManager("foo")
-    im.add_dataset({"database": "foo", "code": "bar", "name": "beam dried (u=10%) planed"})
+    im.add_dataset(
+        {"database": "foo", "code": "bar", "name": "beam dried (u=10%) planed"}
+    )
     with Searcher("foo") as s:
         assert s.search("dried (u=10%)", proxy=False) == [
             {
@@ -357,3 +368,97 @@ def test_search_with_parentheses():
                 "synonyms": "",
             }
         ]
+
+
+@bw2test
+def test_search_with_special_chars():
+    """Test that searching with ' works correctly"""
+    im = IndexManager("foo")
+    im.add_dataset(
+        {
+            "database": "foo",
+            "code": "bar",
+            "name": "Comte cheese, from cow's milk, consumption mix: {FR} U & (test)",
+        }
+    )
+    with Searcher("foo") as s:
+        assert s.search("Comte cheese, from cow's milk test {FR}", proxy=False) == [
+            {
+                "comment": "",
+                "product": "",
+                "name": "comte cheese, from cow's milk, consumption mix: {fr} u & (test)",
+                "database": "foo",
+                "location": "",
+                "code": "bar",
+                "categories": "",
+                "synonyms": "",
+            }
+        ]
+
+
+def test_escape_search():
+    assert (
+        IndexManager.escape_search_for_fts5("Comte cheese from cow's")
+        == '"Comte" "cheese" "from" "cow\'s"'
+    )
+
+    assert (
+        IndexManager.escape_search_for_fts5("Comte* cheese from cow's")
+        == '"Comte"* "cheese" "from" "cow\'s"'
+    )
+
+    assert '"Comte"*' == IndexManager.escape_search_for_fts5("Comte*")
+
+
+@bw2test
+def test_search_with_substrings():
+    """Test that searching with ' works correctly"""
+    im = IndexManager("foo")
+    im.add_dataset(
+        {
+            "database": "foo",
+            "code": "bar",
+            "name": "Comte cheese, from cow's milk, consumption mix: {FR} U & (test)",
+        }
+    )
+    with Searcher("foo") as s:
+        assert s.search("Comte cheese from cow's", proxy=False) == [
+            {
+                "comment": "",
+                "product": "",
+                "name": "comte cheese, from cow's milk, consumption mix: {fr} u & (test)",
+                "database": "foo",
+                "location": "",
+                "code": "bar",
+                "categories": "",
+                "synonyms": "",
+            }
+        ]
+
+        assert s.search("Comte cheese cow's", proxy=False) == [
+            {
+                "comment": "",
+                "product": "",
+                "name": "comte cheese, from cow's milk, consumption mix: {fr} u & (test)",
+                "database": "foo",
+                "location": "",
+                "code": "bar",
+                "categories": "",
+                "synonyms": "",
+            }
+        ]
+
+        assert s.search("Com* cheese cow's", proxy=False) == [
+            {
+                "comment": "",
+                "product": "",
+                "name": "comte cheese, from cow's milk, consumption mix: {fr} u & (test)",
+                "database": "foo",
+                "location": "",
+                "code": "bar",
+                "categories": "",
+                "synonyms": "",
+            }
+        ]
+
+        assert s.search("Com cheese cow's", proxy=False) == []

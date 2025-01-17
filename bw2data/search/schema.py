@@ -13,4 +13,4 @@ class BW2Schema(FTS5Model):
     code = SearchField()
 
     class Meta:
-        options = {"tokenize": "unicode61 tokenchars '''&:'"}
+        options = {"tokenize": "unicode61"}
