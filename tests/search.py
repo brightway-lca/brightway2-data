@@ -407,6 +407,11 @@ def test_escape_search():
         == '"Comte"* "cheese" "from" "cow\'s"'
     )
 
+    assert (
+        IndexManager.escape_search_for_fts5('Comte* "cheese" from cow\'s')
+        == '"Comte"* "cheese" "from" "cow\'s"'
+    )
+
     assert '"Comte"*' == IndexManager.escape_search_for_fts5("Comte*")
 
 
@@ -414,12 +419,19 @@ def test_escape_search():
 def test_search_with_substrings():
     """Test that searching with ' works correctly"""
     im = IndexManager("foo")
-    im.add_dataset(
-        {
-            "database": "foo",
-            "code": "bar",
-            "name": "Comte cheese, from cow's milk, consumption mix: {FR} U & (test)",
-        }
+    im.add_datasets(
+        [
+            {
+                "database": "foo",
+                "code": "bar",
+                "name": "Comte cheese, from cow's milk, consumption mix: {FR} U & (test)",
+            },
+            {
+                "database": "foo",
+                "code": "baz",
+                "name": 'meat without bone chicken for direct consumption "fr-organic"',
+            },
+        ]
     )
     with Searcher("foo") as s:
         assert s.search("Comte cheese from cow's", proxy=False) == [
@@ -462,3 +474,19 @@ def test_search_with_substrings():
         ]
 
         assert s.search("Com cheese cow's", proxy=False) == []
+
+        assert s.search(
+            'meat without bone chicken for direct consumption "fr-organic"',
+            proxy=False,
+        ) == [
+            {
+                "comment": "",
+                "product": "",
+                "name": 'meat without bone chicken for direct consumption "fr-organic"',
+                "database": "foo",
+                "location": "",
+                "code": "baz",
+                "categories": "",
+                "synonyms": "",
+            }
+        ]
