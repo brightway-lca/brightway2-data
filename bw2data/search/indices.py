@@ -97,7 +97,7 @@ class IndexManager:
         return " ".join(
             [
                 f'"{term[:-1]}"*' if term.endswith("*") else f'"{term}"'
-                for term in string.split()
+                for term in string.replace('"', "").split()
             ]
         )
 
