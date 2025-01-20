@@ -1,5 +1,6 @@
 import itertools
 import json
+import sys
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -8,7 +9,6 @@ from typing import (
     Iterator,
     Optional,
     Sequence,
-    TypeAlias,
     TypeVar,
     Union,
 )
@@ -33,10 +33,14 @@ from bw2data.signals import SignaledDataset
 from bw2data.snowflake_ids import snowflake_id_generator
 from bw2data.utils import get_node
 
-try:
-    from typing import Self
-except ImportError:
+if sys.version_info < (3, 10):
+    from typing_extensions import TypeAlias
+else:
+    from typing import TypeAlias
+if sys.version_info < (3, 11):
     from typing_extensions import Self
+else:
+    from typing import Self
 
 if TYPE_CHECKING:
     import typing
