@@ -1,5 +1,12 @@
 # `bw2data` Changelog
 
+## 4.4.2 (2025-01-22)
+
+* [PR #233: Remove `"`` from search to avoid SQL escaping errors](https://github.com/brightway-lca/brightway2-data/pull/233)
+* [PR #232: Fix type annotations in Python 3.9](https://github.com/brightway-lca/brightway2-data/pull/232)
+* [PR #231: Escape search strings properly for SQLite `FTS5` format](https://github.com/brightway-lca/brightway2-data/pull/231)
+* [PR #230: Fix (some) type annotations](https://github.com/brightway-lca/brightway2-data/pull/230)
+
 ## 4.4 (2025-01-15)
 
 * [PR #226: Rebase revisions when necessary](https://github.com/brightway-lca/brightway2-data/pull/226)
