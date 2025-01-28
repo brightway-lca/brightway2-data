@@ -78,8 +78,8 @@ class IndexManager:
                 ).execute()
 
     def delete_database(self):
-        with self.db.bind_ctx(MODELS):
-            self.db.drop_tables(MODELS)
+        if os.path.isfile(self.path):
+            os.unlink(self.path)
 
     def close(self):
         self.db.close()
