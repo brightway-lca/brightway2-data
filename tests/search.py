@@ -1,4 +1,3 @@
-import os
 from bw2data import databases
 from bw2data.backends import SQLiteBackend
 from bw2data.search import IndexManager, Searcher
@@ -169,7 +168,6 @@ def test_delete_database():
     im = IndexManager("foo")
     im.add_dataset({"database": "foo", "code": "bar", "name": "lollipop"})
     im.delete_database()
-    assert not os.path.isfile(im.path)
     # Check that we can create an IM with the same name without throwing an exception
     im = IndexManager("foo")
     im.add_dataset({"database": "foo", "code": "bar", "name": "lollipop"})

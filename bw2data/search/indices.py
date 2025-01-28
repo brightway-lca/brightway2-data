@@ -13,7 +13,7 @@ class IndexManager:
     def __init__(self, database_path):
         self.path = os.path.join(projects.request_directory("search"), database_path)
         self.db = SqliteExtDatabase(self.path)
-        if not os.path.exists(self.path):
+        if not os.path.exists(self.path) or len(self.db.get_tables()) == 0:
             self.create()
 
     def get(self):
@@ -78,8 +78,8 @@ class IndexManager:
                 ).execute()
 
     def delete_database(self):
-        if os.path.isfile(self.path):
-            os.unlink(self.path)
+        with self.db.bind_ctx(MODELS):
+            self.db.drop_tables(MODELS)
 
     def close(self):
         self.db.close()
