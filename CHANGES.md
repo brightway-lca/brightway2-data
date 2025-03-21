@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.4.3 (2025-03-21)
+
+* [PR #235: Properly delete search database](https://github.com/brightway-lca/brightway2-data/pull/235)
+
 ## 4.4.2 (2025-01-22)
 
 * [PR #233: Remove `"`` from search to avoid SQL escaping errors](https://github.com/brightway-lca/brightway2-data/pull/233)
