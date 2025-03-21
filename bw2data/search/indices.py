@@ -13,7 +13,7 @@ class IndexManager:
     def __init__(self, database_path):
         self.path = os.path.join(projects.request_directory("search"), database_path)
         self.db = SqliteExtDatabase(self.path)
-        if not os.path.exists(self.path):
+        if not os.path.exists(self.path) or len(self.db.get_tables()) == 0:
             self.create()
 
     def get(self):

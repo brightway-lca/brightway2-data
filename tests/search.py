@@ -146,7 +146,7 @@ def test_modify_database():
 
 
 @bw2test
-def test_delete_database():
+def test_searchable_database():
     db = SQLiteBackend("foo")
     ds = {("foo", "bar"): {"database": "foo", "code": "bar", "name": "lollipop"}}
     db.write(ds)
@@ -161,6 +161,16 @@ def test_delete_database():
     del databases["foo"]
     with Searcher(db.filename) as s:
         assert not s.search("lollipop", proxy=False)
+
+
+@bw2test
+def test_delete_database():
+    im = IndexManager("foo")
+    im.add_dataset({"database": "foo", "code": "bar", "name": "lollipop"})
+    im.delete_database()
+    # Check that we can create an IM with the same name without throwing an exception
+    im = IndexManager("foo")
+    im.add_dataset({"database": "foo", "code": "bar", "name": "lollipop"})
 
 
 @bw2test
