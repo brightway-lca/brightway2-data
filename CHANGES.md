@@ -1,5 +1,10 @@
 # `bw2data` Changelog
 
+## 4.4.4 (2025-04-29)
+
+* [PR #238: Add `signal` parameter to write method in `IOTableBackend`](https://github.com/brightway-lca/brightway2-data/pull/238)
+
+
 ## 4.4.3 (2025-03-21)
 
 * [PR #235: Properly delete search database](https://github.com/brightway-lca/brightway2-data/pull/235)
