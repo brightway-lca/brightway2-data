@@ -1,4 +1,6 @@
-from peewee import DoesNotExist, TextField
+from peewee import DoesNotExist, TextField, ForeignKeyField
+from playhouse.sqlite_ext import JSONField
+import orjson
 
 from bw2data.errors import UnknownObject
 from bw2data.snowflake_ids import SnowflakeIDBaseClass
@@ -19,6 +21,11 @@ class ActivityDataset(SnowflakeIDBaseClass):
         return (self.database, self.code)
 
 
+class Scenario(SnowflakeIDBaseClass):
+    name = TextField()
+    data = JSONField(json_dumps=orjson.dumps, json_loads=orjson.loads)
+
+
 class ExchangeDataset(SnowflakeIDBaseClass):
     data = PickleField()  # Canonical, except for other C fields
     input_code = TextField()  # Canonical
@@ -26,6 +33,7 @@ class ExchangeDataset(SnowflakeIDBaseClass):
     output_code = TextField()  # Canonical
     output_database = TextField()  # Canonical
     type = TextField()  # Reset from `data`
+    scenario = ForeignKeyField(Scenario)
 
 
 def get_id(key):
