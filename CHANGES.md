@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.5 (2025-06-23)
+
+* [PR #243: Remove pin to Numpy `<2`](https://github.com/brightway-lca/brightway2-data/pull/243)
+
 ## 4.4.4 (2025-04-29)
 
 * [PR #238: Add `signal` parameter to write method in `IOTableBackend`](https://github.com/brightway-lca/brightway2-data/pull/238)
