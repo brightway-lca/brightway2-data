@@ -36,7 +36,7 @@ dependencies = [
     "deprecated",
     "fsspec",
     "lxml",
-    "numpy<2",
+    "numpy<3",
     "peewee>=3.9.4",
     "pint",
     "platformdirs",
