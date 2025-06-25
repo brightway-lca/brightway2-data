@@ -1,3 +1,4 @@
+from pathlib import Path
 import copy
 import datetime
 import itertools
@@ -18,7 +19,7 @@ from tqdm import tqdm
 from bw2data import calculation_setups, config, databases, geomapping
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.proxies import Activity
-from bw2data.backends.schema import ActivityDataset, ExchangeDataset, get_id
+from bw2data.backends.schema import ActivityDataset, ExchangeDataset, get_id, Scenario
 from bw2data.backends.typos import (
     check_activity_keys,
     check_activity_type,
@@ -239,10 +240,18 @@ class SQLiteBackend(ProcessedDataStore):
     def filepath_intermediate(self):
         raise NotImplementedError
 
-    def filepath_processed(self):
+    def filename_processed(self, scenario: Scenario | None = None) -> str:
+        if scenario is None:
+            return clean_datapackage_name(f"{self.filename}.zip")
+        else:
+            if not isinstance(scenario, Scenario):
+                raise ValueError("`scenario` must be a `Scenario`; got instead {type(scenario)}")
+            return clean_datapackage_name(f"{self.filename}.{scenario.id}.zip")
+
+    def filepath_processed(self, scenario: Scenario | None = None) -> Path:
         if self.metadata.get("dirty"):
             self.process()
-        return self.dirpath_processed() / self.filename_processed()
+        return self.dirpath_processed() / self.filename_processed(scenario=scenario)
 
     def find_dependents(self, data=None, ignore=None):
         """Get sorted list of direct dependent databases (databases linked from exchanges).
@@ -880,7 +889,7 @@ Here are the type values usually used for nodes:
             nrows=inv_mapping_qs.count(),
         )
 
-    def process(self, csv=False):
+    def process(self, csv: bool = False, scenario: Scenario | None = None) -> None:
         """Create structured arrays for the technosphere and biosphere matrices.
 
         Uses ``bw_processing`` for array creation and metadata serialization.
@@ -900,7 +909,7 @@ Here are the type values usually used for nodes:
         # self.filepath_processed checks if data is dirty,
         # and processes if it is. This causes an infinite loop.
         # So we construct the filepath ourselves.
-        fp = str(self.dirpath_processed() / self.filename_processed())
+        fp = str(self.dirpath_processed() / self.filename_processed(scenario=scenario))
 
         dp = create_datapackage(
             fs=ZipFileSystem(fp, mode="w"),
