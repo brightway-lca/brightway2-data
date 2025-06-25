@@ -9,6 +9,8 @@ from pathlib import Path
 import numpy as np
 from bw_processing import safe_filename
 from tqdm import tqdm
+from playhouse.migrate import SqliteMigrator, migrate
+from peewee import SqliteDatabase, ForeignKeyField
 
 from bw2data import (
     Database,
@@ -24,6 +26,7 @@ from bw2data import (
 )
 from bw2data.backends import sqlite3_lci_db
 from bw2data.logs import stdout_feedback_logger
+from bw2data.backends.schema import Scenario
 
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
@@ -88,6 +91,27 @@ COMMIT;
 """
 
 
+def add_scenario_foreign_key(project_base_dir: Path, db: SqliteDatabase) -> None:
+    migrator = SqliteMigrator(db)
+    existing_columns = {col.name for col in db.get_columns("exchangedataset")}
+    if 'scenario_id' not in existing_columns:
+        from bw2data.backends.schema import ExchangeDataset
+
+        # This index is created by Peewee even if the column doesn't exist
+        db.execute_sql('DROP INDEX "exchangedataset_scenario_id"')
+
+        scenario = ForeignKeyField(Scenario, null=True)
+        migrate(
+            migrator.add_column('exchangedataset', 'scenario_id', ExchangeDataset.scenario)
+        )
+        stdout_feedback_logger.info("Added 'scenario_id' foreign key column to 'exchangedataset' table")
+
+
+def check_scenario_migration_needed(db: SqliteDatabase) -> bool:
+    existing_columns = {col.name for col in db.get_columns("exchangedataset")}
+    return 'scenario_id' not in existing_columns
+
+
 class Updates:
     UPDATES = {
         "2.0 schema change": {
@@ -119,6 +143,11 @@ class Updates:
             "method": "database_search_directories_40",
             "automatic": True,
             "explanation": "bw2data 4.0 release switched to a new database search implementation",
+        },
+        "4.6 add scenario table": {
+            "method": "add_scenario_table",
+            "automatic": True,
+            "explanation": "Add scenario table and foreign key in exchanges",
         },
     }
 
@@ -258,6 +287,11 @@ class Updates:
                 stdout_feedback_logger.warning(f"Purging migration with missing data: {name}")
                 del bi.migrations[name]
             bi.migrations.flush()
+
+    @classmethod
+    def add_scenario_table(cls):
+        if check_scenario_migration_needed(sqlite3_lci_db.db):
+            add_scenario_foreign_key(project_base_dir=projects.dir, db=sqlite3_lci_db.db)
 
     @classmethod
     def _reprocess_all(cls):

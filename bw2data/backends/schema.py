@@ -33,7 +33,7 @@ class ExchangeDataset(SnowflakeIDBaseClass):
     output_code = TextField()  # Canonical
     output_database = TextField()  # Canonical
     type = TextField()  # Reset from `data`
-    scenario = ForeignKeyField(Scenario)
+    scenario = ForeignKeyField(Scenario, null=True)
 
 
 def get_id(key):

@@ -28,23 +28,7 @@ class SubstitutableDatabase:
         db.connect()
         db.create_tables(self._tables)
 
-        # Check and run migrations if needed
-        self._run_migrations(db)
-
         return db
-
-    def _run_migrations(self, db):
-        """Run any pending migrations."""
-        try:
-            from bw2data.backends.migrations import check_scenario_migration_needed, add_scenario_table_and_foreign_key
-
-            if check_scenario_migration_needed(db):
-                # Get the base data directory from the filepath
-                base_data_dir = Path(self._filepath).parent.parent
-                add_scenario_table_and_foreign_key(base_data_dir, db)
-        except ImportError:
-            # Migration module not available, skip
-            pass
 
     @property
     def db(self):

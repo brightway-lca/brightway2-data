@@ -1,5 +1,5 @@
 """Fixtures for bw2data"""
-
+from pathlib import Path
 import sqlite3
 
 import pytest
@@ -19,3 +19,8 @@ def num_revisions():
         )
 
     return _num_revisions
+
+
+@pytest.fixture
+def fixture_dir() -> Path:
+    return Path(__file__).parent.resolve() / "fixtures"
