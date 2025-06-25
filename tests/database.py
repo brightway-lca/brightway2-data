@@ -372,7 +372,7 @@ def test_process_invalid_exchange_value():
         ("testy", "A"): {},
         ("testy", "B"): {
             "exchanges": [
-                {"input": ("testy", "A"), "amount": np.nan, "type": "technosphere"},
+                {"input": ("testy", "A"), "amount": np.NaN, "type": "technosphere"},
                 {"input": ("testy", "C"), "amount": 1, "type": "technosphere"},
             ]
         },
