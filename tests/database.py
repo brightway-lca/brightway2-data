@@ -539,9 +539,9 @@ def test_processed_array_with_metadata():
         [
             {
                 "name": "fooz",
-                "reference product": np.NaN,
+                "reference product": np.nan,
                 "unit": "something",
-                "location": np.NaN,
+                "location": np.nan,
                 "id": df.id[0],
             }
         ]

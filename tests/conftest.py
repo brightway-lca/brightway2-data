@@ -19,3 +19,11 @@ def num_revisions():
         )
 
     return _num_revisions
+
+
+@pytest.fixture(autouse=True, scope="function")
+def close_database_handle_on_exit_to_avoid_windows_test_errors():
+    from bw2data.backends import sqlite3_lci_db
+
+    yield
+    sqlite3_lci_db.db.close()
