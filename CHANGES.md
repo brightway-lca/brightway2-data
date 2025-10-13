@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.5.1 (2025-10-13)
+
+* [#250: Serialize `bw_temporalis` `TemporalDistribution` objects to JSON when saving to database - and restore when loading](https://github.com/brightway-lca/brightway2-data/issues/250)
+
 ## 4.5 (2025-06-23)
 
 * [PR #243: Remove pin to Numpy `<2`](https://github.com/brightway-lca/brightway2-data/pull/243)
