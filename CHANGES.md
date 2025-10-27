@@ -3,6 +3,7 @@
 ## 4.5.1 (2025-10-13)
 
 * [#250: Serialize `bw_temporalis` `TemporalDistribution` objects to JSON when saving to database - and restore when loading](https://github.com/brightway-lca/brightway2-data/issues/250)
+* [#245: Github tests fail on Windows/Python 3.13](https://github.com/brightway-lca/brightway2-data/issues/245)
 
 ## 4.5 (2025-06-23)
 
