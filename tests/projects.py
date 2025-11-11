@@ -174,6 +174,37 @@ def test_delete_project_keep_directory():
 
 
 @bw2test
+def test_delete_project_warning(capsys):
+    """Test that delete_project emits a warning when delete_dir=False"""
+    projects.set_current("foo")
+    projects.set_current("bar")
+    
+    projects.delete_project("foo", delete_dir=False)
+    
+    # Check that the warning was printed to stdout
+    captured = capsys.readouterr()
+    assert "Removing project from project" in captured.out
+    assert "not deleting data" in captured.out
+    assert "delete_dir=True" in captured.out
+
+
+@bw2test
+def test_delete_project_warning_no_name(capsys):
+    """Test that delete_project emits a warning when delete_dir=False and name is not provided"""
+    projects.set_current("foo")
+    projects.set_current("bar")
+    
+    # Delete current project (bar) without specifying name
+    projects.delete_project(delete_dir=False)
+    
+    # Check that the warning was printed to stdout
+    captured = capsys.readouterr()
+    assert "Removing project from project" in captured.out
+    assert "not deleting data" in captured.out
+    assert "delete_dir=True" in captured.out
+
+
+@bw2test
 def test_delete_project():
     projects.set_current("foo")
     projects.set_current("bar")

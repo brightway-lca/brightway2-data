@@ -1,4 +1,3 @@
-import itertools
 import json
 import os
 import shutil
@@ -17,7 +16,7 @@ from platformdirs import PlatformDirs
 
 import bw2data.signals as bw2signals
 from bw2data import config
-from bw2data.errors import InconsistentData, NoRevisionNeeded, PossibleInconsistentData
+from bw2data.errors import InconsistentData, PossibleInconsistentData
 from bw2data.filesystem import create_dir
 from bw2data.logs import stdout_feedback_logger
 from bw2data.signals import project_changed, project_created
@@ -558,6 +557,12 @@ class ProjectManager(Iterable):
             dir_path = self._base_data_dir / safe_filename(victim)
             assert dir_path.is_dir(), "Can't find project directory"
             shutil.rmtree(dir_path)
+        else:
+            stdout_feedback_logger.warning(
+                f"Removing project from project {name} list, but not deleting data; if you switch "
+                "to this project again you will have the same data again. To delete data "
+                "permanently, pass `(..., delete_dir=True)`."
+            )
 
         if name is None or name == self.current:
             if "default" in self:
