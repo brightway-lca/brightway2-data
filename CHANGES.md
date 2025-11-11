@@ -1,5 +1,11 @@
 # `bw2data` Changelog
 
+## 4.5.2 (2025-11-11)
+
+* Add `create_aggregated_process` and `copy_activities` functions
+* [#252: Production edges have stupid labels](https://github.com/brightway-lca/brightway2-data/issues/252)
+* [#251: Deleting project should give log message that data is still available](https://github.com/brightway-lca/brightway2-data/issues/251)
+
 ## 4.5.1 (2025-10-13)
 
 * [#250: Serialize `bw_temporalis` `TemporalDistribution` objects to JSON when saving to database - and restore when loading](https://github.com/brightway-lca/brightway2-data/issues/250)
