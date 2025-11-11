@@ -5,6 +5,12 @@ from collections.abc import Iterable
 import sys
 from typing import Callable, List, Optional
 
+if sys.version_info < (3, 11):
+    from typing_extensions import Self
+else:
+    from typing import Self
+
+
 import pandas as pd
 
 try:
@@ -12,7 +18,7 @@ try:
 except ImportError:
     TemporalDistribution = None
 
-from bw2data import databases, geomapping, projects
+from bw2data import databases, geomapping, projects, get_node
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.typos import (
@@ -534,6 +540,138 @@ class Activity(ActivityProxyBase):
             exc[key] = value
         return exc
 
+    def create_aggregated_process(self, database: str | None = None, signal: bool = True, **kwargs) -> tuple[Self, Self]:
+        """Create a new aggregated process representing the life cycle inventory of this process.
+        
+        This method performs a life cycle inventory (LCI) calculation for the reference product
+        of this process and creates a new aggregated process node with all biosphere exchanges
+        from the upstream supply chain. The aggregated process represents the cumulative
+        environmental impacts of producing the reference product.
+        
+        The method:
+        1. Performs an LCA calculation for the reference product
+        2. Creates a copy of this process (and optionally the product node if different)
+        3. Creates a production exchange linking the new process to the new product
+        4. Creates biosphere exchanges for all non-zero inventory flows
+        
+        Args:
+            database: Name of the target database where the new process will be created.
+                If ``None``, uses the current process's database. The database must already
+                exist. Defaults to ``None``.
+            signal: Whether to emit database signals during save operations. Defaults to ``True``.
+            **kwargs: Additional keyword arguments passed to ``_create_activity_copy()`` to
+                customize the new process attributes (e.g., ``name``, ``location``, etc.).
+        
+        Returns:
+            tuple[Activity, Activity]: A tuple containing:
+                - The new aggregated process node
+                - The new product node (or the same as the process if the process produces itself)
+        
+        Raises:
+            ValueError: If ``database`` is provided and doesn't exist, or if this activity
+                is not a process node type (must be "process" or "processwithreferenceproduct").
+            ImportError: If ``bw2calc`` is not installed (required for LCA calculations).
+        
+        Examples:
+            Create an aggregated process in the same database:
+            
+            >>> process = Database("my_db").get("process_code")
+            >>> new_process, new_product = process.create_aggregated_process()
+            
+            Create an aggregated process in a different database with custom attributes:
+            
+            >>> new_process, new_product = process.create_aggregated_process(
+            ...     database="aggregated_db",
+            ...     name="Aggregated Steel Production",
+            ...     location="GLO"
+            ... )
+            
+            The new process will contain all biosphere exchanges from the upstream supply chain:
+            
+            >>> for exc in new_process.exchanges():
+            ...     if exc["type"] == "biosphere":
+            ...         print(f"{exc['input'][1]}: {exc['amount']}")
+        """
+        from bw2calc import LCA
+        from bw2data.compat import prepare_lca_inputs
+
+        if database and database not in databases:
+            raise ValueError(f"Database {database} doesn't exist")
+
+        if self["type"] not in labels.process_node_types:
+            raise ValueError("Only works with a `process` or `processwithreferenceproduct` node")
+
+        rpe = self.rp_exchange()
+        product = rpe.input
+        amount = rpe["amount"]
+
+        fu, data_objs, _ = prepare_lca_inputs({product: amount}, remapping=False)
+        lca = LCA(demand=fu, data_objs=data_objs)
+        lca.lci()
+
+        new = self._create_activity_copy(**kwargs)
+        new["database"] = database
+        new.save(signal=signal)
+
+        if product != self:
+            new_p = product._create_activity_copy()
+            new_p["database"] = database
+            new_p.save(signal=signal)
+        else:
+            new_p = new
+
+        ExchangeDataset(
+            data={
+                "amount": amount,
+                "uncertainty_type": 0,
+                "type": rpe["type"],
+                "functional": bool(rpe.get("functional")),
+                "input": (new_p["database"], new_p["code"]),
+                "output": (new["database"], new["code"]),
+            },
+            input_code=new_p["code"],
+            input_database=new_p["database"],
+            output_code=new["code"],
+            output_database=new["database"],
+            type=rpe["type"],
+        ).save(signal=signal)
+
+        inventory = lca.inventory.sum(axis=1)
+        for node_id, row_index in lca.dicts.biosphere.items():
+            if (amount := inventory[row_index, 0]) != 0:
+                node = get_node(id=node_id)
+                ExchangeDataset(
+                    data={
+                        "amount": amount,
+                        "uncertainty_type": 0,
+                        "type": labels.biosphere_edge_default,
+                        "input": (node["database"], node["code"]),
+                        "output": (new["database"], new["code"]),
+                    },
+                    input_code=node["code"],
+                    input_database=node["database"],
+                    output_code=new["code"],
+                    output_database=new["database"],
+                    type=labels.biosphere_edge_default,
+                ).save(signal=signal)
+
+        return new, new_p
+
+    def _create_activity_copy(self, **kwargs) -> Self:
+        new = Activity()
+        for key, value in self.items():
+            if key != "id":
+                new[key] = value
+        for key, value in kwargs.items():
+            if key == "id":
+                raise ValueError(f"`id` must be created automatically, but `id={value}` given.")
+            new._data[key] = value
+        if new["database"] == self["database"] and new["code"] == self["code"]:
+            new._data["code"] = str(uuid.uuid4().hex)
+        elif new["code"] is None:
+            new._data["code"] = str(uuid.uuid4().hex)
+        return new
+
     def copy(self, code: Optional[str] = None, signal: bool = True, **kwargs):
         """Copy the activity. Returns a new `Activity`.
 
@@ -542,15 +680,7 @@ class Activity(ActivityProxyBase):
         `kwargs` are additional new fields and field values, e.g. name='foo'
 
         """
-        activity = Activity()
-        for key, value in self.items():
-            if key != "id":
-                activity[key] = value
-        for key, value in kwargs.items():
-            if key == "id":
-                raise ValueError(f"`id` must be created automatically, but `id={value}` given.")
-            activity._data[key] = value
-        activity._data["code"] = str(code or uuid.uuid4().hex)
+        activity = self._create_activity_copy(code=code, **kwargs)
         activity.save(signal=signal)
 
         for exc in self.exchanges():
