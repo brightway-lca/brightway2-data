@@ -236,6 +236,88 @@ class SQLiteBackend(ProcessedDataStore):
         new_database.write(data, searchable=databases[name].get("searchable"))
         return new_database
 
+    def copy_activities(self, activities: List[Activity], target_database: str, signal: bool = True) -> List[Activity]:
+        """Copy multiple Activity instances and their exchanges to a new database.
+        
+        This method copies the given activities and all their exchanges to the target database.
+        Edges (exchanges) always have an input and output. Edges from copied activities are 
+        resolved to the new copied activities if they point to activities in the input list; 
+        otherwise, they remain pointing to the original database.
+        
+        If input activities have type "process" and have functional edges (input or output) to
+        "product" nodes, those product nodes are also copied to the new database. Product nodes
+        that will be copied are logged.
+        
+        Args:
+            activities: List of Activity instances to copy
+            target_database: Name of the target database (must already exist)
+            signal: Whether to emit signals during save operations
+            
+        Returns:
+            List of new Activity instances in the target database
+            
+        Raises:
+            ValueError: If target_database does not exist
+        """
+        if target_database not in databases:
+            raise ValueError(f"Target database '{target_database}' does not exist")
+        elif target_database == self.name:
+            raise ValueError(f"Target database '{target_database}' must be different from the source database")
+        
+        # Create mapping from old keys to new keys
+        old_to_new_key = {}
+        new_activities = []
+        nodes_to_copy = list(activities)  # Will be extended with product nodes
+        
+        # First pass: identify product nodes that need to be copied
+        for activity in filter(lambda x: x.get("type") in labels.process_node_types, activities):
+            for exc in filter(lambda x: x.get("functional"), activity.exchanges()):
+                if exc.input.get("type") in labels.product_node_types and exc.input not in nodes_to_copy:
+                    nodes_to_copy.append(exc.input)
+                    stdout_feedback_logger.info(
+                        "Product node %s will be copied due to functional edge from process %s",
+                        exc.input,
+                        activity
+                    )
+        
+        # Second pass: copy all activities
+        for activity in nodes_to_copy:
+            old_key = activity.key
+            
+            # Create new activity in target database
+            new_activity = Activity()
+            for key, value in activity.items():
+                if key != "id":
+                    new_activity[key] = value
+            new_activity["database"] = target_database
+            new_activity.save(signal=signal)
+            
+            new_key = new_activity.key
+            old_to_new_key[old_key] = new_key
+            new_activities.append(new_activity)
+        
+        # Third pass: copy all exchanges
+        for activity in nodes_to_copy:
+            old_key = activity.key
+            new_key = old_to_new_key[old_key]
+            
+            for exc in activity.exchanges():
+                data = copy.deepcopy(exc._data)
+                if "id" in data:
+                    del data["id"]
+                
+                # Update output if it points to any copied activity
+                if data.get("output") in old_to_new_key:
+                    data["output"] = old_to_new_key[data["output"]]
+                # Update input if it points to any copied activity
+                if data.get("input") in old_to_new_key:
+                    data["input"] = old_to_new_key[data["input"]]
+                
+                # Save exchange to target database
+                ExchangeDataset(**dict_as_exchangedataset(data)).save(signal=signal)
+        
+        return new_activities
+
     def filepath_intermediate(self):
         raise NotImplementedError
 
