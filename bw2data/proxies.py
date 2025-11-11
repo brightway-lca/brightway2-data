@@ -4,9 +4,9 @@ from numbers import Number
 from stats_arrays import uncertainty_choices
 
 from bw2data import databases
+from bw2data.configuration import labels
 from bw2data.errors import InvalidExchange
 from bw2data.utils import get_activity
-from bw2data.configuration import labels
 
 
 class ProxyBase(MutableMapping):

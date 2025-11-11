@@ -608,14 +608,9 @@ def test_rp_exchange_functional_input():
     a.save()
     b = db.new_activity(code="B", name="else", type="product")
     b.save()
-    a.new_exchange(
-        amount=2,
-        input=b,
-        type="technosphere",
-        functional=True
-    ).save()
+    a.new_exchange(amount=2, input=b, type="technosphere", functional=True).save()
 
-    assert a.rp_exchange()['amount'] == 2
+    assert a.rp_exchange()["amount"] == 2
 
 
 @pytest.mark.skipif(not Levenshtein, reason="Levenshtein lib not installed")

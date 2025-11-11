@@ -236,54 +236,61 @@ class SQLiteBackend(ProcessedDataStore):
         new_database.write(data, searchable=databases[name].get("searchable"))
         return new_database
 
-    def copy_activities(self, activities: List[Activity], target_database: str, signal: bool = True) -> List[Activity]:
+    def copy_activities(
+        self, activities: List[Activity], target_database: str, signal: bool = True
+    ) -> List[Activity]:
         """Copy multiple Activity instances and their exchanges to a new database.
-        
+
         This method copies the given activities and all their exchanges to the target database.
-        Edges (exchanges) always have an input and output. Edges from copied activities are 
-        resolved to the new copied activities if they point to activities in the input list; 
+        Edges (exchanges) always have an input and output. Edges from copied activities are
+        resolved to the new copied activities if they point to activities in the input list;
         otherwise, they remain pointing to the original database.
-        
+
         If input activities have type "process" and have functional edges (input or output) to
         "product" nodes, those product nodes are also copied to the new database. Product nodes
         that will be copied are logged.
-        
+
         Args:
             activities: List of Activity instances to copy
             target_database: Name of the target database (must already exist)
             signal: Whether to emit signals during save operations
-            
+
         Returns:
             List of new Activity instances in the target database
-            
+
         Raises:
             ValueError: If target_database does not exist
         """
         if target_database not in databases:
             raise ValueError(f"Target database '{target_database}' does not exist")
         elif target_database == self.name:
-            raise ValueError(f"Target database '{target_database}' must be different from the source database")
-        
+            raise ValueError(
+                f"Target database '{target_database}' must be different from the source database"
+            )
+
         # Create mapping from old keys to new keys
         old_to_new_key = {}
         new_activities = []
         nodes_to_copy = list(activities)  # Will be extended with product nodes
-        
+
         # First pass: identify product nodes that need to be copied
         for activity in filter(lambda x: x.get("type") in labels.process_node_types, activities):
             for exc in filter(lambda x: x.get("functional"), activity.exchanges()):
-                if exc.input.get("type") in labels.product_node_types and exc.input not in nodes_to_copy:
+                if (
+                    exc.input.get("type") in labels.product_node_types
+                    and exc.input not in nodes_to_copy
+                ):
                     nodes_to_copy.append(exc.input)
                     stdout_feedback_logger.info(
                         "Product node %s will be copied due to functional edge from process %s",
                         exc.input,
-                        activity
+                        activity,
                     )
-        
+
         # Second pass: copy all activities
         for activity in nodes_to_copy:
             old_key = activity.key
-            
+
             # Create new activity in target database
             new_activity = Activity()
             for key, value in activity.items():
@@ -291,31 +298,31 @@ class SQLiteBackend(ProcessedDataStore):
                     new_activity[key] = value
             new_activity["database"] = target_database
             new_activity.save(signal=signal)
-            
+
             new_key = new_activity.key
             old_to_new_key[old_key] = new_key
             new_activities.append(new_activity)
-        
+
         # Third pass: copy all exchanges
         for activity in nodes_to_copy:
             old_key = activity.key
             new_key = old_to_new_key[old_key]
-            
+
             for exc in activity.exchanges():
                 data = copy.deepcopy(exc._data)
                 if "id" in data:
                     del data["id"]
-                
+
                 # Update output if it points to any copied activity
                 if data.get("output") in old_to_new_key:
                     data["output"] = old_to_new_key[data["output"]]
                 # Update input if it points to any copied activity
                 if data.get("input") in old_to_new_key:
                     data["input"] = old_to_new_key[data["input"]]
-                
+
                 # Save exchange to target database
                 ExchangeDataset(**dict_as_exchangedataset(data)).save(signal=signal)
-        
+
         return new_activities
 
     def filepath_intermediate(self):
@@ -769,6 +776,57 @@ class SQLiteBackend(ProcessedDataStore):
         return self.new_node(code, **kwargs)
 
     def new_node(self, code: str = None, **kwargs):
+        """Create a new activity node in this database.
+
+        Creates a new Activity object (node) in the current database. The node is not
+        automatically saved to the database; you must call ``save()`` on the returned object.
+
+        Args:
+            code: Optional unique identifier for the node. If not provided, a random UUID
+                will be generated. The code must be unique within the database.
+            **kwargs: Additional attributes to set on the node. Common attributes include:
+                - ``name``: Human-readable name for the activity
+                - ``type``: Node type (e.g., "process", "product", "emission"). Must be a
+                  valid node type, not an edge type (a warning will be issued if an edge
+                  type is used).
+                - ``unit``: Unit of measurement (e.g., "kg", "m3")
+                - ``location``: Geographic location code (e.g., "GLO", "US"). If not
+                  provided, defaults to ``config.global_location``.
+                - ``categories``: List or tuple of category classifications
+                - Any other valid activity attributes
+
+        Returns:
+            Activity: A new Activity proxy object with the specified attributes. The object
+            is not yet saved to the database.
+
+        Raises:
+            ValueError: If ``database`` is provided in kwargs and doesn't match this
+                database's name, or if ``id`` is provided (ids are auto-generated).
+            DuplicateNode: If a node with the same database/code combination already exists.
+            UserWarning: If an edge type (e.g., "technosphere", "biosphere") is used for
+                the ``type`` parameter instead of a node type.
+
+        Examples:
+            Create a simple process node:
+
+            >>> db = DatabaseChooser("my_db")
+            >>> db.register()
+            >>> activity = db.new_node(code="process_1", name="Steel production",
+            ...                       type="process", unit="kg", location="GLO")
+            >>> activity.save()
+
+            Create a node with auto-generated code:
+
+            >>> activity = db.new_node(name="Custom process", type="process")
+            >>> print(activity["code"])  # Random UUID
+            >>> activity.save()
+
+            Create a product node:
+
+            >>> product = db.new_node(code="steel", name="Steel", type="product",
+            ...                      unit="kg", location="GLO")
+            >>> product.save()
+        """
         obj = self.node_class()
         if "database" in kwargs:
             if kwargs["database"] != self.name:

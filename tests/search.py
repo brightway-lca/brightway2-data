@@ -7,9 +7,7 @@ from bw2data.tests import bw2test
 @bw2test
 def test_search_dataset_containing_stop_word():
     im = IndexManager("foo")
-    im.add_dataset(
-        {"database": "foo", "code": "bar", "name": "foo of bar, high voltage"}
-    )
+    im.add_dataset({"database": "foo", "code": "bar", "name": "foo of bar, high voltage"})
     with Searcher("foo") as s:
         assert s.search("foo of bar, high voltage", proxy=False)
 
@@ -219,10 +217,7 @@ def test_categories_term():
 def test_limit():
     im = IndexManager("foo")
     im.add_datasets(
-        [
-            {"database": "foo", "code": "bar", "name": "lollipop {}".format(x)}
-            for x in range(50)
-        ]
+        [{"database": "foo", "code": "bar", "name": "lollipop {}".format(x)} for x in range(50)]
     )
     with Searcher("foo") as s:
         assert len(s.search("lollipop", limit=25, proxy=False)) == 25
@@ -232,10 +227,7 @@ def test_limit():
 def test_star_search():
     im = IndexManager("foo")
     im.add_datasets(
-        [
-            {"database": "foo", "code": "bar", "name": "lollipop {}".format(x)}
-            for x in range(50)
-        ]
+        [{"database": "foo", "code": "bar", "name": "lollipop {}".format(x)} for x in range(50)]
     )
     with Searcher("foo") as s:
         assert len(s.search("*", limit=25, proxy=False)) == 25
@@ -362,9 +354,7 @@ def test_search_single_char():
 def test_search_with_parentheses():
     """Test that searching with parentheses works correctly"""
     im = IndexManager("foo")
-    im.add_dataset(
-        {"database": "foo", "code": "bar", "name": "beam dried (u=10%) planed"}
-    )
+    im.add_dataset({"database": "foo", "code": "bar", "name": "beam dried (u=10%) planed"})
     with Searcher("foo") as s:
         assert s.search("dried (u=10%)", proxy=False) == [
             {

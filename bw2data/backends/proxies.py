@@ -1,15 +1,14 @@
 import copy
+import sys
 import uuid
 import warnings
 from collections.abc import Iterable
-import sys
 from typing import Callable, List, Optional
 
 if sys.version_info < (3, 11):
     from typing_extensions import Self
 else:
     from typing import Self
-
 
 import pandas as pd
 
@@ -18,7 +17,7 @@ try:
 except ImportError:
     TemporalDistribution = None
 
-from bw2data import databases, geomapping, projects, get_node
+from bw2data import databases, geomapping, get_node, projects
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.typos import (
@@ -540,20 +539,22 @@ class Activity(ActivityProxyBase):
             exc[key] = value
         return exc
 
-    def create_aggregated_process(self, database: str | None = None, signal: bool = True, **kwargs) -> tuple[Self, Self]:
+    def create_aggregated_process(
+        self, database: str | None = None, signal: bool = True, **kwargs
+    ) -> tuple[Self, Self]:
         """Create a new aggregated process representing the life cycle inventory of this process.
-        
+
         This method performs a life cycle inventory (LCI) calculation for the reference product
         of this process and creates a new aggregated process node with all biosphere exchanges
         from the upstream supply chain. The aggregated process represents the cumulative
         environmental impacts of producing the reference product.
-        
+
         The method:
         1. Performs an LCA calculation for the reference product
         2. Creates a copy of this process (and optionally the product node if different)
         3. Creates a production exchange linking the new process to the new product
         4. Creates biosphere exchanges for all non-zero inventory flows
-        
+
         Args:
             database: Name of the target database where the new process will be created.
                 If ``None``, uses the current process's database. The database must already
@@ -561,38 +562,39 @@ class Activity(ActivityProxyBase):
             signal: Whether to emit database signals during save operations. Defaults to ``True``.
             **kwargs: Additional keyword arguments passed to ``_create_activity_copy()`` to
                 customize the new process attributes (e.g., ``name``, ``location``, etc.).
-        
+
         Returns:
             tuple[Activity, Activity]: A tuple containing:
                 - The new aggregated process node
                 - The new product node (or the same as the process if the process produces itself)
-        
+
         Raises:
             ValueError: If ``database`` is provided and doesn't exist, or if this activity
                 is not a process node type (must be "process" or "processwithreferenceproduct").
             ImportError: If ``bw2calc`` is not installed (required for LCA calculations).
-        
+
         Examples:
             Create an aggregated process in the same database:
-            
+
             >>> process = Database("my_db").get("process_code")
             >>> new_process, new_product = process.create_aggregated_process()
-            
+
             Create an aggregated process in a different database with custom attributes:
-            
+
             >>> new_process, new_product = process.create_aggregated_process(
             ...     database="aggregated_db",
             ...     name="Aggregated Steel Production",
             ...     location="GLO"
             ... )
-            
+
             The new process will contain all biosphere exchanges from the upstream supply chain:
-            
+
             >>> for exc in new_process.exchanges():
             ...     if exc["type"] == "biosphere":
             ...         print(f"{exc['input'][1]}: {exc['amount']}")
         """
         from bw2calc import LCA
+
         from bw2data.compat import prepare_lca_inputs
 
         if database and database not in databases:
@@ -730,42 +732,42 @@ class Exchange(ExchangeProxyBase):
 
     def _process_temporal_distributions(self, data):
         """Process temporal_distribution attributes by converting TemporalDistribution instances to JSON.
-        
+
         This method creates a copy of the data and converts any TemporalDistribution instances
         found in 'temporal_distribution' keys to their JSON representation using the to_json method.
         The original data is not modified.
-        
+
         Args:
             data: The exchange data dictionary
-            
+
         Returns:
             A copy of the data with TemporalDistribution instances converted to JSON
         """
         if TemporalDistribution is None:
             # bw_temporalis not available, return data as-is
             return data
-            
+
         # Create a deep copy to avoid modifying the original data
         processed_data = copy.deepcopy(data)
-        
+
         # Check if there's a temporal_distribution key with a TemporalDistribution value
         if "temporal_distribution" in processed_data:
             value = processed_data["temporal_distribution"]
             if isinstance(value, TemporalDistribution):
                 processed_data["temporal_distribution"] = value.to_json()
-        
+
         return processed_data
 
     def _restore_temporal_distributions(self, data):
         """Restore temporal_distribution attributes by converting JSON back to TemporalDistribution instances.
-        
+
         This method creates a copy of the data and converts any JSON representations
         of TemporalDistribution instances back to TemporalDistribution objects.
         The original data is not modified.
-        
+
         Args:
             data: The exchange data dictionary
-            
+
         Returns:
             A copy of the data with JSON temporal_distribution converted back to TemporalDistribution instances
         """
@@ -778,13 +780,13 @@ class Exchange(ExchangeProxyBase):
                         "Found temporal_distribution JSON data but bw_temporalis library is not installed. "
                         "TemporalDistribution object will not be restored. Install bw_temporalis to enable "
                         "temporal distribution functionality.",
-                        UserWarning
+                        UserWarning,
                     )
             return data
-            
+
         # Create a deep copy to avoid modifying the original data
         processed_data = copy.deepcopy(data)
-        
+
         # Check if there's a temporal_distribution key with JSON data
         if "temporal_distribution" in processed_data:
             value = processed_data["temporal_distribution"]
@@ -798,9 +800,9 @@ class Exchange(ExchangeProxyBase):
                     warnings.warn(
                         f"Failed to restore TemporalDistribution from JSON data: {value}. "
                         f"Data will remain as JSON. Error: {str(e)}",
-                        UserWarning
+                        UserWarning,
                     )
-        
+
         return processed_data
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
@@ -818,7 +820,7 @@ class Exchange(ExchangeProxyBase):
 
             # Process temporal_distribution attributes before saving
             processed_data = self._process_temporal_distributions(self._data)
-            
+
             for key, value in dict_as_exchangedataset(processed_data).items():
                 setattr(self._document, key, value)
 

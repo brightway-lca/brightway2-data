@@ -44,6 +44,7 @@ else:
 
 if TYPE_CHECKING:
     import typing
+
     import peewee
 
 
