@@ -6,6 +6,7 @@ from stats_arrays import uncertainty_choices
 from bw2data import databases
 from bw2data.errors import InvalidExchange
 from bw2data.utils import get_activity
+from bw2data.configuration import labels
 
 
 class ProxyBase(MutableMapping):
@@ -15,7 +16,7 @@ class ProxyBase(MutableMapping):
     def as_dict(self):
         return self._data
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Instance of base proxy class"
 
     __repr__ = lambda x: str(x)
@@ -115,13 +116,21 @@ class ActivityProxyBase(ProxyBase):
 
 
 class ExchangeProxyBase(ProxyBase):
-    def __str__(self):
-        if self.valid():
-            return "Exchange: {} {} {} to {}>".format(
+    def __str__(self) -> str:
+        if not self.valid():
+            return "Exchange with missing fields (call ``valid(why=True)`` to see more)"
+        elif (
+            self.input.get("type") in labels.product_node_types
+            and self.output.get("type") in labels.process_node_types
+            and self.get("type") in labels.technosphere_positive_edge_types
+        ):
+            return "Exchange: {} {} {} from {}".format(
                 self.amount, self.unit, self.input, self.output
             )
         else:
-            return "Exchange with missing fields (call ``valid(why=True)`` to see more)"
+            return "Exchange: {} {} {} to {}".format(
+                self.amount, self.unit, self.input, self.output
+            )
 
     def __lt__(self, other):
         if not isinstance(other, ExchangeProxyBase):

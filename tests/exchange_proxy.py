@@ -382,27 +382,26 @@ class MockTemporalDistribution:
 @bw2test
 def test_temporal_distribution_processing_without_bw_temporalis():
     """Test that temporal_distribution processing works when bw_temporalis is not available"""
-    from bw2data.backends.proxies import Exchange
-    
+
     db = DatabaseChooser("example")
     db.register()
-    
+
     a = db.new_activity(code="A", name="An activity")
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    
+
     # Create exchange with temporal_distribution (should be passed through unchanged)
     exc = a.new_exchange(
-        amount=1.0, 
-        input=b, 
-        type="technosphere", 
+        amount=1.0,
+        input=b,
+        type="technosphere",
         temporal_distribution={"year": 2020, "value": 0.5}
     )
-    
+
     # Save should work without errors
     exc.save()
-    
+
     # Verify the exchange was saved correctly
     saved_exc = list(a.exchanges())[0]
     assert saved_exc["temporal_distribution"] == {"year": 2020, "value": 0.5}
@@ -411,42 +410,41 @@ def test_temporal_distribution_processing_without_bw_temporalis():
 @bw2test
 def test_temporal_distribution_processing_with_mock():
     """Test temporal_distribution processing with a mock TemporalDistribution"""
-    from bw2data.backends.proxies import Exchange
     import bw2data.backends.proxies as proxies_module
-    
+
     # Temporarily replace the TemporalDistribution import
     original_temporal_distribution = proxies_module.TemporalDistribution
     proxies_module.TemporalDistribution = MockTemporalDistribution
-    
+
     try:
         db = DatabaseChooser("example")
         db.register()
-        
+
         a = db.new_activity(code="A", name="An activity")
         a.save()
         b = db.new_activity(code="B", name="Another activity")
         b.save()
-        
+
         # Create exchange with TemporalDistribution instance
         temporal_dist = MockTemporalDistribution({"year": 2020, "value": 0.5})
         exc = a.new_exchange(
-            amount=1.0, 
-            input=b, 
-            type="technosphere", 
+            amount=1.0,
+            input=b,
+            type="technosphere",
             temporal_distribution=temporal_dist
         )
-        
+
         # Save should convert TemporalDistribution to JSON
         exc.save()
-        
+
         # Verify the exchange was saved and restored as TemporalDistribution
         saved_exc = list(a.exchanges())[0]
         assert isinstance(saved_exc["temporal_distribution"], MockTemporalDistribution)
         assert saved_exc["temporal_distribution"].data == {"year": 2020, "value": 0.5}
-        
+
         # Verify original data was not modified
         assert exc["temporal_distribution"] == temporal_dist
-        
+
     finally:
         # Restore original import
         proxies_module.TemporalDistribution = original_temporal_distribution
@@ -455,26 +453,25 @@ def test_temporal_distribution_processing_with_mock():
 @bw2test
 def test_temporal_distribution_processing_no_temporal_distribution():
     """Test that exchanges without temporal_distribution are processed normally"""
-    from bw2data.backends.proxies import Exchange
-    
+
     db = DatabaseChooser("example")
     db.register()
-    
+
     a = db.new_activity(code="A", name="An activity")
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    
+
     # Create exchange without temporal_distribution
     exc = a.new_exchange(
-        amount=1.0, 
-        input=b, 
+        amount=1.0,
+        input=b,
         type="technosphere"
     )
-    
+
     # Save should work normally
     exc.save()
-    
+
     # Verify the exchange was saved correctly
     saved_exc = list(a.exchanges())[0]
     assert saved_exc["amount"] == 1.0
@@ -485,37 +482,36 @@ def test_temporal_distribution_processing_no_temporal_distribution():
 @bw2test
 def test_temporal_distribution_processing_non_temporal_distribution_value():
     """Test that non-TemporalDistribution values in temporal_distribution are not converted"""
-    from bw2data.backends.proxies import Exchange
     import bw2data.backends.proxies as proxies_module
-    
+
     # Temporarily replace the TemporalDistribution import
     original_temporal_distribution = proxies_module.TemporalDistribution
     proxies_module.TemporalDistribution = MockTemporalDistribution
-    
+
     try:
         db = DatabaseChooser("example")
         db.register()
-        
+
         a = db.new_activity(code="A", name="An activity")
         a.save()
         b = db.new_activity(code="B", name="Another activity")
         b.save()
-        
+
         # Create exchange with non-TemporalDistribution value in temporal_distribution
         exc = a.new_exchange(
-            amount=1.0, 
-            input=b, 
-            type="technosphere", 
+            amount=1.0,
+            input=b,
+            type="technosphere",
             temporal_distribution="not a TemporalDistribution"
         )
-        
+
         # Save should pass through the value unchanged
         exc.save()
-        
+
         # Verify the exchange was saved with original value
         saved_exc = list(a.exchanges())[0]
         assert saved_exc["temporal_distribution"] == "not a TemporalDistribution"
-        
+
     finally:
         # Restore original import
         proxies_module.TemporalDistribution = original_temporal_distribution
@@ -524,118 +520,202 @@ def test_temporal_distribution_processing_non_temporal_distribution_value():
 @bw2test
 def test_temporal_distribution_processing_multiple_exchanges():
     """Test that temporal_distribution processing works with multiple exchanges"""
-    from bw2data.backends.proxies import Exchange
     import bw2data.backends.proxies as proxies_module
-    
+
     # Temporarily replace the TemporalDistribution import
     original_temporal_distribution = proxies_module.TemporalDistribution
     proxies_module.TemporalDistribution = MockTemporalDistribution
-    
+
     try:
         db = DatabaseChooser("example")
         db.register()
-        
+
         a = db.new_activity(code="A", name="An activity")
         a.save()
         b = db.new_activity(code="B", name="Another activity")
         b.save()
         c = db.new_activity(code="C", name="Third activity")
         c.save()
-        
+
         # Create multiple exchanges with different temporal_distribution values
         exc1 = a.new_exchange(
-            amount=1.0, 
-            input=b, 
-            type="technosphere", 
+            amount=1.0,
+            input=b,
+            type="technosphere",
             temporal_distribution=MockTemporalDistribution({"year": 2020, "value": 0.5})
         )
         exc2 = a.new_exchange(
-            amount=2.0, 
-            input=c, 
-            type="technosphere", 
+            amount=2.0,
+            input=c,
+            type="technosphere",
             temporal_distribution=MockTemporalDistribution({"year": 2021, "value": 0.8})
         )
         exc3 = a.new_exchange(
-            amount=3.0, 
-            input=b, 
-            type="biosphere", 
+            amount=3.0,
+            input=b,
+            type="biosphere",
             temporal_distribution={"not": "a TemporalDistribution"}
         )
-        
+
         # Save all exchanges
         exc1.save()
         exc2.save()
         exc3.save()
-        
+
         # Verify all exchanges were saved correctly
         exchanges = list(a.exchanges())
         assert len(exchanges) == 3
-        
+
         # Check first exchange
         exc1_saved = exchanges[0]
         assert isinstance(exc1_saved["temporal_distribution"], MockTemporalDistribution)
         assert exc1_saved["temporal_distribution"].data == {"year": 2020, "value": 0.5}
-        
+
         # Check second exchange
         exc2_saved = exchanges[1]
         assert isinstance(exc2_saved["temporal_distribution"], MockTemporalDistribution)
         assert exc2_saved["temporal_distribution"].data == {"year": 2021, "value": 0.8}
-        
+
         # Check third exchange (non-TemporalDistribution value)
         exc3_saved = exchanges[2]
         assert exc3_saved["temporal_distribution"] == {"not": "a TemporalDistribution"}
-        
+
     finally:
         # Restore original import
         proxies_module.TemporalDistribution = original_temporal_distribution
 
 
 @bw2test
+def test_exchange_str_invalid():
+    """Test __str__ method for invalid exchange"""
+    from bw2data.backends.proxies import Exchange
+
+    # Create an invalid exchange (missing required fields)
+    exc = Exchange()
+    # Don't set required fields like input, output, amount, type
+
+    result = str(exc)
+    assert result == "Exchange with missing fields (call ``valid(why=True)`` to see more)"
+
+
+@bw2test
+def test_exchange_str_normal():
+    """Test __str__ method for normal exchange (input to output)"""
+
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="Activity A", unit="kg", location="GLO")
+    a.save()
+    b = db.new_activity(code="B", name="Activity B", unit="kg", location="GLO")
+    b.save()
+
+    # Create a technosphere exchange (normal order: input to output)
+    exc = a.new_exchange(amount=2.5, input=b, type="technosphere")
+    exc.save()
+
+    result = str(exc)
+    assert result == "Exchange: 2.5 kg 'Activity B' (kg, GLO, None) to 'Activity A' (kg, GLO, None)"
+
+
+@bw2test
+def test_exchange_str_production_reversed():
+    """Test __str__ method for production exchange (product to process, reversed order)"""
+
+    db = DatabaseChooser("example")
+    db.register()
+
+    # Create a product node
+    product = db.new_activity(code="product_X", name="Product X", type="product", unit="kg", location="GLO")
+    product.save()
+
+    # Create a process node
+    process = db.new_activity(code="process_A", name="Process A", type="process", unit="kg", location="GLO")
+    process.save()
+
+    # Create a production exchange (product to process with positive edge type)
+    # This should use reversed order: output to input
+    exc = process.new_exchange(amount=1.0, input=product, type="production")
+    exc.save()
+
+    result = str(exc)
+    assert result == "Exchange: 1.0 kg 'Product X' (kg, GLO, None) from 'Process A' (kg, GLO, None)"
+
+
+@bw2test
+def test_exchange_str_biosphere():
+    """Test __str__ method for biosphere exchange"""
+    from bw2data import Database
+
+    # Create biosphere database
+    biosphere_db = Database("biosphere")
+    biosphere_db.write({
+        ("biosphere", "CO2"): {
+            "name": "Carbon dioxide",
+            "type": "emission",
+            "unit": "kg",
+        }
+    })
+
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="Activity A", unit="kg", location="GLO")
+    a.save()
+
+    # Create a biosphere exchange
+    exc = a.new_exchange(amount=10.0, input=("biosphere", "CO2"), type="biosphere")
+    exc.save()
+
+    result = str(exc)
+    assert result == "Exchange: 10.0 kg 'Carbon dioxide' (kg, None, None) to 'Activity A' (kg, GLO, None)"
+
+
+@bw2test
 def test_temporal_distribution_processing_data_already_set():
     """Test that temporal_distribution processing is skipped when data_already_set=True"""
-    from bw2data.backends.proxies import Exchange
     from bw2data.backends.utils import dict_as_exchangedataset
     import bw2data.backends.proxies as proxies_module
-    
+
     # Temporarily replace the TemporalDistribution import
     original_temporal_distribution = proxies_module.TemporalDistribution
     proxies_module.TemporalDistribution = MockTemporalDistribution
-    
+
     try:
         db = DatabaseChooser("example")
         db.register()
-        
+
         a = db.new_activity(code="A", name="An activity")
         a.save()
         b = db.new_activity(code="B", name="Another activity")
         b.save()
-        
+
         # Create exchange with TemporalDistribution instance
         temporal_dist = MockTemporalDistribution({"year": 2020, "value": 0.5})
         exc = a.new_exchange(
-            amount=1.0, 
-            input=b, 
-            type="technosphere", 
+            amount=1.0,
+            input=b,
+            type="technosphere",
             temporal_distribution=temporal_dist
         )
-        
+
         # Manually set the document data (simulating data_already_set=True scenario)
         processed_data = exc._process_temporal_distributions(exc._data)
         for key, value in dict_as_exchangedataset(processed_data).items():
             setattr(exc._document, key, value)
-        
+
         # Save with data_already_set=True should skip processing
         exc.save(data_already_set=True)
-        
+
         # The temporal_distribution should remain as the original object
         # since processing was skipped
         assert exc["temporal_distribution"] == temporal_dist
-        
+
         # Verify the exchange was saved and restored as TemporalDistribution
         saved_exc = list(a.exchanges())[0]
         assert isinstance(saved_exc["temporal_distribution"], MockTemporalDistribution)
         assert saved_exc["temporal_distribution"].data == {"year": 2020, "value": 0.5}
-        
+
     finally:
         # Restore original import
         proxies_module.TemporalDistribution = original_temporal_distribution
@@ -644,40 +724,38 @@ def test_temporal_distribution_processing_data_already_set():
 @bw2test
 def test_temporal_distribution_restoration_from_json():
     """Test that temporal_distribution JSON is converted back to TemporalDistribution when loading Exchange"""
-    from bw2data.backends.proxies import Exchange
-    from bw2data.backends.schema import ExchangeDataset
     import bw2data.backends.proxies as proxies_module
-    
+
     # Temporarily replace the TemporalDistribution import
     original_temporal_distribution = proxies_module.TemporalDistribution
     proxies_module.TemporalDistribution = MockTemporalDistribution
-    
+
     try:
         db = DatabaseChooser("example")
         db.register()
-        
+
         a = db.new_activity(code="A", name="An activity")
         a.save()
         b = db.new_activity(code="B", name="Another activity")
         b.save()
-        
+
         # Create exchange with TemporalDistribution instance and save it
         temporal_dist = MockTemporalDistribution({"year": 2020, "value": 0.5})
         exc = a.new_exchange(
-            amount=1.0, 
-            input=b, 
-            type="technosphere", 
+            amount=1.0,
+            input=b,
+            type="technosphere",
             temporal_distribution=temporal_dist
         )
         exc.save()
-        
+
         # Get the saved exchange from database (this will trigger the restoration)
         saved_exc = list(a.exchanges())[0]
-        
+
         # Verify that temporal_distribution was restored to a TemporalDistribution instance
         assert isinstance(saved_exc["temporal_distribution"], MockTemporalDistribution)
         assert saved_exc["temporal_distribution"].data == {"year": 2020, "value": 0.5}
-        
+
     finally:
         # Restore original import
         proxies_module.TemporalDistribution = original_temporal_distribution
@@ -686,29 +764,27 @@ def test_temporal_distribution_restoration_from_json():
 @bw2test
 def test_temporal_distribution_restoration_without_bw_temporalis():
     """Test that temporal_distribution JSON is left as-is when bw_temporalis is not available"""
-    from bw2data.backends.proxies import Exchange
-    from bw2data.backends.schema import ExchangeDataset
-    
+
     db = DatabaseChooser("example")
     db.register()
-    
+
     a = db.new_activity(code="A", name="An activity")
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    
+
     # Create exchange with temporal_distribution JSON data and save it
     exc = a.new_exchange(
-        amount=1.0, 
-        input=b, 
-        type="technosphere", 
+        amount=1.0,
+        input=b,
+        type="technosphere",
         temporal_distribution={"type": "temporal_distribution", "data": {"year": 2020, "value": 0.5}}
     )
     exc.save()
-    
+
     # Get the saved exchange from database
     saved_exc = list(a.exchanges())[0]
-    
+
     # Verify that temporal_distribution remains as JSON (since bw_temporalis is not available)
     assert saved_exc["temporal_distribution"] == {"type": "temporal_distribution", "data": {"year": 2020, "value": 0.5}}
 
@@ -716,37 +792,36 @@ def test_temporal_distribution_restoration_without_bw_temporalis():
 @bw2test
 def test_temporal_distribution_restoration_non_json_data():
     """Test that non-JSON temporal_distribution data is left unchanged"""
-    from bw2data.backends.proxies import Exchange
     import bw2data.backends.proxies as proxies_module
-    
+
     # Temporarily replace the TemporalDistribution import
     original_temporal_distribution = proxies_module.TemporalDistribution
     proxies_module.TemporalDistribution = MockTemporalDistribution
-    
+
     try:
         db = DatabaseChooser("example")
         db.register()
-        
+
         a = db.new_activity(code="A", name="An activity")
         a.save()
         b = db.new_activity(code="B", name="Another activity")
         b.save()
-        
+
         # Create exchange with non-JSON temporal_distribution data
         exc = a.new_exchange(
-            amount=1.0, 
-            input=b, 
-            type="technosphere", 
+            amount=1.0,
+            input=b,
+            type="technosphere",
             temporal_distribution="not json data"
         )
         exc.save()
-        
+
         # Get the saved exchange from database
         saved_exc = list(a.exchanges())[0]
-        
+
         # Verify that temporal_distribution remains unchanged
         assert saved_exc["temporal_distribution"] == "not json data"
-        
+
     finally:
         # Restore original import
         proxies_module.TemporalDistribution = original_temporal_distribution
@@ -755,37 +830,36 @@ def test_temporal_distribution_restoration_non_json_data():
 @bw2test
 def test_temporal_distribution_restoration_invalid_json():
     """Test that invalid temporal_distribution JSON is left unchanged"""
-    from bw2data.backends.proxies import Exchange
     import bw2data.backends.proxies as proxies_module
-    
+
     # Temporarily replace the TemporalDistribution import
     original_temporal_distribution = proxies_module.TemporalDistribution
     proxies_module.TemporalDistribution = MockTemporalDistribution
-    
+
     try:
         db = DatabaseChooser("example")
         db.register()
-        
+
         a = db.new_activity(code="A", name="An activity")
         a.save()
         b = db.new_activity(code="B", name="Another activity")
         b.save()
-        
+
         # Create exchange with invalid temporal_distribution JSON
         exc = a.new_exchange(
-            amount=1.0, 
-            input=b, 
-            type="technosphere", 
+            amount=1.0,
+            input=b,
+            type="technosphere",
             temporal_distribution={"type": "temporal_distribution", "invalid": "data"}
         )
         exc.save()
-        
+
         # Get the saved exchange from database
         saved_exc = list(a.exchanges())[0]
-        
+
         # Verify that temporal_distribution remains unchanged (conversion failed)
         assert saved_exc["temporal_distribution"] == {"type": "temporal_distribution", "invalid": "data"}
-        
+
     finally:
         # Restore original import
         proxies_module.TemporalDistribution = original_temporal_distribution
@@ -794,47 +868,46 @@ def test_temporal_distribution_restoration_invalid_json():
 @bw2test
 def test_temporal_distribution_roundtrip():
     """Test complete roundtrip: TemporalDistribution -> JSON -> TemporalDistribution"""
-    from bw2data.backends.proxies import Exchange
     import bw2data.backends.proxies as proxies_module
-    
+
     # Temporarily replace the TemporalDistribution import
     original_temporal_distribution = proxies_module.TemporalDistribution
     proxies_module.TemporalDistribution = MockTemporalDistribution
-    
+
     try:
         db = DatabaseChooser("example")
         db.register()
-        
+
         a = db.new_activity(code="A", name="An activity")
         a.save()
         b = db.new_activity(code="B", name="Another activity")
         b.save()
-        
+
         # Create original TemporalDistribution
         original_temporal_dist = MockTemporalDistribution({"year": 2020, "value": 0.5})
-        
+
         # Create exchange with TemporalDistribution instance
         exc = a.new_exchange(
-            amount=1.0, 
-            input=b, 
-            type="technosphere", 
+            amount=1.0,
+            input=b,
+            type="technosphere",
             temporal_distribution=original_temporal_dist
         )
-        
+
         # Save (converts to JSON)
         exc.save()
-        
+
         # Reload from database (converts back to TemporalDistribution)
         saved_exc = list(a.exchanges())[0]
-        
+
         # Verify roundtrip worked correctly
         assert isinstance(saved_exc["temporal_distribution"], MockTemporalDistribution)
         assert saved_exc["temporal_distribution"].data == original_temporal_dist.data
-        
+
         # Verify we can call to_json() on the restored object
         json_data = saved_exc["temporal_distribution"].to_json()
         assert json_data == {"type": "temporal_distribution", "data": {"year": 2020, "value": 0.5}}
-        
+
     finally:
         # Restore original import
         proxies_module.TemporalDistribution = original_temporal_distribution
@@ -843,31 +916,29 @@ def test_temporal_distribution_roundtrip():
 @bw2test
 def test_temporal_distribution_restoration_logging_missing_library():
     """Test that appropriate logging occurs when bw_temporalis is not available"""
-    from bw2data.backends.proxies import Exchange
-    import logging
-    
+
     db = DatabaseChooser("example")
     db.register()
-    
+
     a = db.new_activity(code="A", name="An activity")
     a.save()
     b = db.new_activity(code="B", name="Another activity")
     b.save()
-    
+
     # Create exchange with temporal_distribution JSON data
     exc = a.new_exchange(
-        amount=1.0, 
-        input=b, 
-        type="technosphere", 
+        amount=1.0,
+        input=b,
+        type="technosphere",
         temporal_distribution={"type": "temporal_distribution", "data": {"year": 2020, "value": 0.5}}
     )
     exc.save()
-    
+
     # Capture log messages
     with pytest.warns(UserWarning) as warning_list:
         # Get the saved exchange from database (this should trigger the warning)
         saved_exc = list(a.exchanges())[0]
-    
+
     # Verify that temporal_distribution remains as JSON
     assert saved_exc["temporal_distribution"] == {"type": "temporal_distribution", "data": {"year": 2020, "value": 0.5}}
 
@@ -875,7 +946,6 @@ def test_temporal_distribution_restoration_logging_missing_library():
 @bw2test
 def test_temporal_distribution_restoration_logging_conversion_failure():
     """Test that appropriate logging occurs when TemporalDistribution conversion fails"""
-    from bw2data.backends.proxies import Exchange
     import bw2data.backends.proxies as proxies_module
     
     # Create a mock TemporalDistribution that will fail on construction
