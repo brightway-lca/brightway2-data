@@ -660,19 +660,21 @@ class Activity(ActivityProxyBase):
         return new, new_p
 
     def _create_activity_copy(self, **kwargs) -> Self:
-        new = Activity()
-        for key, value in self.items():
-            if key != "id":
-                new[key] = value
+        if "id" in kwargs:
+            raise ValueError(f"`id` must be created automatically, but `id={kwargs['id']}` given.")
+
+        data = {k: v for k, v in self._data.items() if k not in ("id", "document")}
         for key, value in kwargs.items():
-            if key == "id":
-                raise ValueError(f"`id` must be created automatically, but `id={value}` given.")
-            new._data[key] = value
-        if new["database"] == self["database"] and new["code"] == self["code"]:
-            new._data["code"] = str(uuid.uuid4().hex)
-        elif new["code"] is None:
-            new._data["code"] = str(uuid.uuid4().hex)
-        return new
+            if value:
+                data[key] = value
+
+        if data["database"] == self["database"] and data["code"] == self["code"]:
+            data["code"] = str(uuid.uuid4().hex)
+            stdout_feedback_logger.info(
+                "Changed code to avoid conflict with existing value: {self['code']} to {data['code']}"
+            )
+
+        return Activity(**data)
 
     def copy(self, code: Optional[str] = None, signal: bool = True, **kwargs):
         """Copy the activity. Returns a new `Activity`.
@@ -682,17 +684,14 @@ class Activity(ActivityProxyBase):
         `kwargs` are additional new fields and field values, e.g. name='foo'
 
         """
-        activity = self._create_activity_copy(code=code, **kwargs)
+        if code is not None:
+            kwargs["code"] = code
+        activity = self._create_activity_copy(**kwargs)
         activity.save(signal=signal)
 
         for exc in self.exchanges():
-            data = copy.deepcopy(exc._data)
-            if "id" in data:
-                # New snowflake ID will be inserted by `.save()`; shouldn't be copied over
-                # or specified manually
-                del data["id"]
-            if data["output"] == self.key:
-                data["output"] = activity.key
+            data = {k: v for k, v in exc._data.items() if k not in ("id", "output")}
+            data["output"] = activity.key
             if exc["input"] == self.key:
                 data["input"] = activity.key
             ExchangeDataset(**dict_as_exchangedataset(data)).save(signal=signal)

@@ -284,6 +284,14 @@ def test_copy(activity):
         .count()
         == 1
     )
+    # Verify original activity's exchanges are preserved
+    original_exchanges = list(activity.exchanges())
+    assert len(original_exchanges) == 1
+    original_exc = original_exchanges[0]
+    assert original_exc["input"] == activity.key
+    assert original_exc["output"] == activity.key
+    assert original_exc["type"] == "production"
+    assert original_exc["amount"] == 1
 
 
 def test_copy_with_kwargs(activity):
@@ -296,6 +304,101 @@ def test_copy_with_kwargs(activity):
     assert cp["widget"] == "squirt gun"
     assert ExchangeDataset.select().count() == 2
     assert ActivityDataset.select().count() == 2
+    # Verify original activity's exchanges are preserved
+    original_exchanges = list(activity.exchanges())
+    assert len(original_exchanges) == 1
+    original_exc = original_exchanges[0]
+    assert original_exc["input"] == activity.key
+    assert original_exc["output"] == activity.key
+    assert original_exc["type"] == "production"
+    assert original_exc["amount"] == 1
+
+
+@bw2test
+def test_copy_preserves_original_exchanges_multiple():
+    """Test that copying an activity with multiple exchanges preserves all original exchanges"""
+    database = DatabaseChooser("a database")
+    database.write(
+        {
+            ("a database", "foo"): {
+                "exchanges": [
+                    {
+                        "input": ("a database", "foo"),
+                        "amount": 1.0,
+                        "type": "production",
+                    },
+                    {
+                        "input": ("a database", "bar"),
+                        "amount": 2.0,
+                        "type": "technosphere",
+                    },
+                    {
+                        "input": ("a database", "baz"),
+                        "amount": 0.5,
+                        "type": "technosphere",
+                    },
+                ],
+                "location": "bar",
+                "name": "baz",
+            },
+            ("a database", "bar"): {
+                "exchanges": [
+                    {
+                        "input": ("a database", "bar"),
+                        "amount": 1,
+                        "type": "production",
+                    }
+                ],
+                "location": "bar",
+                "name": "bar",
+            },
+            ("a database", "baz"): {
+                "exchanges": [
+                    {
+                        "input": ("a database", "baz"),
+                        "amount": 1,
+                        "type": "production",
+                    }
+                ],
+                "location": "baz",
+                "name": "baz",
+            },
+        }
+    )
+    activity = database.get("foo")
+
+    # Copy activity
+    cp = activity.copy("copied_foo")
+
+    # Verify original activity's exchanges are preserved
+    original_exchanges = list(activity.exchanges())
+    assert len(original_exchanges) == 3
+
+    # Check production exchange
+    production_exc = [e for e in original_exchanges if e["type"] == "production"][0]
+    assert production_exc["input"] == activity.key
+    assert production_exc["output"] == activity.key
+    assert production_exc["amount"] == 1.0
+
+    # Check technosphere exchanges
+    techno_exchanges = [e for e in original_exchanges if e["type"] == "technosphere"]
+    assert len(techno_exchanges) == 2
+
+    # Check exchange to bar
+    bar_exc = [e for e in techno_exchanges if e["input"][1] == "bar"][0]
+    assert bar_exc["input"] == ("a database", "bar")
+    assert bar_exc["output"] == activity.key
+    assert bar_exc["amount"] == 2.0
+
+    # Check exchange to baz
+    baz_exc = [e for e in techno_exchanges if e["input"][1] == "baz"][0]
+    assert baz_exc["input"] == ("a database", "baz")
+    assert baz_exc["output"] == activity.key
+    assert baz_exc["amount"] == 0.5
+
+    # Verify copied activity has exchanges
+    copied_exchanges = list(cp.exchanges())
+    assert len(copied_exchanges) == 3
 
 
 @bw2test

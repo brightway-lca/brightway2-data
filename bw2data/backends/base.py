@@ -287,16 +287,16 @@ class SQLiteBackend(ProcessedDataStore):
                         activity,
                     )
 
+        if any(node["database"] == target_database for node in nodes_to_copy):
+            raise ValueError(
+                "Input activities or associated products can't already be in the target database"
+            )
+
         # Second pass: copy all activities
         for activity in nodes_to_copy:
             old_key = activity.key
 
-            # Create new activity in target database
-            new_activity = Activity()
-            for key, value in activity.items():
-                if key != "id":
-                    new_activity[key] = value
-            new_activity["database"] = target_database
+            new_activity = activity._create_activity_copy(database=target_database)
             new_activity.save(signal=signal)
 
             new_key = new_activity.key
@@ -309,19 +309,18 @@ class SQLiteBackend(ProcessedDataStore):
             new_key = old_to_new_key[old_key]
 
             for exc in activity.exchanges():
-                data = copy.deepcopy(exc._data)
-                if "id" in data:
-                    del data["id"]
-
-                # Update output if it points to any copied activity
-                if data.get("output") in old_to_new_key:
-                    data["output"] = old_to_new_key[data["output"]]
-                # Update input if it points to any copied activity
-                if data.get("input") in old_to_new_key:
-                    data["input"] = old_to_new_key[data["input"]]
-
-                # Save exchange to target database
-                ExchangeDataset(**dict_as_exchangedataset(data)).save(signal=signal)
+                data = {k: v for k, v in exc._data.items() if k != "id"}
+                data["output"] = new_key
+                inpt = old_to_new_key.get(data["input"], data["input"])
+                data["input"] = inpt
+                ExchangeDataset(
+                    data=data,
+                    input_code=inpt[1],
+                    input_database=inpt[0],
+                    output_code=new_key[1],
+                    output_database=new_key[0],
+                    type=data["type"],
+                ).save(signal=signal)
 
         return new_activities
 

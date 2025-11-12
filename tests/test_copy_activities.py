@@ -54,6 +54,17 @@ def test_copy_activities_basic():
     assert techno_exc["input"] == ("source_db", "B")
     assert techno_exc["output"] == ("target_db", "A")
 
+    # Verify original activity's exchanges are preserved in source database
+    activity_a = source_db.get("A")
+    original_exchanges = list(activity_a.exchanges())
+    assert len(original_exchanges) == 2
+    original_production = [e for e in original_exchanges if e["type"] == "production"][0]
+    assert original_production["input"] == ("source_db", "A")
+    assert original_production["output"] == ("source_db", "A")
+    original_techno = [e for e in original_exchanges if e["type"] == "technosphere"][0]
+    assert original_techno["input"] == ("source_db", "B")
+    assert original_techno["output"] == ("source_db", "A")
+
 
 @bw2test
 def test_copy_activities_multiple():
@@ -113,6 +124,22 @@ def test_copy_activities_multiple():
     # Activity B's exchange to C (not copied) should point to source database
     b_to_c = [e for e in b_exchanges if e["input"][1] == "C"][0]
     assert b_to_c["input"] == ("source_db", "C")
+
+    # Verify original activities' exchanges are preserved in source database
+    original_a_exchanges = list(activity_a.exchanges())
+    assert len(original_a_exchanges) == 2
+    original_a_to_b = [e for e in original_a_exchanges if e["input"][1] == "B"][0]
+    assert original_a_to_b["input"] == ("source_db", "B")
+    assert original_a_to_b["output"] == ("source_db", "A")
+
+    original_b_exchanges = list(activity_b.exchanges())
+    assert len(original_b_exchanges) == 3
+    original_b_to_a = [e for e in original_b_exchanges if e["input"][1] == "A"][0]
+    assert original_b_to_a["input"] == ("source_db", "A")
+    assert original_b_to_a["output"] == ("source_db", "B")
+    original_b_to_c = [e for e in original_b_exchanges if e["input"][1] == "C"][0]
+    assert original_b_to_c["input"] == ("source_db", "C")
+    assert original_b_to_c["output"] == ("source_db", "B")
 
 
 @bw2test
@@ -188,6 +215,13 @@ def test_copy_activities_functional_edge_to_product():
     techno_exc = [e for e in new_exchanges if e["input"][1] == "product_Y"][0]
     assert techno_exc["input"] == ("source_db", "product_Y")
     assert techno_exc.get("functional") is None
+
+    # Verify original process's exchanges are preserved in source database
+    original_exchanges = list(process_a.exchanges())
+    assert len(original_exchanges) == 3
+    original_functional = [e for e in original_exchanges if e.get("functional")][0]
+    assert original_functional["input"] == ("source_db", "product_X")
+    assert original_functional["output"] == ("source_db", "process_A")
 
 
 @bw2test
@@ -269,6 +303,13 @@ def test_copy_activities_biosphere_exchanges():
     biosphere_exc = [e for e in new_exchanges if e["type"] == "biosphere"][0]
     assert biosphere_exc["input"] == ("biosphere", "CO2")
 
+    # Verify original activity's exchanges are preserved in source database
+    original_exchanges = list(activity_a.exchanges())
+    assert len(original_exchanges) == 2
+    original_biosphere = [e for e in original_exchanges if e["type"] == "biosphere"][0]
+    assert original_biosphere["input"] == ("biosphere", "CO2")
+    assert original_biosphere["output"] == ("source_db", "A")
+
 
 @bw2test
 def test_copy_activities_target_database_not_exists():
@@ -306,6 +347,41 @@ def test_copy_activities_target_same_as_source():
         ValueError, match="Target database 'source_db' must be different from the source database"
     ):
         source_db.copy_activities([activity_a], "source_db")
+
+
+@bw2test
+def test_copy_activities_from_target_database():
+    """Test error when activities to be copied are from the target database"""
+    source_db = DatabaseChooser("source_db")
+    source_db.register()
+
+    target_db = DatabaseChooser("target_db")
+    target_db.register()
+
+    # Create activity in source database
+    source_db.write(
+        {
+            ("source_db", "A"): {"name": "Activity A", "type": "process"},
+        }
+    )
+
+    # Create activity in target database
+    target_db.write(
+        {
+            ("target_db", "B"): {"name": "Activity B", "type": "process"},
+        }
+    )
+
+    activity_a = source_db.get("A")
+    activity_b = target_db.get("B")
+
+    # Try to copy activity from target database - should raise error
+    with pytest.raises(ValueError, match="Input activities or associated products can't"):
+        source_db.copy_activities([activity_b], "target_db")
+
+    # Try to copy mix of activities from source and target - should raise error
+    with pytest.raises(ValueError, match="Input activities or associated products can't"):
+        source_db.copy_activities([activity_a, activity_b], "target_db")
 
 
 @bw2test
@@ -558,3 +634,121 @@ def test_copy_activities_multiple_with_products_and_references():
     # Process B's edge to process_D should point to source database (not copied)
     b_to_d = [e for e in b_exchanges if e["input"][1] == "process_D"][0]
     assert b_to_d["input"] == ("source_db", "process_D")
+
+    # Verify original activities' exchanges are preserved in source database
+    original_a_exchanges = list(process_a.exchanges())
+    assert len(original_a_exchanges) == 4
+    original_a_functional = [e for e in original_a_exchanges if e.get("functional")][0]
+    assert original_a_functional["input"] == ("source_db", "product_X")
+    assert original_a_functional["output"] == ("source_db", "process_A")
+
+    original_b_exchanges = list(process_b.exchanges())
+    assert len(original_b_exchanges) == 3
+    original_b_functional = [e for e in original_b_exchanges if e.get("functional")][0]
+    assert original_b_functional["input"] == ("source_db", "product_Y")
+    assert original_b_functional["output"] == ("source_db", "process_B")
+
+
+@bw2test
+def test_copy_activities_processwithreferenceproduct():
+    """Test copying activities with type processwithreferenceproduct and verify edge behavior"""
+    source_db = DatabaseChooser("source_db")
+    source_db.register()
+
+    target_db = DatabaseChooser("target_db")
+    target_db.register()
+
+    # Create activities with type processwithreferenceproduct
+    source_db.write(
+        {
+            ("source_db", "A"): {
+                "name": "Activity A",
+                "type": "processwithreferenceproduct",
+                "exchanges": [
+                    {"input": ("source_db", "A"), "amount": 1.0, "type": "production"},
+                    {"input": ("source_db", "B"), "amount": 2.0, "type": "technosphere"},
+                    {
+                        "input": ("source_db", "product_X"),
+                        "amount": 1.0,
+                        "type": "production",
+                        "functional": True,
+                    },
+                ],
+            },
+            ("source_db", "B"): {
+                "name": "Activity B",
+                "type": "processwithreferenceproduct",
+                "exchanges": [
+                    {"input": ("source_db", "B"), "amount": 1.0, "type": "production"},
+                    {"input": ("source_db", "A"), "amount": 1.5, "type": "technosphere"},
+                    {"input": ("source_db", "C"), "amount": 3.0, "type": "technosphere"},
+                ],
+            },
+            ("source_db", "C"): {
+                "name": "Activity C",
+                "type": "processwithreferenceproduct",
+            },
+            ("source_db", "product_X"): {
+                "name": "Product X",
+                "type": "product",
+            },
+        }
+    )
+
+    activity_a = source_db.get("A")
+    activity_b = source_db.get("B")
+
+    # Copy both activities
+    result = source_db.copy_activities([activity_a, activity_b], "target_db")
+
+    # Should return both activities and product_X (automatically copied due to functional edge)
+    assert len(result) == 3
+    result_codes = [a["code"] for a in result]
+    assert "A" in result_codes
+    assert "B" in result_codes
+    assert "product_X" in result_codes
+
+    # Check that edges between copied activities point to new database
+    new_a = [a for a in result if a["code"] == "A"][0]
+    new_b = [a for a in result if a["code"] == "B"][0]
+
+    # Activity A's exchange to B should point to new database
+    a_exchanges = list(new_a.exchanges())
+    a_to_b = [e for e in a_exchanges if e["input"][1] == "B"][0]
+    assert a_to_b["input"] == ("target_db", "B")
+    assert a_to_b["output"] == ("target_db", "A")
+
+    # Activity A's functional edge to product_X should point to new database
+    a_to_product_x = [e for e in a_exchanges if e.get("functional")][0]
+    assert a_to_product_x["input"] == ("target_db", "product_X")
+    assert a_to_product_x["output"] == ("target_db", "A")
+
+    # Activity B's exchange to A should point to new database
+    b_exchanges = list(new_b.exchanges())
+    b_to_a = [e for e in b_exchanges if e["input"][1] == "A"][0]
+    assert b_to_a["input"] == ("target_db", "A")
+    assert b_to_a["output"] == ("target_db", "B")
+
+    # Activity B's exchange to C (not copied) should point to source database
+    b_to_c = [e for e in b_exchanges if e["input"][1] == "C"][0]
+    assert b_to_c["input"] == ("source_db", "C")
+    assert b_to_c["output"] == ("target_db", "B")
+
+    # Verify original activities' exchanges are preserved in source database
+    original_a_exchanges = list(activity_a.exchanges())
+    assert len(original_a_exchanges) == 3
+    original_a_to_b = [e for e in original_a_exchanges if e["input"][1] == "B"][0]
+    assert original_a_to_b["input"] == ("source_db", "B")
+    assert original_a_to_b["output"] == ("source_db", "A")
+    original_a_functional = [e for e in original_a_exchanges if e.get("functional")][0]
+    assert original_a_functional["input"] == ("source_db", "product_X")
+    assert original_a_functional["output"] == ("source_db", "A")
+
+    original_b_exchanges = list(activity_b.exchanges())
+    assert len(original_b_exchanges) == 3
+    original_b_to_a = [e for e in original_b_exchanges if e["input"][1] == "A"][0]
+    assert original_b_to_a["input"] == ("source_db", "A")
+    assert original_b_to_a["output"] == ("source_db", "B")
+    original_b_to_c = [e for e in original_b_exchanges if e["input"][1] == "C"][0]
+    assert original_b_to_c["input"] == ("source_db", "C")
+    assert original_b_to_c["output"] == ("source_db", "B")
