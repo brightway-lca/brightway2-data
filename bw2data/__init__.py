@@ -33,7 +33,7 @@ __all__ = [
     "weightings",
 ]
 
-__version__ = "4.5.2"
+__version__ = "4.5.3"
 
 from bw2data.configuration import config, labels
 from bw2data.project import projects

@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.5.3 (2025-11-12)
+
+* Fixed bug where copying would move over original edges
+
 ## 4.5.2 (2025-11-11)
 
 * Add `create_aggregated_process` and `copy_activities` functions
