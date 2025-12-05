@@ -540,7 +540,7 @@ class Activity(ActivityProxyBase):
         return exc
 
     def create_aggregated_process(
-        self, database: str | None = None, signal: bool = True, **kwargs
+        self, database: Optional[str] = None, signal: bool = True, **kwargs
     ) -> tuple[Self, Self]:
         """Create a new aggregated process representing the life cycle inventory of this process.
 
