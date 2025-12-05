@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.5.4 (2025-12-05)
+
+* Restore Python 3.9 compatibility
+
 ## 4.5.3 (2025-11-12)
 
 * Fixed bug where copying would move over original edges
