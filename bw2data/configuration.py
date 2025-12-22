@@ -158,7 +158,12 @@ class Config(BaseSettings):
     cache: dict = {}
     metadata: list = []
     sqlite3_databases: list = []
+
+    # If true, drop extra metadata on activities and exchanges upon import (method write())
+    drop_metadata: bool = False
+
     _windows: bool = platform.system() == "Windows"
+
 
     model_config = SettingsConfigDict(
         env_file="brightway-configuration.env",

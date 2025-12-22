@@ -50,6 +50,7 @@ dependencies = [
     "typing_extensions",
     "voluptuous",
     "wrapt",
+    "orjson"
 ]
 
 [project.urls]

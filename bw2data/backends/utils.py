@@ -80,7 +80,7 @@ def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
     }
     # Use during `insert_many` calls as these skip auto id generation because they don't call
     # `.save()`
-    if add_snowflake_id:
+    if add_snowflake_id and not "id" in val :
         val["id"] = next(snowflake_id_generator)
     return val
 

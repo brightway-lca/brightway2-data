@@ -4,6 +4,7 @@ from peewee import IntegerField
 from snowflake import SnowflakeGenerator
 
 from bw2data.signals import SignaledDataset
+import base64
 
 # Jan 1, 2024
 # from datetime import datetime
@@ -37,3 +38,9 @@ class SnowflakeIDBaseClass(SignaledDataset):
             self.id = next(snowflake_id_generator)
             kwargs["force_insert"] = True
         super().save(**kwargs)
+
+
+def snowflake_to_code(id_int):
+    """Convert unique int id to short string code"""
+    b = id_int.to_bytes((id_int.bit_length() + 7) // 8, 'big')
+    return base64.urlsafe_b64encode(b).decode().rstrip('=')
