@@ -1,3 +1,5 @@
+from functools import cache
+
 from peewee import DoesNotExist, TextField
 
 from bw2data.errors import UnknownObject
@@ -27,7 +29,7 @@ class ExchangeDataset(SnowflakeIDBaseClass):
     output_database = TextField()  # Canonical
     type = TextField()  # Reset from `data`
 
-
+@cache
 def get_id(key):
     if isinstance(key, int):
         try:
