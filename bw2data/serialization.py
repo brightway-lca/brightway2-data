@@ -13,21 +13,14 @@ from bw2data.errors import PickleError
 from bw2data.fatomic import open as atomic_open
 from bw2data.utils import maybe_path
 
-try:
-    import anyjson
-except ImportError:
-    anyjson = None
-    import json
+import orjson
 
 
 class JsonWrapper:
     @classmethod
     def dump(self, data, filepath):
         with atomic_open(filepath, "w") as f:
-            if anyjson:
-                f.write(anyjson.serialize(data))
-            else:
-                json.dump(data, f, indent=2)
+            f.write(JsonWrapper.dumps(data))
 
     @classmethod
     def dump_bz2(self, data, filepath):
@@ -37,10 +30,8 @@ class JsonWrapper:
 
     @classmethod
     def load(self, file):
-        if anyjson:
-            return anyjson.deserialize(open(file, encoding="utf-8").read())
-        else:
-            return json.load(open(file, encoding="utf-8"))
+         with open(file, encoding="utf-8") as f:
+            return JsonWrapper.loads(f.read())
 
     @classmethod
     def load_bz2(self, filepath):
@@ -48,17 +39,11 @@ class JsonWrapper:
 
     @classmethod
     def dumps(self, data):
-        if anyjson:
-            return anyjson.serialize(data)
-        else:
-            return json.dumps(data)
+        return orjson.dumps(data, option=orjson.OPT_INDENT_2).decode("utf-8")
 
     @classmethod
     def loads(self, data):
-        if anyjson:
-            return anyjson.deserialize(data)
-        else:
-            return json.loads(data)
+        return orjson.loads(data)
 
 
 class JsonSanitizer:

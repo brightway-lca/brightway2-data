@@ -1,5 +1,5 @@
 from blinker import signal
-from peewee import Model
+from playhouse.signals import Model
 
 try:
     from typing import override
