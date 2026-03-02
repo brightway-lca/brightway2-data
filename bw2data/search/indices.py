@@ -1,7 +1,7 @@
 import os
 import warnings
 
-from playhouse.sqlite_ext import SqliteExtDatabase
+from peewee import SqliteDatabase
 
 from bw2data import projects
 from bw2data.search.schema import BW2Schema
@@ -12,7 +12,7 @@ MODELS = (BW2Schema,)
 class IndexManager:
     def __init__(self, database_path):
         self.path = os.path.join(projects.request_directory("search"), database_path)
-        self.db = SqliteExtDatabase(self.path)
+        self.db = SqliteDatabase(self.path)
         if not os.path.exists(self.path) or len(self.db.get_tables()) == 0:
             self.create()
 
