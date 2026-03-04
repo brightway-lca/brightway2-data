@@ -12,6 +12,21 @@ from bw2data import config, databases, geomapping, methods
 from bw2data.parameters import parameters
 from bw2data.project import projects
 
+def _close_sqlite_handles():
+    """Close all known substitutable SQLite handles to avoid descriptor leaks."""
+    try:
+        if not projects.db.db.is_closed():
+            projects.db.db.close()
+    except Exception:
+        pass
+
+    for _, substitutable_db in config.sqlite3_databases:
+        try:
+            if not substitutable_db.db.is_closed():
+                substitutable_db.db.close()
+        except Exception:
+            pass
+
 
 class BW2DataTest(unittest.TestCase):
     _multiprocess_can_split_ = True
@@ -19,7 +34,9 @@ class BW2DataTest(unittest.TestCase):
     def setUp(self):
         config.dont_warn = True
         config.is_test = True
+        _close_sqlite_handles()
         tempdir = Path(tempfile.mkdtemp())
+        self._tempdir = tempdir
         project_name = "".join(random.choices(string.ascii_lowercase, k=18))
         projects.change_base_directories(
             base_dir=tempdir,
@@ -32,6 +49,10 @@ class BW2DataTest(unittest.TestCase):
 
     def extra_setup(self):
         pass
+
+    def tearDown(self):
+        _close_sqlite_handles()
+        shutil.rmtree(self._tempdir, ignore_errors=True)
 
     def test_setup_clean(self):
         self.assertEqual(list(databases), [])
@@ -47,6 +68,7 @@ class BW2DataTest(unittest.TestCase):
 def bw2test(wrapped, instance, args, kwargs):
     config.dont_warn = True
     config.is_test = True
+    _close_sqlite_handles()
     tempdir = Path(tempfile.mkdtemp())
     project_name = "".join(random.choices(string.ascii_lowercase, k=18))
     projects.change_base_directories(

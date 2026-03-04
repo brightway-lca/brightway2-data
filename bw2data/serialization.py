@@ -38,13 +38,16 @@ class JsonWrapper:
     @classmethod
     def load(self, file):
         if anyjson:
-            return anyjson.deserialize(open(file, encoding="utf-8").read())
+            with open(file, encoding="utf-8") as f:
+                return anyjson.deserialize(f.read())
         else:
-            return json.load(open(file, encoding="utf-8"))
+            with open(file, encoding="utf-8") as f:
+                return json.load(f)
 
     @classmethod
     def load_bz2(self, filepath):
-        return JsonWrapper.loads((bz2.BZ2File(filepath).read()).decode("utf-8"))
+        with bz2.BZ2File(filepath) as f:
+            return JsonWrapper.loads(f.read().decode("utf-8"))
 
     @classmethod
     def dumps(self, data):
@@ -240,7 +243,8 @@ class PickledDict(SerializedDict):
 
     def deserialize(self):
         try:
-            return self.unpack(pickle.load(open(self.filepath, "rb")))
+            with open(self.filepath, "rb") as f:
+                return self.unpack(pickle.load(f))
         except ImportError:
             TEXT = "Pickle deserialization error in file '%s'" % self.filepath
             raise PickleError(TEXT)

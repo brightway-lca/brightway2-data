@@ -1209,10 +1209,14 @@ Here are the type values usually used for nodes:
 
         """
         if columns is None:
-            # Feels like magic
-            df = pandas.DataFrame(self)
+            rows = [dict(obj) for obj in self]
+            # Build DataFrame with deterministic column ordering, independent of ORM field order.
+            ordered_columns = sorted({key for row in rows for key in row})
+            df = pandas.DataFrame(rows, columns=ordered_columns)
         else:
-            df = pandas.DataFrame([{field: obj.get(field) for field in columns} for obj in self])
+            rows = [{field: obj.get(field) for field in columns} for obj in self]
+            # Keep user-defined column order as-is.
+            df = pandas.DataFrame(rows, columns=columns)
         if return_sorted:
             sort_columns = ["name", "reference product", "location", "unit"]
             df = df.sort_values(by=[column for column in sort_columns if column in df.columns])
