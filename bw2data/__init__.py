@@ -33,7 +33,7 @@ __all__ = [
     "weightings",
 ]
 
-__version__ = "4.5.4"
+__version__ = "4.6"
 
 from bw2data.configuration import config, labels
 from bw2data.project import projects
@@ -89,5 +89,4 @@ try:
     # Will register itself as a database backend provider
     import multifunctional
 except ImportError:
-    assert True
     pass

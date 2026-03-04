@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.6 (2026-03-04)
+
+* [#258: Compatibility with peewee>=4.0.1](https://github.com/brightway-lca/brightway2-data/pull/258)
+
 ## 4.5.4 (2025-12-05)
 
 * Restore Python 3.9 compatibility
