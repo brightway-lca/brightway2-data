@@ -1,5 +1,6 @@
 """Fixtures for bw2data"""
 
+import gc
 import sqlite3
 
 import pytest
@@ -23,7 +24,26 @@ def num_revisions():
 
 @pytest.fixture(autouse=True, scope="function")
 def close_database_handle_on_exit_to_avoid_windows_test_errors():
-    from bw2data.backends import sqlite3_lci_db
+    from bw2data import config
+    from bw2data.project import projects
 
+    def close_handles():
+        for _, substitutable_db in config.sqlite3_databases:
+            try:
+                if not substitutable_db.db.is_closed():
+                    substitutable_db.db.close()
+            except Exception:
+                pass
+
+        try:
+            if not projects.db.db.is_closed():
+                projects.db.db.close()
+        except Exception:
+            pass
+
+        # Encourage cleanup of objects holding stale SQLite handles.
+        gc.collect()
+
+    close_handles()
     yield
-    sqlite3_lci_db.db.close()
+    close_handles()
