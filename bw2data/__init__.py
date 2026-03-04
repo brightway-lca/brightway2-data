@@ -89,4 +89,5 @@ try:
     # Will register itself as a database backend provider
     import multifunctional
 except ImportError:
+    assert True
     pass
