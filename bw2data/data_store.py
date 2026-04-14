@@ -80,12 +80,11 @@ class DataStore:
         if not self.registered:
             raise UnknownObject("This object is not registered and has no data")
         try:
-            return pickle.load(
-                open(
-                    projects.dir / "intermediate" / (self.filename + ".pickle"),
-                    "rb",
-                )
-            )
+            with open(
+                projects.dir / "intermediate" / (self.filename + ".pickle"),
+                "rb",
+            ) as f:
+                return pickle.load(f)
         except OSError:
             raise MissingIntermediateData("Can't load intermediate data")
 

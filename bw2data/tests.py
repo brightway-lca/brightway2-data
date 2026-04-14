@@ -75,5 +75,8 @@ def bw2test(wrapped, instance, args, kwargs):
         base_dir=tempdir, base_logs_dir=tempdir, project_name=project_name, update=False
     )
     projects._is_temp_dir = True
-    atexit.register(shutil.rmtree, tempdir)
-    return wrapped(*args, **kwargs)
+    atexit.register(shutil.rmtree, tempdir, True)
+    try:
+        return wrapped(*args, **kwargs)
+    finally:
+        _close_sqlite_handles()
