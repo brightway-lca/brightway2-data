@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.6.1 (unreleased)
+
+* Fix Windows file handle leaks: close open SQLite handles before `shutil.rmtree` in `ProjectManager.delete_project`, and explicitly dereference the old database object with `gc.collect()` in `SubstitutableDatabase.change_path` before opening the new path.
+
 ## 4.6 (2026-03-04)
 
 * [#258: Compatibility with peewee>=4.0.1](https://github.com/brightway-lca/brightway2-data/pull/258)
