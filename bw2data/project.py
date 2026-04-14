@@ -556,6 +556,13 @@ class ProjectManager(Iterable):
         if delete_dir:
             dir_path = self._base_data_dir / safe_filename(victim)
             assert dir_path.is_dir(), "Can't find project directory"
+            for _, substitutable_db in config.sqlite3_databases:
+                try:
+                    if Path(substitutable_db._filepath).is_relative_to(dir_path):
+                        if not substitutable_db.db.is_closed():
+                            substitutable_db.db.close()
+                except Exception:
+                    pass
             shutil.rmtree(dir_path)
         else:
             stdout_feedback_logger.warning(

@@ -33,7 +33,11 @@ class SubstitutableDatabase:
         return self._database
 
     def change_path(self, filepath):
-        self.db.close()
+        import gc
+        old_db = self._database
+        old_db.close()
+        del old_db
+        gc.collect()
         self._filepath = filepath
         self._database = self._create_database()
 
