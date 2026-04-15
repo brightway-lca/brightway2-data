@@ -1,6 +1,6 @@
 # `bw2data` Changelog
 
-## 4.6.1 (unreleased)
+## 4.6.1 (2026-04-15)
 
 * Fix Windows file handle leaks: close open SQLite handles before `shutil.rmtree` in `ProjectManager.delete_project`, and explicitly dereference the old database object with `gc.collect()` in `SubstitutableDatabase.change_path` before opening the new path.
 
