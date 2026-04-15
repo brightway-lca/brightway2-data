@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## 4.6.2 (2026-04-15)
+
+* Version bump; 4.6.1 was not published to PyPI
+
 ## 4.6.1 (2026-04-15)
 
 * [#259: Fix Windows file handle leaks in `delete_project` and `change_path`](https://github.com/brightway-lca/brightway2-data/pull/259)
