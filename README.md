@@ -37,6 +37,16 @@ $ pip install bw2data
 Contributions are very welcome.
 To learn more, see the [Contributor Guide][Contributor Guide].
 
+## Releasing a new version
+
+1. Create a release branch: `git checkout -b release/X.Y.Z`
+2. Update `__version__` in `bw2data/__init__.py`
+3. Update `CHANGES.md` with the release date and links to merged PRs
+4. Commit, push the branch, and open a PR
+5. Push the tag to trigger PyPI publication: `git tag X.Y.Z && git push origin X.Y.Z`
+
+The tag push triggers the GitHub Actions deploy workflow, which builds and publishes the package to PyPI using trusted publishing.
+
 ## License
 
 Distributed under the terms of the [BSD 3 Clause license][License],
