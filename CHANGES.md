@@ -1,8 +1,10 @@
 # `bw2data` Changelog
 
-## 4.6.1 (unreleased)
+## 4.6.1 (2026-04-15)
 
-* Fix Windows file handle leaks: close open SQLite handles before `shutil.rmtree` in `ProjectManager.delete_project`, and explicitly dereference the old database object with `gc.collect()` in `SubstitutableDatabase.change_path` before opening the new path.
+* [#259: Fix Windows file handle leaks in `delete_project` and `change_path`](https://github.com/brightway-lca/brightway2-data/pull/259)
+* [#260: Reduce CI matrix to Python 3.9, 3.11, and 3.14](https://github.com/brightway-lca/brightway2-data/pull/260)
+* [#261: Speed up Windows CI: use uv, fix temp dir accumulation and file handle leaks](https://github.com/brightway-lca/brightway2-data/pull/261)
 
 ## 4.6 (2026-03-04)
 
