@@ -110,7 +110,7 @@ def _insert_many_activities(activities: list) -> None:
                 pickle.dumps(row["data"], protocol=4),
                 row["code"],
                 row["database"],
-                row.get("location"),
+                str(v) if (v := row.get("location")) is not None else None,
                 row.get("name"),
                 row.get("product"),
                 row.get("type"),
