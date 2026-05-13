@@ -120,6 +120,11 @@ class Updates:
             "automatic": True,
             "explanation": "bw2data 4.0 release switched to a new database search implementation",
         },
+        "4.7 database dependencies in datapackage": {
+            "method": "expire_all_processed_data_47",
+            "automatic": True,
+            "explanation": "bw2data 4.7 adds database_dependencies to datapackage metadata; all databases must be reprocessed",
+        },
     }
 
     @classmethod
@@ -224,6 +229,10 @@ class Updates:
 
     @classmethod
     def expire_all_processed_data_40(cls):
+        cls._reprocess_all()
+
+    @classmethod
+    def expire_all_processed_data_47(cls):
         cls._reprocess_all()
 
     @classmethod

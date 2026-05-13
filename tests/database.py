@@ -506,6 +506,63 @@ def test_processed_array():
 
 
 @bw2test
+def test_process_writes_database_dependencies_to_datapackage():
+    Database("other database").write(
+        {
+            ("other database", "x"): {
+                "type": "process",
+                "exchanges": [
+                    {"input": ("other database", "x"), "amount": 1, "type": "production"}
+                ],
+            }
+        }
+    )
+    db_a = Database("a database")
+    db_a.write(
+        {
+            ("a database", "1"): {
+                "type": "process",
+                "exchanges": [
+                    {
+                        "input": ("a database", "1"),
+                        "amount": 1,
+                        "type": "production",
+                    },
+                    {
+                        "input": ("other database", "x"),
+                        "amount": 0.5,
+                        "type": "technosphere",
+                    },
+                ],
+            }
+        }
+    )
+    package = db_a.datapackage()
+    assert package.metadata["database_dependencies"] == ["other database"]
+
+
+@bw2test
+def test_process_writes_empty_database_dependencies_when_no_external_inputs():
+    db = Database("a database")
+    db.write(
+        {
+            ("a database", "1"): {
+                "type": "process",
+                "exchanges": [
+                    {
+                        "input": ("a database", "1"),
+                        "amount": 1,
+                        "type": "production",
+                    }
+                ],
+            }
+        }
+    )
+    package = db.datapackage()
+    assert package.metadata["database_dependencies"] == []
+
+
+@bw2test
 def test_processed_array_with_metadata():
     database = Database("a database")
     database.write(
