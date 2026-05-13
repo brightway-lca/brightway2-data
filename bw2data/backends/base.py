@@ -18,7 +18,13 @@ from tqdm import tqdm
 from bw2data import calculation_setups, config, databases, geomapping
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.proxies import Activity
-from bw2data.backends.schema import ActivityDataset, ExchangeDataset, get_id
+from bw2data.backends.schema import (
+    ActivityDataset,
+    ExchangeDataset,
+    get_id,
+    insert_many_activities,
+    insert_many_exchanges,
+)
 from bw2data.backends.typos import (
     check_activity_keys,
     check_activity_type,
@@ -601,7 +607,7 @@ class SQLiteBackend(ProcessedDataStore):
         exchanges: list,
         activities: list,
         check_typos: bool = True,
-    ) -> (list, list):
+    ) -> None:
         for exchange in ds.get("exchanges", []):
             if "input" not in exchange or "amount" not in exchange:
                 raise InvalidExchange
@@ -616,15 +622,6 @@ class SQLiteBackend(ProcessedDataStore):
                 exchange["output"] = (ds["database"], ds["code"])
             exchanges.append(dict_as_exchangedataset(exchange))
 
-            # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
-            # SQLite3 has a limit of 999 variables,
-            # So 6 fields * 125 is under the limit
-            # Otherwise get the following:
-            # peewee.OperationalError: too many SQL variables
-            if len(exchanges) > 125:
-                ExchangeDataset.insert_many(exchanges).execute()
-                exchanges = []
-
         ds = {k: v for k, v in ds.items() if k != "exchanges"}
 
         if check_typos:
@@ -632,12 +629,6 @@ class SQLiteBackend(ProcessedDataStore):
             check_activity_keys(ds)
 
         activities.append(dict_as_activitydataset(ds, add_snowflake_id=True))
-
-        if len(activities) > 125:
-            ActivityDataset.insert_many(activities).execute()
-            activities = []
-
-        return exchanges, activities
 
     def _efficient_write_many_data(
         self, data: list, indices: bool = True, check_typos: bool = True
@@ -652,14 +643,10 @@ class SQLiteBackend(ProcessedDataStore):
             exchanges, activities = [], []
 
             for ds in tqdm_wrapper(data, getattr(config, "is_test", False)):
-                exchanges, activities = self._efficient_write_dataset(
-                    ds, exchanges, activities, check_typos
-                )
+                self._efficient_write_dataset(ds, exchanges, activities, check_typos)
 
-            if activities:
-                ActivityDataset.insert_many(activities).execute()
-            if exchanges:
-                ExchangeDataset.insert_many(exchanges).execute()
+            insert_many_activities(activities)
+            insert_many_exchanges(exchanges)
             sqlite3_lci_db.db.commit()
             sqlite3_lci_db.vacuum()
         except:
