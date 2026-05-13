@@ -21,9 +21,9 @@ from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import (
     ActivityDataset,
     ExchangeDataset,
+    _insert_many_activities,
+    _insert_many_exchanges,
     get_id,
-    insert_many_activities,
-    insert_many_exchanges,
 )
 from bw2data.backends.typos import (
     check_activity_keys,
@@ -645,8 +645,8 @@ class SQLiteBackend(ProcessedDataStore):
             for ds in tqdm_wrapper(data, getattr(config, "is_test", False)):
                 self._efficient_write_dataset(ds, exchanges, activities, check_typos)
 
-            insert_many_activities(activities)
-            insert_many_exchanges(exchanges)
+            _insert_many_activities(activities)
+            _insert_many_exchanges(exchanges)
             sqlite3_lci_db.db.commit()
             sqlite3_lci_db.vacuum()
         except:

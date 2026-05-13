@@ -92,10 +92,11 @@ on_activity_database_change.connect(_remove_changed_activity_key_from_get_id_cac
 on_activity_code_change.connect(_remove_changed_activity_key_from_get_id_cache)
 
 
-def insert_many_activities(activities: list) -> None:
+def _insert_many_activities(activities: list) -> None:
     """Bulk-insert activity dicts via raw SQLite executemany, bypassing Peewee ORM overhead.
 
-    Each dict must be in the format produced by dict_as_activitydataset(ds, add_snowflake_id=True).
+    Must be called within an active transaction. Each dict must be in the format
+    produced by dict_as_activitydataset(ds, add_snowflake_id=True).
     """
     if not activities:
         return
@@ -105,6 +106,7 @@ def insert_many_activities(activities: list) -> None:
         [
             (
                 row["id"],
+                # Protocol 4 matches PickleField.db_value() so both write paths produce identical blobs.
                 pickle.dumps(row["data"], protocol=4),
                 row["code"],
                 row["database"],
@@ -118,10 +120,11 @@ def insert_many_activities(activities: list) -> None:
     )
 
 
-def insert_many_exchanges(exchanges: list) -> None:
+def _insert_many_exchanges(exchanges: list) -> None:
     """Bulk-insert exchange dicts via raw SQLite executemany, bypassing Peewee ORM overhead.
 
-    Each dict must be in the format produced by dict_as_exchangedataset(exc).
+    Must be called within an active transaction. Each dict must be in the format
+    produced by dict_as_exchangedataset(exc).
     """
     if not exchanges:
         return
@@ -130,6 +133,7 @@ def insert_many_exchanges(exchanges: list) -> None:
         'INSERT INTO "exchangedataset" ("data", "input_code", "input_database", "output_code", "output_database", "type") VALUES (?, ?, ?, ?, ?, ?)',
         [
             (
+                # Protocol 4 matches PickleField.db_value() so both write paths produce identical blobs.
                 pickle.dumps(row["data"], protocol=4),
                 row["input_code"],
                 row["input_database"],
