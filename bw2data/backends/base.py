@@ -1103,6 +1103,7 @@ Here are the type values usually used for nodes:
                 name=clean_datapackage_name(self.name + " activity metadata"),
             )
 
+        dp.metadata["database_dependencies"] = sorted(dependents)
         dp.finalize_serialization()
 
         self.metadata["depends"] = sorted(dependents)
