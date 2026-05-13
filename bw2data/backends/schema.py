@@ -1,3 +1,5 @@
+import pickle
+
 from peewee import DoesNotExist, TextField
 
 from bw2data.errors import UnknownObject
@@ -88,3 +90,57 @@ on_database_write.connect(_remove_database_from_get_id_cache)
 signaleddataset_on_delete.connect(_remove_activity_from_get_id_cache)
 on_activity_database_change.connect(_remove_changed_activity_key_from_get_id_cache)
 on_activity_code_change.connect(_remove_changed_activity_key_from_get_id_cache)
+
+
+def _insert_many_activities(activities: list) -> None:
+    """Bulk-insert activity dicts via raw SQLite executemany, bypassing Peewee ORM overhead.
+
+    Must be called within an active transaction. Each dict must be in the format
+    produced by dict_as_activitydataset(ds, add_snowflake_id=True).
+    """
+    if not activities:
+        return
+    conn = ActivityDataset._meta.database.connection()
+    conn.cursor().executemany(
+        'INSERT INTO "activitydataset" ("id", "data", "code", "database", "location", "name", "product", "type") VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+            (
+                row["id"],
+                # Protocol 4 matches PickleField.db_value() so both write paths produce identical blobs.
+                pickle.dumps(row["data"], protocol=4),
+                row["code"],
+                row["database"],
+                str(v) if (v := row.get("location")) is not None else None,
+                row.get("name"),
+                row.get("product"),
+                row.get("type"),
+            )
+            for row in activities
+        ],
+    )
+
+
+def _insert_many_exchanges(exchanges: list) -> None:
+    """Bulk-insert exchange dicts via raw SQLite executemany, bypassing Peewee ORM overhead.
+
+    Must be called within an active transaction. Each dict must be in the format
+    produced by dict_as_exchangedataset(exc).
+    """
+    if not exchanges:
+        return
+    conn = ExchangeDataset._meta.database.connection()
+    conn.cursor().executemany(
+        'INSERT INTO "exchangedataset" ("data", "input_code", "input_database", "output_code", "output_database", "type") VALUES (?, ?, ?, ?, ?, ?)',
+        [
+            (
+                # Protocol 4 matches PickleField.db_value() so both write paths produce identical blobs.
+                pickle.dumps(row["data"], protocol=4),
+                row["input_code"],
+                row["input_database"],
+                row["output_code"],
+                row["output_database"],
+                row["type"],
+            )
+            for row in exchanges
+        ],
+    )
