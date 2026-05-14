@@ -1,5 +1,12 @@
 # `bw2data` Changelog
 
+## 4.7 (2026-05-13)
+
+* [#265: Write `database_dependencies` to datapackage metadata](https://github.com/brightway-lca/brightway2-data/pull/265)
+* [#266: Add memoization cache to `get_id()` with signal-based invalidation](https://github.com/brightway-lca/brightway2-data/pull/266)
+* [#268: Use raw SQLite `executemany` for bulk database writes](https://github.com/brightway-lca/brightway2-data/pull/268)
+* [#270: Fix unclosed sqlite3 connections in `updates.py`](https://github.com/brightway-lca/brightway2-data/pull/270)
+
 ## 4.6.2 (2026-04-15)
 
 * Version bump; 4.6.1 was not published to PyPI
