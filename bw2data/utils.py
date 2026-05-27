@@ -142,7 +142,8 @@ def as_uncertainty_dict(value):
             elif loc != amount:
                 warnings.warn(
                     f"Uncertainty dict has loc ({loc}) != amount ({amount}) for a no-uncertainty "
-                    f"type ({uncertainty_type}); keeping loc as-is"
+                    f"type ({uncertainty_type}); keeping loc as-is, but Monte Carlo average "
+                    f"results will differ from static results"
                 )
         return value
     try:

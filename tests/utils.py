@@ -205,6 +205,32 @@ def test_as_uncertainty_dict_set_negative():
     assert as_uncertainty_dict(given) == expected
 
 
+def test_as_uncertainty_dict_loc_nan_set_to_amount():
+    import math
+
+    for uncertainty_type in (0, 1):
+        given = {"uncertainty_type": uncertainty_type, "amount": 42.0, "loc": float("nan")}
+        result = as_uncertainty_dict(given)
+        assert result["loc"] == 42.0
+
+        given = {"uncertainty_type": uncertainty_type, "amount": 42.0}
+        result = as_uncertainty_dict(given)
+        assert result["loc"] == 42.0
+
+
+def test_as_uncertainty_dict_loc_differs_from_amount_warns():
+    import warnings
+
+    for uncertainty_type in (0, 1):
+        given = {"uncertainty_type": uncertainty_type, "amount": 42.0, "loc": 99.0}
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = as_uncertainty_dict(given)
+        assert len(w) == 1
+        assert "Monte Carlo" in str(w[0].message)
+        assert result["loc"] == 99.0
+
+
 @bw2test
 def test_get_node_normal():
     Database("biosphere").write(biosphere)
