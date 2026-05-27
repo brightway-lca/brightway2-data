@@ -1,5 +1,6 @@
 import collections
 import itertools
+import math
 import numbers
 import os
 import random
@@ -107,7 +108,17 @@ def clean_exchanges(data):
     return {key: tupleize(value) for key, value in data.items()}
 
 
-POSITIVE_DISTRIBUTIONS = {2, 6, 8, 9, 10}
+POSITIVE_DISTRIBUTIONS = {
+    sa.LognormalUncertainty.id,
+    sa.BernoulliUncertainty.id,
+    sa.WeibullUncertainty.id,
+    sa.GammaUncertainty.id,
+    sa.BetaUncertainty.id,
+}
+NO_UNCERTAINTY_TYPES = {
+    sa.UndefinedUncertainty.id,
+    sa.NoUncertainty.id,
+}
 
 
 def as_uncertainty_dict(value):
@@ -122,6 +133,18 @@ def as_uncertainty_dict(value):
             and "negative" not in value
         ):
             value["negative"] = True
+        uncertainty_type = value.get("uncertainty_type", value.get("uncertainty type"))
+        if uncertainty_type in NO_UNCERTAINTY_TYPES:
+            amount = value.get("amount", 0)
+            loc = value.get("loc")
+            if loc is None or (isinstance(loc, float) and math.isnan(loc)):
+                value["loc"] = amount
+            elif loc != amount:
+                warnings.warn(
+                    f"Uncertainty dict has loc ({loc}) != amount ({amount}) for a no-uncertainty "
+                    f"type ({uncertainty_type}); keeping loc as-is, but Monte Carlo average "
+                    f"results will differ from static results"
+                )
         return value
     try:
         return {"amount": float(value)}
