@@ -19,7 +19,7 @@ from bw2data.backends import Node
 from bw2data.backends.schema import ActivityDataset as AD
 from bw2data.backends.schema import get_id
 from bw2data.errors import Brightway2Project, UnknownObject
-from bw2calc import MethodConfig
+
 
 class Mapping:
     """A dictionary that maps object ids, like ``("Ecoinvent 2.2", 42)``, to integers.
@@ -155,8 +155,8 @@ def get_multilca_data_objs(
     """Get all the datapackages needed for a complete MultiLCA calculation."""
     input_database_names = set()
 
-    if isinstance(method_config, MethodConfig):
-        method_config = method_config.model_dump()
+    if hasattr(method_config, "impact_categories") and hasattr(method_config, "model_dump"):
+        method_config = method_config.model_dump(exclude_none=True)
 
     for v_dict in functional_units.values():
         for obj in v_dict:
