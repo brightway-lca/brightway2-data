@@ -137,9 +137,17 @@ def test_prepare_lca_inputs_remapping(setup):
     assert r is None
 
 
-def test_prepare_lca_inputs_missing_method(setup):
-    with pytest.raises(ValueError, match="Method.*not found"):
-        prepare_lca_inputs(demand={("food", "1"): 1}, method=("does_not_exist",))
+@pytest.mark.parametrize(
+    "kwargs,match",
+    [
+        ({"method": ("does_not_exist",)}, "Method.*not found"),
+        ({"weighting": ("does_not_exist",)}, "Weighting.*not found"),
+        ({"normalization": ("does_not_exist",)}, "Normalization.*not found"),
+    ],
+)
+def test_prepare_lca_inputs_missing_element(setup, kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        prepare_lca_inputs(demand={("food", "1"): 1}, **kwargs)
 
 
 @bw2test
