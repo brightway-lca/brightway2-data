@@ -19,7 +19,7 @@ from bw2data import config
 from bw2data.errors import InconsistentData, PossibleInconsistentData
 from bw2data.filesystem import create_dir
 from bw2data.logs import stdout_feedback_logger
-from bw2data.signals import project_changed, project_created
+from bw2data.signals import project_changed, project_created, project_deleted
 from bw2data.sqlite import PickleField, SubstitutableDatabase
 from bw2data.utils import maybe_path
 
@@ -553,6 +553,7 @@ class ProjectManager(Iterable):
 
         victim_dataset = ProjectDataset.get(ProjectDataset.name == victim)
         ProjectDataset.delete().where(ProjectDataset.name == victim).execute()
+        project_deleted.send(self, dataset=victim_dataset)
 
         if delete_dir:
             dir_path = self._base_data_dir / safe_filename(victim, full=victim_dataset.full_hash)

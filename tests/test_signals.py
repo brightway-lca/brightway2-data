@@ -28,3 +28,14 @@ def test_project_created_signal():
 
     assert isinstance(subscriber.kwargs["dataset"], ProjectDataset)
     assert subscriber.kwargs["dataset"].name == "foo"
+
+
+@bw2test
+def test_project_deleted_signal():
+    projects.set_current("foo")
+    subscriber = SignalCatcher()
+    signal("bw2data.project_deleted").connect(subscriber)
+    projects.delete_project("foo")
+
+    assert isinstance(subscriber.kwargs["dataset"], ProjectDataset)
+    assert subscriber.kwargs["dataset"].name == "foo"
