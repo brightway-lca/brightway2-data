@@ -396,6 +396,100 @@ def test_search_with_special_chars():
         ]
 
 
+@bw2test
+def test_filter_by_location():
+    im = IndexManager("foo")
+    im.add_datasets(
+        [
+            {"database": "foo", "code": "bar", "name": "electricity", "location": "MX"},
+            {"database": "foo", "code": "baz", "name": "electricity", "location": "DE"},
+        ]
+    )
+    with Searcher("foo") as s:
+        results = s.search("electricity", proxy=False, filter={"location": "MX"})
+    assert len(results) == 1
+    assert results[0]["location"] == "mx"
+    assert results[0]["code"] == "bar"
+
+
+@bw2test
+def test_filter_by_location_case_insensitive():
+    im = IndexManager("foo")
+    im.add_datasets(
+        [
+            {"database": "foo", "code": "bar", "name": "electricity", "location": "MX"},
+            {"database": "foo", "code": "baz", "name": "electricity", "location": "DE"},
+        ]
+    )
+    with Searcher("foo") as s:
+        results = s.search("electricity", proxy=False, filter={"location": "mx"})
+    assert len(results) == 1
+    assert results[0]["code"] == "bar"
+
+
+@bw2test
+def test_filter_by_categories():
+    im = IndexManager("foo")
+    im.add_datasets(
+        [
+            {
+                "database": "foo",
+                "code": "bar",
+                "name": "electricity",
+                "categories": ("air",),
+            },
+            {
+                "database": "foo",
+                "code": "baz",
+                "name": "electricity",
+                "categories": ("water",),
+            },
+        ]
+    )
+    with Searcher("foo") as s:
+        results = s.search("electricity", proxy=False, filter={"categories": "air"})
+    assert len(results) == 1
+    assert results[0]["code"] == "bar"
+
+
+@bw2test
+def test_filter_no_match_returns_empty():
+    im = IndexManager("foo")
+    im.add_dataset({"database": "foo", "code": "bar", "name": "electricity", "location": "DE"})
+    with Searcher("foo") as s:
+        results = s.search("electricity", proxy=False, filter={"location": "MX"})
+    assert results == []
+
+
+@bw2test
+def test_mask_excludes_results():
+    im = IndexManager("foo")
+    im.add_datasets(
+        [
+            {"database": "foo", "code": "bar", "name": "electricity", "location": "MX"},
+            {"database": "foo", "code": "baz", "name": "electricity", "location": "DE"},
+        ]
+    )
+    with Searcher("foo") as s:
+        results = s.search("electricity", proxy=False, mask={"location": "MX"})
+    assert len(results) == 1
+    assert results[0]["code"] == "baz"
+
+
+@bw2test
+def test_filter_respects_limit():
+    im = IndexManager("foo")
+    im.add_datasets(
+        [
+            {"database": "foo", "code": str(i), "name": "electricity", "location": "MX"}
+            for i in range(10)
+        ]
+    )
+    with Searcher("foo") as s:
+        results = s.search("electricity", proxy=False, filter={"location": "MX"}, limit=5)
+    assert len(results) == 5
+
+
 def test_escape_search():
     assert (
         IndexManager.escape_search_for_fts5("Comte cheese from cow's")

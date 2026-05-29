@@ -58,6 +58,10 @@ class Searcher:
         kwargs = {"limit": limit}
         if facet:
             kwargs.pop("limit")
+        if filter:
+            kwargs["filter"] = filter
+        if mask:
+            kwargs["mask"] = mask
 
         with self:
             try:
