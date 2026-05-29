@@ -201,7 +201,7 @@ class ProjectParameter(ParameterBase):
             ProjectParameter.expire_downstream("project")
 
         if signal:
-            on_project_parameter_recalculate.send()
+            on_project_parameter_recalculate.send(ProjectParameter)
 
     @staticmethod
     def dependency_chain():
@@ -270,7 +270,7 @@ class ProjectParameter(ParameterBase):
 
         if signal:
             on_project_parameter_update_formula_parameter_name.send(
-                old={"old": old}, new={"new": new}
+                cls, old={"old": old}, new={"new": new}
             )
 
     @property
@@ -401,7 +401,7 @@ class DatabaseParameter(ParameterBase):
             DatabaseParameter.expire_downstream(database)
 
         if signal:
-            on_database_parameter_recalculate.send(name=database)
+            on_database_parameter_recalculate.send(DatabaseParameter, name=database)
 
     @staticmethod
     def dependency_chain(group, include_self=False):
@@ -534,7 +534,7 @@ class DatabaseParameter(ParameterBase):
 
         if signal:
             on_database_parameter_update_formula_project_parameter_name.send(
-                old={"old": old}, new={"new": new}
+                cls, old={"old": old}, new={"new": new}
             )
 
     @classmethod
@@ -560,7 +560,7 @@ class DatabaseParameter(ParameterBase):
 
         if signal:
             on_database_parameter_update_formula_database_parameter_name.send(
-                old={"old": old}, new={"new": new}
+                cls, old={"old": old}, new={"new": new}
             )
 
     @property
@@ -855,7 +855,7 @@ class ActivityParameter(ParameterBase):
         ActivityParameter.recalculate_exchanges(group, signal=False)
 
         if signal:
-            on_activity_parameter_recalculate.send(name=group)
+            on_activity_parameter_recalculate.send(ActivityParameter, name=group)
 
     @staticmethod
     def recalculate_exchanges(group: str, signal: bool = True):
@@ -875,7 +875,7 @@ class ActivityParameter(ParameterBase):
         databases.set_dirty(ActivityParameter.get(group=group).database)
 
         if signal:
-            on_activity_parameter_recalculate_exchanges.send(name=group)
+            on_activity_parameter_recalculate_exchanges.send(ActivityParameter, name=group)
 
     def save(self, *args, **kwargs):
         """Save this model instance"""
@@ -956,7 +956,7 @@ class ActivityParameter(ParameterBase):
 
         if signal:
             on_activity_parameter_update_formula_project_parameter_name.send(
-                old={"old": old}, new={"new": new}
+                cls, old={"old": old}, new={"new": new}
             )
 
     @classmethod
@@ -1004,7 +1004,7 @@ class ActivityParameter(ParameterBase):
 
         if signal:
             on_activity_parameter_update_formula_database_parameter_name.send(
-                old={"old": old}, new={"new": new}
+                cls, old={"old": old}, new={"new": new}
             )
 
     @classmethod
@@ -1045,7 +1045,7 @@ class ActivityParameter(ParameterBase):
 
         if signal:
             on_activity_parameter_update_formula_activity_parameter_name.send(
-                old={"old": old}, new={"new": new, "include_order": include_order}
+                cls, old={"old": old}, new={"new": new, "include_order": include_order}
             )
 
     @classmethod

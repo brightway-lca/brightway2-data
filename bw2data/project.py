@@ -427,7 +427,7 @@ class ProjectManager(Iterable):
         self.dataset = ProjectDataset.get(ProjectDataset.name == self._project_name)
         self._reset_meta()
         self._reset_sqlite3_databases()
-        project_changed.send(self.dataset)
+        project_changed.send(self, dataset=self.dataset)
 
         if not writable:
             self.read_only = True
@@ -489,7 +489,7 @@ class ProjectManager(Iterable):
             self.dataset = ProjectDataset.get(ProjectDataset.name == name)
         except DoesNotExist:
             self.dataset = ProjectDataset.create(data=kwargs, name=name, full_hash=full_hash)
-            project_created.send(self.dataset)
+            project_created.send(self, dataset=self.dataset)
         create_dir(self.dir)
         for dir_name in self._basic_directories:
             create_dir(self.dir / dir_name)

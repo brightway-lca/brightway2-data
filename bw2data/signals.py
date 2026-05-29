@@ -248,6 +248,7 @@ class SignaledDataset(Model):
         super().save(*args, **kwargs)
         if signal:
             signaleddataset_on_save.send(
+                self,
                 old=old,
                 new=self,
             )
@@ -255,7 +256,7 @@ class SignaledDataset(Model):
     @override
     def delete_instance(self, signal: bool = True, *args, **kwargs) -> None:
         if signal:
-            signaleddataset_on_delete.send(old=self)
+            signaleddataset_on_delete.send(self, old=self)
         super().delete_instance(*args, **kwargs)
 
     # From the peewee docs
