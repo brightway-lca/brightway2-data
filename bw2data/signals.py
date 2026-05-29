@@ -239,6 +239,18 @@ No expected return value.
 """,
 )
 
+project_deleted = signal(
+    "bw2data.project_deleted",
+    doc="""
+Emitted when a project is deleted, after removal from the database but before any filesystem ops.
+
+Expected inputs:
+    * `bw2data.projects.ProjectDataset` instance
+
+No expected return value.
+""",
+)
+
 
 class SignaledDataset(Model):
     @override
