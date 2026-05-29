@@ -124,13 +124,25 @@ def prepare_lca_inputs(
             }
 
     if method:
-        assert method in methods
+        if method not in methods:
+            raise ValueError(
+                f"Method {method} not found in this project. "
+                "Use `bw2data.methods` to list available methods."
+            )
         data_objs.append(Method(method).datapackage())
     if weighting:
-        assert weighting in weightings
+        if weighting not in weightings:
+            raise ValueError(
+                f"Weighting {weighting} not found in this project. "
+                "Use `bw2data.weightings` to list available weightings."
+            )
         data_objs.append(Weighting(weighting).datapackage())
     if normalization:
-        assert normalization in normalizations
+        if normalization not in normalizations:
+            raise ValueError(
+                f"Normalization {normalization} not found in this project. "
+                "Use `bw2data.normalizations` to list available normalizations."
+            )
         data_objs.append(Normalization(normalization).datapackage())
 
     if demands:

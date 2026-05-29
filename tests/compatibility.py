@@ -137,6 +137,19 @@ def test_prepare_lca_inputs_remapping(setup):
     assert r is None
 
 
+@pytest.mark.parametrize(
+    "kwargs,match",
+    [
+        ({"method": ("does_not_exist",)}, "Method.*not found"),
+        ({"weighting": ("does_not_exist",)}, "Weighting.*not found"),
+        ({"normalization": ("does_not_exist",)}, "Normalization.*not found"),
+    ],
+)
+def test_prepare_lca_inputs_missing_element(setup, kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        prepare_lca_inputs(demand={("food", "1"): 1}, **kwargs)
+
+
 @bw2test
 def test_get_multilca_data_objs_complete():
     Database("biosphere").write(biosphere)
