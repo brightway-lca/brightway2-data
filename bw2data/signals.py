@@ -251,6 +251,72 @@ No expected return value.
 """,
 )
 
+on_method_write = signal(
+    "bw2data.on_method_write",
+    doc="""Emitted *after* a `Method` has new data written.
+
+Expected inputs:
+    * `name`: tuple - method name
+
+No expected return value.
+""",
+)
+
+on_method_delete = signal(
+    "bw2data.on_method_delete",
+    doc="""Emitted *after* a `Method` is deleted.
+
+Expected inputs:
+    * `name`: tuple - method name
+
+No expected return value.
+""",
+)
+
+on_weighting_write = signal(
+    "bw2data.on_weighting_write",
+    doc="""Emitted *after* a `Weighting` has new data written.
+
+Expected inputs:
+    * `name`: tuple - weighting name
+
+No expected return value.
+""",
+)
+
+on_weighting_delete = signal(
+    "bw2data.on_weighting_delete",
+    doc="""Emitted *after* a `Weighting` is deleted.
+
+Expected inputs:
+    * `name`: tuple - weighting name
+
+No expected return value.
+""",
+)
+
+on_normalization_write = signal(
+    "bw2data.on_normalization_write",
+    doc="""Emitted *after* a `Normalization` has new data written.
+
+Expected inputs:
+    * `name`: tuple - normalization name
+
+No expected return value.
+""",
+)
+
+on_normalization_delete = signal(
+    "bw2data.on_normalization_delete",
+    doc="""Emitted *after* a `Normalization` is deleted.
+
+Expected inputs:
+    * `name`: tuple - normalization name
+
+No expected return value.
+""",
+)
+
 
 class SignaledDataset(Model):
     @override
