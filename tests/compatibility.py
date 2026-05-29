@@ -137,6 +137,11 @@ def test_prepare_lca_inputs_remapping(setup):
     assert r is None
 
 
+def test_prepare_lca_inputs_missing_method(setup):
+    with pytest.raises(ValueError, match="Method.*not found"):
+        prepare_lca_inputs(demand={("food", "1"): 1}, method=("does_not_exist",))
+
+
 @bw2test
 def test_get_multilca_data_objs_complete():
     Database("biosphere").write(biosphere)
