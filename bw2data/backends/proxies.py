@@ -355,6 +355,13 @@ class Activity(ActivityProxyBase):
         databases.set_dirty(self["database"])
 
         if not data_already_set:
+            if "type" not in self._data:
+                warnings.warn(
+                    f"Activity {self.get('code')} in database '{self.get('database')}' has no "
+                    f"`type` specified; defaulting to '{labels.process_node_default}'",
+                    UserWarning,
+                )
+                self._data["type"] = labels.process_node_default
             check_activity_type(self._data.get("type"))
             check_activity_keys(self)
 

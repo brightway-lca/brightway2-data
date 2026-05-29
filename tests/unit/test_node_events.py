@@ -37,6 +37,7 @@ def test_node_revision_expected_format_create():
                                 "database": "db",
                                 "location": "GLO",
                                 "name": "A",
+                                "type": "process",
                             },
                             "old_type": "NoneType",
                         }
@@ -549,6 +550,7 @@ def test_node_revision_expected_format_activity_copy():
                                     "database": "db",
                                     "location": "GLO",
                                     "name": "A",
+                                    "type": "process",
                                 },
                                 "old_type": "NoneType",
                             }
@@ -698,6 +700,7 @@ def test_node_revision_expected_format_activity_copy_new_database():
                                     "database": "db2",
                                     "location": "GLO",
                                     "name": "A",
+                                    "type": "process",
                                 },
                                 "old_type": "NoneType",
                             }
