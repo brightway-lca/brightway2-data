@@ -201,7 +201,7 @@ class SerializedDict(MutableMapping):
             f.write(JsonWrapper.dumps(self.pack(self.data)))
 
         if signal and hasattr(self, "_save_signal"):
-            self._save_signal.send(old=previous, new=deepcopy(self.data))
+            self._save_signal.send(self, old=previous, new=deepcopy(self.data))
 
     def deserialize(self):
         """Load the serialized data. Can be replaced with other serialization formats."""
@@ -239,7 +239,7 @@ class PickledDict(SerializedDict):
             pickle.dump(self.pack(self.data), f, protocol=4)
 
         if signal and hasattr(self, "_save_signal"):
-            self._save_signal.send(old=previous, new=deepcopy(self.data))
+            self._save_signal.send(self, old=previous, new=deepcopy(self.data))
 
     def deserialize(self):
         try:

@@ -122,7 +122,7 @@ Metadata state is unchanged, but database state is unknown.
         super(Databases, self).__delitem__(name=name, signal=False)
 
         if signal:
-            on_database_delete.send(name=name)
+            on_database_delete.send(self, name=name)
 
 
 class CalculationSetups(PickledDict):

@@ -5,8 +5,9 @@ from bw2data.tests import bw2test
 
 
 class SignalCatcher:
-    def __call__(self, arg):
-        self.arg = arg
+    def __call__(self, sender, **kwargs):
+        self.sender = sender
+        self.kwargs = kwargs
 
 
 @bw2test
@@ -15,8 +16,8 @@ def test_project_changed_signal():
     signal("bw2data.project_changed").connect(subscriber)
     projects.set_current("foo")
 
-    assert isinstance(subscriber.arg, ProjectDataset)
-    assert subscriber.arg.name == "foo"
+    assert isinstance(subscriber.kwargs["dataset"], ProjectDataset)
+    assert subscriber.kwargs["dataset"].name == "foo"
 
 
 @bw2test
@@ -25,5 +26,5 @@ def test_project_created_signal():
     signal("bw2data.project_created").connect(subscriber)
     projects.set_current("foo")
 
-    assert isinstance(subscriber.arg, ProjectDataset)
-    assert subscriber.arg.name == "foo"
+    assert isinstance(subscriber.kwargs["dataset"], ProjectDataset)
+    assert subscriber.kwargs["dataset"].name == "foo"
