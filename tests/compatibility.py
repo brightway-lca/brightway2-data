@@ -320,3 +320,73 @@ def test_get_multilca_data_objs_errors_missing_w():
                 "weightings": {("weight",): [("normal",)]},
             },
         )
+
+
+@bw2test
+def test_get_multilca_data_objs_complete_method_config():
+    bw2calc = pytest.importorskip("bw2calc")
+    Database("biosphere").write(biosphere)
+    Database("food").write(food)
+    Database("food2").write(food2)
+    Method(("foo",)).write(lcia)
+    Normalization(("normal",)).write(
+        [
+            (("biosphere", "1"), 10),
+            (("biosphere", "2"), 20),
+        ]
+    )
+    Weighting(("weight",)).write([42])
+
+    objs = get_multilca_data_objs(
+        functional_units={
+            "a": {get_activity(("food", "1")).id: 1},
+            "b": {get_activity(("food2", "2")).id: 2},
+        },
+        method_config=bw2calc.MethodConfig(
+            impact_categories=[("foo",)],
+            normalizations={("normal",): [("foo",)]},
+            weightings={("weight",): [("normal",)]},
+        ),
+    )
+    object_names = [obj.metadata["name"] for obj in objs]
+
+    assert Database("biosphere").datapackage().metadata["name"] in object_names
+    assert Database("food").datapackage().metadata["name"] in object_names
+    assert Database("food2").datapackage().metadata["name"] in object_names
+    assert Normalization(("normal",)).datapackage().metadata["name"] in object_names
+    assert Weighting(("weight",)).datapackage().metadata["name"] in object_names
+    assert Method(("foo",)).datapackage().metadata["name"] in object_names
+
+
+@bw2test
+def test_get_multilca_data_objs_partial_method_config():
+    bw2calc = pytest.importorskip("bw2calc")
+    Database("biosphere").write(biosphere)
+    Database("food").write(food)
+    Database("food2").write(food2)
+    Method(("foo",)).write(lcia)
+    Normalization(("normal",)).write(
+        [
+            (("biosphere", "1"), 10),
+            (("biosphere", "2"), 20),
+        ]
+    )
+    Weighting(("weight",)).write([42])
+
+    objs = get_multilca_data_objs(
+        functional_units={
+            "a": {get_activity(("food", "1")).id: 1},
+            "b": {get_activity(("food2", "2")).id: 2},
+        },
+        method_config=bw2calc.MethodConfig(
+            impact_categories=[("foo",)],
+        ),
+    )
+    object_names = [obj.metadata["name"] for obj in objs]
+
+    assert Database("biosphere").datapackage().metadata["name"] in object_names
+    assert Database("food").datapackage().metadata["name"] in object_names
+    assert Database("food2").datapackage().metadata["name"] in object_names
+    assert Normalization(("normal",)).datapackage().metadata["name"] not in object_names
+    assert Weighting(("weight",)).datapackage().metadata["name"] not in object_names
+    assert Method(("foo",)).datapackage().metadata["name"] in object_names

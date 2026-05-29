@@ -155,6 +155,9 @@ def get_multilca_data_objs(
     """Get all the datapackages needed for a complete MultiLCA calculation."""
     input_database_names = set()
 
+    if hasattr(method_config, "impact_categories") and hasattr(method_config, "model_dump"):
+        method_config = method_config.model_dump(exclude_none=True)
+
     for v_dict in functional_units.values():
         for obj in v_dict:
             if not isinstance(obj, int):
@@ -171,19 +174,20 @@ def get_multilca_data_objs(
     )
     data_objs = [Database(obj).datapackage() for obj in complete_database_names]
 
-    for ic in set(method_config.get("impact_categories", [])):
-        if ic not in methods:
-            raise ValueError(f"Impact category (`Method`) {ic} not in this project")
-        data_objs.append(Method(ic).datapackage())
-
-    for n in method_config.get("normalizations", []):
-        if n not in normalizations:
-            raise ValueError(f"Normalization {n} not in this project")
-        data_objs.append(Normalization(n).datapackage())
-
-    for w in method_config.get("weightings", []):
-        if w not in weightings:
-            raise ValueError(f"Weighting {w} not in this project")
-        data_objs.append(Weighting(w).datapackage())
+    if method_config.get("impact_categories", []):
+        for ic in set(method_config.get("impact_categories", [])):
+            if ic not in methods:
+                raise ValueError(f"Impact category (`Method`) {ic} not in this project")
+            data_objs.append(Method(ic).datapackage())
+    if method_config.get("normalizations", []):
+        for n in method_config.get("normalizations", []):
+            if n not in normalizations:
+                raise ValueError(f"Normalization {n} not in this project")
+            data_objs.append(Normalization(n).datapackage())
+    if method_config.get("weightings", []):
+        for w in method_config.get("weightings", []):
+            if w not in weightings:
+                raise ValueError(f"Weighting {w} not in this project")
+            data_objs.append(Weighting(w).datapackage())
 
     return data_objs
