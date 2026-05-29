@@ -505,7 +505,7 @@ class ProjectManager(Iterable):
         project_data = ProjectDataset.get(ProjectDataset.name == self.current).data
         ProjectDataset.create(data=project_data, name=new_name, full_hash=self.dataset.full_hash)
         shutil.copytree(self.dir, fp)
-        create_dir(self._base_logs_dir / safe_filename(new_name))
+        create_dir(self._base_logs_dir / safe_filename(new_name, full=self.dataset.full_hash))
         if switch:
             self.set_current(new_name)
 
@@ -551,10 +551,11 @@ class ProjectManager(Iterable):
         if len(self) == 1:
             raise ValueError("Can't delete only remaining project")
 
+        victim_dataset = ProjectDataset.get(ProjectDataset.name == victim)
         ProjectDataset.delete().where(ProjectDataset.name == victim).execute()
 
         if delete_dir:
-            dir_path = self._base_data_dir / safe_filename(victim)
+            dir_path = self._base_data_dir / safe_filename(victim, full=victim_dataset.full_hash)
             assert dir_path.is_dir(), "Can't find project directory"
             for _, substitutable_db in config.sqlite3_databases:
                 try:
@@ -564,6 +565,9 @@ class ProjectManager(Iterable):
                 except Exception:
                     pass
             shutil.rmtree(dir_path)
+            logs_path = self._base_logs_dir / safe_filename(victim, full=victim_dataset.full_hash)
+            if logs_path.is_dir():
+                shutil.rmtree(logs_path)
         else:
             stdout_feedback_logger.warning(
                 f"Removing project from project {name} list, but not deleting data; if you switch "
@@ -582,7 +586,7 @@ class ProjectManager(Iterable):
         """Delete project directories for projects which are no longer registered.
 
         Returns number of directories deleted."""
-        registered = {safe_filename(obj.name) for obj in self}
+        registered = {safe_filename(obj.name, full=obj.full_hash) for obj in self}
         bad_directories = [
             self._base_data_dir / dirname
             for dirname in os.listdir(self._base_data_dir)
@@ -592,7 +596,16 @@ class ProjectManager(Iterable):
         for fp in bad_directories:
             shutil.rmtree(fp)
 
-        return len(bad_directories)
+        bad_log_dirs = [
+            self._base_logs_dir / dirname
+            for dirname in os.listdir(self._base_logs_dir)
+            if (self._base_logs_dir / dirname).is_dir() and dirname not in registered
+        ]
+
+        for fp in bad_log_dirs:
+            shutil.rmtree(fp)
+
+        return len(bad_directories) + len(bad_log_dirs)
 
     def report(self):
         """Give a report on current projects, including installed databases and file sizes.
