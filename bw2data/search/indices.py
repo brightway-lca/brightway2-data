@@ -1,5 +1,4 @@
 import os
-import warnings
 
 from peewee import SqliteDatabase
 
@@ -108,17 +107,6 @@ class IndexManager:
         )
 
     def search(self, string, limit=None, weights=None, mask=None, filter=None):
-        if mask:
-            warnings.warn(
-                "`mask` functionality has been deleted, and now does nothing. This input argument will be removed in the future",
-                DeprecationWarning,
-            )
-        if filter:
-            warnings.warn(
-                "`filter` functionality has been deleted, and now does nothing. This input argument will be removed in the future",
-                DeprecationWarning,
-            )
-
         with self.db.connection_context():
             with self.db.bind_ctx(MODELS):
                 if string == "*":
@@ -128,7 +116,10 @@ class IndexManager:
                         self.escape_search_for_fts5(string),
                         weights=weights,
                     )
-                return list(
+                # Skip SQL-level limit when post-filtering is needed so we don't
+                # prematurely discard results that would survive the filter/mask step.
+                sql_limit = None if (filter or mask) else limit
+                results = list(
                     query.select(
                         BW2Schema.name,
                         BW2Schema.comment,
@@ -139,7 +130,23 @@ class IndexManager:
                         BW2Schema.database,
                         BW2Schema.code,
                     )
-                    .limit(limit)
+                    .limit(sql_limit)
                     .dicts()
                     .execute()
                 )
+
+        if filter:
+            normalized = {k: v.lower() if isinstance(v, str) else v for k, v in filter.items()}
+            results = [
+                r for r in results
+                if all(str(normalized[k]) in r.get(k, "") for k in normalized)
+            ]
+        if mask:
+            normalized = {k: v.lower() if isinstance(v, str) else v for k, v in mask.items()}
+            results = [
+                r for r in results
+                if not any(str(normalized[k]) in r.get(k, "") for k in normalized)
+            ]
+        if limit is not None:
+            results = results[:limit]
+        return results
