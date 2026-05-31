@@ -1,10 +1,23 @@
 import datetime
 import warnings
-from pathlib import Path
-from typing import Union
+from collections.abc import MutableMapping
 
-from bw2data.serialization import CompoundJSONDict, PickledDict, SerializedDict
+from bw2data.serialization import CompoundJSONDict, PickledDict
 from bw2data.signals import on_database_delete, on_database_metadata_change
+
+
+_KNOWN_FIELDS = frozenset(
+    {
+        "backend",
+        "depends",
+        "dirty",
+        "geocollections",
+        "modified",
+        "number",
+        "searchable",
+        "version",
+    }
+)
 
 
 class GeoMapping(PickledDict):
@@ -57,60 +70,135 @@ class GeoMapping(PickledDict):
         return len(self.data)
 
 
-class Databases(SerializedDict):
-    """A dictionary for database metadata. This class includes methods to manage database versions. File data is saved in ``databases.json``."""
+class DatabaseMetadataProxy(MutableMapping):
+    """Dict-like view of a single :class:`~bw2data.backends.schema.DatabaseMetadata` row.
 
-    filename = "databases.json"
+    Writes are immediately persisted to SQLite. Signals are NOT emitted by this
+    class — callers that need to signal a change should call
+    ``databases._emit(old_state)`` explicitly after mutating the proxy.
+    """
+
+    def __init__(self, row, parent):
+        self._row = row
+        self._parent = parent
+
+    def _all_fields(self):
+        """Return only the fields that have been explicitly set (non-NULL)."""
+        d = {f: getattr(self._row, f) for f in _KNOWN_FIELDS if getattr(self._row, f) is not None}
+        d.update(self._row.extra or {})
+        return d
+
+    def __getitem__(self, key):
+        if key in _KNOWN_FIELDS:
+            val = getattr(self._row, key)
+            if val is None:
+                raise KeyError(key)
+            return val
+        extra = self._row.extra or {}
+        if key in extra:
+            return extra[key]
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        suppress = self._parent._suppress_signals
+        old = None if suppress else self._parent._as_dict()
+        if key in _KNOWN_FIELDS:
+            setattr(self._row, key, value)
+        else:
+            extra = dict(self._row.extra or {})
+            extra[key] = value
+            self._row.extra = extra
+        self._row.save()
+        if not suppress:
+            self._parent._emit(old)
+
+    def __delitem__(self, key):
+        suppress = self._parent._suppress_signals
+        old = None if suppress else self._parent._as_dict()
+        if key in _KNOWN_FIELDS:
+            setattr(self._row, key, None)
+        else:
+            extra = dict(self._row.extra or {})
+            if key not in extra:
+                raise KeyError(key)
+            del extra[key]
+            self._row.extra = extra
+        self._row.save()
+        if not suppress:
+            self._parent._emit(old)
+
+    def __iter__(self):
+        return iter(self._all_fields())
+
+    def __len__(self):
+        return len(self._all_fields())
+
+    def __contains__(self, key):
+        if key in _KNOWN_FIELDS:
+            return getattr(self._row, key) is not None
+        return key in (self._row.extra or {})
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def __copy__(self):
+        return dict(self)
+
+    def __repr__(self):
+        return repr(dict(self))
+
+
+class Databases(MutableMapping):
+    """Dict-like registry of database metadata, backed by the ``DatabaseMetadata`` SQLite table
+    in the per-project ``lci/databases.db``.
+
+    Previously stored in ``databases.json``; the file is migrated automatically on first access.
+    """
+
     _save_signal = on_database_metadata_change
 
-    def increment_version(self, database, number=None):
-        """Increment the ``database`` version. Returns the new version."""
-        self.data[database]["version"] += 1
-        if number is not None:
-            self.data[database]["number"] = number
-        self.flush()
-        return self.data[database]["version"]
+    def __init__(self):
+        self._migrated = False
+        self._suppress_signals = False
 
-    def version(self, database):
-        """Return the ``database`` version"""
-        return self.data[database].get("version")
+    # ------------------------------------------------------------------
+    # MutableMapping interface
+    # ------------------------------------------------------------------
 
-    def set_modified(self, database):
-        self[database]["modified"] = datetime.datetime.now().isoformat()
-        self.flush()
+    def __getitem__(self, name):
+        self._ensure_migrated()
+        from bw2data.backends.schema import DatabaseMetadata
+        from peewee import DoesNotExist
 
-    def set_dirty(self, database):
-        self.set_modified(database)
-        if self[database].get("dirty"):
-            pass
-        else:
-            self[database]["dirty"] = True
-            self.flush()
+        try:
+            return DatabaseMetadataProxy(
+                DatabaseMetadata.get(DatabaseMetadata.name == name), self
+            )
+        except DoesNotExist:
+            raise KeyError(name)
 
-    def clean(self):
-        from bw2data import Database
+    def __setitem__(self, name, value):
+        self._ensure_migrated()
+        from bw2data.backends.schema import DatabaseMetadata
 
-        def _clean():
-            for x in self:
-                if self[x].get("dirty"):
-                    Database(x).process()
-                    del self[x]["dirty"]
-            self.flush()
-
-        if not any(self[x].get("dirty") for x in self):
-            return
-        else:
-            return _clean()
+        old = self._as_dict()
+        value = dict(value)  # copy to avoid mutating caller's dict
+        known = {k: value.pop(k) for k in list(value) if k in _KNOWN_FIELDS}
+        DatabaseMetadata.replace(name=name, extra=value or None, **known).execute()
+        self._emit(old)
 
     def __delitem__(self, name: str, signal: bool = True):
         from bw2data import Database
 
         if name not in self:
-            raise KeyError
+            raise KeyError(name)
 
         try:
             Database(name).delete(warn=False, signal=False)
-        except:
+        except Exception:
             warnings.warn(
                 """
 Deletion unsuccessful due to database error.
@@ -119,10 +207,183 @@ Metadata state is unchanged, but database state is unknown.
             )
             return
 
-        super(Databases, self).__delitem__(name=name, signal=False)
+        from bw2data.backends.schema import DatabaseMetadata
+
+        DatabaseMetadata.delete().where(DatabaseMetadata.name == name).execute()
 
         if signal:
             on_database_delete.send(self, name=name)
+
+    def __iter__(self):
+        self._ensure_migrated()
+        from bw2data.backends.schema import DatabaseMetadata
+
+        return (row.name for row in DatabaseMetadata.select(DatabaseMetadata.name))
+
+    def __len__(self):
+        self._ensure_migrated()
+        from bw2data.backends.schema import DatabaseMetadata
+
+        return DatabaseMetadata.select().count()
+
+    def __contains__(self, name):
+        self._ensure_migrated()
+        from bw2data.backends.schema import DatabaseMetadata
+
+        return DatabaseMetadata.select().where(DatabaseMetadata.name == name).exists()
+
+    def __str__(self):
+        names = list(self)
+        if not names:
+            return "Databases dictionary with 0 objects"
+        elif len(names) > 20:
+            return (
+                "Databases dictionary with {} objects, including:"
+                "{}\nUse `list(this object)` to get the complete list."
+            ).format(
+                len(names),
+                "".join(["\n\t{}".format(x) for x in sorted(names)[:10]]),
+            )
+        else:
+            return ("Databases dictionary with {} object(s):{}").format(
+                len(names),
+                "".join(["\n\t{}".format(x) for x in sorted(names)]),
+            )
+
+    def __repr__(self):
+        return str(self)
+
+    # ------------------------------------------------------------------
+    # Domain methods
+    # ------------------------------------------------------------------
+
+    def increment_version(self, database, number=None):
+        """Increment the ``database`` version. Returns the new version."""
+        from bw2data.backends.schema import DatabaseMetadata
+
+        row = DatabaseMetadata.get(DatabaseMetadata.name == database)
+        row.version = (row.version or 0) + 1
+        if number is not None:
+            row.number = number
+        row.save()
+        return row.version
+
+    def version(self, database):
+        """Return the ``database`` version."""
+        from bw2data.backends.schema import DatabaseMetadata
+
+        return DatabaseMetadata.get(DatabaseMetadata.name == database).version
+
+    def set_modified(self, database):
+        from bw2data.backends.schema import DatabaseMetadata
+
+        row = DatabaseMetadata.get(DatabaseMetadata.name == database)
+        row.modified = datetime.datetime.now().isoformat()
+        row.save()
+
+    def set_dirty(self, database):
+        from bw2data.backends.schema import DatabaseMetadata
+
+        row = DatabaseMetadata.get(DatabaseMetadata.name == database)
+        row.modified = datetime.datetime.now().isoformat()
+        if not row.dirty:
+            row.dirty = True
+        row.save()
+
+    def clean(self):
+        from bw2data import Database
+        from bw2data.backends.schema import DatabaseMetadata
+
+        dirty = [
+            r.name for r in DatabaseMetadata.select().where(DatabaseMetadata.dirty == True)
+        ]
+        if not dirty:
+            return
+        for name in dirty:
+            Database(name).process()
+        DatabaseMetadata.update(dirty=None).where(DatabaseMetadata.name << dirty).execute()
+
+    @property
+    def list(self):
+        """List the keys of the dictionary."""
+        return sorted(self)
+
+    def random(self):
+        """Return a random database name, or ``None`` if empty."""
+        import random as _random
+
+        names = list(self)
+        return _random.choice(names) if names else None
+
+    # ------------------------------------------------------------------
+    # Deprecated shims
+    # ------------------------------------------------------------------
+
+    def flush(self, signal: bool = True):
+        """Deprecated no-op. Data is auto-persisted to SQLite and signals fire on each write."""
+        warnings.warn(
+            "Databases.flush() is deprecated; metadata is now auto-persisted to SQLite.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _emit(self, old):
+        """Emit on_database_metadata_change with the given old state and current new state."""
+        on_database_metadata_change.send(self, old=old, new=self._as_dict())
+
+    def _as_dict(self):
+        """Reconstruct a plain dict of all metadata (used for signal old/new payloads)."""
+        return {name: dict(self[name]) for name in self}
+
+    @property
+    def data(self):
+        """Return the full metadata as a plain dict. Used by the revision system."""
+        return self._as_dict()
+
+    @data.setter
+    def data(self, new_data):
+        """Replace all metadata rows. Used by the revision system to replay patches."""
+        from bw2data.backends.schema import DatabaseMetadata
+
+        DatabaseMetadata.delete().execute()
+        for name, meta in new_data.items():
+            meta = dict(meta)
+            known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
+            DatabaseMetadata.replace(name=name, extra=meta or None, **known).execute()
+
+    def _ensure_migrated(self):
+        if not self._migrated:
+            self._migrated = True
+            self._migrate_from_json()
+
+    def _migrate_from_json(self):
+        """One-time migration from ``databases.json`` to SQLite on first access."""
+        from bw2data.project import projects
+        from bw2data.backends.schema import DatabaseMetadata
+        import json
+
+        json_path = projects.dir / "databases.json"
+        if not json_path.exists():
+            return
+        if DatabaseMetadata.select().count() > 0:
+            return
+
+        warnings.warn(
+            f"Migrating {json_path} to SQLite (one-time operation). "
+            "The original file is kept as a backup.",
+            stacklevel=2,
+        )
+        with open(json_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        for name, meta in data.items():
+            meta = dict(meta)
+            known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
+            DatabaseMetadata.replace(name=name, extra=meta or None, **known).execute()
 
 
 class CalculationSetups(PickledDict):
