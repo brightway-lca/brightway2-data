@@ -20,35 +20,41 @@ def test_database_metadata_revision_expected_format_update():
     projects.dataset.set_sourced()
     assert projects.dataset.revision is None
 
+    # Each proxy write immediately persists and emits a signal, creating one revision per change.
+    r1 = projects.dataset.revision
     database.metadata["foo"] = True
-    database.metadata["other"] = 7
-    databases.flush()
+    r2 = projects.dataset.revision
+    assert r2 is not None and r2 != r1
 
-    assert projects.dataset.revision is not None
-    with open(projects.dataset.dir / "revisions" / f"{projects.dataset.revision}.rev", "r") as f:
+    database.metadata["other"] = 7
+    r3 = projects.dataset.revision
+    assert r3 is not None and r3 != r2
+
+    # Verify the most recent revision contains only the last change.
+    with open(projects.dataset.dir / "revisions" / f"{r3}.rev", "r") as f:
         revision = json.load(f)
 
-    expected = {
-        "metadata": {
-            "parent_revision": None,
-            "revision": projects.dataset.revision,
-            "authors": "Anonymous",
-            "title": "Untitled revision",
-            "description": "No description",
-        },
-        "data": [
-            {
-                "type": "lci_database",
-                "id": None,
-                "change_type": "database_metadata_change",
-                "delta": {
-                    "dictionary_item_added": {"root['db']['foo']": True, "root['db']['other']": 7}
-                },
-            }
-        ],
-    }
+    assert revision["data"] == [
+        {
+            "type": "lci_database",
+            "id": None,
+            "change_type": "database_metadata_change",
+            "delta": {"dictionary_item_added": {"root['db']['other']": 7}},
+        }
+    ]
 
-    assert revision == expected
+    # Verify the prior revision contains the first change.
+    with open(projects.dataset.dir / "revisions" / f"{r2}.rev", "r") as f:
+        revision_1 = json.load(f)
+
+    assert revision_1["data"] == [
+        {
+            "type": "lci_database",
+            "id": None,
+            "change_type": "database_metadata_change",
+            "delta": {"dictionary_item_added": {"root['db']['foo']": True}},
+        }
+    ]
 
 
 @bw2test
@@ -451,10 +457,33 @@ def test_database_write_revision_expected_format():
                 }
             ],
         },
+        # With immediate signal emission, geocollections is set during write() before the
+        # data is committed, creating its own revision.
         {
             "metadata": {
                 "parent_revision": revisions[0][0],
                 "revision": revisions[1][0],
+                "authors": "Anonymous",
+                "title": "Untitled revision",
+                "description": "No description",
+            },
+            "data": [
+                {
+                    "type": "lci_database",
+                    "id": None,
+                    "change_type": "database_metadata_change",
+                    "delta": {
+                        "dictionary_item_added": {
+                            "root['food']['geocollections']": ["world"],
+                        }
+                    },
+                }
+            ],
+        },
+        {
+            "metadata": {
+                "parent_revision": revisions[1][0],
+                "revision": revisions[2][0],
                 "authors": "Anonymous",
                 "title": "Untitled revision",
                 "description": "No description",
@@ -470,8 +499,8 @@ def test_database_write_revision_expected_format():
         },
         {
             "metadata": {
-                "parent_revision": revisions[1][0],
-                "revision": revisions[2][0],
+                "parent_revision": revisions[2][0],
+                "revision": revisions[3][0],
                 "authors": "Anonymous",
                 "title": "Untitled revision",
                 "description": "No description",
@@ -487,8 +516,8 @@ def test_database_write_revision_expected_format():
         },
         {
             "metadata": {
-                "parent_revision": revisions[2][0],
-                "revision": revisions[3][0],
+                "parent_revision": revisions[3][0],
+                "revision": revisions[4][0],
                 "authors": "Anonymous",
                 "title": "Untitled revision",
                 "description": "No description",
@@ -671,7 +700,7 @@ def test_database_write_revision_expected_format():
     ]
 
     assert [x[1] for x in revisions] == expected
-    assert projects.dataset.revision == revisions[3][0]
+    assert projects.dataset.revision == revisions[4][0]
 
 
 @bw2test
@@ -1015,6 +1044,8 @@ def test_database_copy_revision_expected_format():
                 }
             ],
         },
+        # With immediate signal emission, geocollections and depends are cleared
+        # in separate revisions when write_empty=True writes an empty database first.
         {
             "metadata": {
                 "parent_revision": revisions[0][0],
@@ -1030,7 +1061,6 @@ def test_database_copy_revision_expected_format():
                     "change_type": "database_metadata_change",
                     "delta": {
                         "iterable_item_removed": {
-                            "root['yum']['depends'][0]": "biosphere",
                             "root['yum']['geocollections'][0]": "world",
                         }
                     },
@@ -1048,9 +1078,13 @@ def test_database_copy_revision_expected_format():
             "data": [
                 {
                     "type": "lci_database",
-                    "id": "yum",
-                    "change_type": "database_reset",
-                    "delta": {},
+                    "id": None,
+                    "change_type": "database_metadata_change",
+                    "delta": {
+                        "iterable_item_removed": {
+                            "root['yum']['depends'][0]": "biosphere",
+                        }
+                    },
                 }
             ],
         },
@@ -1067,7 +1101,11 @@ def test_database_copy_revision_expected_format():
                     "type": "lci_database",
                     "id": None,
                     "change_type": "database_metadata_change",
-                    "delta": {"iterable_item_added": {"root['yum']['depends'][0]": "biosphere"}},
+                    "delta": {
+                        "iterable_item_added": {
+                            "root['yum']['geocollections'][0]": "world",
+                        }
+                    },
                 }
             ],
         },
@@ -1075,6 +1113,40 @@ def test_database_copy_revision_expected_format():
             "metadata": {
                 "parent_revision": revisions[3][0],
                 "revision": revisions[4][0],
+                "authors": "Anonymous",
+                "title": "Untitled revision",
+                "description": "No description",
+            },
+            "data": [
+                {
+                    "type": "lci_database",
+                    "id": "yum",
+                    "change_type": "database_reset",
+                    "delta": {},
+                }
+            ],
+        },
+        {
+            "metadata": {
+                "parent_revision": revisions[4][0],
+                "revision": revisions[5][0],
+                "authors": "Anonymous",
+                "title": "Untitled revision",
+                "description": "No description",
+            },
+            "data": [
+                {
+                    "type": "lci_database",
+                    "id": None,
+                    "change_type": "database_metadata_change",
+                    "delta": {"iterable_item_added": {"root['yum']['depends'][0]": "biosphere"}},
+                }
+            ],
+        },
+        {
+            "metadata": {
+                "parent_revision": revisions[5][0],
+                "revision": revisions[6][0],
                 "authors": "Anonymous",
                 "title": "Untitled revision",
                 "description": "No description",
@@ -1262,7 +1334,7 @@ def test_database_copy_revision_expected_format():
         assert revisions[-1][1]["data"][x] in expected[-1]["data"][:2]
     for x in range(2, 5):
         assert revisions[-1][1]["data"][x] in expected[-1]["data"][2:]
-    assert projects.dataset.revision == revisions[4][0]
+    assert projects.dataset.revision == revisions[6][0]
 
 
 @bw2test
