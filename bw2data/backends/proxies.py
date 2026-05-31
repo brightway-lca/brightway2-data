@@ -287,7 +287,7 @@ class Activity(ActivityProxyBase):
             return {
                 key: value
                 for key, value in dct.items()
-                if key != obj._data["id"] and key != (obj._data["database"], obj._data["code"])
+                if key != obj.id and key != obj.key
             }
 
         try:
@@ -304,7 +304,7 @@ class Activity(ActivityProxyBase):
 
         for name, setup in calculation_setups.items():
             if any(
-                (key == self._data["id"] or key == (self._data["database"], self._data["code"]))
+                (key == self.id or key == self.key)
                 for func_unit in setup["inv"]
                 for key in func_unit
             ):
