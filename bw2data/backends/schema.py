@@ -1,4 +1,4 @@
-from peewee import DoesNotExist, TextField
+from peewee import BooleanField, DoesNotExist, IntegerField, Model, TextField
 
 from bw2data.errors import UnknownObject
 from bw2data.signals import (
@@ -11,7 +11,7 @@ from bw2data.signals import (
     signaleddataset_on_delete,
 )
 from bw2data.snowflake_ids import SnowflakeIDBaseClass
-from bw2data.sqlite import PickleField
+from bw2data.sqlite import JSONField, PickleField
 
 
 class ActivityDataset(SnowflakeIDBaseClass):
@@ -35,6 +35,26 @@ class ExchangeDataset(SnowflakeIDBaseClass):
     output_code = TextField()  # Canonical
     output_database = TextField()  # Canonical
     type = TextField()  # Reset from `data`
+
+
+class DatabaseMetadata(Model):
+    """Metadata for a registered LCI database. Stored in the per-project `lci/databases.db`.
+
+    All columns are nullable. A ``NULL`` value means the field was never explicitly set,
+    which matches the historical behaviour of ``databases.json`` where absent keys were
+    simply not present in the dict.
+    """
+
+    name = TextField(primary_key=True)
+    backend = TextField(null=True)
+    depends = JSONField(null=True)
+    dirty = BooleanField(null=True)
+    version = IntegerField(null=True)
+    modified = TextField(null=True)       # ISO timestamp string
+    number = IntegerField(null=True)
+    searchable = BooleanField(null=True)
+    geocollections = JSONField(null=True)
+    extra = JSONField(null=True)          # arbitrary user-defined fields
 
 
 _get_id_cache: dict = {}
