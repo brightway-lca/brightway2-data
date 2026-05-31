@@ -234,7 +234,116 @@ class SQLiteBackend(ProcessedDataStore):
             new_database.register(**metadata)
 
         new_database.write(data, searchable=databases[name].get("searchable"))
+        self._copy_parameters(name)
         return new_database
+
+    def _copy_parameters(self, new_name: str) -> None:
+        """Copy parameters from this database to ``new_name``.
+
+        Copies DatabaseParameter, ActivityParameter, and ParameterizedExchange records.
+        ActivityParameter groups get new names (``{old_group}__{new_name}``) because groups
+        are single-database and the original groups still hold the old database's records.
+        """
+        from bw2data.parameters import (
+            ActivityParameter,
+            DatabaseParameter,
+            Group,
+            GroupDependency,
+            ParameterizedExchange,
+        )
+
+        old_name = self.name
+
+        # Copy DatabaseParameters (group name == database name, so new group is created via save())
+        for dp in DatabaseParameter.select().where(DatabaseParameter.database == old_name):
+            DatabaseParameter.create(
+                database=new_name,
+                name=dp.name,
+                formula=dp.formula,
+                amount=dp.amount,
+                data=dp.data,
+            )
+
+        # Replicate GroupDependency entries for the database parameter group
+        for gd in GroupDependency.select().where(GroupDependency.group == old_name):
+            GroupDependency.get_or_create(group=new_name, depends=gd.depends)
+
+        # Find activity parameter groups that belong to this database
+        old_aps = list(ActivityParameter.select().where(ActivityParameter.database == old_name))
+        if not old_aps:
+            return
+
+        old_groups = {ap.group for ap in old_aps}
+
+        # Groups are single-database; map old names to new unique names
+        group_mapping = {}
+        for g in old_groups:
+            candidate = f"{g}__{new_name}"
+            suffix = 0
+            while Group.get_or_none(Group.name == candidate) is not None:
+                suffix += 1
+                candidate = f"{g}__{new_name}_{suffix}"
+            group_mapping[g] = candidate
+
+        # Copy ActivityParameters into the new groups
+        for ap in old_aps:
+            ActivityParameter.create(
+                group=group_mapping[ap.group],
+                database=new_name,
+                code=ap.code,
+                name=ap.name,
+                formula=ap.formula,
+                amount=ap.amount,
+                data=ap.data,
+            )
+
+        # Copy group order, remapping group names that were also copied
+        for old_g, new_g in group_mapping.items():
+            old_group_obj = Group.get_or_none(Group.name == old_g)
+            if old_group_obj is not None and old_group_obj.order:
+                new_group_obj = Group.get(Group.name == new_g)
+                new_group_obj.order = [group_mapping.get(g, g) for g in old_group_obj.order]
+                new_group_obj.save()
+
+        # Replicate GroupDependency for activity parameter groups
+        for old_g, new_g in group_mapping.items():
+            for gd in GroupDependency.select().where(GroupDependency.group == old_g):
+                new_depends = group_mapping.get(gd.depends, gd.depends)
+                GroupDependency.get_or_create(group=new_g, depends=new_depends)
+
+        # Copy ParameterizedExchanges, mapping to new exchange IDs
+        for pe in ParameterizedExchange.select().where(ParameterizedExchange.group << old_groups):
+            old_exc = ExchangeDataset.get_or_none(ExchangeDataset.id == pe.exchange)
+            if old_exc is None:
+                continue
+
+            new_input_db = new_name if old_exc.input_database == old_name else old_exc.input_database
+            candidates = list(
+                ExchangeDataset.select().where(
+                    ExchangeDataset.output_database == new_name,
+                    ExchangeDataset.output_code == old_exc.output_code,
+                    ExchangeDataset.input_database == new_input_db,
+                    ExchangeDataset.input_code == old_exc.input_code,
+                    ExchangeDataset.type == old_exc.type,
+                )
+            )
+            if not candidates:
+                continue
+            if len(candidates) == 1:
+                new_exc = candidates[0]
+            else:
+                # Multiple exchanges with same endpoints — narrow by formula
+                formula_candidates = [c for c in candidates if c.data.get("formula") == pe.formula]
+                if len(formula_candidates) == 1:
+                    new_exc = formula_candidates[0]
+                else:
+                    continue
+
+            ParameterizedExchange.create(
+                group=group_mapping[pe.group],
+                exchange=new_exc.id,
+                formula=pe.formula,
+            )
 
     def copy_activities(
         self, activities: List[Activity], target_database: str, signal: bool = True
