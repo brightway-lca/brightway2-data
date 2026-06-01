@@ -128,6 +128,91 @@ def test_copy_does_deepcopy():
 
 
 @bw2test
+def test_copy_database_parameters():
+    data = {("db", "a"): {"exchanges": []}}
+    d = Database("db")
+    d.write(data)
+    DatabaseParameter.create(database="db", name="p1", amount=1.0)
+    DatabaseParameter.create(database="db", name="p2", formula="p1 * 2", amount=2.0)
+    d.copy("db_copy")
+    assert DatabaseParameter.select().where(DatabaseParameter.database == "db_copy").count() == 2
+    p = DatabaseParameter.get(DatabaseParameter.database == "db_copy", DatabaseParameter.name == "p2")
+    assert p.formula == "p1 * 2"
+    assert p.amount == 2.0
+
+
+@bw2test
+def test_copy_database_parameters_group_dependency():
+    from bw2data.parameters import GroupDependency, ProjectParameter
+
+    ProjectParameter.create(name="x", amount=5.0)
+    data = {("db", "a"): {"exchanges": []}}
+    d = Database("db")
+    d.write(data)
+    DatabaseParameter.create(database="db", name="p1", formula="x * 2", amount=10.0)
+    DatabaseParameter.recalculate("db")
+    assert GroupDependency.select().where(
+        GroupDependency.group == "db", GroupDependency.depends == "project"
+    ).count() == 1
+    d.copy("db_copy")
+    assert GroupDependency.select().where(
+        GroupDependency.group == "db_copy", GroupDependency.depends == "project"
+    ).count() == 1
+
+
+@bw2test
+def test_copy_activity_parameters():
+    from bw2data.parameters import Group
+
+    data = {("db", "act1"): {"exchanges": []}}
+    d = Database("db")
+    d.write(data)
+    ActivityParameter.create(group="grp", database="db", code="act1", name="ap1", amount=3.0)
+    d.copy("db_copy")
+
+    new_group = f"grp__db_copy"
+    assert ActivityParameter.select().where(
+        ActivityParameter.database == "db_copy"
+    ).count() == 1
+    ap = ActivityParameter.get(ActivityParameter.database == "db_copy")
+    assert ap.group == new_group
+    assert ap.code == "act1"
+    assert ap.name == "ap1"
+    assert ap.amount == 3.0
+    # Original untouched
+    assert ActivityParameter.select().where(ActivityParameter.database == "db").count() == 1
+
+
+@bw2test
+def test_copy_parameterized_exchanges():
+    data = {
+        ("db", "act1"): {
+            "exchanges": [{"input": ("db", "act1"), "amount": 1.0, "type": "production", "formula": "ap1 * 2"}]
+        }
+    }
+    d = Database("db")
+    d.write(data)
+    ActivityParameter.create(group="grp", database="db", code="act1", name="ap1", amount=3.0)
+    from bw2data.backends.schema import ExchangeDataset
+
+    exc = ExchangeDataset.get(
+        ExchangeDataset.output_database == "db",
+        ExchangeDataset.output_code == "act1",
+    )
+    ParameterizedExchange.create(group="grp", exchange=exc.id, formula="ap1 * 2")
+
+    d.copy("db_copy")
+
+    new_group = "grp__db_copy"
+    assert ParameterizedExchange.select().where(ParameterizedExchange.group == new_group).count() == 1
+    pe = ParameterizedExchange.get(ParameterizedExchange.group == new_group)
+    assert pe.formula == "ap1 * 2"
+    # Verify it points to the new database's exchange
+    new_exc = ExchangeDataset.get(ExchangeDataset.id == pe.exchange)
+    assert new_exc.output_database == "db_copy"
+
+
+@bw2test
 def test_raise_wrong_database():
     data = {("foo", "1"): {}}
     d = Database("bar")
