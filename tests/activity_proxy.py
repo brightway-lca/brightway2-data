@@ -462,6 +462,24 @@ def test_delete_calculation_setups(capsys):
 
 
 @bw2test
+def test_delete_calculation_setups_without_refetch(capsys):
+    """Deleting a freshly-saved activity (never reloaded via get_node) must not raise KeyError.
+    Regression test for https://github.com/brightway-lca/brightway2-data/issues/256"""
+    db = DatabaseChooser("example")
+    db.register()
+
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity")
+    b.save()
+
+    calculation_setups["foo"] = {"inv": [{a.key: 1}, {b.key: 2}]}
+
+    b.delete()
+    assert calculation_setups["foo"]["inv"] == [{a.key: 1}]
+
+
+@bw2test
 def test_get_classifications_ref_product_no_longer_works_4_3():
     db = DatabaseChooser("example")
     db.register()
