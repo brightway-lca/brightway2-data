@@ -37,8 +37,8 @@ class ExchangeDataset(SnowflakeIDBaseClass):
     type = TextField()  # Reset from `data`
 
 
-class DatabaseMetadata(Model):
-    """Metadata for a registered LCI database. Stored in the per-project `lci/databases.db`.
+class DatabaseRecord(Model):
+    """Registry record for a registered LCI database. Stored in the per-project `lci/databases.db`.
 
     All columns are nullable. A ``NULL`` value means the field was never explicitly set,
     which matches the historical behaviour of ``databases.json`` where absent keys were

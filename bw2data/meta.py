@@ -70,8 +70,8 @@ class GeoMapping(PickledDict):
         return len(self.data)
 
 
-class DatabaseMetadataProxy(MutableMapping):
-    """Dict-like view of a single :class:`~bw2data.backends.schema.DatabaseMetadata` row.
+class DatabaseRecordProxy(MutableMapping):
+    """Dict-like view of a single :class:`~bw2data.backends.schema.DatabaseRecord` row.
 
     Writes are immediately persisted to SQLite. Signals are NOT emitted by this
     class — callers that need to signal a change should call
@@ -152,7 +152,7 @@ class DatabaseMetadataProxy(MutableMapping):
 
 
 class Databases(MutableMapping):
-    """Dict-like registry of database metadata, backed by the ``DatabaseMetadata`` SQLite table
+    """Dict-like registry of database metadata, backed by the ``DatabaseRecord`` SQLite table
     in the per-project ``lci/databases.db``.
 
     Previously stored in ``databases.json``; the file is migrated automatically on first access.
@@ -170,24 +170,24 @@ class Databases(MutableMapping):
 
     def __getitem__(self, name):
         self._ensure_migrated()
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
         from peewee import DoesNotExist
 
         try:
-            return DatabaseMetadataProxy(
-                DatabaseMetadata.get(DatabaseMetadata.name == name), self
+            return DatabaseRecordProxy(
+                DatabaseRecord.get(DatabaseRecord.name == name), self
             )
         except DoesNotExist:
             raise KeyError(name)
 
     def __setitem__(self, name, value):
         self._ensure_migrated()
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
         old = self._as_dict()
         value = dict(value)  # copy to avoid mutating caller's dict
         known = {k: value.pop(k) for k in list(value) if k in _KNOWN_FIELDS}
-        DatabaseMetadata.replace(name=name, extra=value or None, **known).execute()
+        DatabaseRecord.replace(name=name, extra=value or None, **known).execute()
         self._emit(old)
 
     def __delitem__(self, name: str, signal: bool = True):
@@ -207,30 +207,30 @@ Metadata state is unchanged, but database state is unknown.
             )
             return
 
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
-        DatabaseMetadata.delete().where(DatabaseMetadata.name == name).execute()
+        DatabaseRecord.delete().where(DatabaseRecord.name == name).execute()
 
         if signal:
             on_database_delete.send(self, name=name)
 
     def __iter__(self):
         self._ensure_migrated()
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
-        return (row.name for row in DatabaseMetadata.select(DatabaseMetadata.name))
+        return (row.name for row in DatabaseRecord.select(DatabaseRecord.name))
 
     def __len__(self):
         self._ensure_migrated()
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
-        return DatabaseMetadata.select().count()
+        return DatabaseRecord.select().count()
 
     def __contains__(self, name):
         self._ensure_migrated()
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
-        return DatabaseMetadata.select().where(DatabaseMetadata.name == name).exists()
+        return DatabaseRecord.select().where(DatabaseRecord.name == name).exists()
 
     def __str__(self):
         names = list(self)
@@ -259,9 +259,9 @@ Metadata state is unchanged, but database state is unknown.
 
     def increment_version(self, database, number=None):
         """Increment the ``database`` version. Returns the new version."""
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
-        row = DatabaseMetadata.get(DatabaseMetadata.name == database)
+        row = DatabaseRecord.get(DatabaseRecord.name == database)
         row.version = (row.version or 0) + 1
         if number is not None:
             row.number = number
@@ -270,21 +270,21 @@ Metadata state is unchanged, but database state is unknown.
 
     def version(self, database):
         """Return the ``database`` version."""
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
-        return DatabaseMetadata.get(DatabaseMetadata.name == database).version
+        return DatabaseRecord.get(DatabaseRecord.name == database).version
 
     def set_modified(self, database):
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
-        row = DatabaseMetadata.get(DatabaseMetadata.name == database)
+        row = DatabaseRecord.get(DatabaseRecord.name == database)
         row.modified = datetime.datetime.now().isoformat()
         row.save()
 
     def set_dirty(self, database):
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
-        row = DatabaseMetadata.get(DatabaseMetadata.name == database)
+        row = DatabaseRecord.get(DatabaseRecord.name == database)
         row.modified = datetime.datetime.now().isoformat()
         if not row.dirty:
             row.dirty = True
@@ -292,16 +292,16 @@ Metadata state is unchanged, but database state is unknown.
 
     def clean(self):
         from bw2data import Database
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
         dirty = [
-            r.name for r in DatabaseMetadata.select().where(DatabaseMetadata.dirty == True)
+            r.name for r in DatabaseRecord.select().where(DatabaseRecord.dirty == True)
         ]
         if not dirty:
             return
         for name in dirty:
             Database(name).process()
-        DatabaseMetadata.update(dirty=None).where(DatabaseMetadata.name << dirty).execute()
+        DatabaseRecord.update(dirty=None).where(DatabaseRecord.name << dirty).execute()
 
     @property
     def list(self):
@@ -347,13 +347,13 @@ Metadata state is unchanged, but database state is unknown.
     @data.setter
     def data(self, new_data):
         """Replace all metadata rows. Used by the revision system to replay patches."""
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
 
-        DatabaseMetadata.delete().execute()
+        DatabaseRecord.delete().execute()
         for name, meta in new_data.items():
             meta = dict(meta)
             known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
-            DatabaseMetadata.replace(name=name, extra=meta or None, **known).execute()
+            DatabaseRecord.replace(name=name, extra=meta or None, **known).execute()
 
     def _ensure_migrated(self):
         if not self._migrated:
@@ -363,13 +363,13 @@ Metadata state is unchanged, but database state is unknown.
     def _migrate_from_json(self):
         """One-time migration from ``databases.json`` to SQLite on first access."""
         from bw2data.project import projects
-        from bw2data.backends.schema import DatabaseMetadata
+        from bw2data.backends.schema import DatabaseRecord
         import json
 
         json_path = projects.dir / "databases.json"
         if not json_path.exists():
             return
-        if DatabaseMetadata.select().count() > 0:
+        if DatabaseRecord.select().count() > 0:
             return
 
         warnings.warn(
@@ -383,7 +383,7 @@ Metadata state is unchanged, but database state is unknown.
         for name, meta in data.items():
             meta = dict(meta)
             known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
-            DatabaseMetadata.replace(name=name, extra=meta or None, **known).execute()
+            DatabaseRecord.replace(name=name, extra=meta or None, **known).execute()
 
 
 class CalculationSetups(PickledDict):
