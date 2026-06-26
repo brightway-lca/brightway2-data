@@ -12,7 +12,6 @@
 [![Black](https://img.shields.io/badge/code%20style-black-000000.svg)][black]
 
 [pypi status]: https://pypi.org/project/bw2data/
-[read the docs]: https://bw2data.readthedocs.io/
 [tests]: https://github.com/brightway-lca/brightway2-data/actions?workflow=Tests
 [codecov]: https://app.codecov.io/gh/brightway-lca/bw2data
 [pre-commit]: https://github.com/pre-commit/pre-commit
@@ -35,7 +34,7 @@ $ pip install bw2data
 ## Contributing
 
 Contributions are very welcome.
-To learn more, see the [Contributor Guide](https://github.com/brightway-lca/brightway2-data/blob/main/CONTRIBUTING.md).
+To learn more, see the [Contributor Guide][Contributor Guide].
 
 ## Releasing a new version
 
@@ -60,10 +59,9 @@ please [file an issue][Issue Tracker] along with a detailed description.
 
 <!-- github-only -->
 
-[command-line reference]: https://bw2data.readthedocs.io/en/latest/usage.html
-[License]: https://github.com/brightway-lca/bw2data/blob/main/LICENSE
-[Contributor Guide]: https://github.com/brightway-lca/bw2data/blob/main/CONTRIBUTING.md
-[Issue Tracker]: https://github.com/brightway-lca/bw2data/issues
+[License]: https://github.com/brightway-lca/brightway2-data/blob/main/LICENSE
+[Contributor Guide]: https://github.com/brightway-lca/brightway2-data/blob/main/CONTRIBUTING.md
+[Issue Tracker]: https://github.com/brightway-lca/brightway2-data/issues
 
 
 ## Building the Documentation
