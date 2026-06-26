@@ -35,7 +35,7 @@ $ pip install bw2data
 ## Contributing
 
 Contributions are very welcome.
-To learn more, see the [Contributor Guide][Contributor Guide].
+To learn more, see the [Contributor Guide](https://github.com/brightway-lca/brightway2-data/blob/main/CONTRIBUTING.md).
 
 ## Releasing a new version
 
