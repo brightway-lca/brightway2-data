@@ -678,7 +678,7 @@ class Activity(ActivityProxyBase):
         if data["database"] == self["database"] and data["code"] == self["code"]:
             data["code"] = str(uuid.uuid4().hex)
             stdout_feedback_logger.info(
-                "Changed code to avoid conflict with existing value: {self['code']} to {data['code']}"
+                f"Changed code to avoid conflict with existing value: {self['code']} to {data['code']}"
             )
 
         return Activity(**data)
