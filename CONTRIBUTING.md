@@ -15,6 +15,7 @@ Here is a list of important resources for contributors:
 [Source Code]: https://github.com/brightway-lca/bw2data
 [Documentation]: https://bw2data.readthedocs.io/
 [Issue Tracker]: https://github.com/brightway-lca/bw2data/issues
+[Code of Conduct]: https://github.com/brightway-lca/brightway2-data/blob/main/CODE_OF_CONDUCT.md
 
 ## How to report a bug
 
