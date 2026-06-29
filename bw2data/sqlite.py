@@ -59,6 +59,8 @@ class JSONField(TextField):
     """Simpler JSON field that doesn't support advanced querying and is human-readable"""
 
     def db_value(self, value):
+        if value is None:
+            return None
         return super().db_value(
             json.dumps(
                 value,
@@ -69,6 +71,8 @@ class JSONField(TextField):
         )
 
     def python_value(self, value):
+        if value is None:
+            return None
         return json.loads(value)
 
 
