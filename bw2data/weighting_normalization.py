@@ -1,6 +1,8 @@
 from bw2data.backends.schema import get_id
 from bw2data.ia_data_store import ImpactAssessmentDataStore
 from bw2data.meta import normalizations, weightings
+from bw2data.signals import on_normalization_delete, on_normalization_write
+from bw2data.signals import on_weighting_delete, on_weighting_write
 from bw2data.utils import as_uncertainty_dict
 from bw2data.validate import normalization_validator, weighting_validator
 
@@ -24,13 +26,21 @@ class Weighting(ImpactAssessmentDataStore):
     validator = weighting_validator
     matrix = "weighting_matrix"
 
-    def write(self, data):
+    def write(self, data, process=True, signal=True):
         """Because of DataStore assumptions, need a one-element list"""
         if self.name not in self._metadata:
             self.register()
         if not isinstance(data, list) or not len(data) == 1:
             raise ValueError("Weighting data must be one-element list")
-        super(Weighting, self).write(data)
+        super(Weighting, self).write(data, process=process)
+        if signal:
+            on_weighting_write.send(self, name=self.name)
+
+    def delete(self, signal: bool = True, **kwargs):
+        """Delete intermediate and processed data files and deregister this weighting."""
+        super().delete(signal=False)
+        if signal:
+            on_weighting_delete.send(self, name=self.name)
 
     def process_row(self, row):
         """Return an empty tuple (as ``dtype_fields`` is empty), and the weighting uncertainty dictionary."""
@@ -58,6 +68,18 @@ class Normalization(ImpactAssessmentDataStore):
     _metadata = normalizations
     validator = normalization_validator
     matrix = "normalization_matrix"
+
+    def write(self, data, process=True, signal=True):
+        """Serialize intermediate data to disk."""
+        super().write(data, process=process)
+        if signal:
+            on_normalization_write.send(self, name=self.name)
+
+    def delete(self, signal: bool = True, **kwargs):
+        """Delete intermediate and processed data files and deregister this normalization."""
+        super().delete(signal=False)
+        if signal:
+            on_normalization_delete.send(self, name=self.name)
 
     def process_row(self, row):
         """Given ``(flow key, amount)``, return a dictionary for array insertion."""
