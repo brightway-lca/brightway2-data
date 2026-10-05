@@ -1,4 +1,6 @@
 import copy
+import json
+import math
 import warnings
 from typing import Any, Optional
 
@@ -66,6 +68,33 @@ def check_exchange(exc):
         raise InvalidExchange
     if np.isnan(exc["amount"]) or np.isinf(exc["amount"]):
         raise ValueError("Invalid amount in exchange {}".format(exc))
+
+
+def check_temporal_distribution_sum(exc: dict) -> None:
+    """Warn if the amounts of an exchange's temporal distribution don't sum to 1.
+
+    The amounts are the shares of the exchange happening at each point in time,
+    so the exchange amount is spread across time by multiplying the exchange
+    amount with the amounts of the TD. If the amounts don't sum to 1, the total exchange
+    amount is scaled up or down. Only warns, as that can be intended."""
+
+    td = exc["temporal_distribution"]
+    if isinstance(td, str):  # serialized with ``TemporalDistribution.to_json()``
+        try:
+            amounts = json.loads(td)["amount"]
+        except (ValueError, KeyError, TypeError):
+            return
+    else:
+        amounts = getattr(td, "amount", None)
+        if amounts is None:
+            return
+    total = float(np.sum(amounts))
+    if not math.isclose(total, 1.0, rel_tol=1e-5):
+        warnings.warn(
+            f"Temporal distribution on exchange {exc.get('input')} → {exc.get('output')} "
+            f"sums to {total:.6g}, not 1. Check the amount array of this TD.",
+            UserWarning,
+        )
 
 
 def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
