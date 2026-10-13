@@ -745,8 +745,13 @@ def signal_dispatcher_on_update_formula_parameter_name(
 ) -> int:
     from bw2data import revisions
 
+    # `old` and `new` share no keys. Since deepdiff 8.0 that diffs as one `values_changed` on
+    # `root` unless `threshold_to_diff_deeper=0`, and `_unwrap_diff_dict` in `revisions.py`
+    # reads the `dictionary_item_removed` and `dictionary_item_added` keys.
     delta = revisions.Delta(
-        delta=deepdiff.Delta(deepdiff.DeepDiff(old, new, verbose_level=2)),
+        delta=deepdiff.Delta(
+            deepdiff.DeepDiff(old, new, verbose_level=2, threshold_to_diff_deeper=0)
+        ),
         obj_type=f"{kind}_parameter",
         obj_id="__update_formula_parameter_name_dummy__",
         change_type=f"{kind}_parameter_update_formula_{extra}parameter_name",
