@@ -1,5 +1,9 @@
 # `bw2data` Changelog
 
+## Unreleased
+
+* [#293: Warn when temporal distribution amounts do not sum to 1](https://github.com/brightway-lca/brightway2-data/pull/293)
+
 ## 4.7 (2026-05-13)
 
 * [#265: Write `database_dependencies` to datapackage metadata](https://github.com/brightway-lca/brightway2-data/pull/265)
