@@ -27,6 +27,7 @@ from bw2data.backends.typos import (
 )
 from bw2data.backends.utils import (
     check_exchange,
+    check_temporal_distribution_sum,
     dict_as_activitydataset,
     dict_as_exchangedataset,
     get_csv_data_dict,
@@ -723,6 +724,8 @@ class SQLiteBackend(ProcessedDataStore):
 
             if "output" not in exchange:
                 exchange["output"] = (ds["database"], ds["code"])
+            if "temporal_distribution" in exchange:
+                check_temporal_distribution_sum(exchange)
             exchanges.append(dict_as_exchangedataset(exchange))
 
             # Query gets passed as INSERT INTO x VALUES ('?', '?'...)

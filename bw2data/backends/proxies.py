@@ -26,7 +26,11 @@ from bw2data.backends.typos import (
     check_exchange_keys,
     check_exchange_type,
 )
-from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
+from bw2data.backends.utils import (
+    check_temporal_distribution_sum,
+    dict_as_activitydataset,
+    dict_as_exchangedataset,
+)
 from bw2data.configuration import labels
 from bw2data.errors import ValidityError
 from bw2data.logs import stdout_feedback_logger
@@ -823,6 +827,8 @@ class Exchange(ExchangeProxyBase):
         if not data_already_set:
             check_exchange_type(self._data.get("type"))
             check_exchange_keys(self)
+            if "temporal_distribution" in self._data:
+                check_temporal_distribution_sum(self._data)
 
             # Process temporal_distribution attributes before saving
             processed_data = self._process_temporal_distributions(self._data)

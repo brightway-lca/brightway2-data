@@ -1130,3 +1130,110 @@ def test_typo_exchange_type_multiple_corrections():
     )
     with pytest.warns(UserWarning, match=expected):
         exc.save()
+
+
+def _td(amounts):
+    bw_temporalis = pytest.importorskip("bw_temporalis")
+    return bw_temporalis.TemporalDistribution(
+        date=np.array([0, 5], dtype="timedelta64[Y]"), amount=np.array(amounts)
+    )
+
+
+def _two_activities():
+    db = DatabaseChooser("example")
+    db.register()
+    a = db.new_activity(code="A", name="An activity", type="process")
+    a.save()
+    b = db.new_activity(code="B", name="Another activity", type="process")
+    b.save()
+    return a, b
+
+
+@bw2test
+def test_td_sum_warns_on_exchange_save():
+    a, b = _two_activities()
+    exc = a.new_exchange(
+        amount=1.0, input=b, type="technosphere", temporal_distribution=_td([0.5, 0.35])
+    )
+
+    with pytest.warns(UserWarning, match=r"sums to 0\.85, not 1"):
+        exc.save()
+
+    saved = list(a.technosphere())[0]
+    assert saved["temporal_distribution"].amount.tolist() == [0.5, 0.35]
+
+
+@bw2test
+def test_td_sum_silent_when_sum_is_one():
+    a, b = _two_activities()
+    exc = a.new_exchange(
+        amount=1.0, input=b, type="technosphere", temporal_distribution=_td([0.6, 0.4])
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        exc.save()
+    assert not [w for w in caught if "Temporal distribution" in str(w.message)]
+
+
+@bw2test
+def test_td_sum_warns_on_database_write():
+    td = _td([0.5, 0.35])
+    db = DatabaseChooser("example")
+
+    expected = r"\('example', 'B'\) -> \('example', 'A'\) sums to 0\.85, not 1"
+    with pytest.warns(UserWarning, match=expected):
+        db.write(
+            {
+                ("example", "A"): {
+                    "name": "An activity",
+                    "type": "process",
+                    "exchanges": [
+                        {
+                            "input": ("example", "B"),
+                            "amount": 1.0,
+                            "type": "technosphere",
+                            "temporal_distribution": td,
+                        }
+                    ],
+                },
+                ("example", "B"): {"name": "Another activity", "type": "process"},
+            },
+            process=False,
+        )
+
+
+@bw2test
+def test_td_sum_checks_json_string():
+    a, b = _two_activities()
+    exc = a.new_exchange(
+        amount=1.0,
+        input=b,
+        type="technosphere",
+        temporal_distribution=_td([0.5, 0.35]).to_json(),
+    )
+
+    with pytest.warns(UserWarning, match=r"sums to 0\.85, not 1"):
+        exc.save()
+
+
+@bw2test
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        {"year": 2020, "value": 0.5},
+        "not a TD",
+        '{"amount": "x"}',
+        '{"amount": [null]}',
+        '{"amount": [[1], [2, 3]]}',
+    ],
+)
+def test_td_sum_never_breaks_save_for_non_td_values(value):
+    a, b = _two_activities()
+    exc = a.new_exchange(amount=1.0, input=b, type="technosphere", temporal_distribution=value)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        exc.save()
+    assert not [w for w in caught if "Temporal distribution" in str(w.message)]
