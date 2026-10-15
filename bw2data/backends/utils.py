@@ -94,7 +94,7 @@ def check_temporal_distribution_sum(exc: dict) -> None:
         return
     if not math.isclose(total, 1.0, rel_tol=1e-5):
         warnings.warn(
-            f"Temporal distribution on exchange {exc.get('input')} → {exc.get('output')} "
+            f"Temporal distribution on exchange {exc.get('input')} -> {exc.get('output')} "
             f"sums to {total:.6g}, not 1. Check the amount array of this TD.",
             UserWarning,
         )

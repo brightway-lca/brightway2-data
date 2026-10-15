@@ -1181,7 +1181,7 @@ def test_td_sum_warns_on_database_write():
     td = _td([0.5, 0.35])
     db = DatabaseChooser("example")
 
-    expected = r"\('example', 'B'\) → \('example', 'A'\) sums to 0\.85, not 1"
+    expected = r"\('example', 'B'\) -> \('example', 'A'\) sums to 0\.85, not 1"
     with pytest.warns(UserWarning, match=expected):
         db.write(
             {
