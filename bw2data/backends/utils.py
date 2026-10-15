@@ -100,6 +100,74 @@ def check_temporal_distribution_sum(exc: dict) -> None:
         )
 
 
+TD_LOADER_PREFIX = "bw_temporalis."
+
+
+def _import_bw_temporalis():
+    """Import ``bw_temporalis`` lazily.
+
+    ``bw_temporalis`` imports ``bw2data``, so a module-level import here would be circular and
+    succeed or fail depending on which library was imported first. Catches all exceptions as
+    a broken install (e.g. an incompatible Python version) shouldn't break ``bw2data``."""
+    try:
+        import bw_temporalis
+    except Exception:
+        return None
+    return bw_temporalis
+
+
+def serialize_temporal_distribution(exc: dict) -> dict:
+    """Return ``exc`` with a ``bw_temporalis`` temporal distribution converted to its JSON string.
+
+    Returns a shallow copy if a conversion was made; the input is not modified. Any other
+    ``temporal_distribution`` value (including already serialized strings) is left as is."""
+    td = exc.get("temporal_distribution")
+    if td is None or isinstance(td, str) or not hasattr(td, "to_json"):
+        return exc
+    bw_temporalis = _import_bw_temporalis()
+    if bw_temporalis is None or not isinstance(td, bw_temporalis.TemporalDistribution):
+        return exc
+    return {**exc, "temporal_distribution": td.to_json()}
+
+
+def restore_temporal_distribution(exc: dict) -> dict:
+    """Return ``exc`` with a JSON ``temporal_distribution`` converted back to a
+    ``bw_temporalis`` object, using the ``__loader__`` class written by ``to_json()``.
+
+    Returns a shallow copy if a conversion was made. Values which aren't serialized temporal
+    distributions are left as is. Warns and leaves the JSON in place if ``bw_temporalis``
+    isn't available or the JSON can't be loaded."""
+    td = exc.get("temporal_distribution")
+    if not isinstance(td, str) or "__loader__" not in td:
+        return exc
+    try:
+        loader = json.loads(td)["__loader__"]
+    except (ValueError, KeyError, TypeError):
+        return exc
+    if not isinstance(loader, str) or not loader.startswith(TD_LOADER_PREFIX):
+        return exc
+
+    bw_temporalis = _import_bw_temporalis()
+    if bw_temporalis is None:
+        warnings.warn(
+            "Found a serialized temporal distribution, but `bw_temporalis` can't be imported. "
+            "Leaving it as a JSON string; install `bw_temporalis` to restore it.",
+            UserWarning,
+        )
+        return exc
+    try:
+        cls = getattr(bw_temporalis, loader[len(TD_LOADER_PREFIX) :])
+        restored = cls.from_json(td)
+    except Exception as e:
+        warnings.warn(
+            f"Can't restore temporal distribution with loader {loader}; leaving it as "
+            f"a JSON string. Error: {e}",
+            UserWarning,
+        )
+        return exc
+    return {**exc, "temporal_distribution": restored}
+
+
 def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
     val = {
         "data": ds,
@@ -118,6 +186,7 @@ def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
 
 
 def dict_as_exchangedataset(ds: Any) -> dict:
+    ds = serialize_temporal_distribution(ds)
     return {
         "data": ds,
         "input_database": ds["input"][0],

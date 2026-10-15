@@ -423,14 +423,7 @@ class SQLiteBackend(ProcessedDataStore):
                 data["output"] = new_key
                 inpt = old_to_new_key.get(data["input"], data["input"])
                 data["input"] = inpt
-                ExchangeDataset(
-                    data=data,
-                    input_code=inpt[1],
-                    input_database=inpt[0],
-                    output_code=new_key[1],
-                    output_database=new_key[0],
-                    type=data["type"],
-                ).save(signal=signal)
+                ExchangeDataset(**dict_as_exchangedataset(data)).save(signal=signal)
 
         return new_activities
 
