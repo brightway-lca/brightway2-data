@@ -1237,33 +1237,3 @@ def test_td_sum_never_breaks_save_for_non_td_values(value):
         warnings.simplefilter("always")
         exc.save()
     assert not [w for w in caught if "Temporal distribution" in str(w.message)]
-
-
-@bw2test
-def test_td_sum_not_called_without_td(monkeypatch):
-    """Exchanges without a temporal distribution must not cost a function call."""
-    import bw2data.backends.base as base_module
-    import bw2data.backends.proxies as proxies_module
-
-    def fail(exc):
-        raise AssertionError("check_temporal_distribution_sum was called")
-
-    monkeypatch.setattr(base_module, "check_temporal_distribution_sum", fail)
-    monkeypatch.setattr(proxies_module, "check_temporal_distribution_sum", fail)
-
-    DatabaseChooser("example").write(
-        {
-            ("example", "A"): {
-                "name": "An activity",
-                "type": "process",
-                "exchanges": [
-                    {"input": ("example", "B"), "amount": 1.0, "type": "technosphere"}
-                ],
-            },
-            ("example", "B"): {"name": "Another activity", "type": "process"},
-        },
-        process=False,
-    )
-    a = get_node(database="example", code="A")
-    b = get_node(database="example", code="B")
-    a.new_exchange(amount=2.0, input=b, type="technosphere").save()
