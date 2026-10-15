@@ -253,7 +253,7 @@ class Delta:
             # (i.e. changing the graph will set database['dirty']) or are not worth propagating
             # so we can safely remove them from the diff generation.
             for value in dct.values():
-                for forgotten in ("processed", "modified", "dirty", "number"):
+                for forgotten in ("processed", "modified", "dirty", "number", "version"):
                     if forgotten in value:
                         del value[forgotten]
         diff = deepdiff.DeepDiff(
@@ -588,7 +588,6 @@ class RevisionedDatabase:
                 elif not value.get("searchable") and databases.get(name, {}).get("searchable"):
                     DatabaseChooser(name).make_unsearchable(reset=False, signal=False)
             databases.data = new_data
-            databases.flush(signal=False)
         if revision_data["change_type"] == "database_reset":
             DatabaseChooser(revision_data["id"]).delete(warn=False, signal=False)
         if revision_data["change_type"] == "database_delete":

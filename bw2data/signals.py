@@ -56,11 +56,11 @@ No expected return value.
 
 on_database_metadata_change = signal(
     "bw2data.on_database_metadata_change",
-    doc="""Emitted *after* any element of `databases.json` has changed.
+    doc="""Emitted *after* any database metadata has changed.
 
 Expected inputs:
-    * `old`: dict - previous `databases.json` metadata dict
-    * `new`: dict - current `databases.json` metadata dict
+    * `old`: dict - previous full database metadata dict (all databases)
+    * `new`: dict - current full database metadata dict (all databases)
 
 No expected return value.
 """,

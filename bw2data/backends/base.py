@@ -229,7 +229,7 @@ class SQLiteBackend(ProcessedDataStore):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             new_database = self.__class__(name)
-            metadata = copy.copy(self.metadata)
+            metadata = dict(self.metadata)
             metadata["format"] = f"Copied from '{self.name}'"
             new_database.register(**metadata)
 
@@ -985,14 +985,20 @@ Here are the type values usually used for nodes:
         if self._searchable and not reset:
             stdout_feedback_logger.info("This database is already searchable")
             return
-        databases[self.name]["searchable"] = True
-        databases.flush(signal=signal)
+        databases._suppress_signals = not signal
+        try:
+            databases[self.name]["searchable"] = True
+        finally:
+            databases._suppress_signals = False
         IndexManager(self.filename).create()
         IndexManager(self.filename).add_datasets(self)
 
     def make_unsearchable(self, signal: bool = True):
-        databases[self.name]["searchable"] = False
-        databases.flush(signal=signal)
+        databases._suppress_signals = not signal
+        try:
+            databases[self.name]["searchable"] = False
+        finally:
+            databases._suppress_signals = False
         IndexManager(self.filename).delete_database()
 
     def delete(
@@ -1217,7 +1223,6 @@ Here are the type values usually used for nodes:
 
         self.metadata["depends"] = sorted(dependents)
         self.metadata["dirty"] = False
-        self._metadata.flush()
 
     def search(self, string, **kwargs):
         """Search this database for ``string``.
@@ -1270,7 +1275,6 @@ Here are the type values usually used for nodes:
             geocollections.discard(None)
         else:
             self.metadata["geocollections"] = sorted(geocollections)
-            self._metadata.flush()
 
     def graph_technosphere(self, filename=None, **kwargs):
         from bw2analyzer.matrix_grapher import SparseMatrixGrapher
