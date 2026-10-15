@@ -88,7 +88,10 @@ def check_temporal_distribution_sum(exc: dict) -> None:
         amounts = getattr(td, "amount", None)
         if amounts is None:
             return
-    total = float(np.sum(amounts))
+    try:
+        total = float(np.sum(amounts))
+    except (ValueError, TypeError):
+        return
     if not math.isclose(total, 1.0, rel_tol=1e-5):
         warnings.warn(
             f"Temporal distribution on exchange {exc.get('input')} → {exc.get('output')} "

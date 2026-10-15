@@ -1218,7 +1218,17 @@ def test_td_sum_checks_json_string():
 
 
 @bw2test
-@pytest.mark.parametrize("value", [None, {"year": 2020, "value": 0.5}, "not a TD"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        {"year": 2020, "value": 0.5},
+        "not a TD",
+        '{"amount": "x"}',
+        '{"amount": [null]}',
+        '{"amount": [[1], [2, 3]]}',
+    ],
+)
 def test_td_sum_never_breaks_save_for_non_td_values(value):
     a, b = _two_activities()
     exc = a.new_exchange(amount=1.0, input=b, type="technosphere", temporal_distribution=value)
