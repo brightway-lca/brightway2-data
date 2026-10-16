@@ -1,4 +1,3 @@
-import copy
 import sys
 import uuid
 import warnings
@@ -11,11 +10,6 @@ else:
     from typing import Self
 
 import pandas as pd
-
-try:
-    from bw_temporalis import TemporalDistribution
-except ImportError:
-    TemporalDistribution = None
 
 from bw2data import databases, geomapping, get_node, projects
 from bw2data.backends import sqlite3_lci_db
@@ -30,6 +24,7 @@ from bw2data.backends.utils import (
     check_temporal_distribution_sum,
     dict_as_activitydataset,
     dict_as_exchangedataset,
+    restore_temporal_distribution,
 )
 from bw2data.configuration import labels
 from bw2data.errors import ValidityError
@@ -733,87 +728,13 @@ class Exchange(ExchangeProxyBase):
                 self._document.output_database,
                 self._document.output_code,
             )
-            # Restore temporal_distribution from JSON if present
-            self._data = self._restore_temporal_distributions(self._data)
+            # Stored as JSON; see `dict_as_exchangedataset`
+            if "temporal_distribution" in self._data:
+                self._data = restore_temporal_distribution(self._data)
 
     @property
     def id(self):
         return self._document.id
-
-    def _process_temporal_distributions(self, data):
-        """Process temporal_distribution attributes by converting TemporalDistribution instances to JSON.
-
-        This method creates a copy of the data and converts any TemporalDistribution instances
-        found in 'temporal_distribution' keys to their JSON representation using the to_json method.
-        The original data is not modified.
-
-        Args:
-            data: The exchange data dictionary
-
-        Returns:
-            A copy of the data with TemporalDistribution instances converted to JSON
-        """
-        if TemporalDistribution is None:
-            # bw_temporalis not available, return data as-is
-            return data
-
-        # Create a deep copy to avoid modifying the original data
-        processed_data = copy.deepcopy(data)
-
-        # Check if there's a temporal_distribution key with a TemporalDistribution value
-        if "temporal_distribution" in processed_data:
-            value = processed_data["temporal_distribution"]
-            if isinstance(value, TemporalDistribution):
-                processed_data["temporal_distribution"] = value.to_json()
-
-        return processed_data
-
-    def _restore_temporal_distributions(self, data):
-        """Restore temporal_distribution attributes by converting JSON back to TemporalDistribution instances.
-
-        This method creates a copy of the data and converts any JSON representations
-        of TemporalDistribution instances back to TemporalDistribution objects.
-        The original data is not modified.
-
-        Args:
-            data: The exchange data dictionary
-
-        Returns:
-            A copy of the data with JSON temporal_distribution converted back to TemporalDistribution instances
-        """
-        if TemporalDistribution is None:
-            # bw_temporalis not available, return data as-is
-            if "temporal_distribution" in data:
-                value = data["temporal_distribution"]
-                if isinstance(value, dict) and value.get("type") == "temporal_distribution":
-                    warnings.warn(
-                        "Found temporal_distribution JSON data but bw_temporalis library is not installed. "
-                        "TemporalDistribution object will not be restored. Install bw_temporalis to enable "
-                        "temporal distribution functionality.",
-                        UserWarning,
-                    )
-            return data
-
-        # Create a deep copy to avoid modifying the original data
-        processed_data = copy.deepcopy(data)
-
-        # Check if there's a temporal_distribution key with JSON data
-        if "temporal_distribution" in processed_data:
-            value = processed_data["temporal_distribution"]
-            if isinstance(value, dict) and value.get("type") == "temporal_distribution":
-                # This looks like JSON from a TemporalDistribution.to_json() call
-                try:
-                    # Create a new TemporalDistribution instance from the JSON data
-                    processed_data["temporal_distribution"] = TemporalDistribution(value["data"])
-                except (KeyError, TypeError, AttributeError, ValueError) as e:
-                    # If conversion fails, leave the data as-is and warn about the error
-                    warnings.warn(
-                        f"Failed to restore TemporalDistribution from JSON data: {value}. "
-                        f"Data will remain as JSON. Error: {str(e)}",
-                        UserWarning,
-                    )
-
-        return processed_data
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
         if not data_already_set and not self.valid():
@@ -830,10 +751,7 @@ class Exchange(ExchangeProxyBase):
             if "temporal_distribution" in self._data:
                 check_temporal_distribution_sum(self._data)
 
-            # Process temporal_distribution attributes before saving
-            processed_data = self._process_temporal_distributions(self._data)
-
-            for key, value in dict_as_exchangedataset(processed_data).items():
+            for key, value in dict_as_exchangedataset(self._data).items():
                 setattr(self._document, key, value)
 
         self._document.save(signal=signal, force_insert=force_insert)
