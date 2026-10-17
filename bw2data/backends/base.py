@@ -755,6 +755,10 @@ class SQLiteBackend(ProcessedDataStore):
         self, data: list, indices: bool = True, check_typos: bool = True
     ) -> None:
         be_complicated = len(data) >= 100 and indices
+        # VACUUM rebuilds the whole (shared) LCI SQLite file, so skip it when
+        # there is nothing to reclaim. ``config.vacuum`` forces it on (True) or
+        # off (False), and defaults to this check (None).
+        do_vacuum = config.vacuum if config.vacuum is not None else len(self) > 0
         if be_complicated:
             self._drop_indices()
         sqlite3_lci_db.db.autocommit = False
@@ -773,7 +777,8 @@ class SQLiteBackend(ProcessedDataStore):
             if exchanges:
                 ExchangeDataset.insert_many(exchanges).execute()
             sqlite3_lci_db.db.commit()
-            sqlite3_lci_db.vacuum()
+            if do_vacuum:
+                sqlite3_lci_db.vacuum()
         except:
             sqlite3_lci_db.db.rollback()
             raise
