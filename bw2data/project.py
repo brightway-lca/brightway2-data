@@ -689,6 +689,11 @@ def signal_dispatcher(
     sender, old: Optional[Any] = None, new: Optional[Any] = None, operation: Optional[str] = None
 ) -> Union[int, None]:
     """Not sure why this is necessary, but fails silently if call `add_revision` directly"""
+    # Deltas are discarded on unsourced projects, so don't pay for generating
+    # them: DeepDiff runs on every save and metadata flush.
+    if not projects.dataset.is_sourced:
+        return None
+
     from bw2data import revisions
 
     delta = revisions.generate_delta(old, new, operation)
@@ -727,6 +732,11 @@ signal_dispatcher_on_activity_parameter = partial(
 
 
 def signal_dispatcher_on_database_write(sender, name: str) -> int:
+    # One delta per node and exchange is built below; all of them are discarded
+    # on unsourced projects.
+    if not projects.dataset.is_sourced:
+        return None
+
     from bw2data import revisions
     from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 
