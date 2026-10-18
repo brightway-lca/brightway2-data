@@ -158,8 +158,9 @@ class Config(BaseSettings):
     cache: dict = {}
     metadata: list = []
     sqlite3_databases: list = []
-    # VACUUM policy for Database.write(): None = only when there is space to
-    # reclaim (database was not empty), True = always, False = never.
+    # VACUUM policy for the LCI SQLite file, applied by ``Database.write()`` and
+    # ``Database.delete()``: None = only when a meaningful share of the file is free
+    # pages (``PRAGMA freelist_count``), True = always, False = never.
     vacuum: Optional[bool] = None
     _windows: bool = platform.system() == "Windows"
 
