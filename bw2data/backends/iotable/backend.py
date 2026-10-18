@@ -36,6 +36,11 @@ class IOTableBackend(SQLiteBackend):
 
         Technosphere and biosphere data has format ``(row id, col id, value, flip)``.
 
+        To mark reference (production) exchanges, give technosphere dictionaries a
+        ``reference`` key, or pass a ``reference_array`` if ``technosphere`` is a dictionary
+        of arrays; see ``bw_processing``. Unlike ``Database.process``, nothing is flagged
+        automatically.
+
         """
         stdout_feedback_logger.info("Starting IO table write")
 
