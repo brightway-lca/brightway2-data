@@ -6,6 +6,7 @@
 * [#296: Store `bw_temporalis` temporal distributions as JSON on every write path and restore them on load, independent of import order](https://github.com/brightway-lca/brightway2-data/issues/296)
 * [#301: Flag reference exchanges in processed technosphere datapackages](https://github.com/brightway-lca/brightway2-data/pull/301)
 * [#298: Only `VACUUM` the LCI SQLite file when there is space to reclaim; add `config.vacuum` policy](https://github.com/brightway-lca/brightway2-data/pull/298)
+* BREAKING CHANGE: [#299: `signaleddataset_on_save` and `on_database_metadata_change` are only sent when the project is event sourced](https://github.com/brightway-lca/brightway2-data/pull/299). These signals exist to generate revisions, which are discarded on unsourced projects, so `SignaledDataset.save` now skips the query for the previous version and `SerializedDict.flush` skips re-reading the metadata file when `projects.dataset.is_sourced` is `False`. Code that connected to either signal to observe changes in unsourced projects will no longer be called.
 
 ## 4.7 (2026-05-13)
 
