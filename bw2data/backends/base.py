@@ -1,5 +1,6 @@
 import copy
 import datetime
+import heapq
 import itertools
 import pprint
 import random
@@ -7,6 +8,7 @@ import uuid
 import warnings
 from collections import defaultdict
 from functools import partial
+from operator import itemgetter
 from typing import Callable, Iterable, List, Optional, Union
 
 import pandas
@@ -59,6 +61,9 @@ def tqdm_wrapper(iterable, is_test):
 
 
 def get_technosphere_qs(database_name: str, edge_types: Iterable[str]) -> Iterable:
+    """Technosphere edges of process nodes in ``database_name``, ordered by output (column) id.
+
+    The ordering lets ``process`` see all edges of a column together, without another read."""
     Source = ActivityDataset.alias()
     Target = ActivityDataset.alias()
     return (
@@ -94,6 +99,7 @@ def get_technosphere_qs(database_name: str, edge_types: Iterable[str]) -> Iterab
             & (ExchangeDataset.type << edge_types)
             & (Target.type << labels.process_node_types)
         )
+        .order_by(Target.id, ExchangeDataset.id)
         .tuples()
         .iterator()
     )
@@ -105,6 +111,38 @@ get_technosphere_positive_qs = partial(
 get_technosphere_negative_qs = partial(
     get_technosphere_qs, edge_types=labels.technosphere_negative_edge_types
 )
+
+
+def set_reference_flags(edges: List[dict]) -> bool:
+    """Flag the reference (production) exchange among the technosphere ``edges`` of one column.
+
+    Sets ``edge["reference"] = True`` on the reference exchange, using these rules in order:
+
+    * Edges with a truthy ``functional`` attribute are the candidates, if there are any;
+      otherwise, the production edges (``technosphere_positive_edge_types`` without
+      ``substitution_edge_types``).
+    * If all candidates have the same input, they are the reference exchange.
+    * Otherwise, if some candidates are produced by the column itself (same input and output),
+      these are the reference exchange.
+
+    Several edges can be flagged when they are the same matrix element, i.e. have the same input.
+    Substitution edges are never flagged. Returns ``True`` if anything was flagged; columns which
+    are still ambiguous get no flag, as a wrong flag would be worse than none."""
+    candidates = [
+        edge
+        for edge in edges
+        if edge.get("functional") and edge.get("type") not in labels.substitution_edge_types
+    ]
+    if not candidates:
+        production_types = set(labels.technosphere_positive_edge_types).difference(
+            labels.substitution_edge_types
+        )
+        candidates = [edge for edge in edges if edge.get("type") in production_types]
+    if len({edge["row"] for edge in candidates}) > 1:
+        candidates = [edge for edge in candidates if edge["row"] == edge["col"]]
+    for edge in candidates:
+        edge["reference"] = True
+    return bool(candidates)
 
 
 def get_biosphere_qs(database_name: str) -> Iterable:
@@ -1168,10 +1206,9 @@ Here are the type values usually used for nodes:
         )
 
         # Figure out when the production exchanges are implicit
-        implicit_production = (
-            {"row": get_id((self.name, x[0])), "amount": 1}
+        implicit_production_qs = (
             # Get all codes
-            for x in ActivityDataset.select(ActivityDataset.code)
+            ActivityDataset.select(ActivityDataset.code)
             .where(
                 # Get correct database name
                 ActivityDataset.database == self.name,
@@ -1191,16 +1228,47 @@ Here are the type values usually used for nodes:
             )
             .tuples()
         )
+        flagged_columns = set()
+
+        def technosphere_iterator():
+            # Both querysets are ordered by column, so merging them gives all edges of a
+            # column together, and reference exchanges can be flagged as the data is read.
+            edges = heapq.merge(
+                self.exchange_data_iterator(get_technosphere_negative_qs, dependents, flip=True),
+                self.exchange_data_iterator(get_technosphere_positive_qs, dependents),
+                key=itemgetter("col"),
+            )
+            for col, column_edges in itertools.groupby(edges, key=itemgetter("col")):
+                column_edges = list(column_edges)
+                if set_reference_flags(column_edges):
+                    flagged_columns.add(col)
+                yield from column_edges
+            # After all edges, so `flagged_columns` is complete
+            for (code,) in implicit_production_qs:
+                row = get_id((self.name, code))
+                reference = row not in flagged_columns
+                flagged_columns.add(row)
+                yield {"row": row, "amount": 1, "reference": reference}
 
         dp.add_persistent_vector_from_iterator(
             matrix="technosphere_matrix",
             name=clean_datapackage_name(self.name + " technosphere matrix"),
-            dict_iterator=itertools.chain(
-                self.exchange_data_iterator(get_technosphere_negative_qs, dependents, flip=True),
-                self.exchange_data_iterator(get_technosphere_positive_qs, dependents),
-                implicit_production,
-            ),
+            dict_iterator=technosphere_iterator(),
         )
+
+        num_processes = (
+            ActivityDataset.select()
+            .where(
+                ActivityDataset.database == self.name,
+                ActivityDataset.type << labels.process_node_types,
+            )
+            .count()
+        )
+        if len(flagged_columns) < num_processes:
+            stdout_feedback_logger.warning(
+                f"{num_processes - len(flagged_columns)} of {num_processes} processes in "
+                f"database {self.name} have no unambiguous reference exchange"
+            )
         if csv:
             df = pandas.DataFrame([get_csv_data_dict(ds) for ds in self])
             dp.add_csv_metadata(
