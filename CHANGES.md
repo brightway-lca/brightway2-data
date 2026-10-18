@@ -3,6 +3,7 @@
 ## Unreleased
 
 * [#293: Warn when temporal distribution amounts do not sum to 1](https://github.com/brightway-lca/brightway2-data/pull/293)
+* [#301: Flag reference exchanges in processed technosphere datapackages](https://github.com/brightway-lca/brightway2-data/pull/301)
 
 ## 4.7 (2026-05-13)
 
