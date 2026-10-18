@@ -31,7 +31,7 @@ requires-python = ">=3.9"
 dependencies = [
     "blinker",
     "bw2parameters",
-    "bw_processing>=0.9.5",
+    "bw_processing>=1.6",
     "deepdiff>=8.6.2",
     "deprecated",
     "fsspec",
