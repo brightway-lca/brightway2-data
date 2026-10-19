@@ -1029,6 +1029,62 @@ def test_activity_parameter_recalculate_exchanges():
         assert exc.amount == 9
 
 
+@pytest.fixture
+def max_formula_length():
+    from bw2data import config
+
+    default = config.max_formula_length
+    yield
+    config.max_formula_length = default
+
+
+def long_formula(length=60_000):
+    # Flat list avoids deep AST nesting: "sum([1, 1, ..., 1])"
+    count = length // 3 + 1
+    return "sum([{}])".format(", ".join(["1"] * count)), count
+
+
+@bw2test
+def test_max_formula_length_default_too_short():
+    formula, _ = long_formula()
+    ProjectParameter.create(name="foo", formula=formula)
+    with pytest.raises(RuntimeError):
+        ProjectParameter.recalculate()
+
+
+@bw2test
+def test_max_formula_length_project_parameters(max_formula_length):
+    from bw2data import config
+
+    config.max_formula_length = 100_000
+    formula, count = long_formula()
+    ProjectParameter.create(name="foo", formula=formula)
+    ProjectParameter.recalculate()
+    assert ProjectParameter.get(name="foo").amount == count
+
+
+@bw2test
+def test_max_formula_length_exchanges(max_formula_length):
+    from bw2data import config
+
+    config.max_formula_length = 100_000
+    formula, count = long_formula()
+
+    db = Database("example")
+    db.register()
+    a = db.new_activity(code="A", name="An activity")
+    a.save()
+    a.new_exchange(amount=0, input=a, type="production", formula=formula).save()
+    parameters.new_activity_parameters(
+        [{"name": "foo", "amount": 1, "database": "example", "code": "A"}], "my group"
+    )
+    parameters.add_exchanges_to_group("my group", a)
+    ActivityParameter.recalculate_exchanges("my group")
+
+    for exc in a.exchanges():
+        assert exc.amount == count
+
+
 @bw2test
 def test_pe_no_activities_parameter_group_error():
     db = Database("example")

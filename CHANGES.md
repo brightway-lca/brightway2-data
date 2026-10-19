@@ -8,6 +8,7 @@
 * [#298: Only `VACUUM` the LCI SQLite file when there is space to reclaim; add `config.vacuum` policy](https://github.com/brightway-lca/brightway2-data/pull/298)
 * BREAKING CHANGE: [#299: `signaleddataset_on_save` and `on_database_metadata_change` are only sent when the project is event sourced](https://github.com/brightway-lca/brightway2-data/pull/299). These signals exist to generate revisions, which are discarded on unsourced projects, so `SignaledDataset.save` now skips the query for the previous version and `SerializedDict.flush` skips re-reading the metadata file when `projects.dataset.is_sourced` is `False`. Code that connected to either signal to observe changes in unsourced projects will no longer be called.
 * [#291: Check the installed `bw2io` version from package metadata before the automatic `migrations` filename update imports it, and raise `IncompatibleBW2IOVersion` with upgrade instructions for `bw2io<0.9`](https://github.com/brightway-lca/brightway2-data/issues/291)
+* [#289: Make the maximum parameter formula length configurable via `config.max_formula_length` (default 50,000 characters)](https://github.com/brightway-lca/brightway2-data/issues/289)
 
 ## 4.7 (2026-05-13)
 
