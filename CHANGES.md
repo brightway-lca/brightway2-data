@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* BREAKING CHANGE: [#284: Replace the per-project `databases.json` file with a `DatabaseRecord` table in `lci/databases.db`](https://github.com/brightway-lca/brightway2-data/pull/284). `databases[name]` is now a dict-like proxy that persists each write immediately and emits `on_database_metadata_change` per write (one revision per change on event-sourced projects, instead of one per `flush()`). `databases.flush()` is a deprecated no-op. An existing `databases.json` is migrated on first access and left in place as a backup.
 * [#293: Warn when temporal distribution amounts do not sum to 1](https://github.com/brightway-lca/brightway2-data/pull/293)
 * [#296: Store `bw_temporalis` temporal distributions as JSON on every write path and restore them on load, independent of import order](https://github.com/brightway-lca/brightway2-data/issues/296)
 * [#301: Flag reference exchanges in processed technosphere datapackages](https://github.com/brightway-lca/brightway2-data/pull/301)

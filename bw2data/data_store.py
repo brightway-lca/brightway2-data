@@ -44,7 +44,6 @@ class DataStore:
     def _set_metadata(self, value):
         self._get_metadata()
         self._metadata[self.name] = value
-        self._metadata.flush()
 
     metadata = property(_get_metadata, _set_metadata)
 
