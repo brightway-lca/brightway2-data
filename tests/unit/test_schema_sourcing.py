@@ -28,8 +28,9 @@ def test_signaleddataset_save_is_called(*mocks: Mock):
 @patch("bw2data.signals.signaleddataset_on_save.send")
 @patch("bw2data.signals.SignaledDataset.get")
 def test_signal_is_sent(*mocks: Mock):
-    # On saving an `Activity`, the signal is sent
+    # On saving an `Activity` in a sourced project, the signal is sent
     projects.set_current("activity-event")
+    projects.dataset.set_sourced()
     database = DatabaseChooser("db")
     database.register()
     activity = database.new_node(code="A", name="A")

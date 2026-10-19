@@ -11,6 +11,10 @@ signaleddataset_on_save = signal(
     "bw2data.signaleddataset_on_save",
     doc="""Emitted *after* SignaledDataset is saved.
 
+Only sent when the current project is event sourced (`projects.dataset.is_sourced`); the
+signal exists to generate revisions, and looking up the previous version costs one query per
+save.
+
 Expected inputs:
     * `old`: dict - the previous version of the dataset
     * `new`: dict - the new version of the dataset
@@ -57,6 +61,9 @@ No expected return value.
 on_database_metadata_change = signal(
     "bw2data.on_database_metadata_change",
     doc="""Emitted *after* any element of `databases.json` has changed.
+
+Only sent when the current project is event sourced (`projects.dataset.is_sourced`); the
+signal exists to generate revisions, and building `old` re-reads the file from disk.
 
 Expected inputs:
     * `old`: dict - previous `databases.json` metadata dict
@@ -256,7 +263,12 @@ class SignaledDataset(Model):
     @override
     def save(self, signal: bool = True, *args, **kwargs) -> None:
         """Receives a mapper to convert the data to the expected dictionary format"""
-        old = type(self).get_or_none(type(self).id == self.id)
+        from bw2data import projects
+
+        # `signaleddataset_on_save` only feeds revision generation, which is skipped on
+        # unsourced projects. Don't pay for the extra query to fetch the previous version.
+        signal = signal and projects.dataset.is_sourced
+        old = type(self).get_or_none(type(self).id == self.id) if signal else None
         super().save(*args, **kwargs)
         if signal:
             signaleddataset_on_save.send(

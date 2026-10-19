@@ -127,6 +127,13 @@ class SerializedDict(MutableMapping):
         """Serialize the current data to disk."""
         self.serialize(signal=signal)
 
+    def _send_save_signal(self, signal: bool) -> bool:
+        """Whether `serialize` should build `old`/`new` snapshots and send `_save_signal`.
+
+        The save signal only feeds revision generation, which is skipped on unsourced projects,
+        so don't re-read the file from disk or deep copy the data in that case."""
+        return bool(signal and hasattr(self, "_save_signal") and projects.dataset.is_sourced)
+
     @property
     def list(self):
         """List the keys of the dictionary. This is a property, and does not need to be called."""
@@ -191,7 +198,8 @@ class SerializedDict(MutableMapping):
             * *filepath* (str, optional): Provide an alternate filepath (e.g. for backup).
 
         """
-        if signal and hasattr(self, "_save_signal"):
+        signal = self._send_save_signal(signal)
+        if signal:
             try:
                 previous = self.deserialize()
             except IOError:
@@ -200,7 +208,7 @@ class SerializedDict(MutableMapping):
         with atomic_open(filepath or self.filepath, "w") as f:
             f.write(JsonWrapper.dumps(self.pack(self.data)))
 
-        if signal and hasattr(self, "_save_signal"):
+        if signal:
             self._save_signal.send(self, old=previous, new=deepcopy(self.data))
 
     def deserialize(self):
@@ -232,13 +240,14 @@ class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
 
     def serialize(self, signal: bool = True):
-        if signal and hasattr(self, "_save_signal"):
+        signal = self._send_save_signal(signal)
+        if signal:
             previous = self.deserialize()
 
         with atomic_open(self.filepath, "wb") as f:
             pickle.dump(self.pack(self.data), f, protocol=4)
 
-        if signal and hasattr(self, "_save_signal"):
+        if signal:
             self._save_signal.send(self, old=previous, new=deepcopy(self.data))
 
     def deserialize(self):
