@@ -30,6 +30,7 @@ classifiers = [
 requires-python = ">=3.9"
 dependencies = [
     "blinker",
+    "bw2io>=0.9.17",
     "bw2parameters",
     "bw_processing>=1.6",
     "deepdiff>=8.6.2",

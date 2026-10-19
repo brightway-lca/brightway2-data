@@ -6,6 +6,7 @@
 * [#296: Store `bw_temporalis` temporal distributions as JSON on every write path and restore them on load, independent of import order](https://github.com/brightway-lca/brightway2-data/issues/296)
 * [#301: Flag reference exchanges in processed technosphere datapackages](https://github.com/brightway-lca/brightway2-data/pull/301)
 * [#298: Only `VACUUM` the LCI SQLite file when there is space to reclaim; add `config.vacuum` policy](https://github.com/brightway-lca/brightway2-data/pull/298)
+* [#291: Require `bw2io>=0.9.17`, as earlier `bw2io` versions fail at import under `bw2data` 4 and break the automatic project update](https://github.com/brightway-lca/brightway2-data/issues/291)
 
 ## 4.7 (2026-05-13)
 
