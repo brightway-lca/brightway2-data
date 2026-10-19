@@ -1,14 +1,40 @@
 # `bw2data` Changelog
 
-## Unreleased
+## 4.8 (2026-10-19)
 
-* [#293: Warn when temporal distribution amounts do not sum to 1](https://github.com/brightway-lca/brightway2-data/pull/293)
-* [#296: Store `bw_temporalis` temporal distributions as JSON on every write path and restore them on load, independent of import order](https://github.com/brightway-lca/brightway2-data/issues/296)
-* [#301: Flag reference exchanges in processed technosphere datapackages](https://github.com/brightway-lca/brightway2-data/pull/301)
-* [#298: Only `VACUUM` the LCI SQLite file when there is space to reclaim; add `config.vacuum` policy](https://github.com/brightway-lca/brightway2-data/pull/298)
+### Breaking changes
+
+* BREAKING CHANGE: [#277: Pass the sender as the first positional argument in all blinker `signal.send()` calls](https://github.com/brightway-lca/brightway2-data/pull/277). Receivers must accept the sender as their first positional argument. `project_changed` and `project_created` now send the `ProjectManager` as the sender and the `ProjectDataset` as the `dataset=` keyword argument, instead of sending the `ProjectDataset` as the sender. Receivers written for the old call raise `TypeError` in `projects.set_current()`; if you use `multifunctional`, upgrade to 1.1.2 or later ([#288](https://github.com/brightway-lca/brightway2-data/issues/288)).
 * BREAKING CHANGE: [#299: `signaleddataset_on_save` and `on_database_metadata_change` are only sent when the project is event sourced](https://github.com/brightway-lca/brightway2-data/pull/299). These signals exist to generate revisions, which are discarded on unsourced projects, so `SignaledDataset.save` now skips the query for the previous version and `SerializedDict.flush` skips re-reading the metadata file when `projects.dataset.is_sourced` is `False`. Code that connected to either signal to observe changes in unsourced projects will no longer be called.
-* [#291: Check the installed `bw2io` version from package metadata before the automatic `migrations` filename update imports it, and raise `IncompatibleBW2IOVersion` with upgrade instructions for `bw2io<0.9`](https://github.com/brightway-lca/brightway2-data/issues/291)
+
+### Changes
+
+* [#272: `as_uncertainty_dict` sets `loc` to `amount` for undefined and no-uncertainty types when `loc` is missing or NaN](https://github.com/brightway-lca/brightway2-data/pull/272)
+* [#273: Accept a `MethodConfig` object as `method_config` in `get_multilca_data_objs`](https://github.com/brightway-lca/brightway2-data/pull/273)
+* [#274: Fix log directory handling for full-hash projects in `purge_deleted_directories`, `delete_project` and `copy_project`, which caused `FileNotFoundError` when logging](https://github.com/brightway-lca/brightway2-data/pull/274)
+* [#275: Restore the `filter` and `mask` arguments of `Database.search()`](https://github.com/brightway-lca/brightway2-data/pull/275)
+* [#276: Raise a helpful `ValueError` when a method, weighting or normalization is missing in `prepare_lca_inputs`](https://github.com/brightway-lca/brightway2-data/pull/276)
+* [#278: `Activity.save()` warns and sets the default node type when `type` is not given](https://github.com/brightway-lca/brightway2-data/pull/278)
+* [#279: Skip coverage on Windows and macOS to speed up CI](https://github.com/brightway-lca/brightway2-data/pull/279)
+* [#280: Add `project_deleted` signal](https://github.com/brightway-lca/brightway2-data/pull/280)
+* [#282: Fix `KeyError` when deleting a newly saved activity that is used in calculation setups](https://github.com/brightway-lca/brightway2-data/pull/282)
+* [#283: `Database.copy()` copies database parameters, activity parameters and parameterized exchanges](https://github.com/brightway-lca/brightway2-data/pull/283)
+* [#285: Fix logging f-string formatting in `proxies.py`](https://github.com/brightway-lca/brightway2-data/pull/285)
+* [#286: Update links in the README](https://github.com/brightway-lca/brightway2-data/pull/286)
+* [#287: Add Code of Conduct link to `CONTRIBUTING.md`](https://github.com/brightway-lca/brightway2-data/pull/287)
 * [#289: Make the maximum parameter formula length configurable via `config.max_formula_length` (default 50,000 characters)](https://github.com/brightway-lca/brightway2-data/issues/289)
+* [#291: Check the installed `bw2io` version from package metadata before the automatic `migrations` filename update imports it, and raise `IncompatibleBW2IOVersion` with upgrade instructions for `bw2io<0.9`](https://github.com/brightway-lca/brightway2-data/issues/291)
+* [#293: Warn when temporal distribution amounts do not sum to 1](https://github.com/brightway-lca/brightway2-data/pull/293)
+* [#295: Require `deepdiff>=8.6.2`, keeping the existing parameter-rename revision format](https://github.com/brightway-lca/brightway2-data/pull/295)
+* [#296: Store `bw_temporalis` temporal distributions as JSON on every write path and restore them on load, independent of import order](https://github.com/brightway-lca/brightway2-data/issues/296)
+* [#298: Only `VACUUM` the LCI SQLite file when there is space to reclaim; add `config.vacuum` policy](https://github.com/brightway-lca/brightway2-data/pull/298)
+* [#301: Flag reference exchanges in processed technosphere datapackages](https://github.com/brightway-lca/brightway2-data/pull/301)
+
+### Dependency changes
+
+* `bw_processing>=1.6` (was `>=0.9.5`), for [#301](https://github.com/brightway-lca/brightway2-data/pull/301)
+* `deepdiff>=8.6.2` (was `~=7.0.1`), for [#295](https://github.com/brightway-lca/brightway2-data/pull/295)
+* New dependency: `packaging`, for [#291](https://github.com/brightway-lca/brightway2-data/issues/291)
 
 ## 4.7 (2026-05-13)
 
