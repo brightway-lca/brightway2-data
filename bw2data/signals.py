@@ -63,7 +63,8 @@ on_database_metadata_change = signal(
     doc="""Emitted *after* any database metadata has changed.
 
 Only sent when the current project is event sourced (`projects.dataset.is_sourced`); the
-signal exists to generate revisions, and building `old` re-reads the file from disk.
+signal exists to generate revisions, and building `old` and `new` re-reads every
+`DatabaseRecord` row.
 
 Expected inputs:
     * `old`: dict - previous full database metadata dict (all databases)

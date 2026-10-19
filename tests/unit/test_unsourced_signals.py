@@ -1,8 +1,8 @@
 """Revision signals are only sent when the project is event sourced.
 
 The senders skip both the signal and the work needed to build its arguments: the query for
-the previous version on `SignaledDataset.save`, and the re-read of the metadata file on
-`SerializedDict.flush`.
+the previous version on `SignaledDataset.save`, and the full-table `old`/`new` snapshots on
+each `databases` metadata write.
 """
 
 from unittest.mock import patch
@@ -70,23 +70,22 @@ def test_save_signal_false_still_skips_when_sourced():
 
 
 @bw2test
-def test_metadata_flush_skips_reread_and_signal_when_not_sourced():
+def test_metadata_write_skips_snapshots_and_signal_when_not_sourced():
     projects.set_current("plain")
     database = DatabaseChooser("db")
     database.register()
 
-    with patch.object(databases, "deserialize") as deserialize:
+    with patch.object(databases, "_as_dict") as as_dict:
         with patch.object(on_database_metadata_change, "send") as send:
             database.metadata["foo"] = True
-            databases.flush()
 
-    deserialize.assert_not_called()
+    as_dict.assert_not_called()
     send.assert_not_called()
-    assert databases.deserialize()["db"]["foo"] is True
+    assert databases["db"]["foo"] is True
 
 
 @bw2test
-def test_metadata_flush_sends_signal_and_writes_revision_when_sourced():
+def test_metadata_write_sends_signal_and_writes_revision_when_sourced():
     projects.set_current("plain")
     projects.dataset.set_sourced()
     database = DatabaseChooser("db")
@@ -97,7 +96,6 @@ def test_metadata_flush_sends_signal_and_writes_revision_when_sourced():
         on_database_metadata_change, "send", wraps=on_database_metadata_change.send
     ) as send:
         database.metadata["foo"] = True
-        databases.flush()
 
     send.assert_called_once()
     assert "foo" not in send.call_args.kwargs["old"]["db"]

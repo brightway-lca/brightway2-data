@@ -5,6 +5,7 @@
 ### Breaking changes
 
 * BREAKING CHANGE: [#312: Require Python 3.11 or later](https://github.com/brightway-lca/brightway2-data/pull/312)
+* BREAKING CHANGE: [#284: Replace the per-project `databases.json` file with a `DatabaseRecord` table in `lci/databases.db`](https://github.com/brightway-lca/brightway2-data/pull/284). `databases[name]` is now a dict-like proxy that persists each write immediately and emits `on_database_metadata_change` per write (one revision per change on event-sourced projects, instead of one per `flush()`). `databases.flush()` is a deprecated no-op. An existing `databases.json` is migrated on first access and left in place as a backup.
 
 ## 4.8 (2026-10-19)
 
