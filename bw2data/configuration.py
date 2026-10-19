@@ -1,6 +1,6 @@
 import platform
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from deprecated import deprecated
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -158,6 +158,10 @@ class Config(BaseSettings):
     cache: dict = {}
     metadata: list = []
     sqlite3_databases: list = []
+    # VACUUM policy for the LCI SQLite file, applied by ``Database.write()`` and
+    # ``Database.delete()``: None = only when a meaningful share of the file is free
+    # pages (``PRAGMA freelist_count``), True = always, False = never.
+    vacuum: Optional[bool] = None
     _windows: bool = platform.system() == "Windows"
 
     model_config = SettingsConfigDict(

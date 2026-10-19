@@ -804,6 +804,8 @@ class SQLiteBackend(ProcessedDataStore):
             if exchanges:
                 ExchangeDataset.insert_many(exchanges).execute()
             sqlite3_lci_db.db.commit()
+            # Honours ``config.vacuum``; by default only runs when the delete above
+            # freed a meaningful share of the (shared) LCI file.
             sqlite3_lci_db.vacuum()
         except:
             sqlite3_lci_db.db.rollback()
@@ -831,7 +833,13 @@ class SQLiteBackend(ProcessedDataStore):
                 ('database name', 'dataset code'): {dataset}
             }
 
-        Writing a database will first deletes all existing data."""
+        Writing a database first deletes all existing data for this database.
+
+        Afterwards the shared LCI SQLite file may be compacted with ``VACUUM``, which rewrites
+        the whole file and can be slow for large projects. By default this only happens when
+        the previous contents freed a meaningful share of the file; set ``config.vacuum`` to
+        ``True`` to always compact or ``False`` to never compact. See
+        ``bw2data.sqlite.SubstitutableDatabase.vacuum``."""
         from bw2data import projects
 
         if signal is None:
@@ -1032,7 +1040,12 @@ Here are the type values usually used for nodes:
     def delete(
         self, keep_params: bool = False, warn: bool = True, vacuum: bool = True, signal: bool = True
     ):
-        """Delete all data from SQLite database and search index"""
+        """Delete all data from SQLite database and search index.
+
+        ``keep_params`` keeps activity and database parameters for this database.
+        ``vacuum`` allows compacting the shared LCI SQLite file afterwards, subject to
+        ``config.vacuum`` (see ``bw2data.sqlite.SubstitutableDatabase.vacuum``). Pass
+        ``False`` when calling inside a transaction."""
         if warn:
             MESSAGE = """
             Please use `del databases['{}']` instead.
@@ -1041,10 +1054,16 @@ Here are the type values usually used for nodes:
             """
             warnings.warn(MESSAGE.format(self.name), UserWarning)
 
-        vacuum_needed = len(self) > 500 and vacuum
-
-        database_ids = {obj.id for obj in self}
-        database_keys = {obj.key for obj in self}
+        # Ignore ``self.filters``: ``delete()`` removes the whole database, so every node
+        # must be purged from the calculation setups.
+        database_ids, database_keys = set(), set()
+        for node_id, code in (
+            ActivityDataset.select(ActivityDataset.id, ActivityDataset.code)
+            .where(ActivityDataset.database == self.name)
+            .tuples()
+        ):
+            database_ids.add(node_id)
+            database_keys.add((self.name, code))
 
         def purge(dct: dict) -> dict:
             return {
@@ -1088,7 +1107,7 @@ Here are the type values usually used for nodes:
             ActivityParameter.delete().where(ActivityParameter.database == self.name).execute()
             DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
 
-        if vacuum_needed:
+        if vacuum:
             sqlite3_lci_db.vacuum()
 
         if signal:
