@@ -37,6 +37,7 @@ dependencies = [
     "fsspec",
     "lxml",
     "numpy<3",
+    "packaging",
     "peewee>=4.0.1",
     "pint",
     "platformdirs",

@@ -5,10 +5,13 @@ import re
 import shutil
 import sqlite3
 import warnings
+from importlib import metadata
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from bw_processing import safe_filename
+from packaging.requirements import Requirement
 from tqdm import tqdm
 
 from bw2data import (
@@ -24,12 +27,43 @@ from bw2data import (
     weightings,
 )
 from bw2data.backends import sqlite3_lci_db
+from bw2data.errors import IncompatibleBW2IOVersion
 from bw2data.logs import stdout_feedback_logger
 
 hash_re = re.compile("^[a-zA-Z0-9]{32}$")
 is_hash = lambda x: bool(hash_re.match(x))
 
 UPDATE_WARNING = "\n\nYour data needs to be updated.\n\n"
+
+# bw2io 0.8.x targets bw2data 3 and fails at import under bw2data 4; 0.9 is the
+# first release built for bw2data 4. Prereleases are allowed so that e.g. a
+# ``0.10rc1`` passes; note that the old ``0.9.devN`` builds sort below ``0.9``.
+BW2IO_REQUIREMENT = Requirement("bw2io>=0.9")
+
+
+def check_bw2io_version() -> Optional[str]:
+    """Return the installed ``bw2io`` version, or ``None`` if ``bw2io`` is not installed.
+
+    Reads the version from package metadata instead of importing ``bw2io``, because an
+    incompatible ``bw2io`` can fail at import time with an unhelpful error (see
+    https://github.com/brightway-lca/brightway2-data/issues/291).
+
+    Raises:
+        IncompatibleBW2IOVersion: if the installed version doesn't satisfy ``BW2IO_REQUIREMENT``.
+
+    """
+    try:
+        installed = metadata.version("bw2io")
+    except metadata.PackageNotFoundError:
+        return None
+    if not BW2IO_REQUIREMENT.specifier.contains(installed, prereleases=True):
+        raise IncompatibleBW2IOVersion(
+            f"bw2data 4 requires `{BW2IO_REQUIREMENT}`, but bw2io {installed} is installed. "
+            f'Upgrade with `pip install -U "{BW2IO_REQUIREMENT}"` (or the conda equivalent) '
+            "and then reopen the project."
+        )
+    return installed
+
 
 UPDATE_ACTIVITYDATASET = """
 BEGIN;
@@ -240,13 +274,13 @@ class Updates:
         """ "Fix migration data filenames to use shorter hash.
 
         See https://github.com/brightway-lca/brightway2-io/issues/115"""
-        try:
-            import bw2io as bi
-        except ImportError:
+        if check_bw2io_version() is None:
             stdout_feedback_logger.warning(
                 "`bw2io` not installed; not updating `migrations` filenames"
             )
             return
+
+        import bw2io as bi
 
         missing = []
         for name in bi.migrations:

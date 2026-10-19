@@ -110,3 +110,9 @@ class NoRevisionNeeded(BW2Exception):
     """No revision needed given the presented previous and current data"""
 
     pass
+
+
+class IncompatibleBW2IOVersion(BW2Exception):
+    """The installed ``bw2io`` version can't be used with this ``bw2data`` version"""
+
+    pass
