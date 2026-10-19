@@ -162,6 +162,8 @@ class Config(BaseSettings):
     # ``Database.delete()``: None = only when a meaningful share of the file is free
     # pages (``PRAGMA freelist_count``), True = always, False = never.
     vacuum: Optional[bool] = None
+    # Passed to ``asteval.Interpreter`` as ``max_statement_length``; asteval caps it at 1e8
+    max_formula_length: int = 50_000
     _windows: bool = platform.system() == "Windows"
 
     model_config = SettingsConfigDict(

@@ -15,8 +15,7 @@ import uuid
 from typing import Optional
 
 import asteval
-from asteval import Interpreter
-from bw2parameters import ParameterSet
+from bw2parameters import Interpreter, ParameterSet
 from bw2parameters.errors import MissingName
 from peewee import BooleanField, Check, DateTimeField, FloatField, IntegerField, Model, TextField
 
@@ -191,7 +190,7 @@ class ProjectParameter(ParameterBase):
         data = ProjectParameter.load()
         if not data:
             return
-        ParameterSet(data).evaluate_and_set_amount_field()
+        ParameterSet(data, interpreter=get_interpreter()).evaluate_and_set_amount_field()
         with parameters.db.atomic() as _:
             for key, value in data.items():
                 ProjectParameter.update(
@@ -388,7 +387,7 @@ class DatabaseParameter(ParameterBase):
             glo = None
 
         # Update database parameter values
-        ParameterSet(data, glo).evaluate_and_set_amount_field()
+        ParameterSet(data, glo, interpreter=get_interpreter()).evaluate_and_set_amount_field()
         with parameters.db.atomic():
             for key, value in data.items():
                 DatabaseParameter.update(
@@ -840,7 +839,7 @@ class ActivityParameter(ParameterBase):
         static = {
             k: v for k, v in ActivityParameter._static_dependencies(group).items() if k not in data
         }
-        ParameterSet(data, static).evaluate_and_set_amount_field()
+        ParameterSet(data, static, interpreter=get_interpreter()).evaluate_and_set_amount_field()
         with parameters.db.atomic():
             for key, value in data.items():
                 ActivityParameter.update(
@@ -863,7 +862,7 @@ class ActivityParameter(ParameterBase):
         if ActivityParameter.expired(group):
             return ActivityParameter.recalculate(group)
 
-        interpreter = Interpreter()
+        interpreter = get_interpreter()
         for k, v in ActivityParameter.static(group, full=True).items():
             interpreter.symtable[k] = v
         # TODO: Remove uncertainty from exchanges?
@@ -1634,8 +1633,13 @@ class ParameterManager:
 parameters = ParameterManager()
 
 
+def get_interpreter() -> Interpreter:
+    """Create a formula interpreter respecting ``config.max_formula_length``."""
+    return Interpreter(max_statement_length=config.max_formula_length)
+
+
 def get_new_symbols(data, context=None):
-    interpreter = asteval.Interpreter()
+    interpreter = get_interpreter()
     BUILTIN_SYMBOLS = set(interpreter.symtable).union(set(context or set()))
     found = set()
     for ds in data:
