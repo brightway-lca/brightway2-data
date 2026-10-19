@@ -73,9 +73,9 @@ class GeoMapping(PickledDict):
 class DatabaseRecordProxy(MutableMapping):
     """Dict-like view of a single :class:`~bw2data.backends.schema.DatabaseRecord` row.
 
-    Writes are immediately persisted to SQLite. Signals are NOT emitted by this
-    class — callers that need to signal a change should call
-    ``databases._emit(old_state)`` explicitly after mutating the proxy.
+    Writes are immediately persisted to SQLite, and each write emits
+    ``on_database_metadata_change`` unless the parent :class:`Databases` says not to
+    (see :meth:`Databases._should_signal`).
     """
 
     def __init__(self, row, parent):
@@ -100,8 +100,8 @@ class DatabaseRecordProxy(MutableMapping):
         raise KeyError(key)
 
     def __setitem__(self, key, value):
-        suppress = self._parent._suppress_signals
-        old = None if suppress else self._parent._as_dict()
+        signal = self._parent._should_signal()
+        old = self._parent._as_dict() if signal else None
         if key in _KNOWN_FIELDS:
             setattr(self._row, key, value)
         else:
@@ -109,12 +109,12 @@ class DatabaseRecordProxy(MutableMapping):
             extra[key] = value
             self._row.extra = extra
         self._row.save()
-        if not suppress:
+        if signal:
             self._parent._emit(old)
 
     def __delitem__(self, key):
-        suppress = self._parent._suppress_signals
-        old = None if suppress else self._parent._as_dict()
+        signal = self._parent._should_signal()
+        old = self._parent._as_dict() if signal else None
         if key in _KNOWN_FIELDS:
             setattr(self._row, key, None)
         else:
@@ -124,7 +124,7 @@ class DatabaseRecordProxy(MutableMapping):
             del extra[key]
             self._row.extra = extra
         self._row.save()
-        if not suppress:
+        if signal:
             self._parent._emit(old)
 
     def __iter__(self):
@@ -184,11 +184,13 @@ class Databases(MutableMapping):
         self._ensure_migrated()
         from bw2data.backends.schema import DatabaseRecord
 
-        old = self._as_dict()
+        signal = self._should_signal()
+        old = self._as_dict() if signal else None
         value = dict(value)  # copy to avoid mutating caller's dict
         known = {k: value.pop(k) for k in list(value) if k in _KNOWN_FIELDS}
         DatabaseRecord.replace(name=name, extra=value or None, **known).execute()
-        self._emit(old)
+        if signal:
+            self._emit(old)
 
     def __delitem__(self, name: str, signal: bool = True):
         from bw2data import Database
@@ -331,13 +333,27 @@ Metadata state is unchanged, but database state is unknown.
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _should_signal(self) -> bool:
+        """Whether a write should build ``old``/``new`` snapshots and emit
+        ``on_database_metadata_change``.
+
+        The signal only feeds revision generation, which is skipped on unsourced projects, so
+        don't pay for two full-table snapshots per write in that case (see #299)."""
+        from bw2data.project import projects
+
+        return not self._suppress_signals and projects.dataset.is_sourced
+
     def _emit(self, old):
         """Emit on_database_metadata_change with the given old state and current new state."""
         on_database_metadata_change.send(self, old=old, new=self._as_dict())
 
     def _as_dict(self):
         """Reconstruct a plain dict of all metadata (used for signal old/new payloads)."""
-        return {name: dict(self[name]) for name in self}
+        from bw2data.backends.schema import DatabaseRecord
+
+        return {
+            row.name: dict(DatabaseRecordProxy(row, self)) for row in DatabaseRecord.select()
+        }
 
     @property
     def data(self):
