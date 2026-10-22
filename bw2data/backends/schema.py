@@ -1,4 +1,6 @@
-from peewee import DoesNotExist, TextField
+from contextlib import closing
+
+from peewee import DoesNotExist, TextField, __exception_wrapper__
 
 from bw2data.errors import UnknownObject
 from bw2data.signals import (
@@ -88,3 +90,27 @@ on_database_write.connect(_remove_database_from_get_id_cache)
 signaleddataset_on_delete.connect(_remove_activity_from_get_id_cache)
 on_activity_database_change.connect(_remove_changed_activity_key_from_get_id_cache)
 on_activity_code_change.connect(_remove_changed_activity_key_from_get_id_cache)
+
+
+def _insert_many(model, rows: list) -> None:
+    """Insert ``rows`` with one raw ``executemany``, much faster than ``model.insert_many``.
+
+    ``rows`` are dicts from ``dict_as_activitydataset`` or ``dict_as_exchangedataset``, all
+    with the same keys. Each value goes through its field's ``db_value``, as in
+    ``insert_many``. Must be called within a transaction.
+    """
+    if not rows:
+        return
+    fields = [model._meta.fields[name] for name in rows[0]]
+    sql = 'INSERT INTO "{}" ({}) VALUES ({})'.format(
+        model._meta.table_name,
+        ", ".join(f'"{field.column_name}"' for field in fields),
+        ", ".join("?" * len(fields)),
+    )
+    converters = [(field.name, field.db_value) for field in fields]
+    # The wrapper raises peewee's exceptions, as ``execute_sql`` does; ``closing`` frees the
+    # cursor straight away instead of at garbage collection.
+    with __exception_wrapper__, closing(model._meta.database.cursor()) as cursor:
+        cursor.executemany(
+            sql, ([convert(row[name]) for name, convert in converters] for row in rows)
+        )
