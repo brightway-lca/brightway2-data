@@ -259,6 +259,9 @@ class SQLiteBackend(ProcessedDataStore):
 
         Internal links within the database will be updated to match the new database name, i.e. ``("old name", "some id")`` will be converted to ``("new name", "some id")`` for all exchanges.
 
+        Emits ``on_database_write`` for the new database, including in projects that are not
+        event sourced.
+
         Args:
             * *name* (str): Name of the new database. Must not already exist.
 
@@ -272,7 +275,7 @@ class SQLiteBackend(ProcessedDataStore):
             metadata["format"] = f"Copied from '{self.name}'"
             new_database.register(**metadata)
 
-        new_database.write(data, searchable=databases[name].get("searchable"))
+        new_database.write(data, searchable=databases[name].get("searchable"), signal=True)
         self._copy_parameters(name)
         return new_database
 
