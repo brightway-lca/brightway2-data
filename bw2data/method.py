@@ -5,6 +5,7 @@ from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import get_id
 from bw2data.errors import UnknownObject
 from bw2data.ia_data_store import ImpactAssessmentDataStore
+from bw2data.signals import on_method_delete, on_method_write
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node
 from bw2data.validate import ia_validator
 
@@ -92,7 +93,7 @@ class Method(ImpactAssessmentDataStore):
                     )
                 )
 
-    def write(self, data, process=True):
+    def write(self, data, process=True, signal=True):
         """Serialize intermediate data to disk.
 
         Sets the metadata key ``num_cfs`` automatically."""
@@ -124,6 +125,14 @@ class Method(ImpactAssessmentDataStore):
         self.metadata["geocollections"] = sorted(geocollections)
         super(Method, self).write(data, process=process)
         methods.flush()
+        if signal:
+            on_method_write.send(self, name=self.name)
+
+    def delete(self, signal: bool = True, **kwargs):
+        """Delete intermediate and processed data files and deregister this method."""
+        super().delete(signal=False)
+        if signal:
+            on_method_delete.send(self, name=self.name)
 
     def process(self, **extra_metadata):
         try:

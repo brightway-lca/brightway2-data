@@ -157,13 +157,7 @@ class ProcessedDataStore(DataStore):
         pass
 
     @abstractmethod
-    def delete(
-        self,
-        keep_params: bool = False,
-        warn: bool = True,
-        vacuum: bool = True,
-        signal: bool = True,
-    ):
+    def delete(self, signal: bool = True, **kwargs):
         pass
 
     def dirpath_processed(self):
