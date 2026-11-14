@@ -128,11 +128,14 @@ class SerializedDict(MutableMapping):
         self.serialize(signal=signal)
 
     def _send_save_signal(self, signal: bool) -> bool:
-        """Whether `serialize` should build `old`/`new` snapshots and send `_save_signal`.
+        """Whether `serialize` should send `_save_signal` after writing.
 
-        The save signal only feeds revision generation, which is skipped on unsourced projects,
-        so don't re-read the file from disk or deep copy the data in that case."""
-        return bool(signal and hasattr(self, "_save_signal") and projects.dataset.is_sourced)
+        Sent for both sourced and unsourced projects when ``signal=True``. Expensive
+        ``old``/``new`` snapshots are built only when the project is event sourced
+        (see ``serialize``); revision ``signal_dispatcher`` returns before
+        ``generate_delta`` when not sourced.
+        """
+        return bool(signal and hasattr(self, "_save_signal"))
 
     @property
     def list(self):
@@ -198,8 +201,11 @@ class SerializedDict(MutableMapping):
             * *filepath* (str, optional): Provide an alternate filepath (e.g. for backup).
 
         """
-        signal = self._send_save_signal(signal)
-        if signal:
+        emit = self._send_save_signal(signal)
+        # Snapshots (re-read + deepcopy) only needed for revision generation.
+        snapshot = emit and bool(projects.dataset.is_sourced)
+        previous = None
+        if snapshot:
             try:
                 previous = self.deserialize()
             except IOError:
@@ -208,8 +214,9 @@ class SerializedDict(MutableMapping):
         with atomic_open(filepath or self.filepath, "w") as f:
             f.write(JsonWrapper.dumps(self.pack(self.data)))
 
-        if signal:
-            self._save_signal.send(self, old=previous, new=deepcopy(self.data))
+        if emit:
+            new = deepcopy(self.data) if snapshot else self.data
+            self._save_signal.send(self, old=previous, new=new)
 
     def deserialize(self):
         """Load the serialized data. Can be replaced with other serialization formats."""
@@ -240,15 +247,16 @@ class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
 
     def serialize(self, signal: bool = True):
-        signal = self._send_save_signal(signal)
-        if signal:
-            previous = self.deserialize()
+        emit = self._send_save_signal(signal)
+        snapshot = emit and bool(projects.dataset.is_sourced)
+        previous = self.deserialize() if snapshot else None
 
         with atomic_open(self.filepath, "wb") as f:
             pickle.dump(self.pack(self.data), f, protocol=4)
 
-        if signal:
-            self._save_signal.send(self, old=previous, new=deepcopy(self.data))
+        if emit:
+            new = deepcopy(self.data) if snapshot else self.data
+            self._save_signal.send(self, old=previous, new=new)
 
     def deserialize(self):
         try:

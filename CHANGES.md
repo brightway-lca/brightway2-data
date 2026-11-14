@@ -6,6 +6,10 @@
 
 * BREAKING CHANGE: [#312: Require Python 3.11 or later](https://github.com/brightway-lca/brightway2-data/pull/312)
 
+### Changes
+
+* [#311](https://github.com/brightway-lca/brightway2-data/pull/311): Emit `signaleddataset_on_save` and SerializedDict/PickledDict `_save_signal` (`on_database_metadata_change`, and any other `_save_signal` listeners) again on unsourced projects when `signal=True`, while still skipping the previous-version / metadata re-read / deep-copy work and DeepDiff revision generation. `#299` gated the whole send on `is_sourced` for import performance; that broke listeners such as Activity Browser that use these signals for UI/metadata updates (not revisions). `old` is `None` when unsourced; `signal_dispatcher` returns early before `generate_delta`.
+
 ## 4.8 (2026-10-19)
 
 ### Breaking changes
