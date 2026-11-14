@@ -9,15 +9,16 @@ except ImportError:
 
 signaleddataset_on_save = signal(
     "bw2data.signaleddataset_on_save",
-    doc="""Emitted *after* SignaledDataset is saved.
+    doc="""Emitted *after* SignaledDataset is saved (when ``signal=True``).
 
-Only sent when the current project is event sourced (`projects.dataset.is_sourced`); the
-signal exists to generate revisions, and looking up the previous version costs one query per
-save.
+Sent for both sourced and unsourced projects. Looking up the previous row costs one
+query per save, so ``old`` is only loaded when ``projects.dataset.is_sourced`` is true;
+otherwise ``old`` is ``None``. Revision generation still no-ops on unsourced projects
+(``ProjectDataset.add_revision`` / ``signal_dispatcher``).
 
 Expected inputs:
-    * `old`: dict - the previous version of the dataset
-    * `new`: dict - the new version of the dataset
+    * `old`: previous dataset row, or ``None`` when the project is not event sourced
+    * `new`: the saved dataset row
 
 No expected return value.
 """,
@@ -265,12 +266,13 @@ class SignaledDataset(Model):
         """Receives a mapper to convert the data to the expected dictionary format"""
         from bw2data import projects
 
-        # `signaleddataset_on_save` only feeds revision generation, which is skipped on
-        # unsourced projects. Don't pay for the extra query to fetch the previous version.
-        signal = signal and projects.dataset.is_sourced
-        old = type(self).get_or_none(type(self).id == self.id) if signal else None
+        # Always notify listeners when signal=True. Skip the previous-version query on
+        # unsourced projects (revisions are skipped anyway); old=None in that case.
+        emit = bool(signal)
+        fetch_old = emit and bool(projects.dataset.is_sourced)
+        old = type(self).get_or_none(type(self).id == self.id) if fetch_old else None
         super().save(*args, **kwargs)
-        if signal:
+        if emit:
             signaleddataset_on_save.send(
                 self,
                 old=old,

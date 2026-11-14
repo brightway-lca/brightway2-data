@@ -1,5 +1,11 @@
 # `bw2data` Changelog
 
+## Unreleased
+
+### Changes
+
+* Emit `signaleddataset_on_save` again on unsourced projects when `signal=True`, while still skipping the previous-version query and DeepDiff revision work. `#299` gated the whole send on `is_sourced` for import performance; that broke listeners such as Activity Browser that use the signal for UI/metadata updates (not revisions). `old` is `None` when unsourced; `signal_dispatcher` returns early before `generate_delta`.
+
 ## 4.8 (2026-10-19)
 
 ### Breaking changes
