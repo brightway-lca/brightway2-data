@@ -846,7 +846,7 @@ class SQLiteBackend(ProcessedDataStore):
             signal = projects.dataset.is_sourced
 
         def merger(d1: dict, d2: dict) -> dict:
-            """The joys of 3.9 compatibility"""
+            """Merge ``d2`` into ``d1`` in place, avoiding a copy of each dataset."""
             d1.update(d2)
             return d1
 
