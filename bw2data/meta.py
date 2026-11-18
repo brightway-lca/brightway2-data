@@ -99,33 +99,39 @@ class DatabaseRecordProxy(MutableMapping):
             return extra[key]
         raise KeyError(key)
 
-    def __setitem__(self, key, value):
+    def _write(self, key, value, delete=False):
+        """Persist a single key without overwriting other columns.
+
+        This proxy's ``_row`` may be stale if the same record was changed through another
+        proxy or a ``Databases`` method, so only the touched column is written. For
+        user-defined keys, ``extra`` is re-read from the database and merged."""
+        from bw2data.backends.schema import DatabaseRecord
+
         signal = self._parent._should_signal()
         old = self._parent._as_dict() if signal else None
+        where = DatabaseRecord.name == self._row.name
         if key in _KNOWN_FIELDS:
-            setattr(self._row, key, value)
+            column, new = key, (None if delete else value)
         else:
-            extra = dict(self._row.extra or {})
-            extra[key] = value
-            self._row.extra = extra
-        self._row.save()
+            current = DatabaseRecord.select(DatabaseRecord.extra).where(where).scalar()
+            extra = dict(current or {})
+            if delete:
+                if key not in extra:
+                    raise KeyError(key)
+                del extra[key]
+            else:
+                extra[key] = value
+            column, new = "extra", (extra or None)
+        DatabaseRecord.update({getattr(DatabaseRecord, column): new}).where(where).execute()
+        setattr(self._row, column, new)
         if signal:
             self._parent._emit(old)
 
+    def __setitem__(self, key, value):
+        self._write(key, value)
+
     def __delitem__(self, key):
-        signal = self._parent._should_signal()
-        old = self._parent._as_dict() if signal else None
-        if key in _KNOWN_FIELDS:
-            setattr(self._row, key, None)
-        else:
-            extra = dict(self._row.extra or {})
-            if key not in extra:
-                raise KeyError(key)
-            del extra[key]
-            self._row.extra = extra
-        self._row.save()
-        if signal:
-            self._parent._emit(old)
+        self._write(key, None, delete=True)
 
     def __iter__(self):
         return iter(self._all_fields())
