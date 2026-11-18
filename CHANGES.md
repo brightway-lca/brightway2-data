@@ -1,5 +1,11 @@
 # `bw2data` Changelog
 
+## Unreleased
+
+### Breaking changes
+
+* BREAKING CHANGE: [#312: Require Python 3.11 or later](https://github.com/brightway-lca/brightway2-data/pull/312)
+
 ## 4.8 (2026-10-19)
 
 ### Breaking changes
