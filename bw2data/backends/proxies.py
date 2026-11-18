@@ -1,13 +1,7 @@
-import sys
 import uuid
 import warnings
 from collections.abc import Iterable
-from typing import Callable, List, Optional
-
-if sys.version_info < (3, 11):
-    from typing_extensions import Self
-else:
-    from typing import Self
+from typing import Callable, List, Optional, Self, TypeAlias
 
 import pandas as pd
 
@@ -32,11 +26,6 @@ from bw2data.logs import stdout_feedback_logger
 from bw2data.proxies import ActivityProxyBase, ExchangeProxyBase
 from bw2data.search import IndexManager
 from bw2data.signals import on_activity_code_change, on_activity_database_change
-
-if sys.version_info < (3, 10):
-    from typing_extensions import TypeAlias
-else:
-    from typing import TypeAlias
 
 
 class Exchanges(Iterable):
