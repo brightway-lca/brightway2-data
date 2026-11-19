@@ -102,6 +102,22 @@ def test_invalid_keys_rejected(key):
 
 
 @bw2test
+def test_activity_with_invalid_location_not_saved():
+    from bw2data import Database
+    from bw2data.backends import ActivityDataset
+
+    Database("db").register()
+    node = Database("db").new_node(code="a", name="a", location=("world", 5), type="process")
+    with pytest.raises(ValueError):
+        node.save()
+    assert not ActivityDataset.select().where(ActivityDataset.code == "a").exists()
+
+    node["location"] = ("world", "5")
+    node.save()
+    assert ("world", "5") in geomapping
+
+
+@bw2test
 def test_setitem_not_allowed():
     with pytest.raises(NotImplementedError):
         geomapping["foo"] = 7

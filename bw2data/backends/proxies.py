@@ -319,10 +319,11 @@ class Activity(ActivityProxyBase):
         -----
         The method performs the following operations:
         - Checks if the activity is valid.
+        - Adds the location to ``geomapping`` if needed; raises ``ValueError`` for an invalid
+          location, before anything is written.
         - Marks the database as 'dirty', indicating changes.
         - Checks for type and key validity of the activity.
         - Updates the activity's associated document in the database.
-        - Updates the geographical mapping if needed.
         - Updates the index if the database is searchable.
 
         Examples
@@ -339,6 +340,10 @@ class Activity(ActivityProxyBase):
                 + "following reasons\n\t* "
                 + "\n\t* ".join(self.valid(why=True)[1])
             )
+
+        if self.get("location"):
+            # Before writing anything: raises ``ValueError`` for an invalid location
+            geomapping.add([self["location"]])
 
         databases.set_dirty(self["database"])
 
@@ -360,9 +365,6 @@ class Activity(ActivityProxyBase):
                     setattr(self._document, key, value)
 
         self._document.save(signal=signal, force_insert=force_insert)
-
-        if self.get("location") and self["location"] not in geomapping:
-            geomapping.add([self["location"]])
 
         if databases[self["database"]].get("searchable", True):
             IndexManager(Database(self["database"]).filename).update_dataset(self._data)
