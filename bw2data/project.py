@@ -689,6 +689,10 @@ def signal_dispatcher(
     sender, old: Optional[Any] = None, new: Optional[Any] = None, operation: Optional[str] = None
 ) -> Union[int, None]:
     """Not sure why this is necessary, but fails silently if call `add_revision` directly"""
+    # Skip DeepDiff work on unsourced projects; add_revision would discard it anyway.
+    if not projects.dataset.is_sourced:
+        return None
+
     from bw2data import revisions
 
     delta = revisions.generate_delta(old, new, operation)
