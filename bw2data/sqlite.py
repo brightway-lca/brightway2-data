@@ -16,13 +16,14 @@ class PickleField(BlobField):
 
 
 class SubstitutableDatabase:
-    def __init__(self, filepath, tables):
+    def __init__(self, filepath, tables, pragmas=None):
         self._filepath = filepath
         self._tables = tables
+        self._pragmas = pragmas or {}
         self._database = self._create_database()
 
     def _create_database(self):
-        db = SqliteDatabase(self._filepath)
+        db = SqliteDatabase(self._filepath, pragmas=self._pragmas)
         for model in self._tables:
             model.bind(db, bind_refs=False, bind_backrefs=False)
         db.connect()

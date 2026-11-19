@@ -1,7 +1,10 @@
 import copy
 import datetime
+import pickle
 import warnings
-from collections.abc import MutableMapping
+from collections.abc import Mapping, MutableMapping
+
+from peewee import JOIN
 
 from bw2data.serialization import CompoundJSONDict, PickledDict
 from bw2data.signals import on_database_delete, on_database_metadata_change
@@ -21,54 +24,378 @@ _KNOWN_FIELDS = frozenset(
 )
 
 
-class GeoMapping(PickledDict):
-    """A dictionary that maps location codes to integers. Needed because parameter arrays have integer ``geo`` fields.
+#: Rows per query, to stay well under SQLite's limit on bound variables
+_CHUNK = 300
 
-    File data is stored in ``geomapping.pickle``.
 
-    This dictionary does not support setting items directly; instead, use the ``add`` method to add multiple keys.
+def _chunks(items, size=_CHUNK):
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
+
+
+def _write_transaction(model):
+    """Transaction which takes the SQLite write lock immediately.
+
+    A default (deferred) transaction which reads before writing can fail at once with
+    "database is locked" when another process holds a read lock and also wants to write;
+    taking the write lock first makes concurrent writers wait for each other instead."""
+    return model._meta.database.atomic("IMMEDIATE")
+
+
+def _canonical_geo_key(key):
+    """Return ``key`` as a hashable geomapping key, or raise ``ValueError``.
+
+    Valid keys are a non-empty string (a location without a geocollection, e.g. ``"CH"``), or a
+    pair of non-empty strings ``(geocollection, feature id)``, e.g. ``("world", "CH")``. A
+    list pair is accepted and returned as a tuple."""
+    if isinstance(key, str):
+        if key:
+            return key
+    elif isinstance(key, (tuple, list)) and len(key) == 2:
+        collection, location = key
+        if isinstance(collection, str) and isinstance(location, str) and collection and location:
+            return (collection, location)
+    raise ValueError(
+        f"Invalid geomapping key {key!r}: must be a location string, or a "
+        "`(geocollection, feature id)` tuple of two strings"
+    )
+
+
+def _split_geo_key(key):
+    """Split a canonical key into ``(geocollection name or None, location)``."""
+    return key if isinstance(key, tuple) else (None, key)
+
+
+def _join_geo_key(collection, location):
+    return location if collection is None else (collection, location)
+
+
+class GeoMapping(Mapping):
+    """Mapping from locations to integers, used in processed datapackages (e.g. as matrix
+    ``col`` indices for regionalized characterization factors).
+
+    Stored in the ``Geocollection`` and ``GeoMappingRecord`` tables in the per-project
+    ``lci/databases.db``. Previously stored in ``geomapping.pickle``; that file is migrated
+    automatically on first access, keeping existing ids, and left in place as a backup.
+
+    Keys are either a location string (``"CH"``), or a ``(geocollection, feature id)`` tuple of
+    two strings (``("world", "CH")``). Use ``add`` to add keys; ids are assigned by SQLite, so
+    concurrent adds from several processes can't collide, and ids are never reused after a
+    key is deleted. ``"GLO"`` and ``config.global_location`` are always present.
     """
 
+    #: Legacy storage file, migrated on first access
     filename = "geomapping.pickle"
 
-    def __init__(self, *args, **kwargs):
-        super(GeoMapping, self).__init__(*args, **kwargs)
-        # At a minimum, "GLO" should always be present
-        if "GLO" not in self:
-            self.add(["GLO"])
+    def __init__(self):
+        # No database access here: on a project switch, metadata objects are reset before the
+        # SQLite files are switched to the new project.
+        self._ready = False
+        # A key is never reassigned to a different id, so cached ids stay correct. Misses fall
+        # through to SQLite, to find keys added by other processes.
+        self._cache = {}
 
-    def add(self, keys):
-        """Add a set of keys. These keys can already be in the mapping; only new keys will be added.
+    # ------------------------------------------------------------------
+    # Mapping interface
+    # ------------------------------------------------------------------
 
-        Args:
-            * *keys* (list): The keys to add.
+    def __getitem__(self, key):
+        key = _canonical_geo_key(key)
+        self._ensure_ready()
+        try:
+            return self._cache[key]
+        except KeyError:
+            pass
+        found = self._fetch([key])
+        if key not in found:
+            raise KeyError(key)
+        return found[key]
 
-        """
-        index = max(self.data.values()) if self.data else 0
-        for i, key in enumerate(keys):
-            if key not in self.data:
-                self.data[key] = index + i + 1
-        self.flush()
+    def __contains__(self, key):
+        try:
+            self[key]
+        except KeyError:
+            return False
+        return True
 
-    def delete(self, keys):
-        """Delete a set of keys.
-
-        Args:
-            *keys* (list): The keys to delete.
-
-        """
-        for key in keys:
-            del self.data[key]
-        self.flush()
-
-    def __setitem__(self, key, value):
-        raise NotImplementedError
-
-    def __str__(self):
-        return "Mapping from databases and methods to parameter indices."
+    def __iter__(self):
+        return iter(self._load_all())
 
     def __len__(self):
-        return len(self.data)
+        self._ensure_ready()
+        from bw2data.backends.schema import GeoMappingRecord
+
+        return GeoMappingRecord.select().count()
+
+    def items(self):
+        return self._load_all().items()
+
+    def keys(self):
+        return self._load_all().keys()
+
+    def values(self):
+        return self._load_all().values()
+
+    def __setitem__(self, key, value):
+        raise NotImplementedError("Use `geomapping.add()`; ids are assigned automatically")
+
+    def __delitem__(self, key):
+        key = _canonical_geo_key(key)
+        if key not in self:
+            raise KeyError(key)
+        self.delete([key])
+
+    def __str__(self):
+        return f"Mapping from locations to integer ids, with {len(self)} locations"
+
+    __repr__ = __str__
+
+    # ------------------------------------------------------------------
+    # Public methods
+    # ------------------------------------------------------------------
+
+    def add(self, keys):
+        """Add locations. Keys already present are ignored. Geocollections named in the keys
+        are created if needed.
+
+        Args:
+            * *keys* (iterable): The keys to add.
+
+        """
+        from bw2data.backends.schema import GeoMappingRecord, Geocollection
+
+        keys = list(dict.fromkeys(_canonical_geo_key(key) for key in keys))
+        self._ensure_ready()
+        missing = [key for key in keys if key not in self._cache]
+        if not missing:
+            return
+
+        with _write_transaction(GeoMappingRecord):
+            # Another process may have added some of these since our cache was filled
+            found = self._fetch(missing)
+            missing = [key for key in missing if key not in found]
+            if not missing:
+                return
+            names = sorted({key[0] for key in missing if isinstance(key, tuple)})
+            if names:
+                Geocollection.insert_many(
+                    [{"name": name} for name in names]
+                ).on_conflict_ignore().execute()
+            collection_ids = self._collection_ids(names)
+            rows = [
+                {"geocollection": collection_ids.get(collection), "location": location}
+                for collection, location in map(_split_geo_key, missing)
+            ]
+            for batch in _chunks(rows):
+                GeoMappingRecord.insert_many(batch).on_conflict_ignore().execute()
+            self._fetch(missing)
+
+    def delete(self, keys):
+        """Delete locations. Their ids are not reused. Keys not present are ignored.
+
+        Args:
+            *keys* (iterable): The keys to delete.
+
+        """
+        from bw2data.backends.schema import GeoMappingRecord
+
+        keys = [_canonical_geo_key(key) for key in keys]
+        self._ensure_ready()
+        ids = list(self._fetch(keys).values())
+        with _write_transaction(GeoMappingRecord):
+            for batch in _chunks(ids):
+                GeoMappingRecord.delete().where(GeoMappingRecord.id.in_(batch)).execute()
+        for key in keys:
+            self._cache.pop(key, None)
+
+    def collections(self):
+        """Sorted names of all geocollections."""
+        self._ensure_ready()
+        from bw2data.backends.schema import Geocollection
+
+        return sorted(row.name for row in Geocollection.select(Geocollection.name))
+
+    def locations(self, collection=None):
+        """Keys and ids of the locations in ``collection``, or of the locations without a
+        geocollection if ``collection`` is ``None``."""
+        self._ensure_ready()
+        from bw2data.backends.schema import GeoMappingRecord, Geocollection
+
+        query = GeoMappingRecord.select(GeoMappingRecord.id, GeoMappingRecord.location)
+        if collection is None:
+            query = query.where(GeoMappingRecord.geocollection.is_null())
+        else:
+            query = query.join(Geocollection).where(Geocollection.name == collection)
+        result = {_join_geo_key(collection, location): id_ for id_, location in query.tuples()}
+        self._cache.update(result)
+        return result
+
+    @property
+    def data(self):
+        """All locations and their ids, as a plain dict."""
+        return dict(self._load_all())
+
+    def flush(self):
+        """Deprecated. Changes are saved immediately."""
+        warnings.warn(
+            "`geomapping.flush()` is deprecated and does nothing; changes are saved immediately.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _collection_ids(self, names):
+        from bw2data.backends.schema import Geocollection
+
+        names = list(names)
+        if not names:
+            return {}
+        return {
+            name: id_
+            for id_, name in Geocollection.select(Geocollection.id, Geocollection.name)
+            .where(Geocollection.name.in_(names))
+            .tuples()
+        }
+
+    def _fetch(self, keys):
+        """Look up canonical ``keys`` in SQLite and update the cache. Returns the ids found."""
+        from bw2data.backends.schema import GeoMappingRecord
+
+        by_collection = {}
+        for collection, location in map(_split_geo_key, keys):
+            by_collection.setdefault(collection, []).append(location)
+        collection_ids = self._collection_ids(c for c in by_collection if c is not None)
+
+        found = {}
+        for collection, locations in by_collection.items():
+            if collection is None:
+                condition = GeoMappingRecord.geocollection.is_null()
+            elif collection in collection_ids:
+                condition = GeoMappingRecord.geocollection == collection_ids[collection]
+            else:
+                continue
+            for batch in _chunks(locations):
+                query = GeoMappingRecord.select(
+                    GeoMappingRecord.id, GeoMappingRecord.location
+                ).where(condition & GeoMappingRecord.location.in_(batch))
+                for id_, location in query.tuples():
+                    found[_join_geo_key(collection, location)] = id_
+        self._cache.update(found)
+        return found
+
+    def _load_all(self):
+        """Read all locations from SQLite, replace the cache with them, and return it."""
+        self._ensure_ready()
+        from bw2data.backends.schema import GeoMappingRecord, Geocollection
+
+        query = (
+            GeoMappingRecord.select(
+                GeoMappingRecord.id, GeoMappingRecord.location, Geocollection.name
+            )
+            .join(Geocollection, JOIN.LEFT_OUTER)
+            .order_by(GeoMappingRecord.id)
+        )
+        self._cache = {
+            _join_geo_key(name, location): id_ for id_, location, name in query.tuples()
+        }
+        return self._cache
+
+    def _ensure_ready(self):
+        if self._ready:
+            return
+        self._migrate_from_pickle()
+        self._ready = True
+        from bw2data.configuration import config
+
+        self.add(["GLO", config.global_location])
+
+    def _migrate_from_pickle(self):
+        """One-time migration from ``geomapping.pickle``, keeping existing ids.
+
+        Integer feature ids in ``(geocollection, feature id)`` keys are converted to strings.
+        Raises ``ValueError`` without changing anything if the file has keys or ids which
+        can't be migrated."""
+        from bw2data.backends.schema import GeoMappingRecord, Geocollection
+        from bw2data.project import projects
+
+        path = projects.dir / self.filename
+        if not path.is_file() or GeoMappingRecord.select().exists():
+            return
+
+        try:
+            with open(path, "rb") as f:
+                legacy = pickle.load(f)
+            legacy = dict(legacy)
+        except Exception as err:
+            warnings.warn(
+                f"Can't read {path} ({err}); starting with an empty geomapping. Processed "
+                "datapackages which use the old location ids must be processed again.",
+                stacklevel=3,
+            )
+            return
+
+        rows, converted, invalid = {}, 0, []
+        for key, id_ in legacy.items():
+            if (
+                isinstance(key, tuple)
+                and len(key) == 2
+                and isinstance(key[0], str)
+                and isinstance(key[1], int)
+                and not isinstance(key[1], bool)
+            ):
+                key = (key[0], str(key[1]))
+                converted += 1
+            try:
+                key = _canonical_geo_key(key)
+            except ValueError:
+                invalid.append(key)
+                continue
+            if not isinstance(id_, int) or isinstance(id_, bool) or id_ < 1:
+                invalid.append(key)
+            elif key in rows:
+                raise ValueError(
+                    f"Can't migrate {path}: key {key!r} appears more than once after "
+                    "converting integer feature ids to strings. Fix the file and try again."
+                )
+            else:
+                rows[key] = id_
+        if invalid:
+            raise ValueError(
+                f"Can't migrate {path}: invalid keys or ids for {invalid[:20]!r}. Keys must "
+                "be a location string or a `(geocollection, feature id)` tuple of two strings, "
+                "and ids must be positive integers. Fix the file and try again."
+            )
+        if len(set(rows.values())) != len(rows):
+            raise ValueError(f"Can't migrate {path}: the same id is used for several keys.")
+
+        message = (
+            f"Migrating {path} to SQLite (one-time operation). "
+            "The original file is kept as a backup."
+        )
+        if converted:
+            message += f" Converted {converted} integer feature ids to strings."
+        warnings.warn(message, stacklevel=3)
+
+        with _write_transaction(GeoMappingRecord):
+            names = sorted({key[0] for key in rows if isinstance(key, tuple)})
+            if names:
+                Geocollection.insert_many([{"name": name} for name in names]).execute()
+            collection_ids = self._collection_ids(names)
+            records = []
+            for key, id_ in rows.items():
+                collection, location = _split_geo_key(key)
+                records.append(
+                    {
+                        "id": id_,
+                        "geocollection": collection_ids.get(collection),
+                        "location": location,
+                    }
+                )
+            for batch in _chunks(records):
+                GeoMappingRecord.insert_many(batch).execute()
 
 
 def _row_as_dict(row) -> dict:
