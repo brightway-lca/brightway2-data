@@ -109,6 +109,7 @@ class IOTableBackend(SQLiteBackend):
 
         databases[self.name]["depends"] = sorted(set(dependents).difference({self.name}))
         databases[self.name]["processed"] = datetime.datetime.now().isoformat()
+        databases[self.name].save()
 
     def process(self):
         """No-op; no intermediate data to process"""

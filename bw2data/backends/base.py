@@ -1027,20 +1027,14 @@ Here are the type values usually used for nodes:
         if self._searchable and not reset:
             stdout_feedback_logger.info("This database is already searchable")
             return
-        databases._suppress_signals = not signal
-        try:
-            databases[self.name]["searchable"] = True
-        finally:
-            databases._suppress_signals = False
+        databases[self.name]["searchable"] = True
+        databases[self.name].save(signal=signal)
         IndexManager(self.filename).create()
         IndexManager(self.filename).add_datasets(self)
 
     def make_unsearchable(self, signal: bool = True):
-        databases._suppress_signals = not signal
-        try:
-            databases[self.name]["searchable"] = False
-        finally:
-            databases._suppress_signals = False
+        databases[self.name]["searchable"] = False
+        databases[self.name].save(signal=signal)
         IndexManager(self.filename).delete_database()
 
     def delete(
@@ -1306,6 +1300,7 @@ Here are the type values usually used for nodes:
 
         self.metadata["depends"] = sorted(dependents)
         self.metadata["dirty"] = False
+        self.metadata.save()
 
     def search(self, string, **kwargs):
         """Search this database for ``string``.
@@ -1358,6 +1353,7 @@ Here are the type values usually used for nodes:
             geocollections.discard(None)
         else:
             self.metadata["geocollections"] = sorted(geocollections)
+            self.metadata.save()
 
     def graph_technosphere(self, filename=None, **kwargs):
         from bw2analyzer.matrix_grapher import SparseMatrixGrapher

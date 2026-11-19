@@ -2,7 +2,7 @@
 
 The senders skip both the signal and the work needed to build its arguments: the query for
 the previous version on `SignaledDataset.save`, and the full-table `old`/`new` snapshots on
-each `databases` metadata write.
+each database metadata save.
 """
 
 from unittest.mock import patch
@@ -70,7 +70,7 @@ def test_save_signal_false_still_skips_when_sourced():
 
 
 @bw2test
-def test_metadata_write_skips_snapshots_and_signal_when_not_sourced():
+def test_metadata_save_skips_snapshots_and_signal_when_not_sourced():
     projects.set_current("plain")
     database = DatabaseChooser("db")
     database.register()
@@ -78,14 +78,15 @@ def test_metadata_write_skips_snapshots_and_signal_when_not_sourced():
     with patch.object(databases, "_as_dict") as as_dict:
         with patch.object(on_database_metadata_change, "send") as send:
             database.metadata["foo"] = True
+            database.metadata.save()
 
     as_dict.assert_not_called()
     send.assert_not_called()
-    assert databases["db"]["foo"] is True
+    assert databases.data["db"]["foo"] is True
 
 
 @bw2test
-def test_metadata_write_sends_signal_and_writes_revision_when_sourced():
+def test_metadata_save_sends_signal_and_writes_revision_when_sourced():
     projects.set_current("plain")
     projects.dataset.set_sourced()
     database = DatabaseChooser("db")
@@ -96,6 +97,7 @@ def test_metadata_write_sends_signal_and_writes_revision_when_sourced():
         on_database_metadata_change, "send", wraps=on_database_metadata_change.send
     ) as send:
         database.metadata["foo"] = True
+        database.metadata.save()
 
     send.assert_called_once()
     assert "foo" not in send.call_args.kwargs["old"]["db"]

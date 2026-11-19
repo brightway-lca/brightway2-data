@@ -1,3 +1,4 @@
+import copy
 import datetime
 import warnings
 from collections.abc import MutableMapping
@@ -70,23 +71,54 @@ class GeoMapping(PickledDict):
         return len(self.data)
 
 
+def _row_as_dict(row) -> dict:
+    """Metadata dict for a ``DatabaseRecord`` row: set (non-NULL) known fields plus ``extra``."""
+    d = {f: getattr(row, f) for f in _KNOWN_FIELDS if getattr(row, f) is not None}
+    d.update(row.extra or {})
+    return d
+
+
 class DatabaseRecordProxy(MutableMapping):
     """Dict-like view of a single :class:`~bw2data.backends.schema.DatabaseRecord` row.
 
-    Writes are immediately persisted to SQLite, and each write emits
-    ``on_database_metadata_change`` unless the parent :class:`Databases` says not to
-    (see :meth:`Databases._should_signal`).
+    Changes are kept in memory until :meth:`save` is called, as with the old ``databases.json``
+    dict and ``databases.flush()``. ``Databases`` hands out one proxy per database name, so
+    ``Database(name).metadata`` and ``databases[name]`` share pending changes.
+
+    .. code-block:: python
+
+        db = Database("my_db")
+        db.metadata["description"] = "Example"
+        db.metadata.save()
     """
 
     def __init__(self, row, parent):
-        self._row = row
         self._parent = parent
+        self._load(row)
+
+    def _load(self, row):
+        """Point this proxy at ``row`` and treat its values as saved."""
+        self._row = row
+        self._saved = copy.deepcopy(self._all_fields())
 
     def _all_fields(self):
         """Return only the fields that have been explicitly set (non-NULL)."""
-        d = {f: getattr(self._row, f) for f in _KNOWN_FIELDS if getattr(self._row, f) is not None}
-        d.update(self._row.extra or {})
-        return d
+        return _row_as_dict(self._row)
+
+    def _changed_keys(self) -> set:
+        """Keys whose current value differs from the last loaded or saved value.
+
+        Compares values rather than tracking assignments, so in-place changes to nested values
+        (e.g. ``metadata["depends"].append(...)``) are detected too."""
+        current = self._all_fields()
+        return {
+            key
+            for key in current.keys() | self._saved.keys()
+            if key not in current or key not in self._saved or current[key] != self._saved[key]
+        }
+
+    def _has_changes(self) -> bool:
+        return bool(self._changed_keys())
 
     def __getitem__(self, key):
         if key in _KNOWN_FIELDS:
@@ -99,39 +131,38 @@ class DatabaseRecordProxy(MutableMapping):
             return extra[key]
         raise KeyError(key)
 
-    def _write(self, key, value, delete=False):
-        """Persist a single key without overwriting other columns.
-
-        This proxy's ``_row`` may be stale if the same record was changed through another
-        proxy or a ``Databases`` method, so only the touched column is written. For
-        user-defined keys, ``extra`` is re-read from the database and merged."""
-        from bw2data.backends.schema import DatabaseRecord
-
-        signal = self._parent._should_signal()
-        old = self._parent._as_dict() if signal else None
-        where = DatabaseRecord.name == self._row.name
-        if key in _KNOWN_FIELDS:
-            column, new = key, (None if delete else value)
-        else:
-            current = DatabaseRecord.select(DatabaseRecord.extra).where(where).scalar()
-            extra = dict(current or {})
-            if delete:
-                if key not in extra:
-                    raise KeyError(key)
-                del extra[key]
-            else:
-                extra[key] = value
-            column, new = "extra", (extra or None)
-        DatabaseRecord.update({getattr(DatabaseRecord, column): new}).where(where).execute()
-        setattr(self._row, column, new)
-        if signal:
-            self._parent._emit(old)
-
     def __setitem__(self, key, value):
-        self._write(key, value)
+        if key in _KNOWN_FIELDS:
+            setattr(self._row, key, value)
+        else:
+            extra = dict(self._row.extra or {})
+            extra[key] = value
+            self._row.extra = extra
 
     def __delitem__(self, key):
-        self._write(key, None, delete=True)
+        if key not in self:
+            raise KeyError(key)
+        if key in _KNOWN_FIELDS:
+            setattr(self._row, key, None)
+        else:
+            extra = dict(self._row.extra)
+            del extra[key]
+            self._row.extra = extra or None
+
+    def save(self, signal: bool = True):
+        """Write pending changes for this database to SQLite.
+
+        Only changed keys are written, so changes saved through other code since this proxy
+        was loaded are kept. Sends ``on_database_metadata_change`` once on event-sourced
+        projects, unless ``signal`` is ``False``."""
+        changed = self._changed_keys()
+        if not changed:
+            return
+        send = signal and self._parent._should_signal()
+        old = self._parent._as_dict() if send else None
+        self._parent._write_changes(self, changed)
+        if send:
+            self._parent._emit(old)
 
     def __iter__(self):
         return iter(self._all_fields())
@@ -162,13 +193,18 @@ class Databases(MutableMapping):
     in the per-project ``lci/databases.db``.
 
     Previously stored in ``databases.json``; the file is migrated automatically on first access.
+
+    Adding, replacing or deleting a whole entry (``databases[name] = {...}``,
+    ``del databases[name]``) is saved immediately. Changes to an entry
+    (``databases[name]["key"] = value``) are saved by ``databases[name].save()``.
     """
 
     _save_signal = on_database_metadata_change
 
     def __init__(self):
         self._migrated = False
-        self._suppress_signals = False
+        # One proxy per database name, so pending changes survive between accesses
+        self._proxies = {}
 
     # ------------------------------------------------------------------
     # MutableMapping interface
@@ -179,23 +215,35 @@ class Databases(MutableMapping):
         from bw2data.backends.schema import DatabaseRecord
         from peewee import DoesNotExist
 
+        proxy = self._proxies.get(name)
+        if proxy is not None and proxy._has_changes():
+            return proxy
+
         try:
-            return DatabaseRecordProxy(
-                DatabaseRecord.get(DatabaseRecord.name == name), self
-            )
+            row = DatabaseRecord.get(DatabaseRecord.name == name)
         except DoesNotExist:
+            self._proxies.pop(name, None)
             raise KeyError(name)
+
+        # No pending changes, so refresh from SQLite in case it was changed elsewhere
+        if proxy is None:
+            proxy = self._proxies[name] = DatabaseRecordProxy(row, self)
+        else:
+            proxy._load(row)
+        return proxy
 
     def __setitem__(self, name, value):
         self._ensure_migrated()
         from bw2data.backends.schema import DatabaseRecord
 
-        signal = self._should_signal()
-        old = self._as_dict() if signal else None
+        send = self._should_signal()
+        old = self._as_dict() if send else None
         value = dict(value)  # copy to avoid mutating caller's dict
         known = {k: value.pop(k) for k in list(value) if k in _KNOWN_FIELDS}
         DatabaseRecord.replace(name=name, extra=value or None, **known).execute()
-        if signal:
+        if name in self._proxies:
+            self._proxies[name]._load(DatabaseRecord.get(DatabaseRecord.name == name))
+        if send:
             self._emit(old)
 
     def __delitem__(self, name: str, signal: bool = True):
@@ -218,6 +266,7 @@ Metadata state is unchanged, but database state is unknown.
         from bw2data.backends.schema import DatabaseRecord
 
         DatabaseRecord.delete().where(DatabaseRecord.name == name).execute()
+        self._proxies.pop(name, None)
 
         if signal:
             on_database_delete.send(self, name=name)
@@ -266,50 +315,41 @@ Metadata state is unchanged, but database state is unknown.
     # ------------------------------------------------------------------
 
     def increment_version(self, database, number=None):
-        """Increment the ``database`` version. Returns the new version."""
-        from bw2data.backends.schema import DatabaseRecord
-
-        row = DatabaseRecord.get(DatabaseRecord.name == database)
-        row.version = (row.version or 0) + 1
+        """Increment the ``database`` version and save its metadata. Returns the new version."""
+        metadata = self[database]
+        metadata["version"] = (metadata.get("version") or 0) + 1
         if number is not None:
-            row.number = number
-        row.save()
-        return row.version
+            metadata["number"] = number
+        metadata.save()
+        return metadata["version"]
 
     def version(self, database):
         """Return the ``database`` version."""
-        from bw2data.backends.schema import DatabaseRecord
-
-        return DatabaseRecord.get(DatabaseRecord.name == database).version
+        return self[database].get("version")
 
     def set_modified(self, database):
-        from bw2data.backends.schema import DatabaseRecord
-
-        row = DatabaseRecord.get(DatabaseRecord.name == database)
-        row.modified = datetime.datetime.now().isoformat()
-        row.save()
+        """Set the ``modified`` timestamp and save the database's metadata."""
+        metadata = self[database]
+        metadata["modified"] = datetime.datetime.now().isoformat()
+        metadata.save()
 
     def set_dirty(self, database):
-        from bw2data.backends.schema import DatabaseRecord
-
-        row = DatabaseRecord.get(DatabaseRecord.name == database)
-        row.modified = datetime.datetime.now().isoformat()
-        if not row.dirty:
-            row.dirty = True
-        row.save()
+        """Mark ``database`` as needing processing and save its metadata."""
+        metadata = self[database]
+        metadata["modified"] = datetime.datetime.now().isoformat()
+        metadata["dirty"] = True
+        metadata.save()
 
     def clean(self):
+        """Process all databases marked as dirty."""
         from bw2data import Database
-        from bw2data.backends.schema import DatabaseRecord
 
-        dirty = [
-            r.name for r in DatabaseRecord.select().where(DatabaseRecord.dirty == True)
-        ]
-        if not dirty:
-            return
+        dirty = [name for name in self if self[name].get("dirty")]
         for name in dirty:
             Database(name).process()
-        DatabaseRecord.update(dirty=None).where(DatabaseRecord.name << dirty).execute()
+            metadata = self[name]
+            metadata.pop("dirty", None)
+            metadata.save()
 
     @property
     def list(self):
@@ -328,42 +368,85 @@ Metadata state is unchanged, but database state is unknown.
     # ------------------------------------------------------------------
 
     def flush(self, signal: bool = True):
-        """Deprecated no-op. Data is auto-persisted to SQLite and signals fire on each write."""
+        """Deprecated. Saves pending metadata changes for all databases.
+
+        Use ``Database(name).metadata.save()`` or ``databases[name].save()`` instead."""
         warnings.warn(
-            "Databases.flush() is deprecated; metadata is now auto-persisted to SQLite.",
+            "`databases.flush()` is deprecated; save a database's metadata with "
+            "`Database(name).metadata.save()` or `databases[name].save()` instead.",
             DeprecationWarning,
             stacklevel=2,
         )
+        pending = [proxy for proxy in self._proxies.values() if proxy._has_changes()]
+        if not pending:
+            return
+        send = signal and self._should_signal()
+        old = self._as_dict() if send else None
+        for proxy in pending:
+            self._write_changes(proxy, proxy._changed_keys())
+        if send:
+            self._emit(old)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _write_changes(self, proxy, changed):
+        """Write the ``changed`` keys of ``proxy`` to SQLite, then reload it.
+
+        Known fields are written column by column. Custom keys are merged into the stored
+        ``extra`` value, so keys saved elsewhere since ``proxy`` was loaded are kept."""
+        from bw2data.backends.schema import DatabaseRecord
+        from bw2data.errors import UnknownObject
+
+        row = proxy._row
+        where = DatabaseRecord.name == row.name
+        updates = {
+            getattr(DatabaseRecord, key): getattr(row, key)
+            for key in changed
+            if key in _KNOWN_FIELDS
+        }
+        extra_changed = [key for key in changed if key not in _KNOWN_FIELDS]
+
+        with DatabaseRecord._meta.database.atomic():
+            if extra_changed:
+                stored = dict(DatabaseRecord.select(DatabaseRecord.extra).where(where).scalar() or {})
+                mine = row.extra or {}
+                for key in extra_changed:
+                    if key in mine:
+                        stored[key] = mine[key]
+                    else:
+                        stored.pop(key, None)
+                updates[DatabaseRecord.extra] = stored or None
+            if not DatabaseRecord.update(updates).where(where).execute():
+                raise UnknownObject(f"Database {row.name!r} is not registered")
+            proxy._load(DatabaseRecord.get(where))
+
     def _should_signal(self) -> bool:
-        """Whether a write should build ``old``/``new`` snapshots and emit
+        """Whether a save should build ``old``/``new`` snapshots and emit
         ``on_database_metadata_change``.
 
         The signal only feeds revision generation, which is skipped on unsourced projects, so
-        don't pay for two full-table snapshots per write in that case (see #299)."""
+        don't pay for two full-table snapshots per save in that case (see #299)."""
         from bw2data.project import projects
 
-        return not self._suppress_signals and projects.dataset.is_sourced
+        return projects.dataset.is_sourced
 
     def _emit(self, old):
         """Emit on_database_metadata_change with the given old state and current new state."""
         on_database_metadata_change.send(self, old=old, new=self._as_dict())
 
     def _as_dict(self):
-        """Reconstruct a plain dict of all metadata (used for signal old/new payloads)."""
+        """Plain dict of all saved metadata, read from SQLite (used for signal old/new payloads).
+
+        Pending changes that haven't been saved are not included."""
         from bw2data.backends.schema import DatabaseRecord
 
-        return {
-            row.name: dict(DatabaseRecordProxy(row, self)) for row in DatabaseRecord.select()
-        }
+        return {row.name: _row_as_dict(row) for row in DatabaseRecord.select()}
 
     @property
     def data(self):
-        """Return the full metadata as a plain dict. Used by the revision system."""
+        """Return the full saved metadata as a plain dict. Used by the revision system."""
         return self._as_dict()
 
     @data.setter
@@ -376,6 +459,7 @@ Metadata state is unchanged, but database state is unknown.
             meta = dict(meta)
             known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
             DatabaseRecord.replace(name=name, extra=meta or None, **known).execute()
+        self._proxies.clear()
 
     def _ensure_migrated(self):
         if not self._migrated:
