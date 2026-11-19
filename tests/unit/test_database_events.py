@@ -22,7 +22,7 @@ def test_database_metadata_revision_expected_format_update():
 
     database.metadata["foo"] = True
     database.metadata["other"] = 7
-    databases.flush()
+    database.metadata.save()
 
     assert projects.dataset.revision is not None
     with open(projects.dataset.dir / "revisions" / f"{projects.dataset.revision}.rev", "r") as f:

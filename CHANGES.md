@@ -5,6 +5,7 @@
 ### Breaking changes
 
 * BREAKING CHANGE: [#312: Require Python 3.11 or later](https://github.com/brightway-lca/brightway2-data/pull/312)
+* BREAKING CHANGE: [#284: Store the database metadata registry (`databases`) in a `DatabaseRecord` table in `lci/databases.db` instead of the per-project `databases.json` file](https://github.com/brightway-lca/brightway2-data/pull/284). This only changes where the per-database metadata (`backend`, `depends`, `dirty`, `modified`, `searchable`, `geocollections`, custom keys, etc.) is stored; `Database` objects and their activities and exchanges are unchanged. As before, changes to `Database(name).metadata` or `databases[name]` are kept in memory until saved; save them with the new `Database(name).metadata.save()` (or `databases[name].save()`), which sends `on_database_metadata_change` on event-sourced projects. `databases.flush()` is deprecated: it still saves all pending changes, but warns and points to `.metadata.save()`. Assigning or deleting a whole entry (`databases[name] = {...}`, `db.metadata = {...}`, `del databases[name]`) is still saved immediately. An existing `databases.json` is migrated on first access and left in place as a backup.
 
 ## 4.8 (2026-10-19)
 
