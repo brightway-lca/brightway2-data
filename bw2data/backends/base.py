@@ -47,7 +47,7 @@ from bw2data.errors import (
 from bw2data.logs import stdout_feedback_logger
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
-from bw2data.signals import on_database_reset, on_database_write
+from bw2data.signals import on_database_reset, on_database_write, should_emit
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
 _VALID_KEYS = {"location", "name", "product", "type"}
@@ -839,11 +839,13 @@ class SQLiteBackend(ProcessedDataStore):
         the whole file and can be slow for large projects. By default this only happens when
         the previous contents freed a meaningful share of the file; set ``config.vacuum`` to
         ``True`` to always compact or ``False`` to never compact. See
-        ``bw2data.sqlite.SubstitutableDatabase.vacuum``."""
-        from bw2data import projects
+        ``bw2data.sqlite.SubstitutableDatabase.vacuum``.
 
+        ``on_database_write`` is sent afterwards if ``signal`` is ``True``. By default it is sent
+        when the project is event sourced or signals are turned on with
+        ``bw2data.signals.set_signalled()``."""
         if signal is None:
-            signal = projects.dataset.is_sourced
+            signal = should_emit()
 
         def merger(d1: dict, d2: dict) -> dict:
             """Merge ``d2`` into ``d1`` in place, avoiding a copy of each dataset."""

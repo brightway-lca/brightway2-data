@@ -47,3 +47,13 @@ def close_database_handle_on_exit_to_avoid_windows_test_errors():
     close_handles()
     yield
     close_handles()
+
+
+@pytest.fixture(autouse=True, scope="function")
+def reset_process_signal_setting():
+    """`bw2data.signals.set_signalled` is process-wide; don't let one test leak into the next."""
+    from bw2data import signals
+
+    signals.set_signalled(False)
+    yield
+    signals.set_signalled(False)

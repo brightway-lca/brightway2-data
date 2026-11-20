@@ -16,6 +16,29 @@ These change events can grouped into three types: `create`, `update`, and `delet
 
 Change events can have side effects. For example, deleting an `Activity` will delete the `Exchanges` which have that node as their `output`, and remove that node from the search indices.
 
+# When signals are sent
+
+Signals have two uses: `bw2data` uses them to write revisions on event-sourced projects (`projects.dataset.is_sourced`), and other code can connect to them to react to changes, for example to refresh a user interface.
+
+Most signals are cheap and are always sent. Four need extra queries to build their arguments, so by default they are only sent on event-sourced projects:
+
+* `signaleddataset_on_save` - one query per save to fetch the previous version
+* `on_database_metadata_change` - reads the metadata of all databases before and after the change
+* `on_database_write` - sent by `Database.write` unless called with `signal=False`
+* The `_save_signal` of `SerializedDict` and `PickledDict` subclasses - re-reads the file and copies the data
+
+To receive these four signals on projects which are not event sourced, turn them on for the current process:
+
+```python
+from bw2data import signals
+
+signals.set_signalled(True)
+```
+
+This setting is held in memory. It is not stored in the project, it applies to every project opened by the process, and it is off in every new process. An application which listens to these signals should call `set_signalled(True)` once at startup; scripts which don't listen keep the faster default. `signals.is_signalled()` returns the current setting, and `with signals.signalled():` turns signals on for a block of code.
+
+The signals carry the same arguments whether they are sent because the project is event sourced or because of `set_signalled`. Revisions are only written on event-sourced projects.
+
 # Side effects
 
 Higher-level objects can cause changes to lower level objects. The object hierarchy is:
