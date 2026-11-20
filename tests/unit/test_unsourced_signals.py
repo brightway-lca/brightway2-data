@@ -103,3 +103,59 @@ def test_metadata_save_sends_signal_and_writes_revision_when_sourced():
     assert "foo" not in send.call_args.kwargs["old"]["db"]
     assert send.call_args.kwargs["new"]["db"]["foo"] is True
     assert projects.dataset.revision != revision
+
+
+@bw2test
+def test_delete_builds_no_delta_when_not_sourced():
+    projects.set_current("plain")
+    database = DatabaseChooser("db")
+    database.register()
+    node = database.new_node(code="A", name="A")
+    node.save()
+
+    with patch.object(revisions, "generate_delta") as generate:
+        node.delete()
+
+    generate.assert_not_called()
+    assert not ActivityDataset.select().where(ActivityDataset.code == "A").exists()
+
+
+@bw2test
+def test_database_write_with_signal_builds_no_deltas_when_not_sourced():
+    projects.set_current("plain")
+    database = DatabaseChooser("db")
+
+    with patch.object(revisions.Delta, "generate") as generate:
+        database.write({("db", "A"): {"name": "A", "exchanges": []}}, signal=True)
+
+    generate.assert_not_called()
+    assert projects.dataset.revision is None
+    assert len(database) == 1
+
+
+@bw2test
+def test_database_reset_and_delete_build_no_delta_when_not_sourced():
+    projects.set_current("plain")
+    database = DatabaseChooser("db")
+    database.write({("db", "A"): {"name": "A", "exchanges": []}})
+
+    with patch.object(revisions, "Delta") as delta:
+        database.delete(warn=False)
+        del databases["db"]
+
+    delta.assert_not_called()
+    assert "db" not in databases
+    assert projects.dataset.revision is None
+
+
+@bw2test
+def test_database_write_with_signal_writes_revision_when_sourced():
+    projects.set_current("plain")
+    projects.dataset.set_sourced()
+    database = DatabaseChooser("db")
+    database.register()
+    revision = projects.dataset.revision
+
+    database.write({("db", "A"): {"name": "A", "exchanges": []}})
+
+    assert projects.dataset.revision != revision

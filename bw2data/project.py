@@ -689,6 +689,10 @@ def signal_dispatcher(
     sender, old: Optional[Any] = None, new: Optional[Any] = None, operation: Optional[str] = None
 ) -> Union[int, None]:
     """Not sure why this is necessary, but fails silently if call `add_revision` directly"""
+    if not projects.dataset.is_sourced:
+        # Revisions are only written for event-sourced projects; skip building the delta
+        return None
+
     from bw2data import revisions
 
     delta = revisions.generate_delta(old, new, operation)
@@ -699,7 +703,10 @@ def signal_dispatcher(
 
 def signal_dispatcher_generic_no_diff(
     sender, name: str, verb: str, prefix: str, obj_type: str
-) -> int:
+) -> Optional[int]:
+    if not projects.dataset.is_sourced:
+        return None
+
     from bw2data import revisions
 
     delta = revisions.Delta(
@@ -726,7 +733,11 @@ signal_dispatcher_on_activity_parameter = partial(
 )
 
 
-def signal_dispatcher_on_database_write(sender, name: str) -> int:
+def signal_dispatcher_on_database_write(sender, name: str) -> Optional[int]:
+    if not projects.dataset.is_sourced:
+        # Don't load every node and edge of the database to build a revision nobody keeps
+        return None
+
     from bw2data import revisions
     from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 
@@ -742,7 +753,10 @@ def signal_dispatcher_on_database_write(sender, name: str) -> int:
 
 def signal_dispatcher_on_update_formula_parameter_name(
     sender, old: str, new: str, kind: str, extra: str = ""
-) -> int:
+) -> Optional[int]:
+    if not projects.dataset.is_sourced:
+        return None
+
     from bw2data import revisions
 
     # `old` and `new` share no keys. Since deepdiff 8.0 that diffs as one `values_changed` on
