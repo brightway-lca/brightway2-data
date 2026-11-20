@@ -47,7 +47,12 @@ from bw2data.errors import (
 from bw2data.logs import stdout_feedback_logger
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
-from bw2data.signals import on_database_reset, on_database_write, should_emit
+from bw2data.signals import (
+    on_database_copy,
+    on_database_reset,
+    on_database_write,
+    should_emit,
+)
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
 _VALID_KEYS = {"location", "name", "product", "type"}
@@ -262,6 +267,8 @@ class SQLiteBackend(ProcessedDataStore):
         Args:
             * *name* (str): Name of the new database. Must not already exist.
 
+        Sends ``on_database_copy`` when the copy is complete, including parameters.
+
         """
         assert name not in databases, ValueError("This database exists")
         data = self.relabel_data(copy.deepcopy(self.load()), self.name, name)
@@ -274,6 +281,7 @@ class SQLiteBackend(ProcessedDataStore):
 
         new_database.write(data, searchable=databases[name].get("searchable"))
         self._copy_parameters(name)
+        on_database_copy.send(new_database, name=name, source=self.name)
         return new_database
 
     def _copy_parameters(self, new_name: str) -> None:
