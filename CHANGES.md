@@ -11,6 +11,7 @@
 ### Changes
 
 * [#320: Revision signal dispatchers return immediately on projects which are not event sourced](https://github.com/brightway-lca/brightway2-data/pull/320), instead of building a delta which was then discarded. Speeds up deleting nodes and edges, and `Database.write(..., signal=True)`, on unsourced projects.
+* [#321: Add `bw2data.signals.set_signalled()` to send change signals on projects which are not event sourced](https://github.com/brightway-lca/brightway2-data/pull/321). Since #299, `signaleddataset_on_save`, `on_database_metadata_change`, `on_database_write` and the save signal of `SerializedDict` subclasses are only sent on event-sourced projects. Applications which listen to them, such as Activity Browser, should call `signals.set_signalled(True)` once at startup; they then receive the same arguments as on sourced projects, and no revisions are written. The setting is per process, is not stored in the project, and is off by default, so scripts keep the faster path. Also adds `signals.is_signalled()` and the `signals.signalled()` context manager. `SerializedDict.backup()` no longer sends the save signal, and `PickledDict.backup()` writes the backup file instead of rewriting the main file. Thanks to Bernhard Steubing ([#311](https://github.com/brightway-lca/brightway2-data/pull/311)) and the8thbit ([#307](https://github.com/brightway-lca/brightway2-data/pull/307)) for the earlier work on this.
 
 ## 4.8 (2026-10-19)
 
