@@ -1,9 +1,19 @@
+from contextlib import closing
+
 from peewee import (
     BooleanField,
+    DatabaseError,
+    DataError,
     DoesNotExist,
     ForeignKeyField,
     IntegerField,
+    IntegrityError,
+    InterfaceError,
+    InternalError,
     Model,
+    NotSupportedError,
+    OperationalError,
+    ProgrammingError,
     TextField,
     fn,
 )
@@ -157,3 +167,63 @@ on_database_write.connect(_remove_database_from_get_id_cache)
 signaleddataset_on_delete.connect(_remove_activity_from_get_id_cache)
 on_activity_database_change.connect(_remove_changed_activity_key_from_get_id_cache)
 on_activity_code_change.connect(_remove_changed_activity_key_from_get_id_cache)
+
+
+# The DB-API error classes, which peewee and every driver name alike
+_PEEWEE_ERRORS = {
+    cls.__name__: cls
+    for cls in (
+        DatabaseError,
+        DataError,
+        IntegrityError,
+        InterfaceError,
+        InternalError,
+        NotSupportedError,
+        OperationalError,
+        ProgrammingError,
+    )
+}
+
+
+def _as_peewee_error(exc: Exception) -> Exception:
+    """Return the peewee error for a driver error, as ``execute_sql`` would raise it.
+
+    Peewee has no public way to run ``executemany`` with its error translation, so this
+    matches the driver's error class, or its nearest DB-API base class, by name. An error
+    with no peewee counterpart is returned as it is.
+    """
+    for cls in type(exc).__mro__:
+        if cls.__name__ in _PEEWEE_ERRORS:
+            return _PEEWEE_ERRORS[cls.__name__](exc, *exc.args)
+    return exc
+
+
+def _insert_many(model, rows: list) -> None:
+    """Insert ``rows`` with one raw ``executemany``, much faster than ``model.insert_many``.
+
+    ``rows`` are dicts from ``dict_as_activitydataset`` or ``dict_as_exchangedataset``, all
+    with the same keys. Each value goes through its field's ``db_value``, as in
+    ``insert_many``. Must be called within a transaction.
+    """
+    if not rows:
+        return
+    fields = [model._meta.fields[name] for name in rows[0]]
+    sql = 'INSERT INTO "{}" ({}) VALUES ({})'.format(
+        model._meta.table_name,
+        ", ".join(f'"{field.column_name}"' for field in fields),
+        ", ".join("?" * len(fields)),
+    )
+    converters = [(field.name, field.db_value) for field in fields]
+    connection = model._meta.database.connection()
+    try:
+        # ``closing`` frees the cursor straight away instead of at garbage collection
+        with closing(connection.cursor()) as cursor:
+            cursor.executemany(
+                sql, ([convert(row[name]) for name, convert in converters] for row in rows)
+            )
+    except connection.Error as exc:
+        # Driver errors come out as peewee's, as they do from ``execute_sql``
+        error = _as_peewee_error(exc)
+        if error is exc:
+            raise
+        raise error from exc

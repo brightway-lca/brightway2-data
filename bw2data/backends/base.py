@@ -20,7 +20,7 @@ from tqdm import tqdm
 from bw2data import calculation_setups, config, databases, geomapping
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.proxies import Activity
-from bw2data.backends.schema import ActivityDataset, ExchangeDataset, get_id
+from bw2data.backends.schema import ActivityDataset, ExchangeDataset, _insert_many, get_id
 from bw2data.backends.typos import (
     check_activity_keys,
     check_activity_type,
@@ -51,6 +51,9 @@ from bw2data.signals import on_database_reset, on_database_write
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
 _VALID_KEYS = {"location", "name", "product", "type"}
+
+# Rows per executemany call in Database.write; a whole ecoinvent fits in a few calls
+WRITE_BATCH_SIZE = 50_000
 
 
 def tqdm_wrapper(iterable, is_test):
@@ -759,13 +762,9 @@ class SQLiteBackend(ProcessedDataStore):
                 check_temporal_distribution_sum(exchange)
             exchanges.append(dict_as_exchangedataset(exchange))
 
-            # Query gets passed as INSERT INTO x VALUES ('?', '?'...)
-            # SQLite3 has a limit of 999 variables,
-            # So 6 fields * 125 is under the limit
-            # Otherwise get the following:
-            # peewee.OperationalError: too many SQL variables
-            if len(exchanges) > 125:
-                ExchangeDataset.insert_many(exchanges).execute()
+            # Flushed in batches only to bound memory use
+            if len(exchanges) >= WRITE_BATCH_SIZE:
+                _insert_many(ExchangeDataset, exchanges)
                 exchanges = []
 
         ds = {k: v for k, v in ds.items() if k != "exchanges"}
@@ -776,8 +775,8 @@ class SQLiteBackend(ProcessedDataStore):
 
         activities.append(dict_as_activitydataset(ds, add_snowflake_id=True))
 
-        if len(activities) > 125:
-            ActivityDataset.insert_many(activities).execute()
+        if len(activities) >= WRITE_BATCH_SIZE:
+            _insert_many(ActivityDataset, activities)
             activities = []
 
         return exchanges, activities
@@ -799,10 +798,8 @@ class SQLiteBackend(ProcessedDataStore):
                     ds, exchanges, activities, check_typos
                 )
 
-            if activities:
-                ActivityDataset.insert_many(activities).execute()
-            if exchanges:
-                ExchangeDataset.insert_many(exchanges).execute()
+            _insert_many(ActivityDataset, activities)
+            _insert_many(ExchangeDataset, exchanges)
             sqlite3_lci_db.db.commit()
             # Honours ``config.vacuum``; by default only runs when the delete above
             # freed a meaningful share of the (shared) LCI file.
