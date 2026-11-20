@@ -32,6 +32,11 @@ from bw2data.signals import (
 from bw2data.snowflake_ids import SnowflakeIDBaseClass
 from bw2data.sqlite import JSONField, PickleField
 
+#: Real (on-disk) table names of the two LCI tables. Pinned explicitly so that they never
+#: depend on peewee's naming rules; raw SQL and the extension overlay refer to these.
+ACTIVITY_TABLE = "activitydataset"
+EXCHANGE_TABLE = "exchangedataset"
+
 
 class ActivityDataset(SnowflakeIDBaseClass):
     data = PickleField()  # Canonical, except for other C fields
@@ -41,6 +46,9 @@ class ActivityDataset(SnowflakeIDBaseClass):
     name = TextField(null=True)  # Reset from `data`
     product = TextField(null=True)  # Reset from `data`
     type = TextField(null=True)  # Reset from `data`
+
+    class Meta:
+        table_name = ACTIVITY_TABLE
 
     @property
     def key(self):
@@ -54,6 +62,9 @@ class ExchangeDataset(SnowflakeIDBaseClass):
     output_code = TextField()  # Canonical
     output_database = TextField()  # Canonical
     type = TextField()  # Reset from `data`
+
+    class Meta:
+        table_name = EXCHANGE_TABLE
 
 
 class DatabaseRecord(Model):

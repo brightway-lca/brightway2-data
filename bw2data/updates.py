@@ -197,7 +197,7 @@ class Updates:
     def set_initial_updates(cls):
         if "updates" in preferences:
             return
-        SQL = "PRAGMA table_info(activitydataset)"
+        SQL = "PRAGMA main.table_info(activitydataset)"
         column_names = {x[1] for x in sqlite3_lci_db.execute_sql(SQL)}
         if "code" in column_names:
             preferences["updates"] = {key: True for key in cls.UPDATES}

@@ -1,5 +1,7 @@
 from copy import copy
 
+import pytest
+
 from bw2data import projects
 from bw2data.backends import sqlite3_lci_db as db
 from bw2data.database import DatabaseChooser
@@ -138,3 +140,147 @@ def test_write_duplicate_key_raises_peewee_integrity_error():
     data = [{"database": "testy", "code": "a"}, {"database": "testy", "code": "a"}]
     with pytest.raises(peewee.IntegrityError):
         DatabaseChooser("testy").write(data)
+
+
+def test_bw_sqlite_database_runs_hooks_on_every_connection(tmp_path):
+    import threading
+
+    from bw2data.sqlite import BWSqliteDatabase
+
+    seen = []
+    db = BWSqliteDatabase(tmp_path / "hooks.db")
+    db.add_connection_hook(lambda conn: seen.append(threading.get_ident()))
+
+    db.connect()
+    assert seen == [threading.get_ident()]
+
+    def other_thread():
+        db.connect()
+        db.execute_sql("SELECT 1")
+        db.close()
+
+    thread = threading.Thread(target=other_thread)
+    thread.start()
+    thread.join()
+    assert len(seen) == 2
+    assert seen[1] != seen[0]
+
+    db.close()
+    db.connect()
+    assert len(seen) == 3
+    db.close()
+
+
+def test_bw_sqlite_database_hook_runs_after_pragmas(tmp_path):
+    from bw2data.sqlite import BWSqliteDatabase
+
+    seen = []
+    db = BWSqliteDatabase(tmp_path / "hooks.db", pragmas={"foreign_keys": 1})
+    db.add_connection_hook(
+        lambda conn: seen.append(conn.execute("PRAGMA foreign_keys").fetchone()[0])
+    )
+    db.connect()
+    assert seen == [1]
+    db.close()
+
+
+def test_bw_sqlite_database_remove_hook(tmp_path):
+    from bw2data.sqlite import BWSqliteDatabase
+
+    seen = []
+    db = BWSqliteDatabase(tmp_path / "hooks.db")
+    hook = lambda conn: seen.append(1)  # noqa: E731
+    db.add_connection_hook(hook)
+    assert db.connection_hooks == (hook,)
+    db.remove_connection_hook(hook)
+    assert db.connection_hooks == ()
+    db.connect()
+    assert seen == []
+    db.close()
+
+
+def test_substitutable_database_uses_bw_sqlite_database():
+    from bw2data.sqlite import BWSqliteDatabase
+
+    assert isinstance(db.db, BWSqliteDatabase)
+    assert db.db.connect_params.get("uri") is True
+
+
+@pytest.mark.parametrize("dirname", ["plain", "with space", "hash#dir", "q?mark", "pct%41"])
+def test_sqlite_uri_escapes_paths(tmp_path, dirname):
+    import sqlite3
+
+    from bw2data.sqlite import BWSqliteDatabase, _sqlite_uri
+
+    directory = tmp_path / dirname
+    directory.mkdir()
+    path = directory / "x.db"
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE t (v INTEGER)")
+        conn.execute("INSERT INTO t VALUES (42)")
+    conn.close()
+
+    # A plain path is still opened correctly in URI mode
+    main = BWSqliteDatabase(path)
+    assert main.execute_sql("SELECT v FROM t").fetchone() == (42,)
+
+    # The escaped URI attaches the same file, read-only
+    uri = _sqlite_uri(path, mode="ro")
+    assert uri.startswith("file:") and uri.endswith("?mode=ro")
+    main.execute_sql("ATTACH ? AS other", (uri,))
+    assert main.execute_sql("SELECT v FROM other.t").fetchone() == (42,)
+    with pytest.raises(Exception, match="readonly"):
+        main.execute_sql("INSERT INTO other.t VALUES (1)")
+    main.close()
+
+
+def test_sqlite_uri_without_params(tmp_path):
+    from bw2data.sqlite import _sqlite_uri
+
+    assert _sqlite_uri(tmp_path / "a b.db") == (tmp_path / "a b.db").resolve().as_uri()
+    assert "%20" in _sqlite_uri(tmp_path / "a b.db")
+
+
+@bw2test
+def test_index_sql_targets_main_schema_only(tmp_path):
+    # With a file attached that has the same index names, unqualified ``DROP INDEX`` would
+    # fall through to the attached (read-only) file when ``main`` lacks the index.
+    import sqlite3
+
+    from bw2data.sqlite import _sqlite_uri
+
+    other = tmp_path / "other.db"
+    with sqlite3.connect(other) as conn:
+        conn.execute("CREATE TABLE activitydataset (database TEXT, code TEXT)")
+        conn.execute('CREATE UNIQUE INDEX "activitydataset_key" ON activitydataset (database, code)')
+        conn.execute("CREATE TABLE exchangedataset (input_database TEXT, input_code TEXT, output_database TEXT, output_code TEXT)")
+        conn.execute('CREATE INDEX "exchangedataset_input" ON exchangedataset (input_database, input_code)')
+        conn.execute('CREATE INDEX "exchangedataset_output" ON exchangedataset (output_database, output_code)')
+    conn.close()
+
+    database = DatabaseChooser("testy")
+    db.execute_sql("ATTACH ? AS other", (_sqlite_uri(other, mode="ro"),))
+    try:
+        database._drop_indices()
+        # Second drop: ``main`` has no indices any more, must not touch ``other``
+        database._drop_indices()
+        database._add_indices()
+        names = {
+            row[0]
+            for row in db.execute_sql("SELECT name FROM main.sqlite_master WHERE type='index'")
+        }
+        assert {"activitydataset_key", "exchangedataset_input", "exchangedataset_output"} <= names
+    finally:
+        db.execute_sql("DETACH other")
+
+
+def test_lci_table_names_are_pinned():
+    from bw2data.backends.schema import (
+        ACTIVITY_TABLE,
+        EXCHANGE_TABLE,
+        ActivityDataset,
+        ExchangeDataset,
+    )
+
+    assert ActivityDataset._meta.table_name == ACTIVITY_TABLE == "activitydataset"
+    assert ExchangeDataset._meta.table_name == EXCHANGE_TABLE == "exchangedataset"

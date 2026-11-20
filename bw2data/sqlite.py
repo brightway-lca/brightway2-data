@@ -1,5 +1,9 @@
 import json
 import pickle
+import sqlite3
+from collections.abc import Callable
+from pathlib import Path
+from urllib.parse import urlencode
 
 from peewee import BlobField, SqliteDatabase, TextField
 
@@ -15,6 +19,56 @@ class PickleField(BlobField):
         return pickle.loads(bytes(value))
 
 
+ConnectionHook = Callable[[sqlite3.Connection], None]
+
+
+def _sqlite_uri(path, **params) -> str:
+    """Build a ``file:`` URI for ``path``, suitable for ``sqlite3.connect(..., uri=True)`` or
+    ``ATTACH``.
+
+    Characters with a meaning in URIs (space, ``#``, ``?``, ``%``, ...) are percent-escaped, so
+    any filesystem path is safe. ``params`` become the query string, e.g.
+    ``_sqlite_uri(path, mode="ro")`` gives ``file:///.../x.db?mode=ro``."""
+    uri = Path(path).resolve().as_uri()
+    if params:
+        uri += "?" + urlencode(params)
+    return uri
+
+
+class BWSqliteDatabase(SqliteDatabase):
+    """``SqliteDatabase`` that runs extra callables on every new connection.
+
+    Peewee opens one connection per thread, and has no public hook to run SQL right after a
+    connection is opened. Callables registered with ``add_connection_hook`` are called with the
+    raw ``sqlite3.Connection`` after peewee's own setup (pragmas, functions, ...), for every
+    connection, in every thread.
+
+    Connections are always opened with ``uri=True``, so that ``file:`` URIs (and in particular
+    ``?mode=ro``) work in ``ATTACH`` statements. A plain filesystem path is still a valid
+    database name in URI mode."""
+
+    def __init__(self, database, *args, **kwargs):
+        kwargs.setdefault("uri", True)
+        self._connection_hooks: list[ConnectionHook] = []
+        super().__init__(database, *args, **kwargs)
+
+    def add_connection_hook(self, hook: ConnectionHook) -> None:
+        """Run ``hook(conn)`` on every connection opened from now on."""
+        self._connection_hooks.append(hook)
+
+    def remove_connection_hook(self, hook: ConnectionHook) -> None:
+        self._connection_hooks.remove(hook)
+
+    @property
+    def connection_hooks(self) -> tuple[ConnectionHook, ...]:
+        return tuple(self._connection_hooks)
+
+    def _add_conn_hooks(self, conn):
+        super()._add_conn_hooks(conn)
+        for hook in self._connection_hooks:
+            hook(conn)
+
+
 class SubstitutableDatabase:
     def __init__(self, filepath, tables, pragmas=None):
         self._filepath = filepath
@@ -23,7 +77,7 @@ class SubstitutableDatabase:
         self._database = self._create_database()
 
     def _create_database(self):
-        db = SqliteDatabase(self._filepath, pragmas=self._pragmas)
+        db = BWSqliteDatabase(self._filepath, pragmas=self._pragmas)
         for model in self._tables:
             model.bind(db, bind_refs=False, bind_backrefs=False)
         db.connect()
