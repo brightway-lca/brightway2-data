@@ -9,6 +9,12 @@ from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node
 from bw2data.validate import ia_validator
 
 
+def _location(row):
+    """Location of a CF row ``(flow, amount, maybe location)``; a missing or empty location
+    means ``config.global_location``."""
+    return row[2] if len(row) >= 3 and row[2] else config.global_location
+
+
 class Method(ImpactAssessmentDataStore):
     """A manager for an impact assessment method. This class can register or deregister methods, write intermediate data, process data to parameter arrays, validate, and copy methods.
 
@@ -58,7 +64,8 @@ class Method(ImpactAssessmentDataStore):
                 )
 
     def add_geomappings(self, data):
-        geomapping.add({x[2] for x in data if len(x) == 3})
+        # A missing or empty location means the global location
+        geomapping.add({_location(x) for x in data if len(x) == 3 and x[2]})
 
     def process_row(self, row):
         """Given ``(flow, amount, maybe location)``, return a dictionary for array insertion."""
@@ -66,9 +73,7 @@ class Method(ImpactAssessmentDataStore):
             return {
                 **as_uncertainty_dict(row[1]),
                 "row": get_id(row[0]),
-                "col": (
-                    geomapping[row[2]] if len(row) >= 3 else geomapping[config.global_location]
-                ),
+                "col": geomapping[_location(row)],
             }
         except UnknownObject:
             raise UnknownObject(
@@ -79,18 +84,17 @@ class Method(ImpactAssessmentDataStore):
                 )
             )
         except KeyError:
-            if len(row) >= 3 and row[2] not in geomapping:
-                raise UnknownObject(
-                    "Can't find location `{}`, specified in CF row `{}` for method `{}`".format(
-                        {row[2]}, row, self.name
-                    )
-                )
-            elif config.global_location not in geomapping:
+            if _location(row) == config.global_location:
                 raise UnknownObject(
                     "Can't find default global location! It's supposed to be `{}`, but this isn't in the `geomapping`".format(
                         config.global_location
                     )
                 )
+            raise UnknownObject(
+                "Can't find location `{}`, specified in CF row `{}` for method `{}`".format(
+                    {row[2]}, row, self.name
+                )
+            )
 
     def write(self, data, process=True):
         """Serialize intermediate data to disk.

@@ -1,4 +1,13 @@
-from peewee import BooleanField, DoesNotExist, IntegerField, Model, TextField
+from peewee import (
+    BooleanField,
+    DoesNotExist,
+    ForeignKeyField,
+    IntegerField,
+    Model,
+    TextField,
+    fn,
+)
+from playhouse.sqlite_ext import AutoIncrementField
 
 from bw2data.errors import UnknownObject
 from bw2data.signals import (
@@ -55,6 +64,46 @@ class DatabaseRecord(Model):
     searchable = BooleanField(null=True)
     geocollections = JSONField(null=True)
     extra = JSONField(null=True)          # arbitrary user-defined fields
+
+
+class Geocollection(Model):
+    """A named collection of spatial units, e.g. ``"world"`` or ``"ecoinvent"``.
+
+    Stored in the per-project ``lci/databases.db``. Rows are created automatically when
+    locations in a new collection are added to ``geomapping``. ``extra`` holds arbitrary
+    metadata about the collection (e.g. the spatial data file used by ``bw2regional``).
+    """
+
+    id = AutoIncrementField()
+    name = TextField(unique=True)
+    extra = JSONField(null=True)
+
+
+class GeoMappingRecord(Model):
+    """Integer id for a location, used in processed datapackages. Read through ``geomapping``.
+
+    A location is either a bare string (``geocollection`` is ``NULL``), or a feature id in a
+    ``Geocollection``. Ids are assigned by SQLite with ``AUTOINCREMENT``, so they are unique
+    across processes and never reused after a location is deleted.
+    """
+
+    id = AutoIncrementField()
+    geocollection = ForeignKeyField(
+        Geocollection, null=True, on_delete="RESTRICT", backref="locations"
+    )
+    location = TextField()
+
+
+# NULLs are distinct in SQLite unique indices, so a plain unique index on
+# ``(geocollection, location)`` would allow duplicate bare-string locations.
+GeoMappingRecord.add_index(
+    GeoMappingRecord.index(
+        fn.COALESCE(GeoMappingRecord.geocollection, 0),
+        GeoMappingRecord.location,
+        unique=True,
+        name="geomappingrecord_collection_location",
+    )
+)
 
 
 _get_id_cache: dict = {}

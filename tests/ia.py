@@ -384,6 +384,7 @@ def test_method_iteration(testy):
     assert list(testy) == [(get_node(code="A"), 1), (get_node(code="B"), 1)]
 
 
+@bw2test
 def test_method_write_with_nodes():
     database = DatabaseChooser("testy")
     data = {
