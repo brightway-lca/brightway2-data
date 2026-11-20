@@ -3,6 +3,7 @@ import string
 
 from bw_processing import safe_filename
 
+from bw2data import projects
 from bw2data.data_store import ProcessedDataStore
 
 
@@ -94,6 +95,30 @@ class ImpactAssessmentDataStore(ProcessedDataStore):
             The abbreviated identifier of the method.
         """
         return self.get_abbreviation()
+
+    def delete(self, signal: bool = True, **kwargs):
+        """Delete the intermediate and processed data files and deregister this object.
+
+        Subclasses should call ``super().delete(signal=False)`` and then emit
+        their own class-specific signal when ``signal=True``.
+        """
+        if self.registered:
+            filepath_pickle = (
+                projects.dir / self._intermediate_dir / (self.filename + ".pickle")
+            )
+            filepath_processed = self.filepath_processed()
+
+            try:
+                filepath_pickle.unlink()
+            except FileNotFoundError:
+                pass
+
+            try:
+                filepath_processed.unlink()
+            except FileNotFoundError:
+                pass
+
+            self.deregister()
 
     def process(self, **extra_metadata):
         """
