@@ -169,9 +169,15 @@ class GeoMapping(Mapping):
         missing = [key for key in keys if key not in self._cache]
         if not missing:
             return
+        # Another process may have added some of these since our cache was filled. Check with
+        # a plain read first, so we only take the write lock when there is something to write.
+        found = self._fetch(missing)
+        missing = [key for key in missing if key not in found]
+        if not missing:
+            return
 
         with _write_transaction(GeoMappingRecord):
-            # Another process may have added some of these since our cache was filled
+            # Check again: another process may have added some while we waited for the lock
             found = self._fetch(missing)
             missing = [key for key in missing if key not in found]
             if not missing:

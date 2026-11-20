@@ -281,8 +281,9 @@ def _add_in_other_process(base_dir, project_name, keys, barrier):
         base_dir=base_dir, base_logs_dir=base_dir, project_name=project_name, update=False
     )
     barrier.wait()
-    for key in keys:
-        gm.add([key])
+    # Small batches, like real callers which add the locations of a dataset or method at once
+    for i in range(0, len(keys), 10):
+        gm.add(keys[i : i + 10])
 
 
 @bw2test
