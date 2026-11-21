@@ -1,3 +1,4 @@
+import sys
 from copy import copy
 
 import pytest
@@ -199,6 +200,70 @@ def test_bw_sqlite_database_remove_hook(tmp_path):
     db.close()
 
 
+def test_bw_sqlite_database_remove_unregistered_hook_is_noop(tmp_path):
+    from bw2data.sqlite import BWSqliteDatabase
+
+    db = BWSqliteDatabase(tmp_path / "hooks.db")
+    db.remove_connection_hook(lambda conn: None)
+    assert db.connection_hooks == ()
+
+
+def test_bw_sqlite_database_hooks_from_constructor(tmp_path):
+    from bw2data.sqlite import BWSqliteDatabase
+
+    seen = []
+    hook = lambda conn: seen.append(1)  # noqa: E731
+    db = BWSqliteDatabase(tmp_path / "hooks.db", connection_hooks=[hook])
+    assert db.connection_hooks == (hook,)
+    db.connect()
+    assert seen == [1]
+    db.close()
+
+
+def test_bw_sqlite_database_hook_added_while_connected_runs_immediately(tmp_path):
+    from bw2data.sqlite import BWSqliteDatabase
+
+    seen = []
+    db = BWSqliteDatabase(tmp_path / "hooks.db")
+    db.connect()
+    try:
+        # The hook must not call ``db.connection()``: on later connections it runs while
+        # peewee holds its connection lock
+        db.add_connection_hook(seen.append)
+        assert seen == [db.connection()]
+    finally:
+        db.close()
+    db.connect()
+    assert len(seen) == 2 and seen[1] is db.connection()
+    db.close()
+
+
+def test_bw_sqlite_database_failing_hook_is_not_registered(tmp_path):
+    from bw2data.sqlite import BWSqliteDatabase
+
+    def hook(conn):
+        raise RuntimeError("nope")
+
+    db = BWSqliteDatabase(tmp_path / "hooks.db")
+    db.connect()
+    try:
+        with pytest.raises(RuntimeError):
+            db.add_connection_hook(hook)
+        assert db.connection_hooks == ()
+    finally:
+        db.close()
+
+
+def test_bw_sqlite_database_deferred_init_keeps_uri_mode(tmp_path):
+    from bw2data.sqlite import BWSqliteDatabase
+
+    db = BWSqliteDatabase(None)
+    db.init(tmp_path / "deferred.db")
+    assert db.connect_params.get("uri") is True
+    db.init(tmp_path / "deferred.db", uri=False)
+    assert db.connect_params.get("uri") is False
+
+
 def test_substitutable_database_uses_bw_sqlite_database():
     from bw2data.sqlite import BWSqliteDatabase
 
@@ -206,7 +271,81 @@ def test_substitutable_database_uses_bw_sqlite_database():
     assert db.db.connect_params.get("uri") is True
 
 
-@pytest.mark.parametrize("dirname", ["plain", "with space", "hash#dir", "q?mark", "pct%41"])
+def test_substitutable_database_hook_applies_to_open_connection_and_survives_change_path(
+    tmp_path,
+):
+    from peewee import Model, TextField
+
+    from bw2data.sqlite import SubstitutableDatabase
+
+    class Thing(Model):
+        name = TextField()
+
+    seen = []
+    hook = lambda conn: seen.append(  # noqa: E731
+        conn.execute("PRAGMA database_list").fetchone()[2]
+    )
+    sub = SubstitutableDatabase(tmp_path / "first.db", [Thing])
+    try:
+        # ``SubstitutableDatabase`` connects on creation; the hook must still reach that
+        # connection
+        sub.add_connection_hook(hook)
+        assert sub.connection_hooks == (hook,)
+        assert len(seen) == 1 and seen[0].endswith("first.db")
+
+        first_db = sub.db
+        sub.change_path(tmp_path / "second.db")
+        assert sub.db is not first_db
+        assert sub.connection_hooks == (hook,)
+        assert len(seen) == 2 and seen[1].endswith("second.db")
+
+        # Hooks registered on the inner database object are carried over as well
+        other = lambda conn: seen.append("other")  # noqa: E731
+        sub.db.add_connection_hook(other)
+        sub.change_path(tmp_path / "third.db")
+        assert sub.connection_hooks == (hook, other)
+
+        sub.remove_connection_hook(hook)
+        sub.remove_connection_hook(other)
+        sub.remove_connection_hook(other)
+        assert sub.connection_hooks == ()
+    finally:
+        sub.db.close()
+
+
+def test_substitutable_database_hooks_from_constructor_run_on_first_connection(tmp_path):
+    from peewee import Model, TextField
+
+    from bw2data.sqlite import SubstitutableDatabase
+
+    class Thing(Model):
+        name = TextField()
+
+    seen = []
+    sub = SubstitutableDatabase(
+        tmp_path / "first.db", [Thing], connection_hooks=[lambda conn: seen.append(1)]
+    )
+    try:
+        assert seen == [1]
+    finally:
+        sub.db.close()
+
+
+@pytest.mark.parametrize(
+    "dirname",
+    [
+        "plain",
+        "with space",
+        "hash#dir",
+        pytest.param(
+            "q?mark",
+            marks=pytest.mark.skipif(
+                sys.platform == "win32", reason="'?' is not allowed in Windows file names"
+            ),
+        ),
+        "pct%41",
+    ],
+)
 def test_sqlite_uri_escapes_paths(tmp_path, dirname):
     import sqlite3
 
@@ -222,16 +361,20 @@ def test_sqlite_uri_escapes_paths(tmp_path, dirname):
 
     # A plain path is still opened correctly in URI mode
     main = BWSqliteDatabase(path)
-    assert main.execute_sql("SELECT v FROM t").fetchone() == (42,)
+    try:
+        assert main.execute_sql("SELECT v FROM t").fetchone() == (42,)
 
-    # The escaped URI attaches the same file, read-only
-    uri = _sqlite_uri(path, mode="ro")
-    assert uri.startswith("file:") and uri.endswith("?mode=ro")
-    main.execute_sql("ATTACH ? AS other", (uri,))
-    assert main.execute_sql("SELECT v FROM other.t").fetchone() == (42,)
-    with pytest.raises(Exception, match="readonly"):
-        main.execute_sql("INSERT INTO other.t VALUES (1)")
-    main.close()
+        # The escaped URI attaches the same file, read-only
+        uri = _sqlite_uri(path, mode="ro")
+        assert uri.startswith("file:") and uri.endswith("?mode=ro")
+        main.execute_sql("ATTACH ? AS other", (uri,))
+        assert main.execute_sql("SELECT v FROM other.t").fetchone() == (42,)
+        with pytest.raises(Exception, match="readonly"):
+            main.execute_sql("INSERT INTO other.t VALUES (1)")
+    finally:
+        # Always release the file handles, otherwise a failure here also breaks the cleanup
+        # of ``tmp_path`` on Windows
+        main.close()
 
 
 def test_sqlite_uri_without_params(tmp_path):
@@ -239,6 +382,70 @@ def test_sqlite_uri_without_params(tmp_path):
 
     assert _sqlite_uri(tmp_path / "a b.db") == (tmp_path / "a b.db").resolve().as_uri()
     assert "%20" in _sqlite_uri(tmp_path / "a b.db")
+
+
+def test_path_as_uri_windows_paths():
+    from pathlib import PureWindowsPath
+
+    from bw2data.sqlite import _path_as_uri
+
+    # Drive letter: empty authority, drive in the path
+    assert _path_as_uri(PureWindowsPath(r"C:\data\a b.db")) == "file:///C:/data/a%20b.db"
+    # UNC: SQLite rejects a server name as URI authority, so it stays in the path
+    assert (
+        _path_as_uri(PureWindowsPath(r"\\server\share\dir#1\a b.db"))
+        == "file:////server/share/dir%231/a%20b.db"
+    )
+
+
+def test_schema_change_20_sql_migrates_old_schema(tmp_path):
+    import sqlite3
+
+    from bw2data.updates import UPDATE_ACTIVITYDATASET, UPDATE_EXCHANGEDATASET
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE "activitydataset" ("id" INTEGER NOT NULL PRIMARY KEY, "data" BLOB NOT NULL,
+                "database" TEXT NOT NULL, "key" TEXT NOT NULL, "location" TEXT, "name" TEXT,
+                "product" TEXT, "type" TEXT);
+            CREATE UNIQUE INDEX "activitydataset_key" ON "activitydataset" ("key");
+            CREATE TABLE "exchangedataset" ("id" INTEGER NOT NULL PRIMARY KEY, "data" BLOB NOT NULL,
+                "database" TEXT NOT NULL, "input" TEXT NOT NULL, "output" TEXT NOT NULL,
+                "type" TEXT NOT NULL);
+            CREATE INDEX "exchangedataset_database" ON "exchangedataset" ("database");
+            CREATE INDEX "exchangedataset_input" ON "exchangedataset" ("input");
+            CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output");
+            INSERT INTO activitydataset ("data", "database", "key", "type")
+                VALUES (x'00', 'db', 'db⊡a', 'process');
+            INSERT INTO exchangedataset ("data", "database", "input", "output", "type")
+                VALUES (x'00', 'db', 'db⊡a', 'db⊡b', 'technosphere');
+            """
+        )
+        conn.executescript(UPDATE_ACTIVITYDATASET)
+        conn.executescript(UPDATE_EXCHANGEDATASET)
+
+        assert conn.execute('SELECT "database", "code" FROM activitydataset').fetchall() == [
+            ("db", "a")
+        ]
+        assert conn.execute(
+            'SELECT "input_database", "input_code", "output_database", "output_code" '
+            "FROM exchangedataset"
+        ).fetchall() == [("db", "a", "db", "b")]
+        names = {
+            row[0]
+            for row in conn.execute("SELECT name FROM main.sqlite_master WHERE type != 'table'")
+        }
+        assert names == {"activitydataset_key", "exchangedataset_input", "exchangedataset_output"}
+        tables = {
+            row[0]
+            for row in conn.execute("SELECT name FROM main.sqlite_master WHERE type = 'table'")
+        }
+        assert tables == {"activitydataset", "exchangedataset"}
+    finally:
+        conn.close()
 
 
 @bw2test
