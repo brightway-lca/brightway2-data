@@ -113,7 +113,8 @@ class SubstitutableDatabase:
     def __init__(self, filepath, tables, pragmas=None, connection_hooks=(), on_open=None):
         """``on_open``, if given, is called with the peewee database each time a file is opened
         (on creation and after every ``change_path``), after the tables have been created. It is
-        used to run schema migrations."""
+        used to run schema migrations. If it raises, the file is closed again and the exception
+        is passed on."""
         self._filepath = filepath
         self._tables = tables
         self._pragmas = pragmas or {}
@@ -126,28 +127,45 @@ class SubstitutableDatabase:
         db = BWSqliteDatabase(
             self._filepath, pragmas=self._pragmas, connection_hooks=connection_hooks
         )
+        self._bind(db)
+        try:
+            db.connect()
+            db.create_tables(self._tables)
+            if self._on_open is not None:
+                self._on_open(db)
+        except BaseException:
+            db.close()
+            raise
+        return db
+
+    def _bind(self, db):
         for model in self._tables:
             model.bind(db, bind_refs=False, bind_backrefs=False)
-        db.connect()
-        db.create_tables(self._tables)
-        if self._on_open is not None:
-            self._on_open(db)
-        return db
 
     @property
     def db(self):
         return self._database
 
     def change_path(self, filepath):
+        """Close the current file and open ``filepath`` instead.
+
+        If the new file can't be opened, the previous file is opened again and the exception is
+        passed on, so that this object and the models never point at different files."""
         import gc
         old_db = self._database
+        old_filepath = self._filepath
         # The database object is replaced, but its connection hooks must survive the switch
         connection_hooks = old_db.connection_hooks
         old_db.close()
-        del old_db
         gc.collect()
         self._filepath = filepath
-        self._database = self._create_database(connection_hooks)
+        try:
+            self._database = self._create_database(connection_hooks)
+        except BaseException:
+            self._filepath = old_filepath
+            self._bind(old_db)
+            old_db.connect(reuse_if_open=True)
+            raise
 
     def add_connection_hook(self, hook: ConnectionHook) -> None:
         """Run ``hook(conn)`` on every connection to this database, now and after

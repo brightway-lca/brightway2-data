@@ -418,15 +418,25 @@ class ProjectManager(Iterable):
         return bool(self.dataset.data.get("25"))
 
     def set_current(self, name, writable=True, update=True):
+        # ``None`` on the very first call, when there is no project to go back to
+        previous = (
+            getattr(self, "_project_name", None),
+            getattr(self, "dataset", None),
+            self.read_only,
+        )
         self._project_name = str(name)
 
         # Need to allow writes when creating a new project
         # for new metadata stores
         self.read_only = False
-        self.create_project(name)
-        self.dataset = ProjectDataset.get(ProjectDataset.name == self._project_name)
-        self._reset_meta()
-        self._reset_sqlite3_databases()
+        try:
+            self.create_project(name)
+            self.dataset = ProjectDataset.get(ProjectDataset.name == self._project_name)
+            self._reset_meta()
+            self._reset_sqlite3_databases()
+        except BaseException:
+            self._restore_project(*previous)
+            raise
         project_changed.send(self, dataset=self.dataset)
 
         if not writable:
@@ -442,6 +452,22 @@ class ProjectManager(Iterable):
         for update_name in Updates.check_automatic_updates():
             stdout_feedback_logger.info("Applying automatic update: {}".format(update_name))
             Updates.do_update(update_name)
+
+    def _restore_project(self, name, dataset, read_only):
+        """Go back to the project ``name`` after a failed switch to another project.
+
+        A switch changes the project name, the metadata stores and each SQLite file in turn; if
+        one of these steps fails, the others must not stay on the new project."""
+        if name is None or dataset is None:
+            return
+        self._project_name, self.dataset, self.read_only = name, dataset, read_only
+        try:
+            self._reset_meta()
+            self._reset_sqlite3_databases()
+        except Exception:
+            stdout_feedback_logger.exception(
+                "Can't go back to project %s after a failed project switch", name
+            )
 
     def _reset_meta(self):
         for obj in config.metadata:
