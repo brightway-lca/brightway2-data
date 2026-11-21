@@ -1,11 +1,27 @@
 """Fixtures for bw2data"""
 
+import atexit
 import gc
+import os
+import shutil
 import sqlite3
+import sys
+import tempfile
+import warnings
 
 import pytest
 
 sqlite3.enable_callback_tracebacks(True)
+
+# Importing bw2data opens the "default" project, which creates tables and runs schema
+# migrations in it. Point bw2data at a throwaway directory before anything imports it, so
+# that running the tests never changes the user's real data. Tests then switch to their own
+# temporary directories with ``bw2test``.
+if "bw2data" in sys.modules:
+    warnings.warn("bw2data was imported before conftest.py; tests may change the real data dir")
+_TEST_DATA_DIR = tempfile.mkdtemp(prefix="bw2data-tests-")
+os.environ["BRIGHTWAY2_DIR"] = _TEST_DATA_DIR
+atexit.register(shutil.rmtree, _TEST_DATA_DIR, True)
 
 
 @pytest.fixture
