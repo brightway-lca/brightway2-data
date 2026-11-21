@@ -140,7 +140,7 @@ def test_migration_is_postponed_when_file_is_locked():
     assert "from_pickle" not in _stored()
 
     # Tried again on the next open
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [1]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == list(range(1, SCHEMA_VERSION + 1))
     assert _stored()["from_pickle"] == 1
 
 

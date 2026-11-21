@@ -90,9 +90,83 @@ def _preferences_to_sqlite(db: Database, project_dir: Path) -> None:
     )
 
 
+def _geomapping_without_autoincrement(db: Database, project_dir: Path) -> None:
+    """Rebuild ``geocollection`` and ``geomappingrecord`` without ``AUTOINCREMENT``, keeping all
+    rows and ids.
+
+    New ids in both tables are snowflake ids, assigned by bw2data. Existing ids are kept, as
+    processed datapackages refer to geomapping ids. Tables created after the switch to
+    snowflake ids have no ``AUTOINCREMENT`` and are left alone.
+
+    Both tables are rebuilt together: renaming ``geocollection`` makes SQLite change the
+    foreign key of ``geomappingrecord`` to point at the renamed table, so the old
+    ``geomappingrecord`` can't be kept either. The new tables and indices are the ones peewee
+    creates for a new project; ``tests/unit/test_geomapping_sqlite.py`` checks that both stay
+    identical."""
+    definitions = dict(
+        db.execute_sql(
+            "SELECT name, sql FROM main.sqlite_master WHERE type = 'table' "
+            "AND name IN ('geocollection', 'geomappingrecord')"
+        ).fetchall()
+    )
+    if not any("AUTOINCREMENT" in sql.upper() for sql in definitions.values()):
+        return
+
+    # Indices keep their names when their table is renamed; drop them so that the names are
+    # free for the new tables
+    for index in (
+        "geomappingrecord_collection_location",
+        "geomappingrecord_geocollection_id",
+        "geocollection_name",
+    ):
+        db.execute_sql(f'DROP INDEX IF EXISTS main."{index}"')
+    # Child first: it then keeps pointing at the old parent until both old tables are gone
+    db.execute_sql('ALTER TABLE main."geomappingrecord" RENAME TO "geomappingrecord_old"')
+    db.execute_sql('ALTER TABLE main."geocollection" RENAME TO "geocollection_old"')
+
+    db.execute_sql(
+        'CREATE TABLE main."geocollection" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"name" TEXT NOT NULL, "extra" TEXT)'
+    )
+    db.execute_sql(
+        'INSERT INTO main."geocollection" ("id", "name", "extra") '
+        'SELECT "id", "name", "extra" FROM main."geocollection_old"'
+    )
+    db.execute_sql(
+        'CREATE TABLE main."geomappingrecord" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"geocollection_id" INTEGER, "location" TEXT NOT NULL, FOREIGN KEY ("geocollection_id") '
+        'REFERENCES "geocollection" ("id") ON DELETE RESTRICT)'
+    )
+    db.execute_sql(
+        'INSERT INTO main."geomappingrecord" ("id", "geocollection_id", "location") '
+        'SELECT "id", "geocollection_id", "location" FROM main."geomappingrecord_old"'
+    )
+    # Child first, so that no row refers to the old parent when it is dropped. Dropping also
+    # removes each table's row in ``sqlite_sequence``.
+    db.execute_sql('DROP TABLE main."geomappingrecord_old"')
+    db.execute_sql('DROP TABLE main."geocollection_old"')
+
+    db.execute_sql(
+        'CREATE UNIQUE INDEX main."geocollection_name" ON "geocollection" ("name")'
+    )
+    db.execute_sql(
+        'CREATE INDEX main."geomappingrecord_geocollection_id" '
+        'ON "geomappingrecord" ("geocollection_id")'
+    )
+    db.execute_sql(
+        'CREATE UNIQUE INDEX main."geomappingrecord_collection_location" '
+        'ON "geomappingrecord" (COALESCE("geocollection_id", 0), "location")'
+    )
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
+    Migration(
+        2,
+        "Use snowflake ids for new geomapping and geocollection ids (remove AUTOINCREMENT)",
+        _geomapping_without_autoincrement,
+    ),
 )
 
 #: Schema version of a fully migrated ``lci/databases.db``
