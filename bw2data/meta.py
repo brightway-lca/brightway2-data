@@ -867,17 +867,88 @@ class NormalizationMeta(Methods):
     filename = "normalizations.json"
 
 
-class Preferences(PickledDict):
-    """A dictionary of project-specific preferences."""
+class Preferences(MutableMapping):
+    """A dictionary of project-specific preferences.
 
+    Stored in the ``preference`` table of the per-project ``lci/databases.db``. Keys must be
+    strings; values can be any picklable object. Previously stored in ``preferences.pickle``,
+    which is migrated when the project is opened (see ``bw2data.backends.migrations``).
+
+    Behaves like the old file-backed dictionary: all preferences are read once, on first
+    access, and every assignment or deletion saves all of them. Changes inside a value
+    (``preferences["updates"][key] = True``) are saved by the next assignment, or by
+    ``preferences.flush()``."""
+
+    #: Legacy storage file, migrated when the project is opened
     filename = "preferences.pickle"
 
-    def __init__(self, *args, **kwargs):
-        super(Preferences, self).__init__(*args, **kwargs)
+    #: Defaults, saved on first access when missing
+    DEFAULTS = {"use_cache": True}
 
-        # Default preferences
-        if "use_cache" not in self:
-            self["use_cache"] = True
+    def __init__(self):
+        # No database access here: on a project switch, metadata objects are reset before the
+        # SQLite files are switched to the new project.
+        self._data = None
+
+    @property
+    def data(self) -> dict:
+        if self._data is None:
+            self.load()
+        return self._data
+
+    def load(self) -> None:
+        """Read all preferences from SQLite, discarding unsaved changes."""
+        from bw2data.backends.schema import Preference
+
+        self._data = {key: value for key, value in Preference.select().tuples()}
+        missing = {k: copy.deepcopy(v) for k, v in self.DEFAULTS.items() if k not in self._data}
+        if missing:
+            self._data.update(missing)
+            self.flush()
+
+    def flush(self) -> None:
+        """Save all preferences to SQLite, including changes made inside values."""
+        from bw2data.backends.schema import Preference
+
+        data = self.data
+        with _write_transaction(Preference):
+            Preference.delete().where(Preference.key.not_in(list(data))).execute()
+            for chunk in _chunks(list(data.items())):
+                Preference.replace_many(
+                    [{"key": key, "value": value} for key, value in chunk]
+                ).execute()
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __setitem__(self, key, value):
+        if not isinstance(key, str):
+            raise TypeError(f"Preference keys must be strings, not {type(key).__name__}")
+        self.data[key] = value
+        self.flush()
+
+    def __delitem__(self, key):
+        del self.data[key]
+        self.flush()
+
+    def __contains__(self, key):
+        return key in self.data
+
+    def __iter__(self):
+        return iter(self.data)
+
+    def __len__(self):
+        return len(self.data)
+
+    @property
+    def list(self):
+        """Sorted list of preference names."""
+        return sorted(self.data)
+
+    def __repr__(self):
+        return f"Preferences dictionary with {len(self)} object(s): {self.list}"
+
+    __str__ = __repr__
 
 
 databases = Databases()

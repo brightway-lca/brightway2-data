@@ -87,6 +87,20 @@ class DatabaseRecord(Model):
     extra = JSONField(null=True)          # arbitrary user-defined fields
 
 
+class Preference(Model):
+    """One project preference. Read and written through ``bw2data.preferences``.
+
+    Stored in the per-project ``lci/databases.db``. Previously stored in
+    ``preferences.pickle``; that file is migrated by schema migration 1 (see
+    ``bw2data.backends.migrations``). Values can be any picklable object."""
+
+    key = TextField(primary_key=True)
+    value = PickleField()
+
+    class Meta:
+        table_name = "preference"
+
+
 class Geocollection(Model):
     """A named collection of spatial units, e.g. ``"world"`` or ``"ecoinvent"``.
 

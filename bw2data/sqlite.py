@@ -110,10 +110,14 @@ class BWSqliteDatabase(SqliteDatabase):
 
 
 class SubstitutableDatabase:
-    def __init__(self, filepath, tables, pragmas=None, connection_hooks=()):
+    def __init__(self, filepath, tables, pragmas=None, connection_hooks=(), on_open=None):
+        """``on_open``, if given, is called with the peewee database each time a file is opened
+        (on creation and after every ``change_path``), after the tables have been created. It is
+        used to run schema migrations."""
         self._filepath = filepath
         self._tables = tables
         self._pragmas = pragmas or {}
+        self._on_open = on_open
         self._database = self._create_database(connection_hooks)
 
     def _create_database(self, connection_hooks=()):
@@ -126,6 +130,8 @@ class SubstitutableDatabase:
             model.bind(db, bind_refs=False, bind_backrefs=False)
         db.connect()
         db.create_tables(self._tables)
+        if self._on_open is not None:
+            self._on_open(db)
         return db
 
     @property
