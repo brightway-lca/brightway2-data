@@ -11,6 +11,7 @@ from typing import Union
 from bw2data import projects
 from bw2data.errors import PickleError
 from bw2data.fatomic import open as atomic_open
+from bw2data.signals import should_emit
 from bw2data.utils import maybe_path
 
 try:
@@ -130,9 +131,10 @@ class SerializedDict(MutableMapping):
     def _send_save_signal(self, signal: bool) -> bool:
         """Whether `serialize` should build `old`/`new` snapshots and send `_save_signal`.
 
-        The save signal only feeds revision generation, which is skipped on unsourced projects,
-        so don't re-read the file from disk or deep copy the data in that case."""
-        return bool(signal and hasattr(self, "_save_signal") and projects.dataset.is_sourced)
+        Building the snapshots re-reads the file from disk and deep copies the data, so only do
+        it when the project is event sourced or a listener asked for signals with
+        `bw2data.signals.set_signalled`."""
+        return bool(signal and hasattr(self, "_save_signal") and should_emit())
 
     @property
     def list(self):
@@ -233,18 +235,22 @@ class SerializedDict(MutableMapping):
     def backup(self):
         """Write a backup version of the data to the ``backups`` directory."""
         filepath = os.path.join(projects.dir, "backups", self.filename + ".%s.backup" % int(time()))
-        self.serialize(filepath)
+        # The stored data didn't change, so there is nothing to tell listeners
+        self.serialize(filepath, signal=False)
 
 
 class PickledDict(SerializedDict):
     """Subclass of ``SerializedDict`` that uses the pickle format instead of JSON."""
 
-    def serialize(self, signal: bool = True):
+    def serialize(self, filepath: Union[str, Path] = None, signal: bool = True):
         signal = self._send_save_signal(signal)
         if signal:
-            previous = self.deserialize()
+            try:
+                previous = self.deserialize()
+            except IOError:
+                previous = {}
 
-        with atomic_open(self.filepath, "wb") as f:
+        with atomic_open(filepath or self.filepath, "wb") as f:
             pickle.dump(self.pack(self.data), f, protocol=4)
 
         if signal:

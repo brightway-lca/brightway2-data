@@ -1,3 +1,6 @@
+from contextlib import contextmanager
+from typing import Iterator
+
 from blinker import signal
 from peewee import Model
 
@@ -11,9 +14,9 @@ signaleddataset_on_save = signal(
     "bw2data.signaleddataset_on_save",
     doc="""Emitted *after* SignaledDataset is saved.
 
-Only sent when the current project is event sourced (`projects.dataset.is_sourced`); the
-signal exists to generate revisions, and looking up the previous version costs one query per
-save.
+Only sent when the current project is event sourced (`projects.dataset.is_sourced`) or
+signals are turned on for this process with `bw2data.signals.set_signalled()`; looking up the
+previous version costs one query per save.
 
 Expected inputs:
     * `old`: dict - the previous version of the dataset
@@ -62,9 +65,9 @@ on_database_metadata_change = signal(
     "bw2data.on_database_metadata_change",
     doc="""Emitted *after* any database metadata has changed.
 
-Only sent when the current project is event sourced (`projects.dataset.is_sourced`); the
-signal exists to generate revisions, and building `old` and `new` re-reads every
-`DatabaseRecord` row.
+Only sent when the current project is event sourced (`projects.dataset.is_sourced`) or
+signals are turned on for this process with `bw2data.signals.set_signalled()`; building `old`
+and `new` re-reads every `DatabaseRecord` row.
 
 Expected inputs:
     * `old`: dict - previous full database metadata dict (all databases)
@@ -100,6 +103,10 @@ No expected return value.
 on_database_write = signal(
     "bw2data.on_database_write",
     doc="""Emitted *after* a `Database` has new data written (replacing all previous data).
+
+Unless `Database.write` is given `signal` explicitly, only sent when the current project is
+event sourced (`projects.dataset.is_sourced`) or signals are turned on for this process with
+`bw2data.signals.set_signalled()`.
 
 Expected inputs:
     * `name`: str - database name
@@ -260,15 +267,59 @@ No expected return value.
 )
 
 
+_signalled = False
+
+
+def set_signalled(value: bool = True) -> None:
+    """Turn the change signals which are costly to build on or off for this process.
+
+    `signaleddataset_on_save`, `on_database_metadata_change`, `on_database_write` and the
+    `_save_signal` of `SerializedDict` subclasses need extra queries to build their arguments.
+    They are always sent on event-sourced projects, where they generate revisions. On other
+    projects they are only sent after `set_signalled(True)`; call it once at startup in an
+    application which listens to these signals, such as a GUI.
+
+    The setting is held in memory for the current process. It is not stored in the project,
+    and is not changed by switching projects."""
+    global _signalled
+    _signalled = bool(value)
+
+
+def is_signalled() -> bool:
+    """Whether change signals were turned on for this process with `set_signalled`."""
+    return _signalled
+
+
+@contextmanager
+def signalled(value: bool = True) -> Iterator[None]:
+    """Context manager to set `set_signalled(value)` for a block, then restore the previous
+    setting."""
+    previous = _signalled
+    set_signalled(value)
+    try:
+        yield
+    finally:
+        set_signalled(previous)
+
+
+def should_emit() -> bool:
+    """Whether the change signals which are costly to build are sent: signals are turned on
+    for this process, or the current project is event sourced."""
+    if _signalled:
+        return True
+
+    from bw2data import projects
+
+    return bool(projects.dataset.is_sourced)
+
+
 class SignaledDataset(Model):
     @override
     def save(self, signal: bool = True, *args, **kwargs) -> None:
         """Receives a mapper to convert the data to the expected dictionary format"""
-        from bw2data import projects
-
-        # `signaleddataset_on_save` only feeds revision generation, which is skipped on
-        # unsourced projects. Don't pay for the extra query to fetch the previous version.
-        signal = signal and projects.dataset.is_sourced
+        # Fetching the previous version costs one query per save. Only pay for it when the
+        # project is event sourced or a listener asked for signals with `set_signalled`.
+        signal = signal and should_emit()
         old = type(self).get_or_none(type(self).id == self.id) if signal else None
         super().save(*args, **kwargs)
         if signal:

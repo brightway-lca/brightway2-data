@@ -7,7 +7,7 @@ from collections.abc import Mapping, MutableMapping
 from peewee import JOIN
 
 from bw2data.serialization import CompoundJSONDict, PickledDict
-from bw2data.signals import on_database_delete, on_database_metadata_change
+from bw2data.signals import on_database_delete, on_database_metadata_change, should_emit
 
 
 _KNOWN_FIELDS = frozenset(
@@ -487,7 +487,8 @@ class DatabaseRecordProxy(MutableMapping):
 
         Only changed keys are written, so changes saved through other code since this proxy
         was loaded are kept. Sends ``on_database_metadata_change`` once on event-sourced
-        projects, unless ``signal`` is ``False``."""
+        projects or when signals are turned on with ``bw2data.signals.set_signalled()``, unless
+        ``signal`` is ``False``."""
         changed = self._changed_keys()
         if not changed:
             return
@@ -759,11 +760,9 @@ Metadata state is unchanged, but database state is unknown.
         """Whether a save should build ``old``/``new`` snapshots and emit
         ``on_database_metadata_change``.
 
-        The signal only feeds revision generation, which is skipped on unsourced projects, so
-        don't pay for two full-table snapshots per save in that case (see #299)."""
-        from bw2data.project import projects
-
-        return projects.dataset.is_sourced
+        Each save costs two full-table snapshots, so only pay for them when the project is event
+        sourced or a listener asked for signals with `bw2data.signals.set_signalled` (see #299)."""
+        return should_emit()
 
     def _emit(self, old):
         """Emit on_database_metadata_change with the given old state and current new state."""
