@@ -8,6 +8,7 @@ from peewee import JOIN
 
 from bw2data.serialization import CompoundJSONDict, PickledDict
 from bw2data.signals import on_database_delete, on_database_metadata_change
+from bw2data.snowflake_ids import snowflake_id_generator
 
 
 _KNOWN_FIELDS = frozenset(
@@ -27,6 +28,9 @@ _KNOWN_FIELDS = frozenset(
 #: Rows per query, to stay well under SQLite's limit on bound variables
 _CHUNK = 300
 
+#: Attempts to insert new geomapping rows when snowflake ids collide (see ``GeoMapping.add``)
+_SNOWFLAKE_ATTEMPTS = 5
+
 
 def _chunks(items, size=_CHUNK):
     for i in range(0, len(items), size):
@@ -40,6 +44,25 @@ def _write_transaction(model):
     "database is locked" when another process holds a read lock and also wants to write;
     taking the write lock first makes concurrent writers wait for each other instead."""
     return model._meta.database.atomic("IMMEDIATE")
+
+
+def _insert_with_snowflake_ids(model, rows, still_missing, what):
+    """Insert ``rows`` (dicts without ``id``) into ``model`` with new snowflake ids.
+
+    Rows which conflict with an existing row are ignored. Call within a write transaction.
+    ``still_missing(rows)`` returns the rows which aren't stored after an insert: these can only
+    have been ignored because their id was already used, as processes on one machine share the
+    generator's ``instance`` and can produce the same id in the same millisecond. They are
+    retried with new ids."""
+    for _ in range(_SNOWFLAKE_ATTEMPTS):
+        for batch in _chunks(rows):
+            model.insert_many(
+                [{**row, "id": next(snowflake_id_generator)} for row in batch]
+            ).on_conflict_ignore().execute()
+        rows = still_missing(rows)
+        if not rows:
+            return
+    raise RuntimeError(f"Could not assign unique ids to {what} {rows[:20]!r}")
 
 
 def _canonical_geo_key(key):
@@ -162,7 +185,7 @@ class GeoMapping(Mapping):
             * *keys* (iterable): The keys to add.
 
         """
-        from bw2data.backends.schema import GeoMappingRecord, Geocollection
+        from bw2data.backends.schema import GeoMappingRecord
 
         keys = list(dict.fromkeys(_canonical_geo_key(key) for key in keys))
         self._ensure_ready()
@@ -182,19 +205,26 @@ class GeoMapping(Mapping):
             missing = [key for key in missing if key not in found]
             if not missing:
                 return
-            names = sorted({key[0] for key in missing if isinstance(key, tuple)})
-            if names:
-                Geocollection.insert_many(
-                    [{"name": name} for name in names]
-                ).on_conflict_ignore().execute()
-            collection_ids = self._collection_ids(names)
+            collection_ids = self._add_collections(
+                {key[0] for key in missing if isinstance(key, tuple)}
+            )
+            names_by_id = {id_: name for name, id_ in collection_ids.items()}
+
+            def still_missing(rows):
+                keys = [
+                    _join_geo_key(names_by_id.get(row["geocollection"]), row["location"])
+                    for row in rows
+                ]
+                found = self._fetch(keys)
+                return [row for row, key in zip(rows, keys) if key not in found]
+
             rows = [
                 {"geocollection": collection_ids.get(collection), "location": location}
                 for collection, location in map(_split_geo_key, missing)
             ]
-            for batch in _chunks(rows):
-                GeoMappingRecord.insert_many(batch).on_conflict_ignore().execute()
-            self._fetch(missing)
+            _insert_with_snowflake_ids(
+                GeoMappingRecord, rows, still_missing, "geomapping locations"
+            )
 
     def delete(self, keys):
         """Delete locations. Their ids are not reused. Keys not present are ignored.
@@ -252,6 +282,22 @@ class GeoMapping(Mapping):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _add_collections(self, names):
+        """Create the geocollections in ``names`` which don't exist yet, and return the ids of
+        all of them. Call within a write transaction."""
+        from bw2data.backends.schema import Geocollection
+
+        def still_missing(rows):
+            found = self._collection_ids(row["name"] for row in rows)
+            return [row for row in rows if row["name"] not in found]
+
+        names = sorted(names)
+        if names:
+            _insert_with_snowflake_ids(
+                Geocollection, [{"name": name} for name in names], still_missing, "geocollections"
+            )
+        return self._collection_ids(names)
 
     def _collection_ids(self, names):
         from bw2data.backends.schema import Geocollection
@@ -386,10 +432,9 @@ class GeoMapping(Mapping):
         warnings.warn(message, stacklevel=3)
 
         with _write_transaction(GeoMappingRecord):
-            names = sorted({key[0] for key in rows if isinstance(key, tuple)})
-            if names:
-                Geocollection.insert_many([{"name": name} for name in names]).execute()
-            collection_ids = self._collection_ids(names)
+            collection_ids = self._add_collections(
+                {key[0] for key in rows if isinstance(key, tuple)}
+            )
             records = []
             for key, id_ in rows.items():
                 collection, location = _split_geo_key(key)
