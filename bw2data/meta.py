@@ -867,17 +867,117 @@ class NormalizationMeta(Methods):
     filename = "normalizations.json"
 
 
-class Preferences(PickledDict):
-    """A dictionary of project-specific preferences."""
+class Preferences(MutableMapping):
+    """A dictionary of project-specific preferences.
 
+    Stored in the ``preference`` table of the per-project ``lci/databases.db``. Keys must be
+    strings; values can be any picklable object. Previously stored in ``preferences.pickle``,
+    which is migrated when the project is opened (see ``bw2data.backends.migrations``).
+
+    All preferences are read once, on first access; reading never writes to the database.
+    Every assignment, deletion or ``flush()`` saves the changes made through this object
+    since then, including changes inside a value (``preferences["updates"][key] = True``).
+    Only preferences which were changed here are written, so preferences set by another
+    process in the meantime are kept, unless both changed the same one. Use ``load()`` to
+    read the other process's changes.
+
+    If saving fails, an assignment or deletion is not applied in memory either. This can't be
+    done for a save inside a transaction opened by the caller which is rolled back later:
+    call ``load()`` after such a rollback."""
+
+    #: Legacy storage file, migrated when the project is opened
     filename = "preferences.pickle"
 
-    def __init__(self, *args, **kwargs):
-        super(Preferences, self).__init__(*args, **kwargs)
+    #: Values of preferences which are not set. Not stored until they are changed.
+    DEFAULTS = {"use_cache": True}
 
-        # Default preferences
-        if "use_cache" not in self:
-            self["use_cache"] = True
+    def __init__(self):
+        # No database access here: on a project switch, metadata objects are reset before the
+        # SQLite files are switched to the new project.
+        self._data = None
+        # Pickled values as last read from or written to SQLite, to find what has changed
+        self._saved = {}
+
+    @property
+    def data(self) -> dict:
+        """The preferences as a plain dictionary. Can be changed in place (followed by
+        ``flush()``), but not replaced."""
+        if self._data is None:
+            self.load()
+        return self._data
+
+    @staticmethod
+    def _pickled(data: dict) -> dict:
+        for key in data:
+            if not isinstance(key, str):
+                raise TypeError(f"Preference keys must be strings, not {type(key).__name__}")
+        return {key: pickle.dumps(value, protocol=4) for key, value in data.items()}
+
+    def load(self) -> None:
+        """Read all preferences from SQLite, discarding unsaved changes."""
+        from bw2data.backends.schema import Preference
+
+        data = {key: value for key, value in Preference.select().tuples()}
+        for key, value in self.DEFAULTS.items():
+            data.setdefault(key, copy.deepcopy(value))
+        self._saved = self._pickled(data)
+        self._data = data
+
+    def _save(self, data: dict) -> None:
+        """Write the differences between ``data`` and what was last read or written."""
+        from bw2data.backends.schema import Preference
+
+        # Before anything is written: a value which can't be pickled must change nothing
+        pickled = self._pickled(data)
+        changed = [key for key, value in pickled.items() if self._saved.get(key) != value]
+        removed = [key for key in self._saved if key not in pickled]
+        if not changed and not removed:
+            return
+        with _write_transaction(Preference):
+            for chunk in _chunks(removed):
+                Preference.delete().where(Preference.key.in_(chunk)).execute()
+            for chunk in _chunks(changed):
+                Preference.replace_many(
+                    [{"key": key, "value": data[key]} for key in chunk]
+                ).execute()
+        self._saved = pickled
+
+    def flush(self) -> None:
+        """Save all changes to SQLite, including changes made inside values."""
+        self._save(self.data)
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __setitem__(self, key, value):
+        # Saved first, so that a failed save leaves the preferences in memory as they were
+        self._save({**self.data, key: value})
+        self._data[key] = value
+
+    def __delitem__(self, key):
+        data = dict(self.data)
+        del data[key]
+        self._save(data)
+        del self._data[key]
+
+    def __contains__(self, key):
+        return key in self.data
+
+    def __iter__(self):
+        return iter(self.data)
+
+    def __len__(self):
+        return len(self.data)
+
+    @property
+    def list(self):
+        """Sorted list of preference names."""
+        return sorted(self.data)
+
+    def __repr__(self):
+        return f"Preferences dictionary with {len(self)} object(s): {self.list}"
+
+    __str__ = __repr__
 
 
 databases = Databases()
