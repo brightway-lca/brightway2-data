@@ -108,8 +108,28 @@ Unless `Database.write` is given `signal` explicitly, only sent when the current
 event sourced (`projects.dataset.is_sourced`) or signals are turned on for this process with
 `bw2data.signals.set_signalled()`.
 
+`Database.copy` writes the new database before it copies parameters, so during a copy this
+signal is sent before the parameters of the new database exist. Use `on_database_copy` to
+react to a finished copy.
+
 Expected inputs:
     * `name`: str - database name
+
+No expected return value.
+""",
+)
+
+on_database_copy = signal(
+    "bw2data.on_database_copy",
+    doc="""Emitted *after* `Database.copy` has finished, when the new database has its data and
+parameters.
+
+Always sent, and doesn't generate a revision; on event-sourced projects the changes made by
+the copy are already recorded by the signals sent while copying.
+
+Expected inputs:
+    * `name`: str - name of the new database
+    * `source`: str - name of the database which was copied
 
 No expected return value.
 """,

@@ -39,6 +39,12 @@ This setting is held in memory. It is not stored in the project, it applies to e
 
 The signals carry the same arguments whether they are sent because the project is event sourced or because of `set_signalled`. Revisions are only written on event-sourced projects.
 
+## Copying a database
+
+`Database.copy` sends `on_database_copy` with the new database name (`name`) and the copied database name (`source`) as its last step, when the new database has its data and parameters. It is always sent and doesn't generate a revision.
+
+If `on_database_write` is sent during a copy, it arrives earlier, before the parameters are copied. Listeners which need the complete copy should use `on_database_copy`.
+
 # Side effects
 
 Higher-level objects can cause changes to lower level objects. The object hierarchy is:
