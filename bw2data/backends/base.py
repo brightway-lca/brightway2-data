@@ -723,20 +723,20 @@ class SQLiteBackend(ProcessedDataStore):
 
     def _drop_indices(self):
         with sqlite3_lci_db.transaction():
-            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "activitydataset_key"')
-            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_input"')
-            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS "exchangedataset_output"')
+            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS main."activitydataset_key"')
+            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS main."exchangedataset_input"')
+            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS main."exchangedataset_output"')
 
     def _add_indices(self):
         with sqlite3_lci_db.transaction():
             sqlite3_lci_db.execute_sql(
-                'CREATE UNIQUE INDEX IF NOT EXISTS "activitydataset_key" ON "activitydataset" ("database", "code")'
+                'CREATE UNIQUE INDEX IF NOT EXISTS main."activitydataset_key" ON "activitydataset" ("database", "code")'
             )
             sqlite3_lci_db.execute_sql(
-                'CREATE INDEX IF NOT EXISTS "exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")'
+                'CREATE INDEX IF NOT EXISTS main."exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")'
             )
             sqlite3_lci_db.execute_sql(
-                'CREATE INDEX IF NOT EXISTS "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")'
+                'CREATE INDEX IF NOT EXISTS main."exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")'
             )
 
     def _efficient_write_dataset(
