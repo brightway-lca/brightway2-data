@@ -293,10 +293,12 @@ def _lcia_metadata_to_sqlite(db: Database, project_dir: Path) -> None:
     """Move ``methods.json``, ``weightings.json`` and ``normalizations.json`` into the
     ``method``, ``weighting`` and ``normalization`` tables.
 
-    Each file is only read if its table is empty. Rows get new snowflake ids; the names are
-    the natural key. Entries which can't be migrated (names which aren't non-empty lists,
-    metadata which isn't a dictionary) are skipped with a warning, as is an unreadable file.
-    The files are kept as backups.
+    Objects which are already in a table are kept as they are; this happens when the
+    migration was postponed and objects were registered in the meantime. Rows get new
+    snowflake ids; the names are the natural key. Entries which can't be migrated (names
+    which aren't non-empty lists or can't be dictionary keys, metadata which isn't a
+    dictionary, values which can't be stored) are skipped with a warning, as is an
+    unreadable file. The files are kept as backups.
 
     ``has_data`` is ``0``: the data is still in ``intermediate/*.pickle``."""
     # Imported here: only this step needs it, and it has no dependency on the models
@@ -305,8 +307,6 @@ def _lcia_metadata_to_sqlite(db: Database, project_dir: Path) -> None:
     for filename, table, columns in _LCIA_METADATA:
         path = project_dir / filename
         if not path.is_file():
-            continue
-        if db.execute_sql(f'SELECT EXISTS (SELECT 1 FROM main."{table}")').fetchone()[0]:
             continue
 
         try:
@@ -331,12 +331,18 @@ def _lcia_metadata_to_sqlite(db: Database, project_dir: Path) -> None:
                 and entry[0]
                 and isinstance(entry[1], dict)
             ):
-                entries[tuple(entry[0])] = dict(entry[1])
-            else:
-                skipped.append(entry[0] if isinstance(entry, list) and entry else entry)
+                try:
+                    entries[tuple(entry[0])] = dict(entry[1])
+                    continue
+                except TypeError:
+                    # A name with a list or dictionary in it can't be a dictionary key, and
+                    # so can't be a name in the registry either
+                    pass
+            skipped.append(entry[0] if isinstance(entry, list) and entry else entry)
 
+        migrated = 0
         all_columns = ("id", "name", "abbreviation", *columns, "extra", "has_data")
-        sql = 'INSERT INTO main."{}" ({}) VALUES ({})'.format(
+        sql = 'INSERT OR IGNORE INTO main."{}" ({}) VALUES ({})'.format(
             table, ", ".join(f'"{c}"' for c in all_columns), ", ".join("?" * len(all_columns))
         )
         for name, metadata in entries.items():
@@ -350,17 +356,22 @@ def _lcia_metadata_to_sqlite(db: Database, project_dir: Path) -> None:
                     values.append(_json_value(metadata.pop(column, None)))
             values.append(_json_value(metadata or None))
             values.append(0)
-            db.execute_sql(sql, values)
+            try:
+                migrated += db.execute_sql(sql, values).rowcount
+            except (InterfaceError, ProgrammingError, OverflowError, ValueError, TypeError):
+                # A value which SQLite can't store, e.g. an integer with more than 64 bits
+                skipped.append(list(name))
 
         if skipped:
             warnings.warn(
-                f"Entries in {path} which aren't a name (list) and metadata (dictionary) "
-                f"can't be migrated, and are only kept in the file: {skipped[:20]!r}",
+                f"Entries in {path} which aren't a name (list of strings) and metadata "
+                f"(dictionary), or have values which can't be stored, can't be migrated, and "
+                f"are only kept in the file: {skipped[:20]!r}",
                 stacklevel=2,
             )
         stdout_feedback_logger.info(
             "Migrated %s %s(s) from %s to SQLite; the file is kept as a backup",
-            len(entries),
+            migrated,
             table,
             path,
         )

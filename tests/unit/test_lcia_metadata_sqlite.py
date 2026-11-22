@@ -128,7 +128,45 @@ def test_replacing_entry_keeps_id_and_clears_missing_keys():
     id_ = MethodRecord.get().id
     methods[NAME] = {"description": "new"}
     assert MethodRecord.get().id == id_
-    assert dict(methods[NAME]) == {"description": "new"}
+    # The abbreviation, which the object's files are named after, is the exception
+    assert dict(methods[NAME]) == {"abbreviation": "a", "description": "new"}
+    methods[NAME] = {"abbreviation": "b"}
+    assert dict(methods[NAME]) == {"abbreviation": "b"}
+
+
+@bw2test
+def test_replacing_metadata_of_data_store_keeps_abbreviation():
+    for cls, data in ((Method, []), (Weighting, [1]), (Normalization, [])):
+        obj = cls(NAME)
+        obj.write(data)
+        filename = obj.filename
+        obj.metadata = {"unit": "kg"}
+        assert dict(obj.metadata) == {"abbreviation": filename, "unit": "kg"}
+        assert obj.filename == filename
+        obj.write(data)
+
+
+@bw2test
+def test_abbreviation_of_entry_added_without_one():
+    methods[NAME] = {"unit": "kg"}
+    method = Method(NAME)
+    assert method.filename == method.get_abbreviation()
+    assert method.filename.startswith("recipe")
+    method.write([])
+
+
+@bw2test
+def test_names_which_cant_be_stored_are_not_in_registry():
+    for name in (("a", object()), ("a", ["b"]), ("a", {"b": 1}), ["a", {1, 2}]):
+        assert name not in methods
+        assert methods.get(name) is None
+        with pytest.raises(KeyError):
+            methods[name]
+        with pytest.raises(KeyError):
+            del methods[name]
+        with pytest.raises(TypeError, match="non-empty tuples"):
+            methods[name] = {}
+    assert not Method(("a", object())).registered
 
 
 @bw2test
@@ -328,12 +366,18 @@ def test_migrates_files_on_project_open():
 
 
 @bw2test
-def test_migration_skips_tables_which_have_rows():
+def test_migration_keeps_objects_already_in_table():
+    """As after a postponed migration: objects registered in the meantime are kept as they
+    are, and the legacy ones are added."""
     weightings[("existing",)] = {}
+    methods[("IPCC",)] = {"abbreviation": "new", "unit": "kg"}
+    id_ = MethodRecord.get().id
     _write_legacy_files(projects.dir)
     _migrate_from_version_3()
-    assert weightings.list == [("existing",)]
-    assert len(methods) == 2
+    assert weightings.list == [("existing",), ("w",)]
+    assert methods.list == [("IPCC",), NAME]
+    assert dict(methods[("IPCC",)]) == {"abbreviation": "new", "unit": "kg"}
+    assert MethodRecord.get(MethodRecord.abbreviation == "new").id == id_
 
 
 @bw2test
@@ -382,3 +426,24 @@ def test_invalid_entries_are_skipped_with_warning():
     with pytest.warns(UserWarning, match="can't be migrated"):
         _migrate_from_version_3()
     assert methods.list == [("good",)]
+
+
+@bw2test
+def test_names_and_values_which_cant_be_stored_are_skipped_with_warning():
+    """They must not block opening the project."""
+    _write_legacy_files(
+        projects.dir,
+        {
+            "methods.json": [
+                [["good"], {"unit": "kg"}],
+                [["a", ["b", "c"]], {"abbreviation": "zzz"}],
+                [["a", {"b": 1}], {}],
+                [["too big"], {"num_cfs": 2**70}],
+                [["odd"], {"num_cfs": [1, 2], "abbreviation": ["x"]}],
+            ]
+        },
+    )
+    with pytest.warns(UserWarning, match="can't be migrated"):
+        _migrate_from_version_3()
+    assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
+    assert methods.list == [("good",), ("odd",)]

@@ -1,5 +1,6 @@
 import copy
 import datetime
+import json
 import pickle
 import warnings
 from collections.abc import Mapping, MutableMapping
@@ -959,9 +960,15 @@ class _LCIARegistry(_RecordRegistry):
     def _key(self, name):
         if isinstance(name, list):
             name = tuple(name)
-        if isinstance(name, tuple) and name:
-            return name
-        return None
+        if not isinstance(name, tuple) or not name:
+            return None
+        try:
+            # Names are dictionary keys here and JSON lists in the table
+            hash(name)
+            json.dumps(name)
+        except (TypeError, ValueError):
+            return None
+        return name
 
     def _order(self):
         return (self._model().id,)
@@ -974,7 +981,10 @@ class _LCIARegistry(_RecordRegistry):
     def __setitem__(self, name, value):
         key = self._key(name)
         if key is None:
-            raise TypeError(f"{self._what} names must be non-empty tuples, not {name!r}")
+            raise TypeError(
+                f"{self._what} names must be non-empty tuples of values which can be stored "
+                f"as JSON (normally strings), not {name!r}"
+            )
         known, extra = self._split(value)
         # Replaces all metadata: known fields which aren't given are cleared
         fields = {
@@ -988,6 +998,10 @@ class _LCIARegistry(_RecordRegistry):
             if row is None:
                 model.insert(id=self._unused_id(model), name=key, **fields).execute()
             else:
+                if fields.get("abbreviation") is None:
+                    # Set when the object was registered, and needed to find its files:
+                    # ``Method(name).metadata = {...}`` must not remove it
+                    del fields["abbreviation"]
                 # Updated in place, so that the id, which other rows refer to, is kept
                 model.update(**fields).where(model.id == row.id).execute()
         if key in self._proxies:
