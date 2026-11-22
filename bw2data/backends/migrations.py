@@ -394,20 +394,29 @@ def _m5_plain(value):
     return value.item() if hasattr(value, "item") and not isinstance(value, (int, float)) else value
 
 
+def _m5_amount(amount) -> float:
+    """``amount`` as stored in the ``amount`` column. SQLite stores NaN as ``NULL``, which
+    would be read back as a missing amount, so NaN can't be migrated."""
+    if not isinstance(amount, numbers.Number) or isinstance(amount, bool):
+        raise _CantMigrate(f"amount {amount!r} is not a number")
+    try:
+        result = float(amount)
+    except TypeError:
+        raise _CantMigrate(f"amount {amount!r} is not a real number") from None
+    if result != result:
+        raise _CantMigrate("an amount is NaN (not a number)")
+    return result
+
+
 def _m5_value(value) -> tuple:
     """``(amount, uncertainty JSON)`` columns of a factor value, as written by
     ``bw2data.ia_data_store.value_as_columns`` and ``JSONField``."""
     if isinstance(value, dict):
         amount = value.get("amount")
-        if amount is not None and (not isinstance(amount, numbers.Number) or isinstance(amount, bool)):
-            raise _CantMigrate(f"amount {amount!r} is not a number")
         rest = {k: _m5_plain(v) for k, v in value.items() if k != "amount"}
-        return (None if amount is None else float(amount), _json_value(rest))
+        return (None if amount is None else _m5_amount(amount), _json_value(rest))
     if isinstance(value, numbers.Number) and not isinstance(value, bool):
-        try:
-            return (float(value), None)
-        except TypeError:
-            pass
+        return (_m5_amount(value), None)
     raise _CantMigrate(f"value {value!r} is not a number or an uncertainty dictionary")
 
 
@@ -421,16 +430,23 @@ def _m5_location(row) -> tuple:
     if (
         isinstance(location, (tuple, list))
         and len(location) == 2
-        and all(isinstance(x, str) and x for x in location)
+        and isinstance(location[0], str)
+        and location[0]
     ):
-        return tuple(location)
+        geocollection, feature = location
+        if isinstance(feature, numbers.Integral) and not isinstance(feature, bool):
+            # Integer feature ids become strings, as in the migration of ``geomapping.pickle``
+            feature = str(int(feature))
+        if isinstance(feature, str) and feature:
+            return (geocollection, feature)
     raise _CantMigrate(f"location {location!r} is not a string or a pair of strings")
 
 
 def _m5_flow(db: Database, flow, cache: dict) -> int:
     """Activity id of ``flow`` (an id or a ``(database, code)`` key)."""
-    if isinstance(flow, int) and not isinstance(flow, bool):
-        return flow
+    if isinstance(flow, numbers.Integral) and not isinstance(flow, bool):
+        # Also NumPy integers
+        return int(flow)
     if isinstance(flow, (tuple, list)) and len(flow) == 2:
         key = tuple(flow)
         if key not in cache:
@@ -474,7 +490,7 @@ def _lcia_factors_to_sqlite(db: Database, project_dir: Path) -> None:
     ``(database, code)`` keys (normalizations, and methods written before bw2data 4) are
     stored as activity ids. An object whose pickle can't be read, or has rows which can't be
     stored (a flow which doesn't exist, a location which isn't a string or a pair of
-    strings, ...), is skipped with a warning: it keeps ``has_data = 0``, so its data can't be
+    strings, an amount which is NaN, ...), is skipped with a warning: it keeps ``has_data = 0``, so its data can't be
     loaded until it is written again, e.g. from the pickle, which is kept as a backup like
     all others."""
     from contextlib import closing

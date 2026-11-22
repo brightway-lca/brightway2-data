@@ -123,6 +123,10 @@ def test_nothing_is_written_to_intermediate(bio):
         ("co2", "one"),
         ("co2", True),
         ("co2", {"amount": "one"}),
+        ("co2", float("nan")),
+        ("co2", np.float64("nan")),
+        ("co2", {"amount": float("nan"), "uncertainty type": 0}),
+        ("co2", 1j),
         ("co2", 1, "CH", "extra"),
         ("co2",),
     ],
@@ -136,6 +140,41 @@ def test_invalid_rows_raise_and_change_nothing(bio, row):
         method.write([(co2, 2), bad])
     assert method.load() == [(co2, 1.0)]
     assert methods[NAME]["num_cfs"] == 1
+
+
+@pytest.mark.parametrize("row", [5, None, "ab", (), {"flow": 1}])
+def test_rows_which_are_not_sequences_raise_value_error(bio, row):
+    co2, _ = bio
+    method = Method(NAME)
+    method.write([(co2, 1)])
+    with pytest.raises(ValueError, match="A CF row must be"):
+        method.write([(co2, 2), row])
+    assert method.load() == [(co2, 1.0)]
+
+
+def test_nan_amounts_are_rejected_for_all_kinds(bio):
+    co2, _ = bio
+    nan = float("nan")
+    with pytest.raises(ValueError, match="NaN"):
+        Normalization(("n",)).write([(co2, nan)])
+    with pytest.raises(ValueError, match="NaN"):
+        Weighting(("w",)).write([{"amount": nan}])
+    with pytest.raises(ValueError, match="NaN"):
+        Weighting(("w",)).write([nan])
+    # Infinite amounts, and NaN in other fields, can be stored
+    Method(NAME).write([(co2, float("inf")), (co2, {"amount": 1, "minimum": nan})])
+    first, second = Method(NAME).load()
+    assert first == (co2, float("inf"))
+    assert second[1]["amount"] == 1.0 and np.isnan(second[1]["minimum"])
+
+
+def test_numpy_integer_flow_ids(bio):
+    co2, ch4 = bio
+    Method(NAME).write([(np.int64(co2), 1)])
+    Normalization(("n",)).write([(np.int64(ch4), 2)])
+    assert Method(NAME).load() == [(co2, 1.0)]
+    assert Normalization(("n",)).load() == [(ch4, 2.0)]
+    assert type(CharacterizationFactor.get().flow) is int
 
 
 def test_unknown_flow_raises(bio):
@@ -289,6 +328,30 @@ def test_replace_cfs_accepts_deleted_old_flow_but_not_missing_new_flow(bio):
         replace_cfs(ch4, ("bio", "missing"))
 
 
+def test_replace_cfs_processes_all_methods_when_one_fails(bio, monkeypatch):
+    co2, ch4 = bio
+    for name in ("one", "two", "three"):
+        Method((name,)).write([(co2, 1)])
+    processed = []
+    process = Method.process
+
+    def failing_process(self, **kwargs):
+        if self.name == ("one",):
+            raise RuntimeError("can't process")
+        processed.append(self.name)
+        return process(self, **kwargs)
+
+    monkeypatch.setattr(Method, "process", failing_process)
+    with pytest.raises(ExceptionGroup, match="could not be processed") as excinfo:
+        replace_cfs(co2, ch4)
+    assert processed == [("two",), ("three",)]
+    assert [str(err) for err in excinfo.value.exceptions] == ["can't process"]
+    message = str(excinfo.value)
+    assert message.count("('one',)") == 2 and message.count("('two',)") == 1
+    for name in ("one", "two", "three"):
+        assert Method((name,)).load() == [(ch4, 1.0)]
+
+
 # ----------------------------------------------------------------------
 # Migration 5
 # ----------------------------------------------------------------------
@@ -380,17 +443,35 @@ def test_objects_which_cant_be_migrated_are_skipped_with_warning(bio):
     _write_pickle("loc.1", [(co2, 1, 5)])
     _register_legacy(methods, ("huge id",), "huge.1")
     _write_pickle("huge.1", [(2**70, 1)])
+    _register_legacy(methods, ("nan amount",), "nan.1")
+    _write_pickle("nan.1", [(co2, 1), (co2, float("nan"))])
+    _register_legacy(methods, ("nan in dict",), "nan.2")
+    _write_pickle("nan.2", [(co2, {"amount": np.float64("nan"), "uncertainty type": 0})])
     _register_legacy(methods, ("unreadable",), "bad.1")
     (projects.dir / "intermediate" / "bad.1.pickle").write_bytes(b"not a pickle")
 
     with pytest.warns(UserWarning, match="can't be moved into SQLite") as record:
         _migrate_from_version_4()
     message = str(record[0].message)
-    for name in ("missing flow", "bad location", "huge id", "unreadable"):
+    for name in (
+        "missing flow",
+        "bad location",
+        "huge id",
+        "nan amount",
+        "nan in dict",
+        "unreadable",
+    ):
         assert name in message
     assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
     assert Method(("good",)).load() == [(co2, 1.0)]
-    for name in (("missing flow",), ("bad location",), ("huge id",), ("unreadable",)):
+    for name in (
+        ("missing flow",),
+        ("bad location",),
+        ("huge id",),
+        ("nan amount",),
+        ("nan in dict",),
+        ("unreadable",),
+    ):
         with pytest.raises(MissingIntermediateData):
             Method(name).load()
     assert CharacterizationFactor.select().count() == 1
@@ -429,3 +510,33 @@ def test_legacy_project_is_migrated_on_open():
     assert Method(NAME).load() == [(co2, 2.5, "CH")]
     Method(NAME).process()
     assert MethodRecord.get().has_data
+
+
+def test_migrates_integer_feature_ids_and_numpy_flow_ids(bio):
+    """Integer feature ids become strings, as in the migration of ``geomapping.pickle``."""
+    co2, ch4 = bio
+    _register_legacy(methods, NAME, "m.1")
+    _write_pickle(
+        "m.1",
+        [
+            (np.int64(co2), 1.5, ("coll", 5)),
+            (np.int32(1), 2, ("coll", np.int64(6))),
+            (ch4, 3, ("coll", "7")),
+        ],
+    )
+    _register_legacy(normalizations, ("n",), "n.1")
+    _write_pickle("n.1", [(np.int64(ch4), 2)])
+    _register_legacy(methods, ("bad",), "bad.1")
+    _write_pickle("bad.1", [(co2, 1, ("coll", True))])
+
+    with pytest.warns(UserWarning, match="can't be moved into SQLite") as record:
+        _migrate_from_version_4()
+    assert "bad" in str(record[0].message) and "a, method" not in str(record[0].message)
+    assert Method(NAME).load() == [
+        (co2, 1.5, ("coll", "5")),
+        (1, 2.0, ("coll", "6")),
+        (ch4, 3.0, ("coll", "7")),
+    ]
+    assert Normalization(("n",)).load() == [(ch4, 2.0)]
+    with pytest.raises(MissingIntermediateData):
+        Method(("bad",)).load()

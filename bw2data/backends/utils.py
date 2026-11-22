@@ -221,6 +221,11 @@ def replace_cfs(old_key, new_key):
     Both flows can be given as a ``(database, code)`` key or an activity id; ``new_key`` must
     exist, while ``old_key`` may be an id of a deleted activity.
 
+    The flow is replaced in all methods before any of them is processed. If methods can't
+    be processed, the others are still processed, and an ``ExceptionGroup`` with the errors
+    is raised at the end; its message lists the modified methods, and the ones whose
+    processed data is out of date.
+
     Returns list of modified methods."""
     from bw2data.backends.schema import CharacterizationFactor, MethodRecord, get_id
     from bw2data.meta import _write_transaction
@@ -242,8 +247,21 @@ def replace_cfs(old_key, new_key):
         CharacterizationFactor.update(flow=new_id).where(
             CharacterizationFactor.flow == old_id
         ).execute()
+    failed, errors = [], []
     for name in altered_methods:
-        Method(name).process()
+        try:
+            Method(name).process()
+        except Exception as err:
+            failed.append(name)
+            errors.append(err)
+    if errors:
+        raise ExceptionGroup(
+            f"Replaced flow {old_key!r} with {new_key!r} in the characterization factors of "
+            f"these methods: {altered_methods}. These could not be processed, so their "
+            f"processed data still uses the old flow until `Method(name).process()` "
+            f"succeeds: {failed}",
+            errors,
+        )
     return altered_methods
 
 

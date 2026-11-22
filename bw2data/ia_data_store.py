@@ -122,24 +122,33 @@ def _plain(value):
     return value.item() if isinstance(value, np.generic) else value
 
 
+def _amount(amount) -> float:
+    """``amount`` as stored in the ``amount`` column of a factor table. Raises ``ValueError``
+    if it isn't a real number, or is NaN: SQLite stores NaN as ``NULL``, which would be read
+    back as a missing amount."""
+    if not isinstance(amount, numbers.Number) or isinstance(amount, bool):
+        raise ValueError(f"Amount must be a number, not {amount!r}")
+    try:
+        result = float(amount)
+    except TypeError:
+        raise ValueError(f"Amount must be a real number, not {amount!r}") from None
+    if result != result:
+        raise ValueError("Amount can't be NaN (not a number)")
+    return result
+
+
 def value_as_columns(value) -> dict:
     """Split a factor value (a number, or an uncertainty dictionary) into the ``amount`` and
-    ``uncertainty`` columns of a factor table. Raises ``ValueError`` for anything else."""
+    ``uncertainty`` columns of a factor table. Raises ``ValueError`` for anything else, and
+    for an amount which is NaN."""
     if isinstance(value, dict):
         amount = value.get("amount")
-        if amount is not None and (
-            not isinstance(amount, numbers.Number) or isinstance(amount, bool)
-        ):
-            raise ValueError(f"Amount must be a number, not {amount!r}")
         return {
-            "amount": None if amount is None else float(amount),
+            "amount": None if amount is None else _amount(amount),
             "uncertainty": {k: _plain(v) for k, v in value.items() if k != "amount"},
         }
     if isinstance(value, numbers.Number) and not isinstance(value, bool):
-        try:
-            return {"amount": float(value), "uncertainty": None}
-        except TypeError:
-            pass
+        return {"amount": _amount(value), "uncertainty": None}
     raise ValueError(f"A value must be a number or an uncertainty dictionary, not {value!r}")
 
 
@@ -159,8 +168,9 @@ def flow_id(flow) -> int:
 
     if isinstance(flow, Activity):
         return flow.id
-    elif isinstance(flow, int) and not isinstance(flow, bool):
-        return flow
+    elif isinstance(flow, numbers.Integral) and not isinstance(flow, bool):
+        # Also NumPy integers
+        return int(flow)
     elif isinstance(flow, (tuple, list)) and len(flow) == 2:
         return get_node(key=tuple(flow)).id
     raise ValueError(f"Can't understand flow identifier {flow!r}")

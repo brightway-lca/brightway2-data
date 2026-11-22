@@ -124,13 +124,17 @@ class Method(SQLiteFactorStore, ImpactAssessmentDataStore):
             "a `(geocollection, location)` tuple of two strings"
         )
 
+    @staticmethod
+    def _check_row(line) -> None:
+        if not isinstance(line, (tuple, list)) or len(line) not in (2, 3):
+            raise ValueError(
+                f"A CF row must be `(flow, amount)` or `(flow, amount, location)`, not {line!r}"
+            )
+
     def _factor_rows(self, data) -> list[dict]:
         rows = []
         for line in data:
-            if not isinstance(line, (tuple, list)) or len(line) not in (2, 3):
-                raise ValueError(
-                    f"A CF row must be `(flow, amount)` or `(flow, amount, location)`, not {line!r}"
-                )
+            self._check_row(line)
             geocollection, location = self._location_columns(line)
             rows.append(
                 {
@@ -161,8 +165,9 @@ class Method(SQLiteFactorStore, ImpactAssessmentDataStore):
 
         Sets the metadata keys ``num_cfs`` and ``geocollections``."""
         def normalize(line):
-            if not isinstance(line, (tuple, list)) or not line:
-                return line  # Rejected by ``_factor_rows``
+            # Checked here, and not only in ``_factor_rows``, as the rows are used below
+            self._check_row(line)
+            self._location_columns(line)
             line = (flow_id(line[0]), *line[1:])
             if len(line) == 3 and isinstance(line[2], list):
                 line = (*line[:2], tuple(line[2]))
