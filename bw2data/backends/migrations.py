@@ -38,7 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from peewee import Database, OperationalError
+from peewee import Database, InterfaceError, OperationalError, ProgrammingError
 
 from bw2data.logs import stdout_feedback_logger
 
@@ -173,8 +173,11 @@ _DATABASERECORD_COLUMNS = (
     "searchable",
     "version",
 )
-#: ``JSONField`` columns of ``databaserecord``
+#: ``JSONField``, ``IntegerField`` and ``BooleanField`` columns of ``databaserecord``; the
+#: others are ``TextField`` columns
 _DATABASERECORD_JSON = frozenset({"depends", "geocollections"})
+_DATABASERECORD_INTEGER = frozenset({"number", "version"})
+_DATABASERECORD_BOOLEAN = frozenset({"dirty", "searchable"})
 
 
 def _json_value(value):
@@ -189,17 +192,43 @@ def _json_value(value):
     )
 
 
+def _integer_value(value):
+    """``value`` as stored by a peewee ``IntegerField``: an integer if it can be converted to
+    one, otherwise unchanged. Values which SQLite can't store (lists, dicts) are stored as
+    JSON text."""
+    try:
+        return int(value)
+    except ValueError:
+        return value
+    except TypeError:
+        return None if value is None else _json_value(value)
+
+
+def _databaserecord_value(column: str, value):
+    """``value`` as stored by the model field of ``column``. Legacy values of the wrong type
+    are converted as the field would do it, so that every value can be stored."""
+    if value is None:
+        return None
+    if column in _DATABASERECORD_JSON:
+        return _json_value(value)
+    if column in _DATABASERECORD_INTEGER:
+        return _integer_value(value)
+    if column in _DATABASERECORD_BOOLEAN:
+        return bool(value)
+    return value if isinstance(value, str) else str(value)
+
+
 def _databases_json_to_sqlite(db: Database, project_dir: Path) -> None:
     """Move ``databases.json`` into the ``databaserecord`` table.
 
-    Only runs if the table is empty: projects opened by a development version of bw2data
-    which moved the file on first access are already migrated, and a table with rows is
-    never overwritten. An unreadable file, or entries which aren't dictionaries, are skipped
-    with a warning; the file is kept as a backup either way."""
+    Databases which are already in the table are kept as they are; this happens when the
+    migration was postponed and databases were registered in the meantime, and for projects
+    opened by a development version of bw2data which moved the file on first access. Values
+    of the wrong type (e.g. a list as ``version``) are converted to something which can be
+    stored. An unreadable file, entries which aren't dictionaries and entries which still
+    can't be stored are skipped with a warning; the file is kept as a backup either way."""
     path = project_dir / "databases.json"
     if not path.is_file():
-        return
-    if db.execute_sql("SELECT EXISTS (SELECT 1 FROM main.databaserecord)").fetchone()[0]:
         return
 
     try:
@@ -214,9 +243,9 @@ def _databases_json_to_sqlite(db: Database, project_dir: Path) -> None:
         )
         return
 
-    skipped = []
+    migrated, skipped = 0, []
     columns = ("name", *_DATABASERECORD_COLUMNS, "extra")
-    sql = 'INSERT INTO main."databaserecord" ({}) VALUES ({})'.format(
+    sql = 'INSERT OR IGNORE INTO main."databaserecord" ({}) VALUES ({})'.format(
         ", ".join(f'"{c}"' for c in columns), ", ".join("?" * len(columns))
     )
     for name, metadata in legacy.items():
@@ -226,19 +255,22 @@ def _databases_json_to_sqlite(db: Database, project_dir: Path) -> None:
         metadata = dict(metadata)
         values = [name]
         for column in _DATABASERECORD_COLUMNS:
-            value = metadata.pop(column, None)
-            values.append(_json_value(value) if column in _DATABASERECORD_JSON else value)
+            values.append(_databaserecord_value(column, metadata.pop(column, None)))
         values.append(_json_value(metadata or None))
-        db.execute_sql(sql, values)
+        try:
+            migrated += db.execute_sql(sql, values).rowcount
+        except (InterfaceError, ProgrammingError, OverflowError, ValueError, TypeError):
+            # A value which SQLite can't store, e.g. an integer with more than 64 bits
+            skipped.append(name)
     if skipped:
         warnings.warn(
-            f"Entries in {path} which are not dictionaries can't be migrated, and are only "
-            f"kept in the file: {skipped!r}",
+            f"Entries in {path} which are not dictionaries, or have values which can't be "
+            f"stored, can't be migrated, and are only kept in the file: {skipped!r}",
             stacklevel=2,
         )
     stdout_feedback_logger.info(
         "Migrated %s database(s) from %s to SQLite; the file is kept as a backup",
-        len(legacy) - len(skipped),
+        migrated,
         path,
     )
 

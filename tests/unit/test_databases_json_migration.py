@@ -87,12 +87,17 @@ def test_migrates_json_on_project_open():
 
 
 @bw2test
-def test_migration_skipped_when_table_already_populated():
+def test_migration_keeps_databases_already_in_table():
+    """As after a postponed migration: databases registered in the meantime are kept as they
+    are, and the legacy ones are added."""
     databases["existing"] = {"backend": "sqlite", "depends": []}
+    databases["food"] = {"backend": "iotable", "depends": []}
     _write_legacy_json(projects.dir)
     _migrate_from_version_2()
 
-    assert sorted(databases) == ["existing"]
+    assert sorted(databases) == ["biosphere", "existing", "food"]
+    assert dict(databases["food"]) == {"backend": "iotable", "depends": []}
+    assert dict(databases["biosphere"]) == LEGACY["biosphere"]
 
 
 @bw2test
@@ -120,4 +125,40 @@ def test_entries_which_are_not_dicts_are_skipped_with_warning():
     _write_legacy_json(projects.dir, {"good": {"backend": "sqlite"}, "bad": ["sqlite"]})
     with pytest.warns(UserWarning, match="not dictionaries"):
         _migrate_from_version_2()
+    assert sorted(databases) == ["good"]
+
+
+@bw2test
+def test_values_of_the_wrong_type_are_converted():
+    """Values which SQLite can't store in a scalar column must not block opening the project."""
+    _write_legacy_json(
+        projects.dir,
+        {
+            "odd": {
+                "backend": ["sqlite"],
+                "version": [1, 2],
+                "number": "7",
+                "modified": {"x": 1},
+                "dirty": "yes",
+                "searchable": [],
+            },
+            "good": {"backend": "sqlite"},
+        },
+    )
+    _migrate_from_version_2()
+
+    assert sorted(databases) == ["good", "odd"]
+    row = sqlite3_lci_db.execute_sql(
+        "SELECT backend, version, number, modified, dirty, searchable FROM databaserecord "
+        "WHERE name = 'odd'"
+    ).fetchone()
+    assert row == ("['sqlite']", "[\n  1,\n  2\n]", 7, "{'x': 1}", 1, 0)
+
+
+@bw2test
+def test_entries_which_cant_be_stored_are_skipped_with_warning():
+    _write_legacy_json(projects.dir, {"good": {"backend": "sqlite"}, "bad": {"version": 2**70}})
+    with pytest.warns(UserWarning, match="can't be stored"):
+        _migrate_from_version_2()
+    assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
     assert sorted(databases) == ["good"]
