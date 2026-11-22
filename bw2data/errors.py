@@ -1,3 +1,6 @@
+import pickle
+
+
 class BW2Exception(Exception):
     """Base class for exceptions in Brightway2"""
 
@@ -66,6 +69,13 @@ class NotFound(BW2Exception):
 
 class PickleError(BW2Exception):
     """Pickle file can't be loaded due to updated library file structure"""
+
+    pass
+
+
+class UnsafePickleError(BW2Exception, pickle.UnpicklingError):
+    """A pickle refers to a class or function that ``bw2data.codec.safe_pickle_loads`` won't
+    load. Allow it with ``config.trusted_pickle_classes`` if the data is trusted."""
 
     pass
 
