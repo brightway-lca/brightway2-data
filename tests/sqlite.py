@@ -491,3 +491,113 @@ def test_lci_table_names_are_pinned():
 
     assert ActivityDataset._meta.table_name == ACTIVITY_TABLE == "activitydataset"
     assert ExchangeDataset._meta.table_name == EXCHANGE_TABLE == "exchangedataset"
+
+
+def _file_with_one_table(path):
+    from peewee import Model, TextField
+
+    from bw2data.sqlite import SubstitutableDatabase
+
+    class Old(Model):
+        name = TextField()
+
+        class Meta:
+            table_name = "old"
+
+    class New(Model):
+        name = TextField()
+
+        class Meta:
+            table_name = "new"
+
+    sub = SubstitutableDatabase(path, [Old])
+    Old.create(name="kept")
+    sub.db.close()
+    return Old, New
+
+
+def _tables(db):
+    return {
+        row[0]
+        for row in db.execute_sql(
+            "SELECT name FROM main.sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    }
+
+
+def test_substitutable_database_opens_read_only_file_without_new_table(tmp_path):
+    from bw2data.sqlite import SubstitutableDatabase, _sqlite_uri
+
+    path = tmp_path / "old.db"
+    Old, New = _file_with_one_table(path)
+
+    opened = []
+    with pytest.warns(UserWarning, match="Can't create new tables"):
+        sub = SubstitutableDatabase(
+            _sqlite_uri(path, mode="ro"), [Old, New], on_open=opened.append
+        )
+    try:
+        # The file is open and readable, and ``on_open`` still ran
+        assert [row.name for row in Old.select()] == ["kept"]
+        assert opened == [sub.db]
+        assert _tables(sub.db) == {"old"}
+    finally:
+        sub.db.close()
+
+    # Created the next time the file is opened and can be written
+    sub = SubstitutableDatabase(path, [Old, New])
+    try:
+        assert _tables(sub.db) == {"old", "new"}
+    finally:
+        sub.db.close()
+
+
+def test_substitutable_database_opens_up_to_date_read_only_file_without_warning(
+    tmp_path, recwarn
+):
+    from bw2data.sqlite import SubstitutableDatabase, _sqlite_uri
+
+    path = tmp_path / "current.db"
+    Old, _ = _file_with_one_table(path)
+
+    sub = SubstitutableDatabase(_sqlite_uri(path, mode="ro"), [Old])
+    try:
+        assert [row.name for row in Old.select()] == ["kept"]
+        assert not [w for w in recwarn if "create new tables" in str(w.message)]
+    finally:
+        sub.db.close()
+
+
+def test_substitutable_database_opens_locked_file_without_new_table(tmp_path):
+    import sqlite3
+
+    from bw2data.sqlite import SubstitutableDatabase
+
+    path = tmp_path / "locked.db"
+    Old, New = _file_with_one_table(path)
+
+    other = sqlite3.connect(path, isolation_level=None)
+    other.execute("BEGIN EXCLUSIVE")
+    try:
+        with pytest.warns(UserWarning, match="Can't create new tables"):
+            sub = SubstitutableDatabase(path, [Old, New], pragmas={"busy_timeout": 0})
+        sub.db.close()
+    finally:
+        other.execute("ROLLBACK")
+        other.close()
+
+
+def test_substitutable_database_other_create_errors_are_raised(tmp_path, monkeypatch):
+    from peewee import OperationalError
+
+    from bw2data.sqlite import BWSqliteDatabase, SubstitutableDatabase
+
+    path = tmp_path / "broken.db"
+    Old, New = _file_with_one_table(path)
+
+    def broken(self, models, **options):
+        raise OperationalError("disk I/O error")
+
+    monkeypatch.setattr(BWSqliteDatabase, "create_tables", broken)
+    with pytest.raises(OperationalError, match="disk I/O error"):
+        SubstitutableDatabase(path, [Old, New])

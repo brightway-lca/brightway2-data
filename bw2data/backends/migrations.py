@@ -40,6 +40,7 @@ from typing import Callable
 from peewee import Database, OperationalError
 
 from bw2data.logs import stdout_feedback_logger
+from bw2data.sqlite import _cannot_write
 
 
 @dataclass(frozen=True)
@@ -186,12 +187,6 @@ def _warn_newer(db: Database, current: int) -> None:
         "not be read correctly.",
         stacklevel=3,
     )
-
-
-def _cannot_write(err: OperationalError) -> bool:
-    """Whether ``err`` means that the file can't be written right now (locked or read-only)."""
-    message = str(err).lower()
-    return "locked" in message or "readonly" in message or "read-only" in message
 
 
 def migrate(db: Database, project_dir: Path) -> list[int]:

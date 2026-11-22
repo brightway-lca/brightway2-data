@@ -1,10 +1,11 @@
 import json
 import pickle
+import warnings
 from collections.abc import Callable, Iterable
 from pathlib import Path, PurePath
 from urllib.parse import quote, urlencode
 
-from peewee import BlobField, SqliteDatabase, TextField, sqlite3
+from peewee import BlobField, OperationalError, SqliteDatabase, TextField, sqlite3
 
 from bw2data.configuration import config
 from bw2data.logs import stdout_feedback_logger
@@ -48,6 +49,12 @@ def _sqlite_uri(path, **params) -> str:
     if params:
         uri += "?" + urlencode(params)
     return uri
+
+
+def _cannot_write(err: OperationalError) -> bool:
+    """Whether ``err`` means that the file can't be written right now (locked or read-only)."""
+    message = str(err).lower()
+    return "locked" in message or "readonly" in message or "read-only" in message
 
 
 class BWSqliteDatabase(SqliteDatabase):
@@ -114,7 +121,13 @@ class SubstitutableDatabase:
         """``on_open``, if given, is called with the peewee database each time a file is opened
         (on creation and after every ``change_path``), after the tables have been created. It is
         used to run schema migrations. If it raises, the file is closed again and the exception
-        is passed on."""
+        is passed on.
+
+        Tables in ``tables`` which the file doesn't have yet are created when it is opened. If
+        the file can't be written (locked by another process, or read-only), they are not
+        created: there is a warning, and it is tried again the next time the file is opened, so
+        that such a file can still be opened and read. Until then, anything which needs a
+        missing table fails with "no such table"."""
         self._filepath = filepath
         self._tables = tables
         self._pragmas = pragmas or {}
@@ -130,13 +143,28 @@ class SubstitutableDatabase:
         self._bind(db)
         try:
             db.connect()
-            db.create_tables(self._tables)
+            self._create_tables(db)
             if self._on_open is not None:
                 self._on_open(db)
         except BaseException:
             db.close()
             raise
         return db
+
+    def _create_tables(self, db):
+        """Create the tables which ``db`` doesn't have yet. Tables which already exist need no
+        write, so an up to date file can be opened while it is locked or read-only."""
+        try:
+            db.create_tables(self._tables)
+        except OperationalError as err:
+            if not _cannot_write(err):
+                raise
+            warnings.warn(
+                f"Can't create new tables in {db.database} ({err}). This is postponed until "
+                "the file is next opened; until then, data stored in tables added by newer "
+                "versions of bw2data is not available.",
+                stacklevel=2,
+            )
 
     def _bind(self, db):
         for model in self._tables:
