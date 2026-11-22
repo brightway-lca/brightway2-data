@@ -12,13 +12,17 @@ from peewee import SqliteDatabase
 
 from bw2data.backends.extensions import (
     DUPLICATE_ID,
+    DUPLICATE_NAME,
     EXTENSION_DATABASE_NAME,
     EXTENSION_ERROR_PREFIX,
+    MISSING_ID,
+    NO_RECORD,
     NOT_LOCAL_STATE,
     READ_ONLY_DATABASE,
     REGISTRY_TABLE,
     drop_overlay_sql,
     overlay_sql,
+    ownership_check_sql,
     view_name,
 )
 from bw2data.backends.schema import (
@@ -37,6 +41,8 @@ INDICES = [
     'CREATE INDEX "exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")',
 ]
 BLOB = pickle.dumps({}, protocol=4)
+
+BIO_EXTRA = {"format": "test", "flag": True, "nested": {"a": [1, 2]}}
 
 ACTIVITIES = "lci_activitydataset"
 EXCHANGES = "lci_exchangedataset"
@@ -96,8 +102,9 @@ def files(tmp_path):
                 "depends": "[]",
                 "number": 2,
                 "searchable": 1,
+                "modified": "ext-time",
                 # Indented, as JSONField writes it
-                "extra": json.dumps({"format": "test", "nested": {"a": [1, 2]}}, indent=2),
+                "extra": json.dumps(BIO_EXTRA, indent=2),
             }
         ],
     )
@@ -213,12 +220,73 @@ def test_registry(conn):
     assert rows == [("bio", "ext_1"), ("inv", "ext_2")]
 
 
-def test_registry_includes_databases_without_record(files, tmp_path):
+def problems(conn, schemas):
+    return sorted(set(conn.execute(ownership_check_sql(schemas))), key=repr)
+
+
+def test_ownership_check_passes(conn):
+    # Edges into other files (main -> inv, inv -> bio) are fine
+    assert problems(conn, ["ext_1", "ext_2"]) == []
+
+
+def test_ownership_check_needs_no_overlay(files):
+    main, bio, inv = files
+    conn = sqlite3.connect(_sqlite_uri(main), uri=True)
+    conn.execute("ATTACH DATABASE ? AS ext_1", (_sqlite_uri(bio, mode="ro"),))
+    assert problems(conn, ["ext_1"]) == []
+
+
+def test_ownership_check_activities_without_record(files, tmp_path):
     main, _, _ = files
     orphan = make_file(tmp_path / "orphan.db", activities=[(301, "orphan", "z")])
     conn = connect(main, orphan)
-    assert list(conn.execute(f"SELECT database FROM temp.{REGISTRY_TABLE}")) == [("orphan",)]
-    refused(conn, f"DELETE FROM {ACTIVITIES} WHERE id = 301", message=READ_ONLY_DATABASE)
+    assert problems(conn, ["ext_1"]) == [(NO_RECORD, "orphan", "ext_1", None)]
+
+
+def test_ownership_check_exchange_output_without_record(files, tmp_path):
+    # The exchange claims an output database which the file has no record or activities for
+    main, _, _ = files
+    ghost = make_file(
+        tmp_path / "ghost.db",
+        activities=[(301, "real", "z")],
+        exchanges=[(311, ("real", "z"), ("ghost", "g")), (312, ("elsewhere", "e"), ("real", "z"))],
+        records=[{"name": "real"}],
+    )
+    conn = connect(main, ghost)
+    assert problems(conn, ["ext_1"]) == [(NO_RECORD, "ghost", "ext_1", None)]
+
+
+@pytest.mark.parametrize(
+    "main_rows",
+    [
+        {"records": [{"name": "bio"}]},
+        {"activities": [(5, "bio", "mine")]},
+        {"exchanges": [(15, ("mine", "a"), ("bio", "co2"))]},
+    ],
+)
+def test_ownership_check_name_in_main_and_extension(files, tmp_path, main_rows):
+    _, bio, _ = files
+    main = make_file(tmp_path / "other main.db", **main_rows)
+    conn = sqlite3.connect(_sqlite_uri(main), uri=True)
+    conn.execute("ATTACH DATABASE ? AS ext_1", (_sqlite_uri(bio, mode="ro"),))
+    assert problems(conn, ["ext_1"]) == [(DUPLICATE_NAME, "bio", "ext_1", "main")]
+
+
+def test_ownership_check_name_in_two_extensions(files, tmp_path):
+    main, bio, inv = files
+    again = make_file(
+        tmp_path / "again.db", activities=[(401, "bio", "n2o")], records=[{"name": "bio"}]
+    )
+    conn = sqlite3.connect(_sqlite_uri(main), uri=True)
+    for schema, path in (("ext_1", bio), ("ext_2", inv), ("ext_3", again)):
+        conn.execute(f"ATTACH DATABASE ? AS {schema}", (_sqlite_uri(path, mode="ro"),))
+    assert problems(conn, ["ext_1", "ext_2", "ext_3"]) == [
+        (DUPLICATE_NAME, "bio", "ext_1", "ext_3")
+    ]
+    # The overlay itself refuses such files too
+    with pytest.raises(sqlite3.IntegrityError):
+        for statement in overlay_sql(["ext_1", "ext_2", "ext_3"]):
+            conn.execute(statement)
 
 
 def test_edges_across_files(conn):
@@ -263,11 +331,24 @@ def test_drop_overlay(conn):
 
 @pytest.mark.parametrize(
     "schemas",
-    [[], ["main"], ["TEMP"], ["ext 1"], ['ext_1"; DROP TABLE x; --'], ["ext_1", "ext_1"], [1]],
+    [
+        [],
+        ["main"],
+        ["TEMP"],
+        ["ext 1"],
+        ['ext_1"; DROP TABLE x; --'],
+        ["ext_1", "ext_1"],
+        ["ext_1", "EXT_1"],
+        ["ext_1\n"],
+        "ab",
+        [1],
+    ],
 )
 def test_invalid_schemas(schemas):
     with pytest.raises(ValueError):
         overlay_sql(schemas)
+    with pytest.raises(ValueError):
+        ownership_check_sql(schemas)
 
 
 # Activities
@@ -309,6 +390,17 @@ def test_insert_activity_in_extension_database_refused(conn):
 def test_insert_activity_with_extension_id_refused(conn):
     with pytest.raises(sqlite3.IntegrityError, match=DUPLICATE_ID):
         insert_activity(conn, 201, "mine", "c")
+
+
+def test_insert_without_id_refused(conn):
+    # SQLite would assign 3, which is free here, but in general the next id in main can be
+    # taken in an extension
+    with pytest.raises(sqlite3.IntegrityError, match=MISSING_ID):
+        insert_activity(conn, None, "mine", "c")
+    with pytest.raises(sqlite3.IntegrityError, match=MISSING_ID):
+        insert_exchange(conn, None, ("mine", "a"), ("mine", "b"))
+    refused(conn, f"UPDATE {ACTIVITIES} SET id = NULL WHERE id = 1", message=MISSING_ID)
+    assert ids(conn, "main.activitydataset") == [1, 2]
 
 
 def test_update_main_activity(conn):
@@ -445,60 +537,86 @@ def test_update_main_record(conn):
     refused(conn, f"UPDATE {RECORDS} SET name = 'bio' WHERE name = 'mine'", message=EXTENSION_DATABASE_NAME)
 
 
+def state(conn):
+    return conn.execute(
+        "SELECT name, dirty, searchable, modified, processed FROM main.extensiondatabasestate"
+    ).fetchall()
+
+
 def test_extension_record_local_state(conn):
-    extra = record(conn, "bio")["extra"]
-    extra["processed"] = "2026-11-22T10:00:00"
     conn.execute(
-        f"UPDATE {RECORDS} SET dirty = 1, searchable = 0, modified = 'now', extra = ? "
-        "WHERE name = 'bio'",
-        (json.dumps(extra),),
+        f"UPDATE {RECORDS} SET dirty = 1, searchable = 0, modified = 'now' WHERE name = 'bio'"
     )
     assert record(conn, "bio") == {
         "backend": "sqlite",
         "dirty": 1,
         "searchable": 0,
         "modified": "now",
-        "extra": {"format": "test", "nested": {"a": [1, 2]}, "processed": "2026-11-22T10:00:00"},
+        "extra": BIO_EXTRA,
     }
-    # Stored in the project, with only the local keys of ``extra``
-    state = conn.execute(
-        "SELECT name, dirty, searchable, modified, extra FROM main.extensiondatabasestate"
-    ).fetchall()
-    assert [s[:4] for s in state] == [("bio", 1, 0, "now")]
-    assert json.loads(state[0][4]) == {"processed": "2026-11-22T10:00:00"}
-    # The extension's own row is unchanged
+    # Stored in the project; the extension's own row is unchanged
+    assert state(conn) == [("bio", 1, 0, "now", None)]
     assert record(conn, "bio", "ext_1.databaserecord")["dirty"] is None
+
+
+def test_extension_record_only_changed_fields_are_stored(conn):
+    # ``searchable`` and ``modified`` have values in the extension, which must not be copied
+    conn.execute(f"UPDATE {RECORDS} SET dirty = 1 WHERE name = 'bio'")
+    assert state(conn) == [("bio", 1, None, None, None)]
+    conn.execute(f"UPDATE {RECORDS} SET modified = 'now' WHERE name = 'bio'")
+    assert state(conn) == [("bio", 1, None, "now", None)]
+    # Writing back the values which are shown changes nothing
+    conn.execute(
+        f"UPDATE {RECORDS} SET dirty = 1, searchable = 1, modified = 'now' WHERE name = 'bio'"
+    )
+    assert state(conn) == [("bio", 1, None, "now", None)]
+    assert record(conn, "bio")["searchable"] == 1
+
+
+def test_extension_record_unchanged_update_stores_nothing(conn):
+    conn.execute(f"UPDATE {RECORDS} SET searchable = 1, modified = 'ext-time' WHERE name = 'bio'")
+    assert state(conn) == []
 
 
 def test_extension_record_local_state_updated_again(conn):
     conn.execute(f"UPDATE {RECORDS} SET dirty = 1 WHERE name = 'bio'")
     conn.execute(f"UPDATE {RECORDS} SET dirty = 0 WHERE name = 'bio'")
     assert record(conn, "bio")["dirty"] == 0
-    assert conn.execute("SELECT COUNT(*) FROM main.extensiondatabasestate").fetchone() == (1,)
+    assert state(conn) == [("bio", 0, None, None, None)]
 
 
-def test_extension_record_processed_removed(conn):
-    extra = record(conn, "bio")["extra"]
+def test_extension_record_null_shows_extension_value(conn):
+    conn.execute(f"UPDATE {RECORDS} SET searchable = 0 WHERE name = 'bio'")
+    assert record(conn, "bio")["searchable"] == 0
+    # NULL means "not set locally"
+    conn.execute(f"UPDATE {RECORDS} SET searchable = NULL WHERE name = 'bio'")
+    assert state(conn) == [("bio", None, None, None, None)]
+    assert record(conn, "bio")["searchable"] == 1
+
+
+def test_extension_record_processed_is_kept(conn):
+    # ``processed`` is not written through the view, and survives changes to other fields
     conn.execute(
-        f"UPDATE {RECORDS} SET extra = ? WHERE name = 'bio'",
-        (json.dumps({**extra, "processed": "then"}),),
+        "INSERT INTO main.extensiondatabasestate (name, processed) VALUES ('bio', 'then')"
     )
-    conn.execute(f"UPDATE {RECORDS} SET extra = ? WHERE name = 'bio'", (json.dumps(extra),))
-    assert record(conn, "bio")["extra"] == {"format": "test", "nested": {"a": [1, 2]}}
+    conn.execute(f"UPDATE {RECORDS} SET dirty = 1 WHERE name = 'bio'")
+    assert state(conn) == [("bio", 1, None, None, "then")]
 
 
-def test_extension_record_extra_formatting_and_order_ignored(conn):
+def test_extension_record_same_extra_allowed(conn):
     # Same content as stored in the extension, but minified and in another key order
-    extra = json.dumps({"processed": "x", "nested": {"a": [1, 2]}, "format": "test"})
-    conn.execute(f"UPDATE {RECORDS} SET extra = ? WHERE name = 'bio'", (extra,))
-    assert record(conn, "bio")["extra"]["processed"] == "x"
+    extra = json.dumps({"nested": {"a": [1, 2]}, "flag": True, "format": "test"})
+    conn.execute(f"UPDATE {RECORDS} SET extra = ?, dirty = 1 WHERE name = 'bio'", (extra,))
+    assert record(conn, "bio")["extra"] == BIO_EXTRA
+    # No ``extra`` and an empty one are the same
+    conn.execute(f"UPDATE {RECORDS} SET extra = '{{}}', dirty = 1 WHERE name = 'inv'")
+    assert record(conn, "inv")["extra"] is None
 
 
-def test_extension_record_without_extra(conn):
-    conn.execute(
-        f"UPDATE {RECORDS} SET extra = ? WHERE name = 'inv'", (json.dumps({"processed": "x"}),)
-    )
-    assert record(conn, "inv")["extra"] == {"processed": "x"}
+def test_extension_record_same_json_allowed(conn):
+    # Writing back what was read, as a metadata save of only local fields does
+    conn.execute(f"UPDATE {RECORDS} SET depends = '[ ]', searchable = 0 WHERE name = 'bio'")
+    assert record(conn, "bio")["searchable"] == 0
 
 
 @pytest.mark.parametrize(
@@ -508,24 +626,41 @@ def test_extension_record_without_extra(conn):
         ("number = 5", ()),
         ("version = 3", ()),
         ("depends = '[\"other\"]'", ()),
+        ("depends = 'not json'", ()),
+        ("geocollections = 'not json'", ()),
         ("name = 'renamed'", ()),
-        ("extra = ?", (json.dumps({"format": "changed", "nested": {"a": [1, 2]}}),)),
-        ("extra = ?", (json.dumps({"format": "test", "nested": {"a": [1, 2]}, "new": 1}),)),
+        ("extra = ?", (json.dumps({**BIO_EXTRA, "format": "changed"}),)),
+        ("extra = ?", (json.dumps({**BIO_EXTRA, "new": 1}),)),
+        ("extra = ?", (json.dumps({**BIO_EXTRA, "processed": "now"}),)),
+        # ``true`` and ``1`` are different values
+        ("extra = ?", (json.dumps({**BIO_EXTRA, "flag": 1}),)),
         ("extra = ?", (json.dumps({"format": "test"}),)),
+        ("extra = 'not json'", ()),
         ("extra = NULL", ()),
     ],
 )
 def test_extension_record_other_changes_refused(conn, assignment, params):
     refused(
-        conn, f"UPDATE {RECORDS} SET {assignment} WHERE name = 'bio'", params, NOT_LOCAL_STATE
+        conn,
+        f"UPDATE {RECORDS} SET dirty = 1, {assignment} WHERE name = 'bio'",
+        params,
+        NOT_LOCAL_STATE,
     )
-    assert conn.execute("SELECT COUNT(*) FROM main.extensiondatabasestate").fetchone() == (0,)
+    assert state(conn) == []
 
 
-def test_extension_record_same_json_allowed(conn):
-    # Writing back what was read, as a metadata save of only local fields does
-    conn.execute(f"UPDATE {RECORDS} SET depends = '[ ]', searchable = 0 WHERE name = 'bio'")
-    assert record(conn, "bio")["searchable"] == 0
+def test_extension_record_with_invalid_json(files, tmp_path):
+    # Text which isn't JSON in the extension itself doesn't get in the way of local changes
+    main, _, _ = files
+    odd = make_file(
+        tmp_path / "odd.db",
+        records=[{"name": "odd", "depends": "not json", "extra": "not json either"}],
+    )
+    conn = connect(main, odd)
+    conn.execute(f"UPDATE {RECORDS} SET dirty = 1 WHERE name = 'odd'")
+    assert state(conn) == [("odd", 1, None, None, None)]
+    refused(conn, f"UPDATE {RECORDS} SET depends = '[]' WHERE name = 'odd'", message=NOT_LOCAL_STATE)
+    refused(conn, f"UPDATE {RECORDS} SET extra = '{{}}' WHERE name = 'odd'", message=NOT_LOCAL_STATE)
 
 
 def test_delete_records(conn):
@@ -588,3 +723,10 @@ def test_state_table_created_in_projects():
     }
     assert "extensiondatabasestate" in tables
     assert "databaserecord" in tables
+    columns = [
+        row[1]
+        for row in sqlite3_lci_db.execute_sql(
+            "PRAGMA main.table_info(extensiondatabasestate)"
+        ).fetchall()
+    ]
+    assert columns == ["name", "dirty", "searchable", "modified", "processed"]

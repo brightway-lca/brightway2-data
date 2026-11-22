@@ -15,11 +15,20 @@ Everything is created in the ``temp`` schema, so it exists only on the connectio
 created on, and never ends up in a project file. The SQL must therefore be run on every new
 connection, after the extensions are attached; that is the job of the code which attaches them.
 
-Some fields of a database record are local to the project: ``dirty``, ``searchable``,
-``modified`` and ``extra["processed"]`` change when the project uses a database, also one stored
-in an extension. Changes to these fields of an extension database are stored in the
-project-local table ``extensiondatabasestate``, and the ``lci_databaserecord`` view shows them
-in place of the values stored in the extension.
+Each database name belongs to exactly one file. A file owns a name when it has rows for it: a
+database record, activities (``database``) or exchanges (``output_database``). An extension
+must have a database record for every name it owns, and no name owned by an extension may be
+owned by ``main`` or by another extension. The triggers rely on this; ``ownership_check_sql``
+builds the query which checks it, to be run before the overlay is created. An exchange whose
+*input* is in another file is fine: that is how files link to each other.
+
+Some fields of a database record are local to the project: ``dirty``, ``searchable`` and
+``modified`` change when the project uses a database, also one stored in an extension. A change
+to one of these fields of an extension database is stored in the project-local table
+``extensiondatabasestate``, and the ``lci_databaserecord`` view shows it in place of the value
+stored in the extension. Only the fields which were changed are stored. ``NULL`` means "not set
+locally": setting a local field of an extension database to ``NULL`` shows the extension's
+value again. Everything else in an extension's record, including ``extra``, is read-only.
 
 Refusals raise ``sqlite3.IntegrityError`` with a message starting with ``EXTENSION_ERROR_PREFIX``.
 Writes through a view report ``rowcount == 0``, also when rows were changed: SQLite doesn't
@@ -46,10 +55,13 @@ EXTENSION_ERROR_PREFIX = "bw2data-extension:"
 #: TEMP table with one row per database name stored in an attached extension
 REGISTRY_TABLE = "lci_extension_databases"
 
-#: Fields of a database record which are local to the project, also for a database stored in
-#: an extension. Columns of ``DatabaseRecord``, and keys of ``DatabaseRecord.extra``.
+#: Columns of ``DatabaseRecord`` which are local to the project, also for a database stored in
+#: an extension
 LOCAL_STATE_COLUMNS = ("dirty", "searchable", "modified")
-LOCAL_STATE_EXTRA_KEYS = ("processed",)
+
+#: Values of the ``problem`` column of the query built by ``ownership_check_sql``
+NO_RECORD = "no_record"
+DUPLICATE_NAME = "duplicate_name"
 
 #: Error messages of the triggers. SQLite only accepts a string literal in ``RAISE``.
 READ_ONLY_DATABASE = (
@@ -60,13 +72,16 @@ EXTENSION_DATABASE_NAME = (
     f"{EXTENSION_ERROR_PREFIX} this database name is used by a read-only extension"
 )
 DUPLICATE_ID = f"{EXTENSION_ERROR_PREFIX} this id is already used in a read-only extension"
+MISSING_ID = (
+    f"{EXTENSION_ERROR_PREFIX} a row needs an id when read-only extensions are attached"
+)
 NOT_LOCAL_STATE = (
     f"{EXTENSION_ERROR_PREFIX} only the project-local fields ("
-    + ", ".join(LOCAL_STATE_COLUMNS + LOCAL_STATE_EXTRA_KEYS)
+    + ", ".join(LOCAL_STATE_COLUMNS)
     + ") of a database stored in a read-only extension can be changed"
 )
 
-_SCHEMA_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_SCHEMA_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _RESERVED_SCHEMAS = {"main", "temp"}
 
 
@@ -94,15 +109,18 @@ def _columns(model: type[Model]) -> list[str]:
 
 
 def _check_schemas(schemas: Sequence[str]) -> None:
+    if isinstance(schemas, str):
+        raise ValueError(f"Extension schemas must be a list of names, not a string: {schemas!r}")
     if not schemas:
         raise ValueError("At least one extension schema is needed")
-    if len(set(schemas)) != len(schemas):
-        raise ValueError(f"Extension schemas must be unique: {list(schemas)!r}")
     for schema in schemas:
-        if not isinstance(schema, str) or not _SCHEMA_NAME.match(schema):
+        if not isinstance(schema, str) or not _SCHEMA_NAME.fullmatch(schema):
             raise ValueError(f"Invalid extension schema name: {schema!r}")
         if schema.lower() in _RESERVED_SCHEMAS:
             raise ValueError(f"{schema!r} can't be used as an extension schema name")
+    # SQLite schema names are not case sensitive
+    if len({schema.lower() for schema in schemas}) != len(schemas):
+        raise ValueError(f"Extension schemas must be unique: {list(schemas)!r}")
 
 
 def _in_registry(expression: str) -> str:
@@ -135,17 +153,60 @@ def _registry_sql(schemas: Sequence[str]) -> list[str]:
         "(database TEXT NOT NULL PRIMARY KEY, schema TEXT NOT NULL);"
     ]
     record = _q(DatabaseRecord._meta.table_name)
-    activity = _q(ActivityDataset._meta.table_name)
     for schema in schemas:
-        # Database names come from the records, and also from the activities, so that a
-        # database without a record is protected too. A name in two files fails on the primary
-        # key; attaching checks for that first, with a better message.
+        # An extension has a record for every database name it owns (see
+        # ``ownership_check_sql``), so the records are enough. A name in two extensions fails
+        # here on the primary key.
         statements.append(
             f"INSERT INTO temp.{_q(REGISTRY_TABLE)} (database, schema) "
-            f"SELECT name, {_literal(schema)} FROM {_q(schema)}.{record} "
-            f"UNION SELECT DISTINCT database, {_literal(schema)} FROM {_q(schema)}.{activity};"
+            f"SELECT name, {_literal(schema)} FROM {_q(schema)}.{record};"
         )
     return statements
+
+
+def ownership_check_sql(schemas: Sequence[str]) -> str:
+    """One query which checks that each database name belongs to exactly one file.
+
+    Run it after attaching the extensions as ``schemas`` and before creating the overlay; it
+    doesn't need the overlay. It returns no rows when all is well, and otherwise rows of
+    ``(problem, database, schema, other_schema)``:
+
+    * ``NO_RECORD``: extension ``schema`` has activities in ``database``, or exchanges whose
+      output is in ``database``, but no database record for it. ``other_schema`` is ``NULL``.
+    * ``DUPLICATE_NAME``: ``database`` has a record in extension ``schema``, and ``other_schema``
+      (``main`` or another extension) also has a record, activities or exchange outputs for it.
+
+    The same problem can be reported more than once, e.g. for activities and for exchanges."""
+    _check_schemas(schemas)
+    record = _q(DatabaseRecord._meta.table_name)
+    owned_columns = (
+        (record, "name"),
+        (_q(ActivityDataset._meta.table_name), "database"),
+        (_q(ExchangeDataset._meta.table_name), "output_database"),
+    )
+    parts = []
+    for schema in schemas:
+        own_records = f"SELECT name FROM {_q(schema)}.{record}"
+        for table, column in owned_columns[1:]:
+            parts.append(
+                f"SELECT {_literal(NO_RECORD)} AS problem, d AS database, "
+                f"{_literal(schema)} AS schema, NULL AS other_schema "
+                f"FROM (SELECT DISTINCT {_q(column)} AS d FROM {_q(schema)}.{table}) "
+                f"WHERE d NOT IN ({own_records})"
+            )
+        for table, column in owned_columns:
+            parts.append(
+                f"SELECT DISTINCT {_literal(DUPLICATE_NAME)}, {_q(column)}, {_literal(schema)}, "
+                f"'main' FROM main.{table} WHERE {_q(column)} IN ({own_records})"
+            )
+    for position, schema in enumerate(schemas):
+        for other in schemas[position + 1 :]:
+            # Each extension has a record for every name it owns, or is reported above
+            parts.append(
+                f"SELECT {_literal(DUPLICATE_NAME)}, name, {_literal(schema)}, {_literal(other)} "
+                f"FROM {_q(schema)}.{record} WHERE name IN (SELECT name FROM {_q(other)}.{record})"
+            )
+    return " UNION ALL ".join(parts) + ";"
 
 
 def _union_view_sql(model: type[Model], schemas: Sequence[str]) -> str:
@@ -159,7 +220,7 @@ def _union_view_sql(model: type[Model], schemas: Sequence[str]) -> str:
 
 def _record_view_sql(schemas: Sequence[str]) -> str:
     """The database record view. Rows from an extension show the project-local state from
-    ``extensiondatabasestate`` where it is set."""
+    ``extensiondatabasestate`` where it is set (not ``NULL``)."""
     columns = _columns(DatabaseRecord)
     table = _q(DatabaseRecord._meta.table_name)
     state = _q(ExtensionDatabaseState._meta.table_name)
@@ -167,12 +228,6 @@ def _record_view_sql(schemas: Sequence[str]) -> str:
     def extension_column(column: str) -> str:
         if column in LOCAL_STATE_COLUMNS:
             return f"COALESCE(s.{_q(column)}, e.{_q(column)}) AS {_q(column)}"
-        if column == "extra":
-            # ``json_patch`` replaces the keys set locally, and removes those set to null
-            return (
-                "CASE WHEN s.extra IS NULL THEN e.extra "
-                "ELSE json_patch(COALESCE(e.extra, '{}'), s.extra) END AS extra"
-            )
         return f"e.{_q(column)}"
 
     main_select = f"SELECT {', '.join(_q(c) for c in columns)} FROM main.{table}"
@@ -206,10 +261,11 @@ def _node_edge_triggers_sql(
     insert = (
         f"CREATE TEMP TRIGGER {_q(trigger + '_insert')} INSTEAD OF INSERT ON {view} BEGIN "
         + _raise_if(_in_registry(f"NEW.{db_col}"), EXTENSION_DATABASE_NAME)
+        # SQLite would pick an id which is free in main, but maybe not in the extensions
         + " "
-        + _raise_if(
-            f"NEW.id IS NOT NULL AND {_id_in_extensions(model, schemas, 'NEW.id')}", DUPLICATE_ID
-        )
+        + _raise_if("NEW.id IS NULL", MISSING_ID)
+        + " "
+        + _raise_if(_id_in_extensions(model, schemas, "NEW.id"), DUPLICATE_ID)
         + f" INSERT INTO main.{table} ({column_list}) VALUES ({new_values}); END;"
     )
     update = (
@@ -217,6 +273,8 @@ def _node_edge_triggers_sql(
         + _raise_if(_in_registry(f"OLD.{db_col}"), READ_ONLY_DATABASE)
         + " "
         + _raise_if(_in_registry(f"NEW.{db_col}"), EXTENSION_DATABASE_NAME)
+        + " "
+        + _raise_if("NEW.id IS NULL", MISSING_ID)
         + " "
         + _raise_if(
             f"NEW.id IS NOT OLD.id AND {_id_in_extensions(model, schemas, 'NEW.id')}",
@@ -232,9 +290,30 @@ def _node_edge_triggers_sql(
     return [insert, update, delete]
 
 
-def _json_keys(expression: str, keep: str) -> str:
-    """``key, value`` rows of the JSON object ``expression``, for keys matching ``keep``."""
-    return f"SELECT key, value FROM json_each(COALESCE({expression}, '{{}}')) WHERE {keep}"
+def _json_differs(column: str) -> str:
+    """Whether the JSON in ``NEW.column`` and ``OLD.column`` differs, ignoring formatting.
+    Text which is not valid JSON is compared as text."""
+    new, old = f"NEW.{_q(column)}", f"OLD.{_q(column)}"
+    return (
+        f"CASE WHEN json_valid({new}) AND json_valid({old}) "
+        f"THEN json({new}) IS NOT json({old}) ELSE {new} IS NOT {old} END"
+    )
+
+
+def _extra_differs() -> str:
+    """Whether ``NEW.extra`` and ``OLD.extra`` differ, ignoring formatting and the order of the
+    top-level keys. ``NULL`` and ``{}`` are the same. ``type`` is compared too, as ``json_each``
+    gives ``true`` and ``1`` the same value."""
+
+    def keys(expression: str) -> str:
+        return f"SELECT key, type, value FROM json_each(COALESCE({expression}, '{{}}'))"
+
+    new, old = "NEW.extra", "OLD.extra"
+    return (
+        f"CASE WHEN json_valid(COALESCE({new}, '{{}}')) AND json_valid(COALESCE({old}, '{{}}')) "
+        f"THEN EXISTS ({keys(new)} EXCEPT {keys(old)}) OR EXISTS ({keys(old)} EXCEPT {keys(new)}) "
+        f"ELSE {new} IS NOT {old} END"
+    )
 
 
 def _record_triggers_sql() -> list[str]:
@@ -247,36 +326,35 @@ def _record_triggers_sql() -> list[str]:
     assignments = ", ".join(f"{_q(c)} = NEW.{_q(c)}" for c in cols)
     trigger = view_name(DatabaseRecord)
 
-    # A change to an extension's record may only touch the project-local fields. JSON columns
-    # are compared after ``json()``, so that formatting doesn't count as a change; ``extra`` is
-    # compared key by key, so that key order doesn't either.
+    # A change to an extension's record may only touch the project-local columns
     json_columns = {"depends", "geocollections"}
-    fixed = [c for c in cols if c not in LOCAL_STATE_COLUMNS and c not in {"name", "extra"}]
-    changes = [f"NEW.name IS NOT OLD.name"] + [
-        f"json(NEW.{_q(c)}) IS NOT json(OLD.{_q(c)})"
-        if c in json_columns
-        else f"NEW.{_q(c)} IS NOT OLD.{_q(c)}"
-        for c in fixed
-    ]
-    local_keys = ", ".join(_literal(k) for k in LOCAL_STATE_EXTRA_KEYS)
-    not_local = f"key NOT IN ({local_keys})"
-    changes.append(
-        f"EXISTS ({_json_keys('NEW.extra', not_local)} EXCEPT {_json_keys('OLD.extra', not_local)})"
+    changes = []
+    for column in cols:
+        if column in LOCAL_STATE_COLUMNS:
+            continue
+        if column == "extra":
+            changes.append(_extra_differs())
+        elif column in json_columns:
+            changes.append(_json_differs(column))
+        else:
+            changes.append(f"NEW.{_q(column)} IS NOT OLD.{_q(column)}")
+
+    # Only the local columns which this statement changes are stored: the others have the
+    # extension's value in ``NEW``, and must keep following the extension. Changing a column
+    # to NULL stores NULL, which shows the extension's value again.
+    def changed(column: str) -> str:
+        return f"NEW.{_q(column)} IS NOT OLD.{_q(column)}"
+
+    state_columns = ", ".join(["name", *(_q(c) for c in LOCAL_STATE_COLUMNS)])
+    state_values = ", ".join(
+        ["OLD.name"]
+        + [f"CASE WHEN {changed(c)} THEN NEW.{_q(c)} END" for c in LOCAL_STATE_COLUMNS]
     )
-    changes.append(
-        f"EXISTS ({_json_keys('OLD.extra', not_local)} EXCEPT {_json_keys('NEW.extra', not_local)})"
-    )
-    # The local keys of the new ``extra``, as a JSON object (``{}`` when there are none)
-    local_extra = (
-        "(SELECT json_group_object(key, CASE WHEN type IN ('object', 'array') "
-        "THEN json(value) ELSE value END) "
-        f"FROM json_each(COALESCE(NEW.extra, '{{}}')) WHERE key IN ({local_keys}))"
-    )
-    state_columns = ", ".join(["name", *(_q(c) for c in LOCAL_STATE_COLUMNS), "extra"])
-    state_values = ", ".join(["OLD.name", *(f"NEW.{_q(c)}" for c in LOCAL_STATE_COLUMNS), local_extra])
     state_updates = ", ".join(
-        f"{_q(c)} = excluded.{_q(c)}" for c in (*LOCAL_STATE_COLUMNS, "extra")
+        f"{_q(c)} = CASE WHEN {changed(c)} THEN NEW.{_q(c)} ELSE {_q(c)} END"
+        for c in LOCAL_STATE_COLUMNS
     )
+    any_changed = " OR ".join(changed(c) for c in LOCAL_STATE_COLUMNS)
     in_extension = _in_registry("OLD.name")
 
     insert = (
@@ -286,11 +364,14 @@ def _record_triggers_sql() -> list[str]:
     )
     update = (
         f"CREATE TEMP TRIGGER {_q(trigger + '_update')} INSTEAD OF UPDATE ON {view} BEGIN "
-        + _raise_if(f"{in_extension} AND ({' OR '.join(changes)})", NOT_LOCAL_STATE)
+        + _raise_if(
+            f"{in_extension} AND ({' OR '.join(f'({c})' for c in changes)})", NOT_LOCAL_STATE
+        )
         + " "
         + _raise_if(f"NOT {in_extension} AND {_in_registry('NEW.name')}", EXTENSION_DATABASE_NAME)
-        # Extension record: store the local state in the project
-        + f" INSERT INTO main.{state} ({state_columns}) SELECT {state_values} WHERE {in_extension}"
+        # Extension record: store the changed local state in the project
+        + f" INSERT INTO main.{state} ({state_columns}) SELECT {state_values} "
+        + f"WHERE {in_extension} AND ({any_changed})"
         + f" ON CONFLICT (name) DO UPDATE SET {state_updates};"
         # Record in main: update it
         + f" UPDATE main.{table} SET {assignments} WHERE name = OLD.name AND NOT {in_extension};"
@@ -308,8 +389,9 @@ def overlay_sql(schemas: Sequence[str]) -> list[str]:
     """SQL statements which create the overlay of the extensions attached as ``schemas``.
 
     Run them in order on a connection to the project's ``lci/databases.db``, after attaching
-    each extension under its schema name. Any overlay already on the connection is dropped
-    first, so the statements can be run again after attaching or detaching an extension.
+    each extension under its schema name and checking the files with ``ownership_check_sql``.
+    Any overlay already on the connection is dropped first, so the statements can be run again
+    after attaching or detaching an extension.
 
     Column lists come from the peewee models, so the views follow schema changes. The
     extensions must have the same columns as the models; checking that is up to the code which

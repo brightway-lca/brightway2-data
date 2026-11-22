@@ -93,17 +93,20 @@ class ExtensionDatabaseState(Model):
     """Project-local state of a database stored in a read-only extension.
 
     A database record in an extension can't be changed, but some of its fields change when the
-    project uses the database: ``dirty``, ``searchable``, ``modified`` and ``processed`` (a key
-    of ``extra``). These are stored here, in the project's own file, and shown in place of the
-    extension's values (see ``bw2data.backends.extensions``). ``NULL`` means not set locally;
-    ``extra`` holds only the project-local keys.
+    project uses the database: ``dirty``, ``searchable`` and ``modified``. Changes to these are
+    stored here, in the project's own file, and shown in place of the extension's values (see
+    ``bw2data.backends.extensions``). ``NULL`` means not set locally.
+
+    ``processed`` is the time when the project last processed the database, as an ISO
+    timestamp. For a database in the project's own file this is the ``processed`` key of
+    ``DatabaseRecord.extra``; the ``extra`` of an extension's record is read-only.
     """
 
     name = TextField(primary_key=True)
     dirty = BooleanField(null=True)
     searchable = BooleanField(null=True)
     modified = TextField(null=True)
-    extra = JSONField(null=True)
+    processed = TextField(null=True)
 
     class Meta:
         table_name = "extensiondatabasestate"
