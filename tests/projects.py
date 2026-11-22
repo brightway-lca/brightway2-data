@@ -1,6 +1,7 @@
 import os
 import platform
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -21,22 +22,37 @@ def test_project_directories():
         assert os.path.isdir(os.path.join(projects.dir, dirname))
 
 
+@contextmanager
+def _env_var(name, value):
+    """Set an environment variable, and restore its previous value afterwards.
+
+    conftest.py points ``BRIGHTWAY2_DIR`` at a temporary directory. Deleting it would make
+    subprocesses started by later tests use the real data directory."""
+    old = os.environ.get(name)
+    os.environ[name] = value
+    try:
+        yield
+    finally:
+        if old is None:
+            del os.environ[name]
+        else:
+            os.environ[name] = old
+
+
 @bw2test
 def test_from_env_var():
     dirpath = tempfile.mkdtemp()
-    os.environ["BRIGHTWAY2_DIR"] = dirpath
-    base, logs = projects._get_base_directories()
+    with _env_var("BRIGHTWAY2_DIR", dirpath):
+        base, logs = projects._get_base_directories()
     assert os.path.isdir(base)
     assert os.path.isdir(logs)
-    del os.environ["BRIGHTWAY2_DIR"]
 
 
 @bw2test
 def test_invalid_env_var():
-    os.environ["BRIGHTWAY2_DIR"] = "nothing special"
-    with pytest.raises(OSError):
-        projects._get_base_directories()
-    del os.environ["BRIGHTWAY2_DIR"]
+    with _env_var("BRIGHTWAY2_DIR", "nothing special"):
+        with pytest.raises(OSError):
+            projects._get_base_directories()
 
 
 @bw2test
