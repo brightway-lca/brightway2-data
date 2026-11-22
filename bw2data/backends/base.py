@@ -359,7 +359,9 @@ class SQLiteBackend(ProcessedDataStore):
             if old_exc is None:
                 continue
 
-            new_input_db = new_name if old_exc.input_database == old_name else old_exc.input_database
+            new_input_db = (
+                new_name if old_exc.input_database == old_name else old_exc.input_database
+            )
             candidates = list(
                 ExchangeDataset.select().where(
                     ExchangeDataset.output_database == new_name,
@@ -801,12 +803,22 @@ class SQLiteBackend(ProcessedDataStore):
             _insert_many(ActivityDataset, activities)
             _insert_many(ExchangeDataset, exchanges)
             sqlite3_lci_db.db.commit()
-            # Honours ``config.vacuum``; by default only runs when the delete above
-            # freed a meaningful share of the (shared) LCI file.
-            sqlite3_lci_db.vacuum()
         except:
             sqlite3_lci_db.db.rollback()
             raise
+        else:
+            # Honours ``config.vacuum``; by default only runs when the delete above
+            # freed a meaningful share of the (shared) LCI file. The data is already
+            # committed, so a failure here (file locked by another process, no room for
+            # the temporary copy) must not make the write look like it failed.
+            try:
+                sqlite3_lci_db.vacuum()
+            except Exception as err:
+                warnings.warn(
+                    f"Database '{self.name}' was written, but the LCI database file could "
+                    f"not be compacted afterwards ({type(err).__name__}: {err}). This will "
+                    "be tried again the next time the file is vacuumed."
+                )
         finally:
             sqlite3_lci_db.db.autocommit = True
             if be_complicated:

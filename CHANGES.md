@@ -11,7 +11,7 @@
 
 ### Changes
 
-* [#334: Use 16 KB pages for `lci/databases.db`](https://github.com/brightway-lca/brightway2-data/pull/334), which makes ecoinvent 3.13 cutoff about 11% smaller (1,766 MB to 1,567 MB). New files get the new page size; existing files are converted the next time they are vacuumed. Both page sizes can be read by old and new bw2data versions.
+* [#334: Use 16 KB pages for `lci/databases.db`](https://github.com/brightway-lca/brightway2-data/pull/334), which makes ecoinvent 3.13 cutoff about 11% smaller (1,766 MB to 1,567 MB). New files get the new page size; existing files are converted the next time they are vacuumed, except files which another tool switched to WAL journal mode, which keep their page size. Small files get bigger, because every table and index takes at least one page: an empty project's file grows from 48 KB to 192 KB. Both page sizes can be read by old and new bw2data versions. `Database.write()` no longer raises when the `VACUUM` after a successful write fails (for example because another process holds a lock); the data is already stored, so it warns instead.
 * [#327: New `geomapping` and `Geocollection` ids are snowflake ids](https://github.com/brightway-lca/brightway2-data/pull/327), like the ids of activities and exchanges, instead of coming from an SQLite `AUTOINCREMENT` sequence. Ids are still never reused, and no longer collide between the files of different projects. Existing ids are kept, so processed datapackages stay valid. Schema migration 2 rebuilds `geocollection` and `geomappingrecord` without `AUTOINCREMENT`, keeping all rows and ids. Code which assumed small, dense geomapping ids must handle 64-bit integers.
 
 ## 4.8 (2026-10-19)

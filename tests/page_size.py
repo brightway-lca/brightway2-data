@@ -1,5 +1,8 @@
 from unittest.mock import patch
 
+import pytest
+from peewee import OperationalError
+
 from bw2data import config
 from bw2data.backends import LCI_PAGE_SIZE, sqlite3_lci_db
 from bw2data.database import DatabaseChooser
@@ -77,3 +80,55 @@ def test_database_write_vacuum_converts_old_lci_file():
         database.write(data(10))
     assert page_size() == LCI_PAGE_SIZE
     assert len(database) == 10
+
+
+@bw2test
+def test_lci_file_in_wal_mode_keeps_its_page_size():
+    # SQLite can't change the page size of a file in WAL journal mode. bw2data never sets
+    # that mode, but another tool may have; such a file stays as it is and keeps working.
+    DatabaseChooser("testy").write(data())
+    make_old_file()
+    assert sqlite3_lci_db.execute_sql("PRAGMA main.journal_mode = WAL").fetchone()[0] == "wal"
+    sqlite3_lci_db.change_path(sqlite3_lci_db._filepath)
+    assert sqlite3_lci_db.execute_sql("PRAGMA main.journal_mode").fetchone()[0] == "wal"
+
+    with patch.object(config, "vacuum", True):
+        assert sqlite3_lci_db.vacuum()
+
+    assert page_size() == 4096
+    database = DatabaseChooser("testy")
+    assert len(database) == 200
+    database.write(data(10))
+    assert len(database) == 10
+
+
+@bw2test
+def test_database_write_succeeds_when_vacuum_fails():
+    # The data is committed before the vacuum, so a failed vacuum is only a warning
+    database = DatabaseChooser("testy")
+    database.write(data())
+    error = OperationalError("database is locked")
+    with patch.object(sqlite3_lci_db, "vacuum", side_effect=error) as vacuum:
+        with pytest.warns(UserWarning, match="was written, but .* database is locked"):
+            database.write(data(10))
+    vacuum.assert_called_once()
+    assert len(database) == 10
+    assert database.get("7")["name"] == "node 7"
+    # The connection is usable again, with indices and autocommit restored
+    assert sqlite3_lci_db.db.autocommit is True
+    database.write(data(20))
+    assert len(database) == 20
+
+
+@bw2test
+def test_database_write_still_raises_when_the_write_fails():
+    database = DatabaseChooser("testy")
+    database.write(data())
+    with patch("bw2data.backends.base._insert_many", side_effect=RuntimeError("boom")):
+        with pytest.raises(RuntimeError, match="boom"):
+            database.write(data(10))
+    # ``write`` empties the database when writing fails; the connection stays usable
+    assert len(database) == 0
+    assert sqlite3_lci_db.db.autocommit is True
+    database.write(data(20))
+    assert len(database) == 20
