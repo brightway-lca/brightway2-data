@@ -1,8 +1,10 @@
 import datetime
 import decimal
+import json
 import math
 import os
 import pickle
+import threading
 import uuid
 import warnings
 import zoneinfo
@@ -419,3 +421,287 @@ def test_pickled_data_converts_to_json():
     assert same(
         roundtrip(value), {"loc": -6.7, "categories": ("air",), "x": {1: datetime.date(2026, 1, 1)}}
     )
+
+
+# Edge cases found in review of #336
+
+
+class Hashable:
+    """Can't be stored, but can be a dict key or an element of a set."""
+
+    def __repr__(self):
+        return "<Hashable>"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        np.longdouble("1.5"),
+        np.longdouble("0.1"),
+        np.longdouble("inf"),
+        np.clongdouble(1.5 + 2j),
+        np.clongdouble(complex(math.inf, -1)),
+    ],
+)
+def test_numpy_extended_precision_scalars_roundtrip(value):
+    result = roundtrip({"a": value})["a"]
+    assert type(result) is type(value)
+    assert result == value
+
+
+def test_numpy_extended_precision_nan_roundtrips():
+    result = roundtrip(np.longdouble("nan"))
+    assert type(result) is np.longdouble and np.isnan(result)
+
+
+@pytest.mark.parametrize("dtype", [np.longdouble, np.clongdouble])
+def test_numpy_extended_precision_arrays_roundtrip(dtype):
+    arr = np.array([[0.1, 1.5], [-2, math.inf]], dtype=dtype)
+    result = roundtrip(arr)
+    assert result.dtype.char == arr.dtype.char
+    assert result.shape == arr.shape
+    assert np.array_equal(result, arr)
+    # The stored dtype name must not depend on how wide the platform's long double is
+    assert codec.encode(arr)["v"][0] in ("longdouble", "clongdouble")
+
+
+def test_numpy_scalar_without_python_equivalent_raises_type_error():
+    class Stubborn(np.float64):
+        def item(self):
+            return self
+
+    with pytest.raises(TypeError, match=r"Stubborn.*\(at value\['a'\]\)"):
+        dumps({"a": Stubborn(1.5)})
+
+
+def test_unknown_tagged_value_as_dict_key_and_set_element(clean_registry):
+    codec._entry_points_loaded = True
+    unknown = '{"__bw__":"some_plugin.Thing","v":{"x":[1,2]}}'
+    as_key = ('{"__bw__":"dict","v":[[%s,"a"]]}' % unknown).encode()
+    value = loads(as_key)
+    (key,) = value
+    assert type(key) is UnknownTaggedValue and value[key] == "a"
+    assert dumps(value) == as_key
+
+    as_element = ('{"__bw__":"set","v":[%s,%s]}' % (unknown, unknown.replace("1", "3"))).encode()
+    value = loads(as_element)
+    assert type(value) is set and len(value) == 2
+    assert all(type(item) is UnknownTaggedValue for item in value)
+    assert roundtrip(value) == value
+
+
+def test_unknown_tagged_values_hash_like_they_compare():
+    a = UnknownTaggedValue({"__bw__": "x.Y", "v": {"n": 1, "items": [1, (2, 3), {4}]}})
+    b = UnknownTaggedValue({"__bw__": "x.Y", "v": {"items": [1.0, (2, 3), {4}], "n": True}})
+    assert a == b and hash(a) == hash(b)
+    assert len({a, b, UnknownTaggedValue({"__bw__": "x.Y", "v": 2})}) == 2
+    # Unhashable content doesn't break hashing
+    hash(UnknownTaggedValue({"__bw__": "x.Y", "v": np.arange(3)}))
+
+
+@pytest.mark.parametrize("protocol", range(pickle.HIGHEST_PROTOCOL + 1))
+def test_safe_pickle_loads_reads_empty_bytes(protocol):
+    value = {"a": b"", "b": [b"", b"x"]}
+    assert safe_pickle_loads(pickle.dumps(value, protocol=protocol)) == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [10**5000, -(10**5000), 2**64, -(2**63) - 1],
+    ids=["10**5000", "-10**5000", "2**64", "-2**63-1"],
+)
+def test_integers_of_any_size_roundtrip(value):
+    # 10**5000 is longer than the limit Python sets for converting int to and from decimal
+    result = roundtrip([value])[0]
+    assert type(result) is int and result == value
+
+
+TZ_VALUES = [
+    datetime.datetime(2026, 10, 25, 2, 30, fold=1),
+    datetime.datetime(2026, 10, 25, 2, 30, fold=1, tzinfo=datetime.timezone.utc),
+    datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone(datetime.timedelta(hours=1), "CET")),
+    datetime.datetime(
+        2026, 1, 1, fold=1, tzinfo=datetime.timezone(datetime.timedelta(hours=-5), "EST")
+    ),
+    datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone(datetime.timedelta(0), "GMT")),
+    datetime.time(2, 30, fold=1),
+    datetime.time(2, 30, 15, 250, fold=1, tzinfo=datetime.timezone.utc),
+    datetime.time(2, 30, tzinfo=datetime.timezone(datetime.timedelta(hours=1), "CET")),
+]
+
+
+@pytest.mark.parametrize("value", TZ_VALUES, ids=repr)
+def test_fold_and_time_zone_names_roundtrip(value):
+    result = roundtrip(value)
+    assert same(result, value)
+    assert result.tzname() == value.tzname()
+    assert repr(result) == repr(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        datetime.datetime(2026, 1, 1),
+        datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone(datetime.timedelta(hours=1))),
+        datetime.time(1, 2),
+    ],
+    ids=repr,
+)
+def test_ordinary_datetimes_are_still_stored_as_iso_strings(value):
+    assert codec.encode(value)["v"] == value.isoformat()
+
+
+def test_time_with_zoneinfo_is_refused():
+    with pytest.raises(TypeError, match="Can't store a time with time zone"):
+        dumps(datetime.time(1, 2, tzinfo=zoneinfo.ZoneInfo("Europe/Zurich")))
+
+
+def nested(depth, wrap):
+    value = "x"
+    for _ in range(depth):
+        value = wrap(value)
+    return value
+
+
+def test_nesting_up_to_the_limit_roundtrips():
+    value = nested(codec.MAX_DEPTH, lambda v: [v])
+    assert roundtrip(value) == value
+    value = nested(codec.MAX_DEPTH // 2, lambda v: (v,))
+    assert same(roundtrip(value), value)
+
+
+@pytest.mark.parametrize(
+    "depth, wrap",
+    [
+        (codec.MAX_DEPTH, lambda v: [v]),
+        (codec.MAX_DEPTH // 2 + 1, lambda v: (v,)),
+        (5000, lambda v: [v]),
+    ],
+    ids=["lists", "tuples", "beyond the recursion limit"],
+)
+def test_nesting_beyond_the_limit_raises_type_error(depth, wrap):
+    with pytest.raises(TypeError, match="nested more than 254 levels"):
+        dumps({"a": [1, nested(depth, wrap)]})
+
+
+def test_too_deep_error_says_where():
+    with pytest.raises(TypeError, match=r"starts value\['a'\]\[1\]\[0\]"):
+        dumps({"ok": 1, "a": [1, nested(codec.MAX_DEPTH, lambda v: [v])]})
+
+
+def test_value_containing_itself_raises_type_error():
+    value = {"a": []}
+    value["a"].append(value)
+    with pytest.raises(TypeError, match="contains itself"):
+        dumps(value)
+    with pytest.raises(TypeError, match="contains itself"):
+        codec.encode(value)
+
+
+def test_entry_points_are_complete_before_another_thread_uses_them(clean_registry):
+    codec._entry_points_loaded = False
+    started, finish = threading.Event(), threading.Event()
+
+    def plugin():
+        started.set()
+        assert finish.wait(10)
+        codec.register(Point, "tests.Point", lambda p: [p.x, p.y], lambda v: Point(*v))
+
+    results = {}
+
+    def work(name):
+        try:
+            results[name] = roundtrip(Point(1, 2))
+        except Exception as err:
+            results[name] = err
+
+    with patch.object(codec, "entry_points", return_value=[FakeEntryPoint(plugin)]) as eps:
+        first = threading.Thread(target=work, args=("first",))
+        first.start()
+        assert started.wait(10)
+        # The plugin is half loaded: a second thread has to wait, not report an unknown type
+        second = threading.Thread(target=work, args=("second",))
+        second.start()
+        second.join(0.2)
+        assert second.is_alive()
+        finish.set()
+        first.join(10)
+        second.join(10)
+    assert results == {"first": Point(1, 2), "second": Point(1, 2)}
+    eps.assert_called_once()
+
+
+def test_plugin_which_uses_the_codec_while_loading(clean_registry):
+    codec._entry_points_loaded = False
+
+    def plugin():
+        with pytest.raises(TypeError):
+            dumps(Thing())  # must not load the entry points again, or wait for itself
+        codec.register(Point, "tests.Point", lambda p: [p.x, p.y], lambda v: Point(*v))
+
+    with patch.object(codec, "entry_points", return_value=[FakeEntryPoint(plugin)]) as eps:
+        assert roundtrip(Point(1, 2)) == Point(1, 2)
+    eps.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        b'{"__bw__":5,"v":[1]}',
+        b'{"__bw__":null}',
+        b'{"__bw__":"tuple"}',
+        b'{"__bw__":"tuple","v":[1],"extra":true}',
+        b'{"a":{"__bw__":["x"],"v":{"__bw__":"tuple","v":[1]}}}',
+    ],
+)
+def test_json_from_elsewhere_with_the_tag_key_is_an_ordinary_dict(data):
+    value = loads(data)
+    expected = json.loads(data)
+    if "a" in expected:
+        expected["a"]["v"] = (1,)
+    assert same(value, expected)
+    # Stored again it is a "dict" tagged value, and still reads back the same
+    assert same(roundtrip(value), value)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        b'{"__bw__":"tuple","v":5}',
+        b'{"__bw__":"datetime","v":"not a date"}',
+        b'{"__bw__":"float","v":"1.5"}',
+        b'{"__bw__":"numpy.ndarray","v":[1]}',
+    ],
+)
+def test_corrupt_builtin_tag_raises_value_error(data):
+    with pytest.raises(ValueError, match="Can't read a stored value tagged"):
+        loads(data)
+
+
+@pytest.mark.parametrize(
+    "value, where",
+    [
+        ({"a": {1, Hashable()}}, r"value\['a'\]<element <Hashable>>"),
+        ({"a": [frozenset([Hashable()])]}, r"value\['a'\]\[0\]<element <Hashable>>"),
+        ({Hashable(): 1}, r"value<key <Hashable>>"),
+        ({"a": ({"b": OrderedDict(c=Hashable())},)}, r"value\['a'\]\[0\]\['b'\]\['c'\]"),
+    ],
+)
+def test_error_path_reaches_into_sets_and_keys(value, where):
+    with pytest.raises(TypeError, match=rf"\(at {where}\)"):
+        dumps(value)
+
+
+def test_error_path_reaches_into_object_arrays():
+    arr = np.empty((2, 2), dtype=object)
+    arr[:] = 1
+    arr[1, 0] = Hashable()
+    with pytest.raises(TypeError, match=r"\(at value\['a'\]\[1, 0\]\)"):
+        dumps({"a": arr})
+
+
+def test_error_path_reaches_into_plugin_payloads(clean_registry):
+    codec.register(Point, "tests.Point", lambda p: [p.x, p.y], lambda v: Point(*v))
+    with pytest.raises(TypeError, match=r"\(at value\['a'\]<tests.Point>\[1\]\)"):
+        dumps({"a": Point(1, Hashable())})
