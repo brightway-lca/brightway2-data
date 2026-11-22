@@ -32,6 +32,7 @@ Rules for migration steps:
 """
 
 import json
+import numbers
 import pickle
 import warnings
 from dataclasses import dataclass
@@ -377,6 +378,171 @@ def _lcia_metadata_to_sqlite(db: Database, project_dir: Path) -> None:
         )
 
 
+#: Registry table, factor table, foreign key column and kind of row, for migration 5
+_LCIA_FACTORS = (
+    ("method", "characterizationfactor", "method_id", "method"),
+    ("weighting", "weightingfactor", "weighting_id", "weighting"),
+    ("normalization", "normalizationfactor", "normalization_id", "normalization"),
+)
+
+
+class _CantMigrate(ValueError):
+    pass
+
+
+def _m5_plain(value):
+    return value.item() if hasattr(value, "item") and not isinstance(value, (int, float)) else value
+
+
+def _m5_value(value) -> tuple:
+    """``(amount, uncertainty JSON)`` columns of a factor value, as written by
+    ``bw2data.ia_data_store.value_as_columns`` and ``JSONField``."""
+    if isinstance(value, dict):
+        amount = value.get("amount")
+        if amount is not None and (not isinstance(amount, numbers.Number) or isinstance(amount, bool)):
+            raise _CantMigrate(f"amount {amount!r} is not a number")
+        rest = {k: _m5_plain(v) for k, v in value.items() if k != "amount"}
+        return (None if amount is None else float(amount), _json_value(rest))
+    if isinstance(value, numbers.Number) and not isinstance(value, bool):
+        try:
+            return (float(value), None)
+        except TypeError:
+            pass
+    raise _CantMigrate(f"value {value!r} is not a number or an uncertainty dictionary")
+
+
+def _m5_location(row) -> tuple:
+    """``(geocollection, location)`` columns of a CF row."""
+    if len(row) < 3 or row[2] is None or row[2] == "":
+        return (None, None)
+    location = row[2]
+    if isinstance(location, str):
+        return (None, location)
+    if (
+        isinstance(location, (tuple, list))
+        and len(location) == 2
+        and all(isinstance(x, str) and x for x in location)
+    ):
+        return tuple(location)
+    raise _CantMigrate(f"location {location!r} is not a string or a pair of strings")
+
+
+def _m5_flow(db: Database, flow, cache: dict) -> int:
+    """Activity id of ``flow`` (an id or a ``(database, code)`` key)."""
+    if isinstance(flow, int) and not isinstance(flow, bool):
+        return flow
+    if isinstance(flow, (tuple, list)) and len(flow) == 2:
+        key = tuple(flow)
+        if key not in cache:
+            found = db.execute_sql(
+                'SELECT "id" FROM main."activitydataset" WHERE "database" = ? AND "code" = ?',
+                key,
+            ).fetchone()
+            cache[key] = None if found is None else found[0]
+        if cache[key] is None:
+            raise _CantMigrate(f"flow {key!r} doesn't exist")
+        return cache[key]
+    raise _CantMigrate(f"flow {flow!r} is not an activity id or a (database, code) key")
+
+
+def _m5_rows(db: Database, kind: str, data, cache: dict) -> list[tuple]:
+    """Factor columns, without the owner and position, for the legacy ``data`` of a
+    ``kind``."""
+    if not isinstance(data, (list, tuple)):
+        raise _CantMigrate("the data is not a list")
+    rows = []
+    for line in data:
+        if kind == "weighting":
+            rows.append(_m5_value(line))
+            continue
+        lengths = (2, 3) if kind == "method" else (2,)
+        if not isinstance(line, (tuple, list)) or len(line) not in lengths:
+            raise _CantMigrate(f"row {line!r} has the wrong form")
+        columns = (_m5_flow(db, line[0], cache), *_m5_value(line[1]))
+        if kind == "method":
+            columns += _m5_location(line)
+        rows.append(columns)
+    return rows
+
+
+def _lcia_factors_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move the data of LCIA methods, weightings and normalizations from
+    ``intermediate/<abbreviation>.pickle`` into the ``characterizationfactor``,
+    ``weightingfactor`` and ``normalizationfactor`` tables, and set ``has_data``.
+
+    Only objects with ``has_data = 0`` and a pickle are migrated. Flows given as
+    ``(database, code)`` keys (normalizations, and methods written before bw2data 4) are
+    stored as activity ids. An object whose pickle can't be read, or has rows which can't be
+    stored (a flow which doesn't exist, a location which isn't a string or a pair of
+    strings, ...), is skipped with a warning: it keeps ``has_data = 0``, so its data can't be
+    loaded until it is written again, e.g. from the pickle, which is kept as a backup like
+    all others."""
+    from contextlib import closing
+
+    cache = {}
+    for table, factor_table, owner, kind in _LCIA_FACTORS:
+        records = db.execute_sql(
+            f'SELECT "id", "name", "abbreviation" FROM main."{table}" '
+            'WHERE NOT "has_data" AND "abbreviation" IS NOT NULL ORDER BY "id"'
+        ).fetchall()
+        migrated, skipped = 0, []
+        for id_, name, abbreviation in records:
+            path = project_dir / "intermediate" / f"{abbreviation}.pickle"
+            if not path.is_file():
+                continue
+            try:
+                with open(path, "rb") as f:
+                    rows = _m5_rows(db, kind, pickle.load(f), cache)
+            except Exception as err:
+                skipped.append(f"{name} ({path.name}: {err})")
+                continue
+            columns = ["position", "amount", "uncertainty", owner]
+            if kind != "weighting":
+                columns.insert(1, "flow")
+            if kind == "method":
+                columns += ["geocollection", "location"]
+            sql = 'INSERT INTO main."{}" ({}) VALUES ({})'.format(
+                factor_table, ", ".join(f'"{c}"' for c in columns), ", ".join("?" * len(columns))
+            )
+
+            def values(rows=rows):
+                for position, row in enumerate(rows):
+                    if kind == "weighting":
+                        yield (position, *row, id_)
+                    elif kind == "method":
+                        flow, amount, uncertainty, geocollection, location = row
+                        yield (position, flow, amount, uncertainty, id_, geocollection, location)
+                    else:
+                        yield (position, *row, id_)
+
+            try:
+                # A savepoint, so that an object which can't be stored changes nothing
+                with db.atomic():
+                    with closing(db.cursor()) as cursor:
+                        cursor.executemany(sql, values())
+                    db.execute_sql(
+                        f'UPDATE main."{table}" SET "has_data" = 1 WHERE "id" = ?', (id_,)
+                    )
+            except (OverflowError, ValueError, TypeError) as err:
+                skipped.append(f"{name} ({path.name}: {err})")
+                continue
+            migrated += 1
+
+        if skipped:
+            warnings.warn(
+                f"The data of these {table}s can't be moved into SQLite; their pickles are "
+                f"kept, but the data can't be loaded until it is written again: {skipped[:20]}",
+                stacklevel=2,
+            )
+        if migrated:
+            stdout_feedback_logger.info(
+                "Migrated the data of %s %s(s) from intermediate/*.pickle to SQLite; the files "
+                "are kept as backups",
+                migrated,
+                table,
+            )
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -390,6 +556,11 @@ MIGRATIONS: tuple[Migration, ...] = (
         4,
         "Move methods.json, weightings.json and normalizations.json into SQLite",
         _lcia_metadata_to_sqlite,
+    ),
+    Migration(
+        5,
+        "Move the data of LCIA methods, weightings and normalizations into SQLite",
+        _lcia_factors_to_sqlite,
     ),
 )
 

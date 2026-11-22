@@ -614,6 +614,13 @@ class _RecordRegistry(MutableMapping):
         """Condition selecting the row of ``key`` (a name as returned by ``_key``)."""
         return self._model().name == key
 
+    def _get_row(self, name):
+        """The saved row of ``name``, or ``None``."""
+        key = self._key(name)
+        if key is None:
+            return None
+        return self._model().get_or_none(self._where(key))
+
     # ------------------------------------------------------------------
     # MutableMapping interface
     # ------------------------------------------------------------------

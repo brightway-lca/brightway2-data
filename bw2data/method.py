@@ -1,10 +1,13 @@
-from typing import Iterable
-
 from bw2data import config, geomapping, methods
-from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import get_id
 from bw2data.errors import UnknownObject
-from bw2data.ia_data_store import ImpactAssessmentDataStore
+from bw2data.ia_data_store import (
+    ImpactAssessmentDataStore,
+    SQLiteFactorStore,
+    columns_as_value,
+    flow_id,
+    value_as_columns,
+)
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node
 from bw2data.validate import ia_validator
 
@@ -15,10 +18,10 @@ def _location(row):
     return row[2] if len(row) >= 3 and row[2] else config.global_location
 
 
-class Method(ImpactAssessmentDataStore):
-    """A manager for an impact assessment method. This class can register or deregister methods, write intermediate data, process data to parameter arrays, validate, and copy methods.
+class Method(SQLiteFactorStore, ImpactAssessmentDataStore):
+    """A manager for an impact assessment method. This class can register or deregister methods, write characterization factors, process data to parameter arrays, validate, and copy methods.
 
-    The Method class never holds intermediate data, but it can load or write intermediate data. The only attribute is *name*, which is the name of the method being managed.
+    The Method class never holds characterization factors, but it can load or write them; they are stored in the ``characterizationfactor`` table of the per-project ``lci/databases.db``. The only attribute is *name*, which is the name of the method being managed.
 
     Instantiation does not load any data. If this method is not yet registered in the metadata store, a warning is written to ``stdout``.
 
@@ -46,6 +49,7 @@ class Method(ImpactAssessmentDataStore):
     _metadata = methods
     validator = ia_validator
     matrix = "characterization_matrix"
+    _factor_owner = "method"
 
     def __iter__(self):
         """Iterate over characterization factors and return `Node` instances with CFs and geo ids"""
@@ -96,38 +100,85 @@ class Method(ImpactAssessmentDataStore):
                 )
             )
 
-    def write(self, data, process=True):
-        """Serialize intermediate data to disk.
+    def _factor_model(self):
+        from bw2data.backends.schema import CharacterizationFactor
 
-        Sets the metadata key ``num_cfs`` automatically."""
-        if self.name not in self._metadata:
-            self.register()
-        self.metadata["num_cfs"] = len(data)
+        return CharacterizationFactor
 
-        def normalize_ids(line: Iterable) -> tuple:
-            if isinstance(line[0], Activity):
-                return (line[0].id, *line[1:])
-            elif isinstance(line[0], tuple):
-                return (get_node(key=line[0]).id, *line[1:])
-            elif not isinstance(line[0], int):
+    @staticmethod
+    def _location_columns(row) -> tuple:
+        """``(geocollection, location)`` columns for the location of a CF row."""
+        if len(row) < 3 or row[2] is None or row[2] == "":
+            return None, None
+        location = row[2]
+        if isinstance(location, str):
+            return None, location
+        if (
+            isinstance(location, (tuple, list))
+            and len(location) == 2
+            and all(isinstance(x, str) and x for x in location)
+        ):
+            return tuple(location)
+        raise ValueError(
+            f"Invalid location {location!r} in CF row {row!r}: must be a location string, or "
+            "a `(geocollection, location)` tuple of two strings"
+        )
+
+    def _factor_rows(self, data) -> list[dict]:
+        rows = []
+        for line in data:
+            if not isinstance(line, (tuple, list)) or len(line) not in (2, 3):
                 raise ValueError(
-                    f"Can't understand elementary flow identifier {line[0]} in data line {line}"
+                    f"A CF row must be `(flow, amount)` or `(flow, amount, location)`, not {line!r}"
                 )
-            else:
-                return tuple(line)
+            geocollection, location = self._location_columns(line)
+            rows.append(
+                {
+                    "flow": flow_id(line[0]),
+                    **value_as_columns(line[1]),
+                    "geocollection": geocollection,
+                    "location": location,
+                }
+            )
+        return rows
 
-        data = [normalize_ids(line) for line in data]
+    def _data_row(self, row: dict) -> tuple:
+        value = columns_as_value(row["amount"], row["uncertainty"])
+        if row["location"] is None:
+            return (row["flow"], value)
+        if row["geocollection"] is None:
+            return (row["flow"], value, row["location"])
+        return (row["flow"], value, (row["geocollection"], row["location"]))
+
+    def write(self, data, process=True):
+        """Replace the characterization factors of this method, registering it first if needed.
+
+        Each row is ``(flow, amount)`` or ``(flow, amount, location)``. ``flow`` is an activity
+        id, an ``Activity`` or a ``(database, code)`` key; it is stored as an id. ``amount``
+        is a number or an uncertainty dictionary. ``location`` is a location string, a
+        ``(geocollection, location)`` tuple, or missing (or ``None``) for the global
+        location. Rows are read back by ``load()`` as tuples, without a missing location.
+
+        Sets the metadata keys ``num_cfs`` and ``geocollections``."""
+        def normalize(line):
+            if not isinstance(line, (tuple, list)) or not line:
+                return line  # Rejected by ``_factor_rows``
+            line = (flow_id(line[0]), *line[1:])
+            if len(line) == 3 and isinstance(line[2], list):
+                line = (*line[:2], tuple(line[2]))
+            return line
+
+        data = [normalize(line) for line in data]
         third = lambda x: x[2] if len(x) == 3 else None
-
         geocollections = {
             get_geocollection(third(elem), default_global_location=True) for elem in data
         }
-        if None in geocollections:
-            geocollections.discard(None)
-
-        self.metadata["geocollections"] = sorted(geocollections)
-        super(Method, self).write(data, process=process)
-        self.metadata.save()
+        geocollections.discard(None)
+        super().write(
+            data,
+            process=process,
+            metadata={"num_cfs": len(data), "geocollections": sorted(geocollections)},
+        )
 
     def process(self, **extra_metadata):
         try:

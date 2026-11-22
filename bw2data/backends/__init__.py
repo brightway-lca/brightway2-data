@@ -6,13 +6,16 @@ from bw2data.sqlite import SubstitutableDatabase
 from bw2data.backends.migrations import migrate
 from bw2data.backends.schema import (
     ActivityDataset,
+    CharacterizationFactor,
     DatabaseRecord,
     ExchangeDataset,
     GeoMappingRecord,
     Geocollection,
     MethodRecord,
+    NormalizationFactor,
     NormalizationRecord,
     Preference,
+    WeightingFactor,
     WeightingRecord,
     get_id,
 )
@@ -29,6 +32,9 @@ sqlite3_lci_db = SubstitutableDatabase(
         MethodRecord,
         WeightingRecord,
         NormalizationRecord,
+        CharacterizationFactor,
+        WeightingFactor,
+        NormalizationFactor,
     ],
     pragmas={"foreign_keys": 1},
     # ``projects.dir`` already points at the new project when the file is switched

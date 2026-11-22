@@ -215,21 +215,35 @@ def get_obj_as_dict(cls: SignaledDataset, obj_id: Optional[int]) -> dict:
 
 
 def replace_cfs(old_key, new_key):
-    """Replace ``old_key`` with ``new_key`` in characterization factors.
+    """Replace the flow ``old_key`` with ``new_key`` in the characterization factors of all
+    methods, and process the methods which changed.
+
+    Both flows can be given as a ``(database, code)`` key or an activity id; ``new_key`` must
+    exist, while ``old_key`` may be an id of a deleted activity.
 
     Returns list of modified methods."""
+    from bw2data.backends.schema import CharacterizationFactor, MethodRecord, get_id
+    from bw2data.meta import _write_transaction
     from bw2data.method import Method
 
-    altered_methods = []
-    for name in methods:
-        changed = False
-        data = Method(name).load()
-        for line in data:
-            if line[0] == old_key:
-                line[0], changed = new_key, True
-        if changed:
-            Method(name).write(data)
-            altered_methods.append(name)
+    old_id = old_key if isinstance(old_key, int) else get_id(old_key)
+    new_id = get_id(new_key)
+
+    with _write_transaction(CharacterizationFactor):
+        altered_methods = [
+            name
+            for (name,) in MethodRecord.select(MethodRecord.name)
+            .join(CharacterizationFactor)
+            .where(CharacterizationFactor.flow == old_id)
+            .distinct()
+            .order_by(MethodRecord.id)
+            .tuples()
+        ]
+        CharacterizationFactor.update(flow=new_id).where(
+            CharacterizationFactor.flow == old_id
+        ).execute()
+    for name in altered_methods:
+        Method(name).process()
     return altered_methods
 
 
