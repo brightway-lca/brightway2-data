@@ -248,6 +248,23 @@ class JSONField(TextField):
         return json.loads(value)
 
 
+class TupleNameField(TextField):
+    """A tuple name, like ``("ReCiPe", "climate change")``, stored as a compact JSON list.
+
+    Equal tuples are always stored as equal strings, so the column can be unique and compared
+    with ``==``. A list is stored like the equal tuple; values are read back as tuples."""
+
+    def db_value(self, value):
+        if value is None:
+            return None
+        return super().db_value(json.dumps(list(value), ensure_ascii=False))
+
+    def python_value(self, value):
+        if value is None:
+            return None
+        return tuple(json.loads(value))
+
+
 class TupleJSONField(JSONField):
     def python_value(self, value):
         if value is None:
