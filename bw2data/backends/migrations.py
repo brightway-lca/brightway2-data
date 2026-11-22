@@ -31,6 +31,7 @@ Rules for migration steps:
   bw2data can still open the project.
 """
 
+import json
 import pickle
 import warnings
 from dataclasses import dataclass
@@ -159,6 +160,89 @@ def _geomapping_without_autoincrement(db: Database, project_dir: Path) -> None:
     )
 
 
+#: Columns of ``databaserecord`` with their own column at schema version 3; other keys go
+#: into ``extra``. Fixed here, and not read from the model, as the step must not change when
+#: the model does.
+_DATABASERECORD_COLUMNS = (
+    "backend",
+    "depends",
+    "dirty",
+    "geocollections",
+    "modified",
+    "number",
+    "searchable",
+    "version",
+)
+#: ``JSONField`` columns of ``databaserecord``
+_DATABASERECORD_JSON = frozenset({"depends", "geocollections"})
+
+
+def _json_value(value):
+    """``value`` as stored by ``bw2data.sqlite.JSONField``."""
+    if value is None:
+        return None
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        indent=2,
+        default=lambda x: x.isoformat() if hasattr(x, "isoformat") else x,
+    )
+
+
+def _databases_json_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move ``databases.json`` into the ``databaserecord`` table.
+
+    Only runs if the table is empty: projects opened by a development version of bw2data
+    which moved the file on first access are already migrated, and a table with rows is
+    never overwritten. An unreadable file, or entries which aren't dictionaries, are skipped
+    with a warning; the file is kept as a backup either way."""
+    path = project_dir / "databases.json"
+    if not path.is_file():
+        return
+    if db.execute_sql("SELECT EXISTS (SELECT 1 FROM main.databaserecord)").fetchone()[0]:
+        return
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            legacy = json.load(f)
+        if not isinstance(legacy, dict):
+            raise ValueError("not a JSON object")
+    except Exception as err:
+        warnings.warn(
+            f"Can't read {path} ({err}); starting with no registered databases.",
+            stacklevel=2,
+        )
+        return
+
+    skipped = []
+    columns = ("name", *_DATABASERECORD_COLUMNS, "extra")
+    sql = 'INSERT INTO main."databaserecord" ({}) VALUES ({})'.format(
+        ", ".join(f'"{c}"' for c in columns), ", ".join("?" * len(columns))
+    )
+    for name, metadata in legacy.items():
+        if not isinstance(metadata, dict):
+            skipped.append(name)
+            continue
+        metadata = dict(metadata)
+        values = [name]
+        for column in _DATABASERECORD_COLUMNS:
+            value = metadata.pop(column, None)
+            values.append(_json_value(value) if column in _DATABASERECORD_JSON else value)
+        values.append(_json_value(metadata or None))
+        db.execute_sql(sql, values)
+    if skipped:
+        warnings.warn(
+            f"Entries in {path} which are not dictionaries can't be migrated, and are only "
+            f"kept in the file: {skipped!r}",
+            stacklevel=2,
+        )
+    stdout_feedback_logger.info(
+        "Migrated %s database(s) from %s to SQLite; the file is kept as a backup",
+        len(legacy) - len(skipped),
+        path,
+    )
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -167,6 +251,7 @@ MIGRATIONS: tuple[Migration, ...] = (
         "Use snowflake ids for new geomapping and geocollection ids (remove AUTOINCREMENT)",
         _geomapping_without_autoincrement,
     ),
+    Migration(3, "Move databases.json into SQLite", _databases_json_to_sqlite),
 )
 
 #: Schema version of a fully migrated ``lci/databases.db``
