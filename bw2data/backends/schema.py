@@ -85,6 +85,29 @@ class DatabaseRecord(Model):
     geocollections = JSONField(null=True)
     extra = JSONField(null=True)          # arbitrary user-defined fields
 
+    class Meta:
+        table_name = "databaserecord"
+
+
+class ExtensionDatabaseState(Model):
+    """Project-local state of a database stored in a read-only extension.
+
+    A database record in an extension can't be changed, but some of its fields change when the
+    project uses the database: ``dirty``, ``searchable``, ``modified`` and ``processed`` (a key
+    of ``extra``). These are stored here, in the project's own file, and shown in place of the
+    extension's values (see ``bw2data.backends.extensions``). ``NULL`` means not set locally;
+    ``extra`` holds only the project-local keys.
+    """
+
+    name = TextField(primary_key=True)
+    dirty = BooleanField(null=True)
+    searchable = BooleanField(null=True)
+    modified = TextField(null=True)
+    extra = JSONField(null=True)
+
+    class Meta:
+        table_name = "extensiondatabasestate"
+
 
 class Preference(Model):
     """One project preference. Read and written through ``bw2data.preferences``.
