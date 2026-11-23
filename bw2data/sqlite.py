@@ -130,7 +130,10 @@ class SubstitutableDatabase:
         self._bind(db)
         try:
             db.connect()
-            db.create_tables(self._tables)
+            # In one transaction: otherwise every table, index and trigger of a new file is
+            # committed, and synced to disk, on its own, which is slow on Windows
+            with db.atomic():
+                db.create_tables(self._tables)
             if self._on_open is not None:
                 self._on_open(db)
         except BaseException:
