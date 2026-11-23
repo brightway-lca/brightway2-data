@@ -275,6 +275,108 @@ def _databases_json_to_sqlite(db: Database, project_dir: Path) -> None:
     )
 
 
+#: Legacy LCIA metadata files, their tables, and the metadata keys with their own column in
+#: each table at schema version 4 (``abbreviation`` is a text column in all tables)
+_LCIA_METADATA = (
+    ("methods.json", "method", ("num_cfs", "geocollections")),
+    ("weightings.json", "weighting", ()),
+    ("normalizations.json", "normalization", ()),
+)
+
+
+def _tuple_name_value(name) -> str:
+    """``name`` as stored by ``bw2data.sqlite.TupleNameField``."""
+    return json.dumps(list(name), ensure_ascii=False)
+
+
+def _lcia_metadata_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move ``methods.json``, ``weightings.json`` and ``normalizations.json`` into the
+    ``method``, ``weighting`` and ``normalization`` tables.
+
+    Objects which are already in a table are kept as they are; this happens when the
+    migration was postponed and objects were registered in the meantime. Rows get new
+    snowflake ids; the names are the natural key. Entries which can't be migrated (names
+    which aren't non-empty lists or can't be dictionary keys, metadata which isn't a
+    dictionary, values which can't be stored) are skipped with a warning, as is an
+    unreadable file. The files are kept as backups.
+
+    ``has_data`` is ``0``: the data is still in ``intermediate/*.pickle``."""
+    # Imported here: only this step needs it, and it has no dependency on the models
+    from bw2data.snowflake_ids import snowflake_id_generator
+
+    for filename, table, columns in _LCIA_METADATA:
+        path = project_dir / filename
+        if not path.is_file():
+            continue
+
+        try:
+            with open(path, encoding="utf-8") as f:
+                legacy = json.load(f)
+            if not isinstance(legacy, list):
+                raise ValueError("not a JSON list")
+        except Exception as err:
+            warnings.warn(
+                f"Can't read {path} ({err}); starting with no registered {table}s.",
+                stacklevel=2,
+            )
+            continue
+
+        # Same as ``CompoundJSONDict.unpack``: a later entry for the same name wins
+        entries, skipped = {}, []
+        for entry in legacy:
+            if (
+                isinstance(entry, list)
+                and len(entry) == 2
+                and isinstance(entry[0], list)
+                and entry[0]
+                and isinstance(entry[1], dict)
+            ):
+                try:
+                    entries[tuple(entry[0])] = dict(entry[1])
+                    continue
+                except TypeError:
+                    # A name with a list or dictionary in it can't be a dictionary key, and
+                    # so can't be a name in the registry either
+                    pass
+            skipped.append(entry[0] if isinstance(entry, list) and entry else entry)
+
+        migrated = 0
+        all_columns = ("id", "name", "abbreviation", *columns, "extra", "has_data")
+        sql = 'INSERT OR IGNORE INTO main."{}" ({}) VALUES ({})'.format(
+            table, ", ".join(f'"{c}"' for c in all_columns), ", ".join("?" * len(all_columns))
+        )
+        for name, metadata in entries.items():
+            values = [next(snowflake_id_generator), _tuple_name_value(name)]
+            abbreviation = metadata.pop("abbreviation", None)
+            values.append(None if abbreviation is None else str(abbreviation))
+            for column in columns:
+                if column == "num_cfs":
+                    values.append(_integer_value(metadata.pop(column, None)))
+                else:
+                    values.append(_json_value(metadata.pop(column, None)))
+            values.append(_json_value(metadata or None))
+            values.append(0)
+            try:
+                migrated += db.execute_sql(sql, values).rowcount
+            except (InterfaceError, ProgrammingError, OverflowError, ValueError, TypeError):
+                # A value which SQLite can't store, e.g. an integer with more than 64 bits
+                skipped.append(list(name))
+
+        if skipped:
+            warnings.warn(
+                f"Entries in {path} which aren't a name (list of strings) and metadata "
+                f"(dictionary), or have values which can't be stored, can't be migrated, and "
+                f"are only kept in the file: {skipped[:20]!r}",
+                stacklevel=2,
+            )
+        stdout_feedback_logger.info(
+            "Migrated %s %s(s) from %s to SQLite; the file is kept as a backup",
+            migrated,
+            table,
+            path,
+        )
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -284,6 +386,11 @@ MIGRATIONS: tuple[Migration, ...] = (
         _geomapping_without_autoincrement,
     ),
     Migration(3, "Move databases.json into SQLite", _databases_json_to_sqlite),
+    Migration(
+        4,
+        "Move methods.json, weightings.json and normalizations.json into SQLite",
+        _lcia_metadata_to_sqlite,
+    ),
 )
 
 #: Schema version of a fully migrated ``lci/databases.db``

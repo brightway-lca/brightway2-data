@@ -10,7 +10,10 @@ from bw2data.backends.schema import (
     ExchangeDataset,
     GeoMappingRecord,
     Geocollection,
+    MethodRecord,
+    NormalizationRecord,
     Preference,
+    WeightingRecord,
     get_id,
 )
 
@@ -23,6 +26,9 @@ sqlite3_lci_db = SubstitutableDatabase(
         Geocollection,
         GeoMappingRecord,
         Preference,
+        MethodRecord,
+        WeightingRecord,
+        NormalizationRecord,
     ],
     pragmas={"foreign_keys": 1},
     # ``projects.dir`` already points at the new project when the file is switched

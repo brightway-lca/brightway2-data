@@ -29,7 +29,7 @@ from bw2data.signals import (
     signaleddataset_on_delete,
 )
 from bw2data.snowflake_ids import SnowflakeIDBaseClass
-from bw2data.sqlite import JSONField, PickleField
+from bw2data.sqlite import JSONField, PickleField, TupleNameField
 
 #: Real (on-disk) table names of the two LCI tables. Pinned explicitly so that they never
 #: depend on peewee's naming rules; raw SQL and the extension overlay refer to these.
@@ -87,6 +87,49 @@ class DatabaseRecord(Model):
 
     class Meta:
         table_name = "databaserecord"
+
+
+class _LCIARecord(Model):
+    """Registry record of an LCIA method, weighting or normalization; one table per kind.
+
+    ``id`` is a snowflake id: rows which refer to a record (e.g. its factors) use it, and it
+    doesn't collide with the ids in another project's file. The natural key is ``name``, the
+    tuple identifier, stored as a compact JSON list. Metadata keys other than the columns are
+    stored in ``extra``; all columns except ``id`` and ``name`` are nullable, ``NULL`` meaning
+    the key isn't set."""
+
+    id = IntegerField(primary_key=True)
+    name = TupleNameField(unique=True)
+    abbreviation = TextField(null=True)
+    extra = JSONField(null=True)
+    #: Whether the object's data (characterization factors, normalization factors or
+    #: weighting) is stored in SQLite. Not part of the metadata dict.
+    has_data = BooleanField(default=False)
+
+
+class MethodRecord(_LCIARecord):
+    """Registry record of an LCIA method. Read and written through ``bw2data.methods``."""
+
+    num_cfs = IntegerField(null=True)
+    geocollections = JSONField(null=True)
+
+    class Meta:
+        table_name = "method"
+
+
+class WeightingRecord(_LCIARecord):
+    """Registry record of an LCIA weighting. Read and written through ``bw2data.weightings``."""
+
+    class Meta:
+        table_name = "weighting"
+
+
+class NormalizationRecord(_LCIARecord):
+    """Registry record of an LCIA normalization. Read and written through
+    ``bw2data.normalizations``."""
+
+    class Meta:
+        table_name = "normalization"
 
 
 class Preference(Model):
