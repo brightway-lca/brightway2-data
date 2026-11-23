@@ -325,3 +325,57 @@ def test_legacy_project_is_migrated_on_open():
     assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
     assert all(raw[:4] == ZSTD_MAGIC for table in TABLES for raw in _rows(table).values())
     assert get_node(code="a")["name"] == "a"
+
+
+@bw2test
+def test_active_dictionary_is_kept_with_many_pickled_rows():
+    DatabaseChooser("bulk").write(_bulk_data(600), process=False)
+    dict_id = zstd_dictionaries(sqlite3_lci_db.db).active_id()
+    for row in ActivityDataset.select():
+        _set_pickle("activitydataset", row.id, row.data)
+    _migrate_from(5)
+    assert zstd_dictionaries(sqlite3_lci_db.db).ids() == [dict_id]
+    assert {
+        zstd.get_frame_info(raw).dictionary_id for raw in _rows("activitydataset").values()
+    } == {dict_id}
+
+
+@bw2test
+def test_warning_names_the_rows_which_cant_be_converted():
+    _small()
+    node = get_node(code="a")
+    _set_pickle("activitydataset", node.id, {**node._data, "f": Fraction(1, 3)})
+    excs = list(ExchangeDataset.select())
+    for exc in excs:
+        _set_pickle("exchangedataset", exc.id, {**exc.data, "f": Fraction(1, 3)})
+    with pytest.warns(UserWarning) as record:
+        _migrate_from(5)
+    message = "".join(str(w.message) for w in record)
+    # One line for the error, with the number of rows and which they are
+    assert message.count("* UnsafePickleError") == 1
+    assert "3 row(s)" in message
+    assert "activity ('small', 'a')" in message
+    assert f"exchange {min(exc.id for exc in excs)} from " in message
+
+
+@bw2test
+def test_space_needed_depends_on_the_pickled_rows(monkeypatch):
+    DatabaseChooser("bulk").write(_bulk_data(600), process=False)
+    node = get_node(database="bulk", code="1")
+    _set_pickle("activitydataset", node.id, node._data)
+    size = projects.dir.joinpath("lci", "databases.db").stat().st_size
+    # Far less than the file, but enough for the one page which changes
+    monkeypatch.setattr(migrations, "_free_space", lambda path: size // 10)
+    assert _migrate_from(5) == [6]
+    assert _rows("activitydataset")[node.id][:4] == ZSTD_MAGIC
+
+
+@bw2test
+def test_nothing_is_logged_as_converted_when_postponed(capsys):
+    _small()
+    _make_legacy()
+    node = get_node(code="b")
+    _set_pickle("activitydataset", node.id, {**node._data, "f": Fraction(1, 3)})
+    with pytest.warns(UserWarning, match="postponed"):
+        _migrate_from(5)
+    assert "Converted" not in capsys.readouterr().out

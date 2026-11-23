@@ -595,15 +595,21 @@ _M6_BATCH_SIZE = 10_000
 #: dictionary takes 110 KB, more than the data of a small project
 _M6_SAMPLES = 5_000
 _M6_MIN_ACTIVITIES = 500
-#: Free disk space needed, as a multiple of the file size. The rollback journal holds a copy
-#: of every page which is changed, i.e. almost the whole file, until the commit.
+#: Free disk space needed, as a multiple of the size of the pages which hold pickled rows.
+#: The rollback journal holds a copy of every page which is changed, until the commit.
 _M6_SPACE_FACTOR = 1.1
 #: Exchange keys which are stored in the key columns, and not in ``data``
 _M6_EXCHANGE_KEYS = ("input", "output")
 #: Values which aren't zstd frames (``28 b5 2f fd``), i.e. pickles
 _M6_PICKLED = "substr(\"data\", 1, 4) != X'28B52FFD'"
-#: Most problems listed in the warning
+#: Most different problems listed in the warning, and most rows named for each of them
 _M6_MAX_PROBLEMS = 20
+_M6_MAX_EXAMPLES = 3
+#: Key columns which name a row in the warning
+_M6_KEY_COLUMNS = {
+    "activitydataset": ("database", "code"),
+    "exchangedataset": ("input_database", "input_code", "output_database", "output_code"),
+}
 
 
 def _free_space(path: Path) -> int:
@@ -669,36 +675,88 @@ def _m6_store_dictionary(db: Database, dictionary) -> bool:
 
 
 def _m6_dictionary(db: Database, counts: dict[str, int]):
-    """The dictionary to compress the converted rows with: a new one, trained on a sample of
-    them and made the active one, or else the active one, if any (``None`` if not)."""
-    if counts["activitydataset"] >= _M6_MIN_ACTIVITIES:
-        total = sum(counts.values())
-        samples = []
-        for table, exchange in _M6_TABLES:
-            if not counts[table]:
-                continue
-            limit = max(1, round(_M6_SAMPLES * counts[table] / total))
-            rows = db.execute_sql(
-                f'SELECT "data" FROM main."{table}" WHERE {_M6_PICKLED} '
-                "ORDER BY random() LIMIT ?",
-                (limit,),
-            ).fetchall()
-            for (blob,) in rows:
-                try:
-                    samples.append(_m6_encode(bytes(blob), exchange))
-                except Exception:
-                    # Reported when the row is converted
-                    continue
-        try:
-            dictionary = zstd.train_dict(samples, ZSTD_DICTIONARY_SIZE) if samples else None
-        except (zstd.ZstdError, ValueError):
-            dictionary = None
-        if dictionary is not None and dictionary.dict_id and _m6_store_dictionary(db, dictionary):
-            return dictionary
+    """The dictionary to compress the converted rows with (``None`` for no dictionary).
+
+    This is the active one, if there is one: it was trained on rows written since, e.g. while
+    this step was postponed, and stays the one to write new rows with. Otherwise, with enough
+    rows, a new one is trained on a sample of them and made the active one."""
     active = db.execute_sql(
         'SELECT "content" FROM main."zstddictionary" WHERE "active" = 1'
     ).fetchone()
-    return zstd.ZstdDict(bytes(active[0])) if active else None
+    if active:
+        return zstd.ZstdDict(bytes(active[0]))
+    if counts["activitydataset"] < _M6_MIN_ACTIVITIES:
+        return None
+    total = sum(counts.values())
+    samples = []
+    for table, exchange in _M6_TABLES:
+        if not counts[table]:
+            continue
+        limit = max(1, round(_M6_SAMPLES * counts[table] / total))
+        rows = db.execute_sql(
+            f'SELECT "data" FROM main."{table}" WHERE {_M6_PICKLED} ORDER BY random() LIMIT ?',
+            (limit,),
+        ).fetchall()
+        samples.extend(_m6_encode(bytes(blob), exchange) for (blob,) in rows)
+    try:
+        dictionary = zstd.train_dict(samples, ZSTD_DICTIONARY_SIZE) if samples else None
+    except (zstd.ZstdError, ValueError):
+        return None
+    if dictionary is not None and dictionary.dict_id and _m6_store_dictionary(db, dictionary):
+        return dictionary
+    return None
+
+
+def _m6_batches(db: Database, table: str, columns: tuple = ()):
+    """The pickled rows of ``table`` in batches, as ``(id, data, *columns)``. By id, so that
+    each batch starts where the previous one ended, also when the rows before were changed."""
+    select = ", ".join(f'"{column}"' for column in ("id", "data", *columns))
+    last_id = None
+    while True:
+        if last_id is None:
+            where, params = _M6_PICKLED, (_M6_BATCH_SIZE,)
+        else:
+            where, params = f'{_M6_PICKLED} AND "id" > ?', (last_id, _M6_BATCH_SIZE)
+        rows = db.execute_sql(
+            f'SELECT {select} FROM main."{table}" WHERE {where} ORDER BY "id" LIMIT ?', params
+        ).fetchall()
+        if not rows:
+            return
+        last_id = rows[-1][0]
+        yield rows
+
+
+def _m6_row_name(exchange: bool, id_: int, keys: tuple) -> str:
+    if exchange:
+        return f"exchange {id_} from {keys[:2]!r} to {keys[2:]!r}"
+    return f"activity {keys!r}"
+
+
+def _m6_problems(db: Database, counts: dict[str, int]) -> list[str]:
+    """What stops the pickled rows from being converted: one line for each different error,
+    with the number of rows and the first of them. Nothing is changed. Stops reading at
+    ``_M6_MAX_PROBLEMS`` different errors."""
+    found: dict[str, list] = {}
+    for table, exchange in _M6_TABLES:
+        if not counts[table]:
+            continue
+        for rows in _m6_batches(db, table, _M6_KEY_COLUMNS[table]):
+            for id_, blob, *keys in rows:
+                try:
+                    _m6_encode(bytes(blob), exchange)
+                except Exception as err:
+                    count_and_examples = found.setdefault(f"{type(err).__name__}: {err}", [0, []])
+                    count_and_examples[0] += 1
+                    if len(count_and_examples[1]) < _M6_MAX_EXAMPLES:
+                        count_and_examples[1].append(_m6_row_name(exchange, id_, tuple(keys)))
+            if len(found) >= _M6_MAX_PROBLEMS:
+                break
+        if len(found) >= _M6_MAX_PROBLEMS:
+            break
+    return [
+        f"{error} ({count} row(s), e.g. {'; '.join(examples)})"
+        for error, (count, examples) in found.items()
+    ]
 
 
 def _m6_vacuum(db: Database) -> None:
@@ -728,29 +786,36 @@ def _compress_lci_data(db: Database, project_dir: Path) -> Optional[AfterCommit]
     it. Exchanges no longer store ``input`` and ``output``, which are in the key columns, and
     temporal distributions stored as JSON strings become tagged values.
 
-    Pickles are read with ``codec.safe_pickle_loads``. With at least 500 activities to
-    convert, a dictionary is trained on a sample of the rows and made the active one. The
-    file is vacuumed after the commit.
+    Pickles are read with ``codec.safe_pickle_loads``. The rows are compressed with the
+    active dictionary; if there is none, and at least 500 activities to convert, one is
+    trained on a sample of the rows and made the active one. The file is vacuumed after the
+    commit.
 
-    The step is postponed, and nothing is converted, if there is less free disk space than
-    the file takes, or if a row can't be converted: a pickle with a class which isn't
-    allowed (see ``config.trusted_pickle_classes``), a pickle which can't be read, or a value
-    which can't be stored. Pickled rows can still be read until then.
+    The step is postponed if there is not enough free disk space for the rollback journal
+    (1.1 times the size of the pages with pickled rows), or if a row can't be converted: a
+    pickle with a class which isn't allowed (see ``config.trusted_pickle_classes``), a pickle
+    which can't be read, or a value which can't be stored. All rows are checked before the
+    first one is changed, so a project with such a row is only read, on every attempt.
+    Pickled rows can still be read until then.
 
     Older versions of bw2data can't read the converted file. No backup is kept: it would be
     as large as the file which this step makes smaller."""
-    counts = {
-        table: db.execute_sql(
-            f'SELECT count(*) FROM main."{table}" WHERE {_M6_PICKLED}'
-        ).fetchone()[0]
-        for table, _ in _M6_TABLES
-    }
+    counts, size = {}, 0
+    for table, _ in _M6_TABLES:
+        counts[table], pickled = db.execute_sql(
+            f'SELECT count(*), coalesce(sum(length("data")), 0) FROM main."{table}" '
+            f"WHERE {_M6_PICKLED}"
+        ).fetchone()
+        size += pickled
     if not any(counts.values()):
         return None
 
     path = Path(db.database) if db.database not in ("", ":memory:") else None
     if path is not None and path.is_file():
-        needed = int(path.stat().st_size * _M6_SPACE_FACTOR)
+        # Every page with a pickled row is copied to the journal, whole
+        page_size = db.execute_sql("PRAGMA main.page_size").fetchone()[0]
+        pages = min(path.stat().st_size, size + sum(counts.values()) * page_size)
+        needed = int(pages * _M6_SPACE_FACTOR)
         free = _free_space(path.parent)
         if free < needed:
             raise MigrationPostponed(
@@ -759,47 +824,8 @@ def _compress_lci_data(db: Database, project_dir: Path) -> Optional[AfterCommit]
                 "free. The project can be used as it is until there is enough space."
             )
 
-    dictionary = _m6_dictionary(db, counts)
-    compressor = zstd.ZstdCompressor(level=ZSTD_LEVEL, zstd_dict=dictionary)
-    problems = []
-    for table, exchange in _M6_TABLES:
-        if not counts[table]:
-            continue
-        done, last_id = 0, None
-        while True:
-            # By id, so that each batch starts where the previous one ended
-            if last_id is None:
-                where, params = _M6_PICKLED, (_M6_BATCH_SIZE,)
-            else:
-                where, params = f'{_M6_PICKLED} AND "id" > ?', (last_id, _M6_BATCH_SIZE)
-            rows = db.execute_sql(
-                f'SELECT "id", "data" FROM main."{table}" WHERE {where} ORDER BY "id" LIMIT ?',
-                params,
-            ).fetchall()
-            if not rows:
-                break
-            last_id = rows[-1][0]
-            updates = []
-            for id_, blob in rows:
-                try:
-                    encoded = _m6_encode(bytes(blob), exchange)
-                except Exception as err:
-                    # Go on, to find the other problems, but write nothing more
-                    problem = f"{type(err).__name__}: {err}"
-                    if len(problems) < _M6_MAX_PROBLEMS and problem not in problems:
-                        problems.append(problem)
-                    continue
-                if not problems:
-                    frame = compressor.compress(encoded, mode=zstd.ZstdCompressor.FLUSH_FRAME)
-                    updates.append((frame, id_))
-            if updates and not problems:
-                with closing(db.cursor()) as cursor:
-                    cursor.executemany(
-                        f'UPDATE main."{table}" SET "data" = ? WHERE "id" = ?', updates
-                    )
-            done += len(rows)
-            stdout_feedback_logger.info("Converted %s of %s rows of %s", done, counts[table], table)
-
+    stdout_feedback_logger.info("Checking %s rows", sum(counts.values()))
+    problems = _m6_problems(db, counts)
     if problems:
         raise MigrationPostponed(
             "Some activities or exchanges can't be converted from pickles, so none are; they "
@@ -808,6 +834,27 @@ def _compress_lci_data(db: Database, project_dir: Path) -> Optional[AfterCommit]
             "delete these activities or exchanges.\n"
             + "\n".join(f"* {problem}" for problem in problems)
         )
+
+    dictionary = _m6_dictionary(db, counts)
+    compressor = zstd.ZstdCompressor(level=ZSTD_LEVEL, zstd_dict=dictionary)
+    for table, exchange in _M6_TABLES:
+        if not counts[table]:
+            continue
+        done = 0
+        for rows in _m6_batches(db, table):
+            updates = [
+                (
+                    compressor.compress(
+                        _m6_encode(bytes(blob), exchange), mode=zstd.ZstdCompressor.FLUSH_FRAME
+                    ),
+                    id_,
+                )
+                for id_, blob in rows
+            ]
+            with closing(db.cursor()) as cursor:
+                cursor.executemany(f'UPDATE main."{table}" SET "data" = ? WHERE "id" = ?', updates)
+            done += len(rows)
+            stdout_feedback_logger.info("Converted %s of %s rows of %s", done, counts[table], table)
     return _m6_vacuum
 
 
