@@ -17,7 +17,7 @@ from fsspec.implementations.zip import ZipFileSystem
 from peewee import JOIN, DoesNotExist, fn
 from tqdm import tqdm
 
-from bw2data import calculation_setups, codec, config, databases, geomapping
+from bw2data import calculation_setups, config, databases, geomapping
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset, _insert_many, get_id
@@ -32,6 +32,7 @@ from bw2data.backends.utils import (
     check_temporal_distribution_sum,
     dict_as_activitydataset,
     dict_as_exchangedataset,
+    exchange_row_as_dict,
     get_csv_data_dict,
     retupleize_geo_strings,
 )
@@ -805,7 +806,12 @@ class SQLiteBackend(ProcessedDataStore):
         chosen = random.sample(data, min(len(data), DICTIONARY_SAMPLES // per_dataset))
         samples = []
         for ds in chosen:
-            rows = [dict_as_activitydataset({k: v for k, v in ds.items() if k != "exchanges"})]
+            rows = [
+                (
+                    ActivityDataset,
+                    dict_as_activitydataset({k: v for k, v in ds.items() if k != "exchanges"}),
+                )
+            ]
             exchanges = ds.get("exchanges") or []
             if not isinstance(exchanges, (list, tuple)):
                 # Writing only iterates over the exchanges, so it also takes e.g. a dict
@@ -816,13 +822,13 @@ class SQLiteBackend(ProcessedDataStore):
             ):
                 try:
                     exc = {"output": (ds["database"], ds["code"]), **exc}
-                    rows.append(dict_as_exchangedataset(exc))
+                    rows.append((ExchangeDataset, dict_as_exchangedataset(exc)))
                 except Exception:
                     # Invalid; writing it will raise the right error
                     continue
-            for row in rows:
+            for model, row in rows:
                 try:
-                    samples.append(codec.dumps(row["data"]))
+                    samples.append(model.data.encode(row["data"]))
                 except TypeError:
                     continue
         return zstd_dictionaries(sqlite3_lci_db.db).train(samples)
@@ -962,14 +968,21 @@ class SQLiteBackend(ProcessedDataStore):
             o["exchanges"] = []
 
         exchange_qs = (
-            ExchangeDataset.select(ExchangeDataset.data)
+            ExchangeDataset.select(
+                ExchangeDataset.data,
+                ExchangeDataset.input_database,
+                ExchangeDataset.input_code,
+                ExchangeDataset.output_database,
+                ExchangeDataset.output_code,
+            )
             .where(ExchangeDataset.output_database == self.name)
             .dicts()
         )
 
-        for exc in exchange_qs:
+        for row in exchange_qs:
+            exc = exchange_row_as_dict(row)
             try:
-                activities[exc["data"]["output"]]["exchanges"].append(exc["data"])
+                activities[exc["output"]]["exchanges"].append(exc)
             except KeyError:
                 # This exchange not in the potentially filtered set of activities returned
                 # by _get_queryset
@@ -1188,7 +1201,9 @@ Here are the type values usually used for nodes:
             # Modify ``dependents`` in place
             if input_database != output_database:
                 dependents.add(input_database)
-            check_exchange(data)
+            check_exchange(
+                data, input=(input_database, input_code), output=(output_database, output_code)
+            )
             if row is None or col is None:
                 raise UnknownObject(
                     (

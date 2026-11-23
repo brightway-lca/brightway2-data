@@ -115,7 +115,21 @@ def test_write_stores_columns_as_peewee_does():
     DatabaseChooser("testy").write(data, searchable=False)
 
     def check(model, row, expected):
-        assert row.data == expected.pop("data")
+        data = expected.pop("data")
+        if model is ExchangeDataset:
+            # `input` and `output` come from the key columns, as stored
+            data = {
+                **data,
+                "input": (
+                    model.input_database.db_value(expected["input_database"]),
+                    model.input_code.db_value(expected["input_code"]),
+                ),
+                "output": (
+                    model.output_database.db_value(expected["output_database"]),
+                    model.output_code.db_value(expected["output_code"]),
+                ),
+            }
+        assert row.data == data
         for column, value in expected.items():
             assert getattr(row, column) == getattr(model, column).db_value(value), column
 

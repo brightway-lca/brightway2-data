@@ -711,6 +711,7 @@ class Exchange(ExchangeProxyBase):
         else:
             self._document = document
             self._data = self._document.data
+            # Not stored in `data`; see `ExchangeDataField`
             self._data["input"] = (
                 self._document.input_database,
                 self._document.input_code,
