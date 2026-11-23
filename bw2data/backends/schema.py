@@ -85,6 +85,9 @@ class DatabaseRecord(Model):
     geocollections = JSONField(null=True)
     extra = JSONField(null=True)          # arbitrary user-defined fields
 
+    class Meta:
+        table_name = "databaserecord"
+
 
 class Preference(Model):
     """One project preference. Read and written through ``bw2data.preferences``.

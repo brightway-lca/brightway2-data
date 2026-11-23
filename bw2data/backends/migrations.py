@@ -31,13 +31,14 @@ Rules for migration steps:
   bw2data can still open the project.
 """
 
+import json
 import pickle
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from peewee import Database, OperationalError
+from peewee import Database, InterfaceError, OperationalError, ProgrammingError
 
 from bw2data.logs import stdout_feedback_logger
 
@@ -159,6 +160,121 @@ def _geomapping_without_autoincrement(db: Database, project_dir: Path) -> None:
     )
 
 
+#: Columns of ``databaserecord`` with their own column at schema version 3; other keys go
+#: into ``extra``. Fixed here, and not read from the model, as the step must not change when
+#: the model does.
+_DATABASERECORD_COLUMNS = (
+    "backend",
+    "depends",
+    "dirty",
+    "geocollections",
+    "modified",
+    "number",
+    "searchable",
+    "version",
+)
+#: ``JSONField``, ``IntegerField`` and ``BooleanField`` columns of ``databaserecord``; the
+#: others are ``TextField`` columns
+_DATABASERECORD_JSON = frozenset({"depends", "geocollections"})
+_DATABASERECORD_INTEGER = frozenset({"number", "version"})
+_DATABASERECORD_BOOLEAN = frozenset({"dirty", "searchable"})
+
+
+def _json_value(value):
+    """``value`` as stored by ``bw2data.sqlite.JSONField``."""
+    if value is None:
+        return None
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        indent=2,
+        default=lambda x: x.isoformat() if hasattr(x, "isoformat") else x,
+    )
+
+
+def _integer_value(value):
+    """``value`` as stored by a peewee ``IntegerField``: an integer if it can be converted to
+    one, otherwise unchanged. Values which SQLite can't store (lists, dicts) are stored as
+    JSON text."""
+    try:
+        return int(value)
+    except ValueError:
+        return value
+    except TypeError:
+        return None if value is None else _json_value(value)
+
+
+def _databaserecord_value(column: str, value):
+    """``value`` as stored by the model field of ``column``. Legacy values of the wrong type
+    are converted as the field would do it, so that every value can be stored."""
+    if value is None:
+        return None
+    if column in _DATABASERECORD_JSON:
+        return _json_value(value)
+    if column in _DATABASERECORD_INTEGER:
+        return _integer_value(value)
+    if column in _DATABASERECORD_BOOLEAN:
+        return bool(value)
+    return value if isinstance(value, str) else str(value)
+
+
+def _databases_json_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move ``databases.json`` into the ``databaserecord`` table.
+
+    Databases which are already in the table are kept as they are; this happens when the
+    migration was postponed and databases were registered in the meantime, and for projects
+    opened by a development version of bw2data which moved the file on first access. Values
+    of the wrong type (e.g. a list as ``version``) are converted to something which can be
+    stored. An unreadable file, entries which aren't dictionaries and entries which still
+    can't be stored are skipped with a warning; the file is kept as a backup either way."""
+    path = project_dir / "databases.json"
+    if not path.is_file():
+        return
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            legacy = json.load(f)
+        if not isinstance(legacy, dict):
+            raise ValueError("not a JSON object")
+    except Exception as err:
+        warnings.warn(
+            f"Can't read {path} ({err}); starting with no registered databases.",
+            stacklevel=2,
+        )
+        return
+
+    migrated, skipped = 0, []
+    columns = ("name", *_DATABASERECORD_COLUMNS, "extra")
+    sql = 'INSERT OR IGNORE INTO main."databaserecord" ({}) VALUES ({})'.format(
+        ", ".join(f'"{c}"' for c in columns), ", ".join("?" * len(columns))
+    )
+    for name, metadata in legacy.items():
+        if not isinstance(metadata, dict):
+            skipped.append(name)
+            continue
+        metadata = dict(metadata)
+        values = [name]
+        for column in _DATABASERECORD_COLUMNS:
+            values.append(_databaserecord_value(column, metadata.pop(column, None)))
+        values.append(_json_value(metadata or None))
+        try:
+            migrated += db.execute_sql(sql, values).rowcount
+        except (InterfaceError, ProgrammingError, OverflowError, ValueError, TypeError):
+            # A value which SQLite can't store, e.g. an integer with more than 64 bits
+            skipped.append(name)
+    if skipped:
+        warnings.warn(
+            f"Entries in {path} which are not dictionaries, or have values which can't be "
+            f"stored, can't be migrated, and are only kept in the file: {skipped!r}",
+            stacklevel=2,
+        )
+    stdout_feedback_logger.info(
+        "Migrated %s database(s) from %s to SQLite; the file is kept as a backup",
+        migrated,
+        path,
+    )
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -167,6 +283,7 @@ MIGRATIONS: tuple[Migration, ...] = (
         "Use snowflake ids for new geomapping and geocollection ids (remove AUTOINCREMENT)",
         _geomapping_without_autoincrement,
     ),
+    Migration(3, "Move databases.json into SQLite", _databases_json_to_sqlite),
 )
 
 #: Schema version of a fully migrated ``lci/databases.db``

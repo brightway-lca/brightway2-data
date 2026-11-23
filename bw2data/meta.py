@@ -570,7 +570,8 @@ class Databases(MutableMapping):
     """Dict-like registry of database metadata, backed by the ``DatabaseRecord`` SQLite table
     in the per-project ``lci/databases.db``.
 
-    Previously stored in ``databases.json``; the file is migrated automatically on first access.
+    Previously stored in ``databases.json``; the file is moved into SQLite by schema migration 3
+    (see ``bw2data.backends.migrations``) when the project is opened.
 
     Adding, replacing or deleting a whole entry (``databases[name] = {...}``,
     ``del databases[name]``) is saved immediately. Changes to an entry
@@ -580,7 +581,6 @@ class Databases(MutableMapping):
     _save_signal = on_database_metadata_change
 
     def __init__(self):
-        self._migrated = False
         # One proxy per database name, so pending changes survive between accesses
         self._proxies = {}
 
@@ -589,7 +589,6 @@ class Databases(MutableMapping):
     # ------------------------------------------------------------------
 
     def __getitem__(self, name):
-        self._ensure_migrated()
         from bw2data.backends.schema import DatabaseRecord
         from peewee import DoesNotExist
 
@@ -611,7 +610,6 @@ class Databases(MutableMapping):
         return proxy
 
     def __setitem__(self, name, value):
-        self._ensure_migrated()
         from bw2data.backends.schema import DatabaseRecord
 
         send = self._should_signal()
@@ -650,19 +648,16 @@ Metadata state is unchanged, but database state is unknown.
             on_database_delete.send(self, name=name)
 
     def __iter__(self):
-        self._ensure_migrated()
         from bw2data.backends.schema import DatabaseRecord
 
         return (row.name for row in DatabaseRecord.select(DatabaseRecord.name))
 
     def __len__(self):
-        self._ensure_migrated()
         from bw2data.backends.schema import DatabaseRecord
 
         return DatabaseRecord.select().count()
 
     def __contains__(self, name):
-        self._ensure_migrated()
         from bw2data.backends.schema import DatabaseRecord
 
         return DatabaseRecord.select().where(DatabaseRecord.name == name).exists()
@@ -838,36 +833,6 @@ Metadata state is unchanged, but database state is unknown.
             known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
             DatabaseRecord.replace(name=name, extra=meta or None, **known).execute()
         self._proxies.clear()
-
-    def _ensure_migrated(self):
-        if not self._migrated:
-            self._migrated = True
-            self._migrate_from_json()
-
-    def _migrate_from_json(self):
-        """One-time migration from ``databases.json`` to SQLite on first access."""
-        from bw2data.project import projects
-        from bw2data.backends.schema import DatabaseRecord
-        import json
-
-        json_path = projects.dir / "databases.json"
-        if not json_path.exists():
-            return
-        if DatabaseRecord.select().count() > 0:
-            return
-
-        warnings.warn(
-            f"Migrating {json_path} to SQLite (one-time operation). "
-            "The original file is kept as a backup.",
-            stacklevel=2,
-        )
-        with open(json_path, encoding="utf-8") as f:
-            data = json.load(f)
-
-        for name, meta in data.items():
-            meta = dict(meta)
-            known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
-            DatabaseRecord.replace(name=name, extra=meta or None, **known).execute()
 
 
 class CalculationSetups(PickledDict):
