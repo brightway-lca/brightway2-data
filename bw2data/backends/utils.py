@@ -119,6 +119,9 @@ def _import_bw_temporalis():
 def serialize_temporal_distribution(exc: dict) -> dict:
     """Return ``exc`` with a ``bw_temporalis`` temporal distribution converted to its JSON string.
 
+    Used for revisions, which are stored as plain JSON. The LCI database stores temporal
+    distributions as tagged values instead, which ``bw_temporalis`` registers with
+    ``bw2data.codec`` through an entry point.
     Returns a shallow copy if a conversion was made; the input is not modified. Any other
     ``temporal_distribution`` value (including already serialized strings) is left as is."""
     td = exc.get("temporal_distribution")
@@ -133,6 +136,9 @@ def serialize_temporal_distribution(exc: dict) -> dict:
 def restore_temporal_distribution(exc: dict) -> dict:
     """Return ``exc`` with a JSON ``temporal_distribution`` converted back to a
     ``bw_temporalis`` object, using the ``__loader__`` class written by ``to_json()``.
+
+    Only needed for values stored as JSON strings by bw2data 4.x; values stored since are
+    tagged values, which ``bw2data.codec`` restores when it reads them.
 
     Returns a shallow copy if a conversion was made. Values which aren't serialized temporal
     distributions are left as is. Warns and leaves the JSON in place if ``bw_temporalis``
@@ -186,7 +192,6 @@ def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
 
 
 def dict_as_exchangedataset(ds: Any) -> dict:
-    ds = serialize_temporal_distribution(ds)
     return {
         "data": ds,
         "input_database": ds["input"][0],

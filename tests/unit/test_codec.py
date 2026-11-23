@@ -256,6 +256,40 @@ def test_register_refuses_builtin_tags_and_conflicts(clean_registry):
         codec.register(Point, "tests.Other", list, tuple)
 
 
+def test_register_replace(clean_registry):
+    codec.register(Point, "tests.Point", lambda p: (p.x, p.y), lambda v: Point(*v))
+
+    # A class defined again, as when a notebook cell runs twice
+    class NewPoint(Point):
+        pass
+
+    codec.register(NewPoint, "tests.Point", lambda p: (p.x, p.y), lambda v: NewPoint(*v), replace=True)
+    assert Point not in codec._ENCODERS
+    assert type(roundtrip(NewPoint(1, 2))) is NewPoint
+
+    # Moving a class to another tag removes the old tag
+    codec.register(NewPoint, "tests.Moved", lambda p: (p.x, p.y), lambda v: NewPoint(*v), replace=True)
+    assert "tests.Point" not in codec._DECODERS
+    assert dumps(NewPoint(1, 2)).startswith(b'{"__bw__":"tests.Moved"')
+    with pytest.raises(ValueError, match="reserved"):
+        codec.register(NewPoint, "tuple", list, tuple, replace=True)
+
+
+@pytest.mark.parametrize("replace", [False, True])
+def test_register_never_replaces_builtin_types(clean_registry, replace):
+    from decimal import Decimal
+
+    value = {"d": Decimal("1.10"), "t": (1, 2)}
+    stored = dumps(value)
+    for cls in (Decimal, tuple):
+        with pytest.raises(ValueError, match="already registered by bw2data itself"):
+            codec.register(cls, "mypkg.Thing", str, cls, replace=replace)
+    # Nothing was removed on the way to the error
+    assert "mypkg.Thing" not in codec._DECODERS
+    assert dumps(value) == stored
+    assert codec.loads(stored) == value
+
+
 def test_unknown_tag_is_kept_and_stored_again_unchanged(clean_registry):
     codec._entry_points_loaded = True
     data = b'{"a":{"__bw__":"some_plugin.Thing","v":{"x":[1,{"__bw__":"tuple","v":[2]}]}}}'

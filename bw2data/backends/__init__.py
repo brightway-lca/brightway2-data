@@ -2,9 +2,10 @@ import os
 
 from bw2data import config
 from bw2data.project import projects
-from bw2data.sqlite import SubstitutableDatabase
+from bw2data.sqlite import SubstitutableDatabase, zstd_dictionaries
 from bw2data.backends.migrations import migrate
 from bw2data.backends.schema import (
+    COMPRESSED_COLUMNS,
     ActivityDataset,
     CharacterizationFactor,
     DatabaseRecord,
@@ -17,6 +18,7 @@ from bw2data.backends.schema import (
     Preference,
     WeightingFactor,
     WeightingRecord,
+    ZstdDictionary,
     get_id,
 )
 
@@ -35,6 +37,7 @@ sqlite3_lci_db = SubstitutableDatabase(
     [
         ActivityDataset,
         ExchangeDataset,
+        ZstdDictionary,
         DatabaseRecord,
         Geocollection,
         GeoMappingRecord,
@@ -53,6 +56,8 @@ sqlite3_lci_db = SubstitutableDatabase(
     # A project which is read-only, or in use by another process, can still be opened after
     # an upgrade of bw2data which adds tables
     postpone_tables=True,
+    # Dictionaries of values which were deleted since
+    before_vacuum=lambda db: zstd_dictionaries(db).remove_unused(COMPRESSED_COLUMNS),
 )
 
 from bw2data.backends.base import SQLiteBackend

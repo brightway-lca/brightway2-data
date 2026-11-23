@@ -17,7 +17,7 @@ from fsspec.implementations.zip import ZipFileSystem
 from peewee import JOIN, DoesNotExist, fn
 from tqdm import tqdm
 
-from bw2data import calculation_setups, config, databases, geomapping
+from bw2data import calculation_setups, codec, config, databases, geomapping
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset, _insert_many, get_id
@@ -48,12 +48,19 @@ from bw2data.logs import stdout_feedback_logger
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
 from bw2data.signals import on_database_reset, on_database_write
+from bw2data.sqlite import zstd_dictionaries
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
 
 _VALID_KEYS = {"location", "name", "product", "type"}
 
 # Rows per executemany call in Database.write; a whole ecoinvent fits in a few calls
 WRITE_BATCH_SIZE = 50_000
+#: ``Database.write()`` trains a new zstd dictionary when writing at least this many datasets
+DICTIONARY_MIN_DATASETS = 500
+#: Most activities and exchanges a dictionary is trained on
+DICTIONARY_SAMPLES = 5_000
+#: Most exchanges of one dataset among them
+DICTIONARY_EXCHANGES_PER_DATASET = 4
 
 
 def tqdm_wrapper(iterable, is_test):
@@ -783,9 +790,47 @@ class SQLiteBackend(ProcessedDataStore):
 
         return exchanges, activities
 
+    def _train_dictionary(self, data: list) -> Optional[int]:
+        """Train a zstd dictionary on a sample of ``data`` and make it the active one, so that
+        the rows written next are compressed with it. Returns its id, or ``None`` if none was
+        trained (too few datasets, or zstd couldn't train one from the sample).
+
+        Activities and exchanges repeat the same keys and values (``properties``, comments,
+        pedigree matrices, ...) in every row. A dictionary holds them once, so that each row
+        only stores what is new, which is several times smaller than compressing each row on
+        its own. Earlier dictionaries are kept for the rows which use them."""
+        if len(data) < DICTIONARY_MIN_DATASETS or sqlite3_lci_db.db.in_transaction():
+            return None
+        per_dataset = 1 + DICTIONARY_EXCHANGES_PER_DATASET
+        chosen = random.sample(data, min(len(data), DICTIONARY_SAMPLES // per_dataset))
+        samples = []
+        for ds in chosen:
+            rows = [dict_as_activitydataset({k: v for k, v in ds.items() if k != "exchanges"})]
+            exchanges = ds.get("exchanges") or []
+            if not isinstance(exchanges, (list, tuple)):
+                # Writing only iterates over the exchanges, so it also takes e.g. a dict
+                # view, which can't be sampled
+                exchanges = []
+            for exc in random.sample(
+                exchanges, min(len(exchanges), DICTIONARY_EXCHANGES_PER_DATASET)
+            ):
+                try:
+                    exc = {"output": (ds["database"], ds["code"]), **exc}
+                    rows.append(dict_as_exchangedataset(exc))
+                except Exception:
+                    # Invalid; writing it will raise the right error
+                    continue
+            for row in rows:
+                try:
+                    samples.append(codec.dumps(row["data"]))
+                except TypeError:
+                    continue
+        return zstd_dictionaries(sqlite3_lci_db.db).train(samples)
+
     def _efficient_write_many_data(
         self, data: list, indices: bool = True, check_typos: bool = True
     ) -> None:
+        self._train_dictionary(data)
         be_complicated = len(data) >= 100 and indices
         if be_complicated:
             self._drop_indices()

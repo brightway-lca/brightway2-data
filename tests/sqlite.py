@@ -759,6 +759,37 @@ def test_substitutable_database_deferred_setup_waits_for_end_of_transaction(tmp_
         sub.db.close()
 
 
+def test_substitutable_database_deferred_setup_waits_for_end_of_bare_begin(tmp_path):
+    # ``Database.write()`` begins its transaction with ``db.begin()``, which peewee's
+    # ``in_transaction()`` doesn't know about
+    from bw2data.sqlite import SubstitutableDatabase
+
+    path = tmp_path / "locked.db"
+    Old, New = _file_with_one_table(path)
+
+    opened = []
+    lock = _Locked(path, "IMMEDIATE")
+    with pytest.warns(UserWarning, match="Can't create the tables new in"):
+        sub = SubstitutableDatabase(
+            path,
+            [Old, New],
+            pragmas={"busy_timeout": 0},
+            on_open=opened.append,
+            postpone_tables=True,
+        )
+    try:
+        sub.db.begin()
+        assert not sub.db.in_transaction() and sub.db.transaction_token() is not None
+        lock.__exit__()
+        assert Old.select().count() == 1
+        assert opened == []
+        sub.db.rollback()
+        assert _tables(sub.db) == {"old", "new"}
+        assert opened == [sub.db]
+    finally:
+        sub.db.close()
+
+
 @pytest.mark.parametrize("message", ["disk I/O error", "database table is locked"])
 def test_substitutable_database_other_create_errors_are_raised(tmp_path, monkeypatch, message):
     from peewee import OperationalError

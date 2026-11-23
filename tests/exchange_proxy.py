@@ -600,8 +600,19 @@ def test_typo_exchange_type_multiple_corrections():
         exc.save()
 
 
-def _td(amounts):
+def _skip_without_td_codec():
+    """Skip unless ``bw_temporalis`` is installed and registers its temporal distributions
+    with ``bw2data.codec`` (``bw_temporalis.codec``, after 1.3.1)."""
     bw_temporalis = pytest.importorskip("bw_temporalis")
+    pytest.importorskip("bw_temporalis.codec", reason="bw_temporalis without bw2data.codec support")
+    return bw_temporalis
+
+
+def _td(amounts, stored=True):
+    """A temporal distribution. Skips without ``bw_temporalis``, and, when the test stores the
+    object itself in the database (``stored``), without its ``bw2data.codec`` support. Tests
+    which only store it as a JSON string or as a pickle run with any ``bw_temporalis``."""
+    bw_temporalis = _skip_without_td_codec() if stored else pytest.importorskip("bw_temporalis")
     return bw_temporalis.TemporalDistribution(
         date=np.array([0, 5], dtype="timedelta64[Y]"), amount=np.array(amounts)
     )
@@ -678,7 +689,7 @@ def test_td_sum_checks_json_string():
         amount=1.0,
         input=b,
         type="technosphere",
-        temporal_distribution=_td([0.5, 0.35]).to_json(),
+        temporal_distribution=_td([0.5, 0.35], stored=False).to_json(),
     )
 
     with pytest.warns(UserWarning, match=r"sums to 0\.85, not 1"):
@@ -708,10 +719,24 @@ def test_td_sum_never_breaks_save_for_non_td_values(value):
 
 
 def _stored_td(exc):
-    """Raw ``temporal_distribution`` value as stored in the ``ExchangeDataset`` table."""
-    from bw2data.backends import ExchangeDataset
+    """``temporal_distribution`` as stored in the ``ExchangeDataset`` table: the JSON value
+    inside the compressed frame, before ``bw2data.codec`` decodes it."""
+    import orjson
 
-    return ExchangeDataset.get_by_id(exc.id).data["temporal_distribution"]
+    from bw2data.backends import sqlite3_lci_db
+    from bw2data.sqlite import zstd_dictionaries
+
+    raw = sqlite3_lci_db.execute_sql(
+        "SELECT data FROM exchangedataset WHERE id = ?", (exc.id,)
+    ).fetchone()[0]
+    content = zstd_dictionaries(sqlite3_lci_db.db).decompress(bytes(raw))
+    return orjson.loads(content)["temporal_distribution"]
+
+
+def _assert_stored_as_tagged_td(exc, cls_name="TemporalDistribution"):
+    stored = _stored_td(exc)
+    assert stored["__bw__"] == f"bw_temporalis.{cls_name}"
+    assert stored["v"]["__loader__"] == f"bw_temporalis.{cls_name}"
 
 
 def _assert_same_td(first, second):
@@ -721,7 +746,7 @@ def _assert_same_td(first, second):
 
 
 @bw2test
-def test_td_stored_as_json_and_restored_on_exchange_save():
+def test_td_stored_as_tagged_value_and_restored_on_exchange_save():
     a, b = _two_activities()
     td = _td([0.6, 0.4])
     exc = a.new_exchange(amount=1.0, input=b, type="technosphere", temporal_distribution=td)
@@ -730,15 +755,13 @@ def test_td_stored_as_json_and_restored_on_exchange_save():
     # Saving doesn't change the TD on the exchange object
     assert exc["temporal_distribution"] is td
 
-    stored = _stored_td(exc)
-    assert isinstance(stored, str)
-    assert json.loads(stored)["__loader__"] == "bw_temporalis.TemporalDistribution"
+    _assert_stored_as_tagged_td(exc)
 
     _assert_same_td(list(a.technosphere())[0]["temporal_distribution"], td)
 
 
 @bw2test
-def test_td_stored_as_json_and_restored_on_database_write():
+def test_td_stored_as_tagged_value_and_restored_on_database_write():
     td = _td([0.6, 0.4])
     data = {
         ("example", "A"): {
@@ -761,23 +784,23 @@ def test_td_stored_as_json_and_restored_on_database_write():
     assert data[("example", "A")]["exchanges"][0]["temporal_distribution"] is td
 
     exc = list(get_node(database="example", code="A").technosphere())[0]
-    assert isinstance(_stored_td(exc), str)
+    _assert_stored_as_tagged_td(exc)
     _assert_same_td(exc["temporal_distribution"], td)
 
 
 @bw2test
-def test_td_stored_as_json_on_activity_copy():
+def test_td_stored_as_tagged_value_on_activity_copy():
     a, b = _two_activities()
     td = _td([0.6, 0.4])
     a.new_exchange(amount=1.0, input=b, type="technosphere", temporal_distribution=td).save()
 
     exc = list(a.copy(code="C").technosphere())[0]
-    assert isinstance(_stored_td(exc), str)
+    _assert_stored_as_tagged_td(exc)
     _assert_same_td(exc["temporal_distribution"], td)
 
 
 @bw2test
-def test_td_stored_as_json_on_copy_activities():
+def test_td_stored_as_tagged_value_on_copy_activities():
     a, b = _two_activities()
     td = _td([0.6, 0.4])
     a.new_exchange(amount=1.0, input=b, type="technosphere", temporal_distribution=td).save()
@@ -785,14 +808,33 @@ def test_td_stored_as_json_on_copy_activities():
 
     (new,) = DatabaseChooser("example").copy_activities([a], "other")
     exc = list(new.technosphere())[0]
-    assert isinstance(_stored_td(exc), str)
+    _assert_stored_as_tagged_td(exc)
     _assert_same_td(exc["temporal_distribution"], td)
+
+
+@bw2test
+def test_td_in_revision_is_a_json_string():
+    """Revisions are plain JSON, so they keep storing temporal distributions as strings."""
+    a, b = _two_activities()
+    projects.dataset.set_sourced()
+    td = _td([0.6, 0.4])
+    exc = a.new_exchange(amount=1.0, input=b, type="technosphere", temporal_distribution=td)
+    exc.save()
+
+    with open(projects.dataset.dir / "revisions" / f"{projects.dataset.revision}.rev") as f:
+        revision = json.load(f)
+    (change,) = revision["data"]
+    added = change["delta"]["type_changes"]["root"]["new_value"]
+    assert json.loads(added["data"]["temporal_distribution"])["__loader__"] == (
+        "bw_temporalis.TemporalDistribution"
+    )
+    _assert_stored_as_tagged_td(exc)
 
 
 @bw2test
 @pytest.mark.parametrize("cls_name", ["TemporalDistribution", "FixedTD", "FixedTimeOfYearTD"])
 def test_td_roundtrip_subclasses(cls_name):
-    bw_temporalis = pytest.importorskip("bw_temporalis")
+    bw_temporalis = _skip_without_td_codec()
     if cls_name == "FixedTimeOfYearTD":
         td = bw_temporalis.FixedTimeOfYearTD(
             date=np.array([10, 20], dtype="timedelta64[D]"), amount=np.array([0.5, 0.5])
@@ -806,24 +848,44 @@ def test_td_roundtrip_subclasses(cls_name):
     exc = a.new_exchange(amount=1.0, input=b, type="technosphere", temporal_distribution=td)
     exc.save()
 
-    assert json.loads(_stored_td(exc))["__loader__"] == f"bw_temporalis.{cls_name}"
+    _assert_stored_as_tagged_td(exc, cls_name)
     _assert_same_td(list(a.technosphere())[0]["temporal_distribution"], td)
 
 
+def _store_legacy_pickle(exc_id, data):
+    """Overwrite the ``data`` of an exchange with a pickle, as bw2data 4.x stored it."""
+    import pickle
+
+    from bw2data.backends import sqlite3_lci_db
+
+    sqlite3_lci_db.execute_sql(
+        "UPDATE exchangedataset SET data = ? WHERE id = ?",
+        (pickle.dumps(data, protocol=4), exc_id),
+    )
+
+
 @bw2test
-def test_td_legacy_pickled_object_still_loads():
-    from bw2data.backends import ExchangeDataset
+def test_td_legacy_pickled_object_needs_trusted_class(monkeypatch):
+    """Exchanges written before TDs were serialized contain the pickled object. The
+    restricted unpickler only loads it when its class is trusted."""
+    from bw2data import config
+    from bw2data.errors import UnsafePickleError
 
     a, b = _two_activities()
-    td = _td([0.6, 0.4])
-    # Data written before TDs were serialized contains the pickled object
-    ExchangeDataset.create(
-        data={"input": b.key, "output": a.key, "amount": 1.0, "type": "technosphere", "temporal_distribution": td},
-        input_database=b["database"],
-        input_code=b["code"],
-        output_database=a["database"],
-        output_code=a["code"],
-        type="technosphere",
+    td = _td([0.6, 0.4], stored=False)
+    exc = a.new_exchange(amount=1.0, input=b, type="technosphere")
+    exc.save()
+    _store_legacy_pickle(
+        exc.id,
+        {"input": b.key, "output": a.key, "amount": 1.0, "type": "technosphere", "temporal_distribution": td},
+    )
+    with pytest.raises(UnsafePickleError, match="trusted_pickle_classes"):
+        list(a.technosphere())
+
+    monkeypatch.setattr(
+        config,
+        "trusted_pickle_classes",
+        [f"{type(td).__module__}.{type(td).__name__}"],
     )
     _assert_same_td(list(a.technosphere())[0]["temporal_distribution"], td)
 
@@ -894,3 +956,4 @@ def test_td_restore_ignores_other_values(value):
         warnings.simplefilter("error")
         exc = list(a.technosphere())[0]
     assert exc["temporal_distribution"] == value
+

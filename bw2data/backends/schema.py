@@ -1,6 +1,7 @@
 from contextlib import closing
 
 from peewee import (
+    BlobField,
     BooleanField,
     CompositeKey,
     FloatField,
@@ -31,7 +32,13 @@ from bw2data.signals import (
     signaleddataset_on_delete,
 )
 from bw2data.snowflake_ids import SnowflakeIDBaseClass
-from bw2data.sqlite import JSONField, PickleField, TupleNameField
+from bw2data.sqlite import (
+    ZSTD_DICTIONARY_TABLE,
+    CompressedJSONField,
+    JSONField,
+    PickleField,
+    TupleNameField,
+)
 
 #: Real (on-disk) table names of the two LCI tables. Pinned explicitly so that they never
 #: depend on peewee's naming rules; raw SQL and the extension overlay refer to these.
@@ -39,8 +46,25 @@ ACTIVITY_TABLE = "activitydataset"
 EXCHANGE_TABLE = "exchangedataset"
 
 
-class ActivityDataset(SnowflakeIDBaseClass):
-    data = PickleField()  # Canonical, except for other C fields
+class _SavedInTransaction:
+    """Mixin for models with a ``CompressedJSONField``: ``save()`` runs in a transaction.
+
+    The value is only compressed with the active zstd dictionary inside a transaction; see
+    ``bw2data.sqlite.ZstdDictionaries``. The transaction takes the write lock when it begins
+    (``IMMEDIATE``), before the active dictionary is read, so that the write itself can't
+    fail afterwards because another process is writing. Inside a transaction of the caller
+    nothing is added, and the lock is the caller's."""
+
+    def save(self, **kwargs):
+        database = self._meta.database
+        if database.in_transaction() or database.transaction_token() is not None:
+            return super().save(**kwargs)
+        with database.atomic("IMMEDIATE"):
+            return super().save(**kwargs)
+
+
+class ActivityDataset(_SavedInTransaction, SnowflakeIDBaseClass):
+    data = CompressedJSONField()  # Canonical, except for other C fields
     code = TextField()  # Canonical
     database = TextField()  # Canonical
     location = TextField(null=True)  # Reset from `data`
@@ -56,8 +80,8 @@ class ActivityDataset(SnowflakeIDBaseClass):
         return (self.database, self.code)
 
 
-class ExchangeDataset(SnowflakeIDBaseClass):
-    data = PickleField()  # Canonical, except for other C fields
+class ExchangeDataset(_SavedInTransaction, SnowflakeIDBaseClass):
+    data = CompressedJSONField()  # Canonical, except for other C fields
     input_code = TextField()  # Canonical
     input_database = TextField()  # Canonical
     output_code = TextField()  # Canonical
@@ -66,6 +90,37 @@ class ExchangeDataset(SnowflakeIDBaseClass):
 
     class Meta:
         table_name = EXCHANGE_TABLE
+
+
+#: The tables with a ``CompressedJSONField``, and the name of its column
+COMPRESSED_COLUMNS = {ACTIVITY_TABLE: "data", EXCHANGE_TABLE: "data"}
+
+
+class ZstdDictionary(Model):
+    """A zstd dictionary used to compress the ``data`` of activities and exchanges.
+
+    ``id`` is the dictionary id, which zstd writes in the header of every frame compressed
+    with it. Read and written through ``bw2data.sqlite.ZstdDictionaries``. At most one row is
+    ``active``: new values are compressed with it. Older dictionaries are kept while values
+    use them; unused ones are deleted before ``VACUUM``."""
+
+    id = IntegerField(primary_key=True)
+    content = BlobField()
+    created = TextField(null=True)  # ISO timestamp string
+    active = BooleanField(default=False)
+
+    class Meta:
+        table_name = ZSTD_DICTIONARY_TABLE
+
+
+ZstdDictionary.add_index(
+    ZstdDictionary.index(
+        ZstdDictionary.active,
+        unique=True,
+        where=(ZstdDictionary.active == True),  # noqa: E712
+        name="zstddictionary_one_active",
+    )
+)
 
 
 class DatabaseRecord(Model):

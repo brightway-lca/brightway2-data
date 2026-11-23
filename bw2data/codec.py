@@ -107,6 +107,7 @@ def register(
     tag: str,
     to_payload: Callable[[Any], Any],
     from_payload: Callable[[Any], Any],
+    replace: bool = False,
 ) -> None:
     """Store instances of ``cls`` (exactly this class, not subclasses) as tagged values.
 
@@ -116,11 +117,26 @@ def register(
     ``"bw_temporalis.TemporalDistribution"``.
 
     Registering the same class and tag again replaces the functions. A tag or class that is
-    already registered for something else raises ``ValueError``."""
+    already registered for something else raises ``ValueError``, unless ``replace`` is true:
+    then the earlier registration of this tag and of this class is removed first. Use it
+    for a class which is defined again, e.g. when a notebook cell is run twice. The types
+    which bw2data stores itself can't be replaced."""
     if not isinstance(tag, str) or not tag:
         raise ValueError(f"Tag must be a non-empty string, not {tag!r}")
     if tag in _BUILTIN_TAGS:
         raise ValueError(f"Tag {tag!r} is reserved by bw2data")
+    if cls in _ENCODERS and _ENCODERS[cls][0] in _BUILTIN_TAGS:
+        # Also with ``replace``: values already stored with the built-in tag could no
+        # longer be read
+        raise ValueError(
+            f"{_name(cls)} is already registered by bw2data itself (tag "
+            f"{_ENCODERS[cls][0]!r}), which can't be replaced"
+        )
+    if replace:
+        for other_cls, (other_tag, _) in list(_ENCODERS.items()):
+            if other_cls is cls or other_tag == tag:
+                del _ENCODERS[other_cls]
+                _DECODERS.pop(other_tag, None)
     if cls in _ENCODERS and _ENCODERS[cls][0] != tag:
         raise ValueError(f"{_name(cls)} is already registered with tag {_ENCODERS[cls][0]!r}")
     for other_cls, (other_tag, _) in _ENCODERS.items():
