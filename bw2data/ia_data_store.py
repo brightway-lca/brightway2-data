@@ -1,9 +1,12 @@
 import hashlib
+import numbers
 import string
 
+import numpy as np
 from bw_processing import safe_filename
 
 from bw2data.data_store import ProcessedDataStore
+from bw2data.errors import MissingIntermediateData, UnknownObject
 
 
 def abbreviate(names, length=8):
@@ -112,3 +115,143 @@ class ImpactAssessmentDataStore(ProcessedDataStore):
         """
         extra_metadata["identifier"] = list(self.name)
         super().process(**extra_metadata)
+
+
+def _plain(value):
+    """``value`` with NumPy scalars converted to Python numbers, so it can be stored as JSON."""
+    return value.item() if isinstance(value, np.generic) else value
+
+
+def _amount(amount) -> float:
+    """``amount`` as stored in the ``amount`` column of a factor table. Raises ``ValueError``
+    if it isn't a real number, or is NaN: SQLite stores NaN as ``NULL``, which would be read
+    back as a missing amount."""
+    if not isinstance(amount, numbers.Number) or isinstance(amount, bool):
+        raise ValueError(f"Amount must be a number, not {amount!r}")
+    try:
+        result = float(amount)
+    except TypeError:
+        raise ValueError(f"Amount must be a real number, not {amount!r}") from None
+    if result != result:
+        raise ValueError("Amount can't be NaN (not a number)")
+    return result
+
+
+def value_as_columns(value) -> dict:
+    """Split a factor value (a number, or an uncertainty dictionary) into the ``amount`` and
+    ``uncertainty`` columns of a factor table. Raises ``ValueError`` for anything else, and
+    for an amount which is NaN."""
+    if isinstance(value, dict):
+        amount = value.get("amount")
+        return {
+            "amount": None if amount is None else _amount(amount),
+            "uncertainty": {k: _plain(v) for k, v in value.items() if k != "amount"},
+        }
+    if isinstance(value, numbers.Number) and not isinstance(value, bool):
+        return {"amount": _amount(value), "uncertainty": None}
+    raise ValueError(f"A value must be a number or an uncertainty dictionary, not {value!r}")
+
+
+def columns_as_value(amount, uncertainty):
+    """Inverse of :func:`value_as_columns`."""
+    if uncertainty is None:
+        return amount
+    if amount is None:
+        return dict(uncertainty)
+    return {"amount": amount, **uncertainty}
+
+
+def flow_id(flow) -> int:
+    """Activity id of ``flow``: an id, an ``Activity``, or a ``(database, code)`` key."""
+    from bw2data.backends.proxies import Activity
+    from bw2data.utils import get_node
+
+    if isinstance(flow, Activity):
+        return flow.id
+    elif isinstance(flow, numbers.Integral) and not isinstance(flow, bool):
+        # Also NumPy integers
+        return int(flow)
+    elif isinstance(flow, (tuple, list)) and len(flow) == 2:
+        return get_node(key=tuple(flow)).id
+    raise ValueError(f"Can't understand flow identifier {flow!r}")
+
+
+class SQLiteFactorStore:
+    """Mixin for ``ImpactAssessmentDataStore`` subclasses whose data is stored in a factor
+    table in the per-project ``lci/databases.db`` (one row per factor, referring to the
+    object's row in the registry table), instead of in ``intermediate/*.pickle``.
+
+    Subclasses implement ``_factor_model``, ``_factor_rows`` (data to rows, raising
+    ``ValueError`` before anything is written) and ``_data_row`` (a row back to data), and set
+    ``_factor_owner``, the name of the factor model's foreign key field.
+
+    ``write`` replaces all factors, sets ``has_data`` and saves pending metadata changes in
+    one transaction."""
+
+    _factor_owner = None
+
+    def _factor_model(self):
+        raise NotImplementedError
+
+    def _factor_rows(self, data) -> list[dict]:
+        raise NotImplementedError
+
+    def _data_row(self, row: dict):
+        raise NotImplementedError
+
+    def _record(self):
+        record = self._metadata._get_row(self.name)
+        if record is None:
+            raise UnknownObject("This object is not registered and has no data")
+        return record
+
+    def load(self):
+        """Load the data of this object from SQLite.
+
+        Raises ``UnknownObject`` if the object isn't registered, and
+        ``MissingIntermediateData`` if no data was written for it."""
+        record = self._record()
+        if not record.has_data:
+            raise MissingIntermediateData("No data has been written for this object")
+        model = self._factor_model()
+        owner = getattr(model, self._factor_owner)
+        columns = [
+            field for name, field in model._meta.fields.items() if name != self._factor_owner
+        ]
+        query = model.select(*columns).where(owner == record.id).order_by(model.position)
+        return [self._data_row(row) for row in query.dicts()]
+
+    def write(self, data, process=True, metadata=None):
+        """Replace the data of this object, registering it first if needed.
+
+        ``metadata`` is merged into the object's metadata, saved in the same transaction as
+        the data. Raises ``ValueError`` (writing nothing) if the data can't be stored."""
+        from bw2data.backends.schema import _insert_many
+        from bw2data.meta import _write_transaction
+
+        rows = self._factor_rows(data)
+        self.register()
+        self.add_geomappings(data)
+
+        model = self._factor_model()
+        owner = getattr(model, self._factor_owner)
+        record_model = self._metadata._model()
+        proxy = self.metadata
+        try:
+            with _write_transaction(record_model):
+                record = self._record()
+                model.delete().where(owner == record.id).execute()
+                for position, row in enumerate(rows):
+                    row["position"] = position
+                    row[self._factor_owner] = record.id
+                _insert_many(model, rows)
+                record_model.update(has_data=True).where(record_model.id == record.id).execute()
+                for key, value in (metadata or {}).items():
+                    proxy[key] = value
+                proxy.save()
+        except BaseException:
+            # Forget unsaved metadata changes, which are part of the failed write
+            self._metadata._proxies.pop(self._metadata._key(self.name), None)
+            raise
+        if process:
+            self.process()

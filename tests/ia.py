@@ -380,7 +380,8 @@ def test_method_write_tuple_get_int(testy):
 def test_method_iteration(testy):
     for line in testy:
         assert isinstance(line[0], Activity)
-        assert isinstance(line[1], int)
+        # Amounts are stored as REAL, so integers come back as floats
+        assert isinstance(line[1], float)
 
     assert list(testy) == [(get_node(code="A"), 1), (get_node(code="B"), 1)]
 
