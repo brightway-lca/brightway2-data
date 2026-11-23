@@ -151,13 +151,13 @@ class SubstitutableDatabase:
 
         If the new file can't be opened, the previous file is opened again and the exception is
         passed on, so that this object and the models never point at different files."""
-        import gc
         old_db = self._database
         old_filepath = self._filepath
         # The database object is replaced, but its connection hooks must survive the switch
         connection_hooks = old_db.connection_hooks
+        # ``close`` releases the file handle, as every cursor is closed after use (#308). No
+        # ``gc.collect()`` here: it took most of the time of a project switch.
         old_db.close()
-        gc.collect()
         self._filepath = filepath
         try:
             self._database = self._create_database(connection_hooks)

@@ -1,7 +1,6 @@
 """Fixtures for bw2data"""
 
 import atexit
-import gc
 import os
 import shutil
 import sqlite3
@@ -56,9 +55,6 @@ def close_database_handle_on_exit_to_avoid_windows_test_errors():
                 projects.db.db.close()
         except Exception:
             pass
-
-        # Encourage cleanup of objects holding stale SQLite handles.
-        gc.collect()
 
     close_handles()
     yield
