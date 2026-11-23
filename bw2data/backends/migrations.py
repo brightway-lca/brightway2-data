@@ -42,7 +42,7 @@ from typing import Callable
 from peewee import Database, InterfaceError, OperationalError, ProgrammingError
 
 from bw2data.logs import stdout_feedback_logger
-from bw2data.sqlite import _cannot_write
+from bw2data.sqlite import _cannot_write, _user_stacklevel
 
 
 @dataclass(frozen=True)
@@ -606,11 +606,24 @@ def migrate(db: Database, project_dir: Path) -> list[int]:
     A file with a newer version than this bw2data knows about was written by a newer
     bw2data; it is left alone, with a warning.
 
-    If the file is locked by another process or read-only, nothing is applied: the migration
-    is postponed with a warning, and tried again the next time the file is opened."""
+    If the file is locked by another process (even for reading) or read-only, nothing is
+    applied: the migration is postponed with a warning, and tried again the next time the file
+    is opened."""
     # Checked before taking the write lock: opening an up to date or newer file must work
     # while another process is writing, and for a read-only file.
-    current = schema_version(db)
+    try:
+        current = schema_version(db)
+    except OperationalError as err:
+        # Another process holds an exclusive lock: the file can't even be read
+        if not _cannot_write(err):
+            raise
+        warnings.warn(
+            f"Can't read the schema version of the project database {db.database} ({err}). "
+            "Pending schema updates, if any, are postponed until the project is next opened; "
+            "until then, data which is not yet migrated is not available.",
+            stacklevel=_user_stacklevel(),
+        )
+        return []
     if current == SCHEMA_VERSION:
         return []
     if current > SCHEMA_VERSION:
@@ -642,7 +655,7 @@ def migrate(db: Database, project_dir: Path) -> list[int]:
             f"to {SCHEMA_VERSION} ({err}). The update is postponed until the project is next "
             "opened; until then, data which is not yet migrated (e.g. preferences from "
             "preferences.pickle) is not available.",
-            stacklevel=2,
+            stacklevel=_user_stacklevel(),
         )
         return []
     return applied

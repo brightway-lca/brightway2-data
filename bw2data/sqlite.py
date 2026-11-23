@@ -1,7 +1,11 @@
 import json
+import os
 import pickle
+import sys
+import threading
 import warnings
 from collections.abc import Callable, Iterable
+from contextlib import contextmanager
 from pathlib import Path, PurePath
 from urllib.parse import quote, urlencode
 
@@ -51,10 +55,70 @@ def _sqlite_uri(path, **params) -> str:
     return uri
 
 
-def _cannot_write(err: OperationalError) -> bool:
-    """Whether ``err`` means that the file can't be written right now (locked or read-only)."""
+#: Primary SQLite result codes which mean that a file can't be written right now.
+#: ``SQLITE_LOCKED`` (6, "database table is locked") is left out on purpose: it is a conflict
+#: inside one connection, i.e. a bug, and waiting doesn't make it go away. ``SQLITE_CANTOPEN``
+#: on a connection which is already open means that the journal can't be created, as in a
+#: read-only directory.
+_WRITE_OBSTACLES = {5: "locked", 8: "readonly", 14: "readonly"}  # BUSY, READONLY, CANTOPEN
+
+
+def _write_obstacle(err: Exception) -> str | None:
+    """Why the file can't be written right now, if this is what ``err`` means: ``"locked"``
+    (another connection holds a lock; this passes) or ``"readonly"`` (it doesn't pass while
+    the file is open). ``None`` for every other error.
+
+    Uses the SQLite result code where the driver gives one, and the exact SQLite messages
+    otherwise (e.g. for an older ``pysqlite3``)."""
+    code = getattr(getattr(err, "orig", err), "sqlite_errorcode", None)
+    if code is not None:
+        return _WRITE_OBSTACLES.get(code & 0xFF)
     message = str(err).lower()
-    return "locked" in message or "readonly" in message or "read-only" in message
+    if "database is locked" in message:
+        return "locked"
+    if "readonly database" in message or "unable to open database file" in message:
+        return "readonly"
+    return None
+
+
+def _cannot_write(err: Exception) -> bool:
+    """Whether ``err`` means that the file can't be written right now (locked or read-only)."""
+    return _write_obstacle(err) is not None
+
+
+_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__)) + os.sep
+
+
+def _user_stacklevel() -> int:
+    """``stacklevel`` for a ``warnings.warn`` call in the calling function, such that the
+    warning is reported at the first line of code outside ``bw2data``.
+
+    Files are opened deep inside ``bw2data`` (e.g. from ``projects.set_current``), so a fixed
+    ``stacklevel`` always reports the same internal line."""
+    level = 2
+    frame = sys._getframe(2) if hasattr(sys, "_getframe") else None
+    while frame is not None:
+        filename = frame.f_code.co_filename
+        if "importlib" in filename and "_bootstrap" in filename:
+            # Not counted by ``warnings.warn`` either
+            pass
+        elif os.path.abspath(filename).startswith(_PACKAGE_DIR):
+            level += 1
+        else:
+            break
+        frame = frame.f_back
+    return level
+
+
+@contextmanager
+def _no_busy_wait(db: SqliteDatabase):
+    """Fail at once on a locked file, instead of waiting for the busy timeout."""
+    (previous,) = db.execute_sql("PRAGMA busy_timeout").fetchone()
+    db.execute_sql("PRAGMA busy_timeout = 0")
+    try:
+        yield
+    finally:
+        db.execute_sql(f"PRAGMA busy_timeout = {int(previous)}")
 
 
 class BWSqliteDatabase(SqliteDatabase):
@@ -72,12 +136,17 @@ class BWSqliteDatabase(SqliteDatabase):
 
     Connections are always opened with ``uri=True``, so that ``file:`` URIs (and in particular
     ``?mode=ro``) work in ``ATTACH`` statements. A plain filesystem path is still a valid
-    database name in URI mode."""
+    database name in URI mode.
+
+    ``defer_setup`` registers work which could not be done when the file was opened because it
+    was locked; see there."""
 
     def __init__(
         self, database, *args, connection_hooks: Iterable[ConnectionHook] = (), **kwargs
     ):
         self._connection_hooks: list[ConnectionHook] = list(connection_hooks)
+        self._deferred_setup: Callable[["BWSqliteDatabase"], bool] | None = None
+        self._deferred_setup_lock = threading.Lock()
         super().__init__(database, *args, **kwargs)
 
     def init(self, database, *args, **kwargs):
@@ -85,6 +154,40 @@ class BWSqliteDatabase(SqliteDatabase):
         # ``init`` call, including the one that gives a deferred database its path.
         kwargs.setdefault("uri", True)
         super().init(database, *args, **kwargs)
+
+    def defer_setup(self, setup: Callable[["BWSqliteDatabase"], bool] | None) -> None:
+        """Call ``setup(self)`` before the next statement which is not inside a transaction,
+        and again before each following one until it returns ``True``.
+
+        ``setup`` returns ``False`` when the file is still locked; it should then have failed
+        fast (see ``_no_busy_wait``), as it is tried before every statement. If it raises, the
+        exception is passed on to the caller of the statement, and ``setup`` stays registered.
+        Never called inside a transaction, so that its changes can't be rolled back with it."""
+        self._deferred_setup = setup
+
+    def execute_sql(self, sql, params=None):
+        if self._deferred_setup is not None and not self.in_transaction():
+            self._run_deferred_setup()
+        return super().execute_sql(sql, params)
+
+    def _run_deferred_setup(self) -> None:
+        # Another thread is already at it; its result is not waited for
+        if not self._deferred_setup_lock.acquire(blocking=False):
+            return
+        try:
+            setup = self._deferred_setup
+            if setup is None:
+                return
+            # The statements of ``setup`` itself must not come back here
+            self._deferred_setup = None
+            done = False
+            try:
+                done = setup(self)
+            finally:
+                if not done:
+                    self._deferred_setup = setup
+        finally:
+            self._deferred_setup_lock.release()
 
     def add_connection_hook(self, hook: ConnectionHook) -> None:
         """Run ``hook(conn)`` on every connection opened from now on.
@@ -117,21 +220,38 @@ class BWSqliteDatabase(SqliteDatabase):
 
 
 class SubstitutableDatabase:
-    def __init__(self, filepath, tables, pragmas=None, connection_hooks=(), on_open=None):
+    def __init__(
+        self,
+        filepath,
+        tables,
+        pragmas=None,
+        connection_hooks=(),
+        on_open=None,
+        postpone_tables=False,
+    ):
         """``on_open``, if given, is called with the peewee database each time a file is opened
         (on creation and after every ``change_path``), after the tables have been created. It is
         used to run schema migrations. If it raises, the file is closed again and the exception
         is passed on.
 
-        Tables in ``tables`` which the file doesn't have yet are created when it is opened. If
-        the file can't be written (locked by another process, or read-only), they are not
-        created: there is a warning, and it is tried again the next time the file is opened, so
-        that such a file can still be opened and read. Until then, anything which needs a
-        missing table fails with "no such table"."""
+        Tables in ``tables`` which the file doesn't have yet are created when it is opened, all
+        of them or none. If the file can't be written, this fails, unless ``postpone_tables`` is
+        true. Then such a file can still be opened and read:
+
+        * If the file is read-only, there is a warning, and the tables are created the next
+          time the file is opened and can be written. ``on_open`` is called as usual.
+        * If the file is locked by another connection, there is a warning if tables are known
+          to be missing. The tables are created, and ``on_open`` is called, before the first
+          statement (outside of a transaction) for which the file is no longer locked. If
+          ``on_open`` raises then, the exception is passed on to the caller of that statement.
+
+        Until the tables are created, anything which needs a missing table fails with "no such
+        table". Use ``postpone_tables`` only when the code using the file can handle that."""
         self._filepath = filepath
         self._tables = tables
         self._pragmas = pragmas or {}
         self._on_open = on_open
+        self._postpone_tables = postpone_tables
         self._database = self._create_database(connection_hooks)
 
     def _create_database(self, connection_hooks=()):
@@ -143,31 +263,78 @@ class SubstitutableDatabase:
         self._bind(db)
         try:
             db.connect()
-            self._create_tables(db)
-            if self._on_open is not None:
+            if self._create_tables(db) == "locked":
+                # ``on_open`` has to wait as well: it may need the tables, and by the time it
+                # runs the lock may be gone
+                db.defer_setup(self._finish_setup)
+            elif self._on_open is not None:
                 self._on_open(db)
         except BaseException:
             db.close()
             raise
         return db
 
-    def _create_tables(self, db):
-        """Create the tables which ``db`` doesn't have yet. Tables which already exist need no
-        write, so an up to date file can be opened while it is locked or read-only."""
+    def _create_tables(self, db, warn=True) -> str | None:
+        """Create the tables which ``db`` doesn't have yet.
+
+        Returns ``None`` if ``db`` now has all tables. If it can't be written and
+        ``postpone_tables`` is set, returns why (see ``_write_obstacle``), after a warning if
+        ``warn`` is set and tables are known to be missing.
+
+        Tables which already exist need no write, so an up to date file can be opened while
+        another connection is writing to it, or when it is read-only."""
         try:
             # In one transaction: otherwise every table, index and trigger of a new file is
-            # committed, and synced to disk, on its own, which is slow on Windows
+            # committed, and synced to disk, on its own, which is slow on Windows. It also
+            # means that a lock taken by another process half-way leaves nothing half-created.
             with db.atomic():
                 db.create_tables(self._tables)
+            return None
         except OperationalError as err:
-            if not _cannot_write(err):
+            obstacle = _write_obstacle(err)
+            if obstacle is None or not self._postpone_tables:
                 raise
-            warnings.warn(
-                f"Can't create new tables in {db.database} ({err}). This is postponed until "
-                "the file is next opened; until then, data stored in tables added by newer "
-                "versions of bw2data is not available.",
-                stacklevel=2,
+            error = err
+
+        try:
+            existing = set(db.get_tables())
+        except OperationalError as err:
+            if _write_obstacle(err) is None:
+                raise
+            # Locked for reading as well. Nothing is known to be missing, and the next
+            # statement says "database is locked" by itself, so there is no warning.
+            return "locked"
+        missing = sorted(
+            model._meta.table_name
+            for model in self._tables
+            if model._meta.table_name not in existing
+        )
+        if not missing:
+            # All tables are there (the lock is gone, or only an index is missing)
+            return None
+        if warn:
+            when = (
+                "as soon as the file is no longer locked"
+                if obstacle == "locked"
+                else "the next time the file is opened and can be written"
             )
+            warnings.warn(
+                f"Can't create the tables {', '.join(missing)} in {db.database} ({error}). "
+                f"They are created {when}; until then, the data stored in them is not "
+                "available.",
+                stacklevel=_user_stacklevel(),
+            )
+        return obstacle
+
+    def _finish_setup(self, db) -> bool:
+        """What ``_create_database`` could not do because the file was locked. Returns whether
+        it is done; see ``BWSqliteDatabase.defer_setup``."""
+        with _no_busy_wait(db):
+            if self._create_tables(db, warn=False) == "locked":
+                return False
+        if self._on_open is not None:
+            self._on_open(db)
+        return True
 
     def _bind(self, db):
         for model in self._tables:
