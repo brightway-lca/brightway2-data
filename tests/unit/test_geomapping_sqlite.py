@@ -280,7 +280,7 @@ def _add_in_other_process(base_dir, project_name, keys, barrier):
     p.change_base_directories(
         base_dir=base_dir, base_logs_dir=base_dir, project_name=project_name, update=False
     )
-    barrier.wait()
+    barrier.wait(timeout=60)
     # Small batches, like real callers which add the locations of a dataset or method at once
     for i in range(0, len(keys), 10):
         gm.add(keys[i : i + 10])
@@ -302,11 +302,18 @@ def test_concurrent_adds_get_unique_ids():
         )
         for i in range(4)
     ]
-    for worker in workers:
-        worker.start()
-    for worker in workers:
-        worker.join(timeout=120)
-        assert worker.exitcode == 0
+    try:
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(timeout=120)
+        assert [worker.exitcode for worker in workers] == [0] * len(workers)
+    finally:
+        # A stuck worker would otherwise block interpreter exit, which joins child processes
+        for worker in workers:
+            if worker.is_alive():
+                worker.kill()
+                worker.join()
 
     mapping = dict(geomapping.items())
     assert set(keys) <= set(mapping)

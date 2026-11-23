@@ -155,7 +155,10 @@ class SubstitutableDatabase:
         """Create the tables which ``db`` doesn't have yet. Tables which already exist need no
         write, so an up to date file can be opened while it is locked or read-only."""
         try:
-            db.create_tables(self._tables)
+            # In one transaction: otherwise every table, index and trigger of a new file is
+            # committed, and synced to disk, on its own, which is slow on Windows
+            with db.atomic():
+                db.create_tables(self._tables)
         except OperationalError as err:
             if not _cannot_write(err):
                 raise
@@ -179,13 +182,13 @@ class SubstitutableDatabase:
 
         If the new file can't be opened, the previous file is opened again and the exception is
         passed on, so that this object and the models never point at different files."""
-        import gc
         old_db = self._database
         old_filepath = self._filepath
         # The database object is replaced, but its connection hooks must survive the switch
         connection_hooks = old_db.connection_hooks
+        # ``close`` releases the file handle, as every cursor is closed after use (#308). No
+        # ``gc.collect()`` here: it took most of the time of a project switch.
         old_db.close()
-        gc.collect()
         self._filepath = filepath
         try:
             self._database = self._create_database(connection_hooks)
@@ -274,6 +277,23 @@ class JSONField(TextField):
         if value is None:
             return None
         return json.loads(value)
+
+
+class TupleNameField(TextField):
+    """A tuple name, like ``("ReCiPe", "climate change")``, stored as a compact JSON list.
+
+    Equal tuples are always stored as equal strings, so the column can be unique and compared
+    with ``==``. A list is stored like the equal tuple; values are read back as tuples."""
+
+    def db_value(self, value):
+        if value is None:
+            return None
+        return super().db_value(json.dumps(list(value), ensure_ascii=False))
+
+    def python_value(self, value):
+        if value is None:
+            return None
+        return tuple(json.loads(value))
 
 
 class TupleJSONField(JSONField):

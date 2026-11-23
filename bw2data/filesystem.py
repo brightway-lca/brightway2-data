@@ -7,8 +7,8 @@ re_slugify = re.compile(r"[^\w\s-]", re.UNICODE)
 
 def create_dir(dirpath):
     "Create directory tree to `dirpath`; ignore if already exists"
-    if not os.path.isdir(dirpath):
-        os.makedirs(dirpath)
+    # ``exist_ok`` instead of checking first: another process can create it in between
+    os.makedirs(dirpath, exist_ok=True)
 
 
 def check_dir(directory):

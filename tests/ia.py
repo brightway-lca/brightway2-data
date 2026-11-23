@@ -1,4 +1,5 @@
 import hashlib
+from collections.abc import MutableMapping
 import unittest.mock as mock
 
 import numpy as np
@@ -194,7 +195,7 @@ def test_method_base_class(reset):
     assert method.validator == ia_validator
     assert method._metadata == methods
     method.register()
-    assert isinstance(method.metadata, dict)
+    assert isinstance(method.metadata, MutableMapping)
 
 
 def test_method_validator(reset):
@@ -237,7 +238,7 @@ def test_weighting_base_class(reset):
     assert weighting.validator == weighting_validator
     assert weighting._metadata == weightings
     weighting.register()
-    assert isinstance(weighting.metadata, dict)
+    assert isinstance(weighting.metadata, MutableMapping)
 
 
 def test_weighting_validator(reset):
@@ -379,7 +380,8 @@ def test_method_write_tuple_get_int(testy):
 def test_method_iteration(testy):
     for line in testy:
         assert isinstance(line[0], Activity)
-        assert isinstance(line[1], int)
+        # Amounts are stored as REAL, so integers come back as floats
+        assert isinstance(line[1], float)
 
     assert list(testy) == [(get_node(code="A"), 1), (get_node(code="B"), 1)]
 

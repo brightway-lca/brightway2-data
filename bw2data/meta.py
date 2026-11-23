@@ -1,12 +1,13 @@
 import copy
 import datetime
+import json
 import pickle
 import warnings
 from collections.abc import Mapping, MutableMapping
 
-from peewee import JOIN
+from peewee import JOIN, Value
 
-from bw2data.serialization import CompoundJSONDict, PickledDict
+from bw2data.serialization import PickledDict
 from bw2data.signals import on_database_delete, on_database_metadata_change
 from bw2data.snowflake_ids import snowflake_id_generator
 
@@ -449,19 +450,23 @@ class GeoMapping(Mapping):
                 GeoMappingRecord.insert_many(batch).execute()
 
 
-def _row_as_dict(row) -> dict:
-    """Metadata dict for a ``DatabaseRecord`` row: set (non-NULL) known fields plus ``extra``."""
-    d = {f: getattr(row, f) for f in _KNOWN_FIELDS if getattr(row, f) is not None}
+def _row_as_dict(row, known_fields=_KNOWN_FIELDS) -> dict:
+    """Metadata dict for a registry row: set (non-NULL) known fields plus ``extra``."""
+    d = {f: getattr(row, f) for f in known_fields if getattr(row, f) is not None}
     d.update(row.extra or {})
     return d
 
 
-class DatabaseRecordProxy(MutableMapping):
-    """Dict-like view of a single :class:`~bw2data.backends.schema.DatabaseRecord` row.
+class RecordProxy(MutableMapping):
+    """Dict-like view of a single metadata row, e.g. a
+    :class:`~bw2data.backends.schema.DatabaseRecord` or a
+    :class:`~bw2data.backends.schema.MethodRecord`.
 
-    Changes are kept in memory until :meth:`save` is called, as with the old ``databases.json``
-    dict and ``databases.flush()``. ``Databases`` hands out one proxy per database name, so
-    ``Database(name).metadata`` and ``databases[name]`` share pending changes.
+    Known fields are columns of the row; all other keys are stored in its ``extra`` JSON
+    column. Changes are kept in memory until :meth:`save` is called, as with the old JSON
+    files and their ``flush()``. A registry (``databases``, ``methods``, ...) hands out one
+    proxy per name, so e.g. ``Database(name).metadata`` and ``databases[name]`` share pending
+    changes.
 
     .. code-block:: python
 
@@ -481,7 +486,7 @@ class DatabaseRecordProxy(MutableMapping):
 
     def _all_fields(self):
         """Return only the fields that have been explicitly set (non-NULL)."""
-        return _row_as_dict(self._row)
+        return _row_as_dict(self._row, self._parent._known_fields)
 
     def _changed_keys(self) -> set:
         """Keys whose current value differs from the last loaded or saved value.
@@ -499,7 +504,7 @@ class DatabaseRecordProxy(MutableMapping):
         return bool(self._changed_keys())
 
     def __getitem__(self, key):
-        if key in _KNOWN_FIELDS:
+        if key in self._parent._known_fields:
             val = getattr(self._row, key)
             if val is None:
                 raise KeyError(key)
@@ -510,7 +515,7 @@ class DatabaseRecordProxy(MutableMapping):
         raise KeyError(key)
 
     def __setitem__(self, key, value):
-        if key in _KNOWN_FIELDS:
+        if key in self._parent._known_fields:
             setattr(self._row, key, value)
         else:
             extra = dict(self._row.extra or {})
@@ -520,7 +525,7 @@ class DatabaseRecordProxy(MutableMapping):
     def __delitem__(self, key):
         if key not in self:
             raise KeyError(key)
-        if key in _KNOWN_FIELDS:
+        if key in self._parent._known_fields:
             setattr(self._row, key, None)
         else:
             extra = dict(self._row.extra)
@@ -528,11 +533,11 @@ class DatabaseRecordProxy(MutableMapping):
             self._row.extra = extra or None
 
     def save(self, signal: bool = True):
-        """Write pending changes for this database to SQLite.
+        """Write pending changes to SQLite.
 
         Only changed keys are written, so changes saved through other code since this proxy
-        was loaded are kept. Sends ``on_database_metadata_change`` once on event-sourced
-        projects, unless ``signal`` is ``False``."""
+        was loaded are kept. For ``databases``, sends ``on_database_metadata_change`` once on
+        event-sourced projects, unless ``signal`` is ``False``."""
         changed = self._changed_keys()
         if not changed:
             return
@@ -549,7 +554,7 @@ class DatabaseRecordProxy(MutableMapping):
         return len(self._all_fields())
 
     def __contains__(self, key):
-        if key in _KNOWN_FIELDS:
+        if key in self._parent._known_fields:
             return getattr(self._row, key) is not None
         return key in (self._row.extra or {})
 
@@ -566,11 +571,205 @@ class DatabaseRecordProxy(MutableMapping):
         return repr(dict(self))
 
 
-class Databases(MutableMapping):
+
+#: Previous name of :class:`RecordProxy`
+DatabaseRecordProxy = RecordProxy
+
+
+class _RecordRegistry(MutableMapping):
+    """Dict-like registry of metadata rows in one table of the per-project
+    ``lci/databases.db``, with one row per name. Base class of ``Databases`` and of the LCIA
+    registries ``methods``, ``weightings`` and ``normalizations``.
+
+    ``registry[name]`` returns a :class:`RecordProxy`; changes to it are saved with its
+    ``save()``. Subclasses implement ``_model`` and set ``_known_fields`` (the keys stored in
+    their own column; all other keys go into ``extra``), and may override ``_key`` to
+    normalize names.
+    """
+
+    _known_fields: frozenset = frozenset()
+    #: Name of one entry, for error messages
+    _what = "Object"
+    #: Public name of the registry and how to save one entry, for the deprecation warning of
+    #: ``flush``
+    _registry_name = "registry"
+    _flush_hint = "`registry[name].save()`"
+
+    def __init__(self):
+        # One proxy per name, so pending changes survive between accesses
+        self._proxies = {}
+
+    def _model(self):
+        raise NotImplementedError
+
+    def _key(self, name):
+        """``name`` as stored in the table, or ``None`` if it can't be a name here."""
+        return name
+
+    def _order(self):
+        """Order of iteration, as peewee ``order_by`` arguments."""
+        return ()
+
+    def _where(self, key):
+        """Condition selecting the row of ``key`` (a name as returned by ``_key``)."""
+        return self._model().name == key
+
+    def _get_row(self, name):
+        """The saved row of ``name``, or ``None``."""
+        key = self._key(name)
+        if key is None:
+            return None
+        return self._model().get_or_none(self._where(key))
+
+    # ------------------------------------------------------------------
+    # MutableMapping interface
+    # ------------------------------------------------------------------
+
+    def __getitem__(self, name):
+        key = self._key(name)
+        if key is None:
+            raise KeyError(name)
+        model = self._model()
+
+        proxy = self._proxies.get(key)
+        if proxy is not None and proxy._has_changes():
+            return proxy
+
+        row = model.get_or_none(self._where(key))
+        if row is None:
+            self._proxies.pop(key, None)
+            raise KeyError(name)
+
+        # No pending changes, so refresh from SQLite in case it was changed elsewhere
+        if proxy is None:
+            proxy = self._proxies[key] = RecordProxy(row, self)
+        else:
+            proxy._load(row)
+        return proxy
+
+    def __iter__(self):
+        model = self._model()
+        # Read completely first, so that entries can be deleted while iterating
+        return iter([row.name for row in model.select(model.name).order_by(*self._order())])
+
+    def __len__(self):
+        return self._model().select().count()
+
+    def __contains__(self, name):
+        key = self._key(name)
+        if key is None:
+            return False
+        model = self._model()
+        return model.select().where(self._where(key)).exists()
+
+    @property
+    def list(self):
+        """Sorted list of names."""
+        return sorted(self)
+
+    def random(self):
+        """Return a random name, or ``None`` if empty."""
+        import random as _random
+
+        names = list(self)
+        return _random.choice(names) if names else None
+
+    # ------------------------------------------------------------------
+    # Deprecated shims
+    # ------------------------------------------------------------------
+
+    def flush(self, signal: bool = True):
+        """Deprecated. Saves pending metadata changes of all entries.
+
+        Save the changes of one entry with ``registry[name].save()`` instead."""
+        warnings.warn(
+            f"`{self._registry_name}.flush()` is deprecated; save changes to an entry "
+            f"with {self._flush_hint} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._save_pending(signal=signal)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _save_pending(self, signal: bool = True):
+        """Save the pending changes of all proxies."""
+        pending = [proxy for proxy in self._proxies.values() if proxy._has_changes()]
+        if not pending:
+            return
+        send = signal and self._should_signal()
+        old = self._as_dict() if send else None
+        for proxy in pending:
+            self._write_changes(proxy, proxy._changed_keys())
+        if send:
+            self._emit(old)
+
+    def _split(self, value) -> tuple[dict, dict]:
+        """Split a metadata dict into ``(known fields, extra)``."""
+        value = dict(value)  # copy to avoid mutating caller's dict
+        known = {k: value.pop(k) for k in list(value) if k in self._known_fields}
+        return known, value
+
+    def _write_changes(self, proxy, changed):
+        """Write the ``changed`` keys of ``proxy`` to SQLite, then reload it.
+
+        Known fields are written column by column. Custom keys are merged into the stored
+        ``extra`` value, so keys saved elsewhere since ``proxy`` was loaded are kept."""
+        from bw2data.errors import UnknownObject
+
+        model = self._model()
+        row = proxy._row
+        where = self._where(row.name)
+        updates = {
+            getattr(model, key): getattr(row, key) for key in changed if key in self._known_fields
+        }
+        extra_changed = [key for key in changed if key not in self._known_fields]
+
+        with model._meta.database.atomic():
+            if extra_changed:
+                stored = dict(model.select(model.extra).where(where).scalar() or {})
+                mine = row.extra or {}
+                for key in extra_changed:
+                    if key in mine:
+                        stored[key] = mine[key]
+                    else:
+                        stored.pop(key, None)
+                updates[model.extra] = stored or None
+            if not model.update(updates).where(where).execute():
+                raise UnknownObject(f"{self._what} {row.name!r} is not registered")
+            proxy._load(model.get(where))
+
+    def _should_signal(self) -> bool:
+        """Whether a save should build ``old``/``new`` snapshots and call ``_emit``."""
+        return False
+
+    def _emit(self, old):
+        """Send a change signal with ``old`` and the current state."""
+
+    def _as_dict(self):
+        """Plain dict of all saved metadata, read from SQLite.
+
+        Pending changes that haven't been saved are not included."""
+        model = self._model()
+        return {
+            row.name: _row_as_dict(row, self._known_fields)
+            for row in model.select().order_by(*self._order())
+        }
+
+    @property
+    def data(self):
+        """The full saved metadata as a plain dict."""
+        return self._as_dict()
+
+
+class Databases(_RecordRegistry):
     """Dict-like registry of database metadata, backed by the ``DatabaseRecord`` SQLite table
     in the per-project ``lci/databases.db``.
 
-    Previously stored in ``databases.json``; the file is migrated automatically on first access.
+    Previously stored in ``databases.json``; the file is moved into SQLite by schema migration 3
+    (see ``bw2data.backends.migrations``) when the project is opened.
 
     Adding, replacing or deleting a whole entry (``databases[name] = {...}``,
     ``del databases[name]``) is saved immediately. Changes to an entry
@@ -579,39 +778,21 @@ class Databases(MutableMapping):
 
     _save_signal = on_database_metadata_change
 
-    def __init__(self):
-        self._migrated = False
-        # One proxy per database name, so pending changes survive between accesses
-        self._proxies = {}
+    _known_fields = _KNOWN_FIELDS
+    _what = "Database"
+    _registry_name = "databases"
+    _flush_hint = "`Database(name).metadata.save()` or `databases[name].save()`"
+
+    def _model(self):
+        from bw2data.backends.schema import DatabaseRecord
+
+        return DatabaseRecord
 
     # ------------------------------------------------------------------
     # MutableMapping interface
     # ------------------------------------------------------------------
 
-    def __getitem__(self, name):
-        self._ensure_migrated()
-        from bw2data.backends.schema import DatabaseRecord
-        from peewee import DoesNotExist
-
-        proxy = self._proxies.get(name)
-        if proxy is not None and proxy._has_changes():
-            return proxy
-
-        try:
-            row = DatabaseRecord.get(DatabaseRecord.name == name)
-        except DoesNotExist:
-            self._proxies.pop(name, None)
-            raise KeyError(name)
-
-        # No pending changes, so refresh from SQLite in case it was changed elsewhere
-        if proxy is None:
-            proxy = self._proxies[name] = DatabaseRecordProxy(row, self)
-        else:
-            proxy._load(row)
-        return proxy
-
     def __setitem__(self, name, value):
-        self._ensure_migrated()
         from bw2data.backends.schema import DatabaseRecord
 
         send = self._should_signal()
@@ -648,24 +829,6 @@ Metadata state is unchanged, but database state is unknown.
 
         if signal:
             on_database_delete.send(self, name=name)
-
-    def __iter__(self):
-        self._ensure_migrated()
-        from bw2data.backends.schema import DatabaseRecord
-
-        return (row.name for row in DatabaseRecord.select(DatabaseRecord.name))
-
-    def __len__(self):
-        self._ensure_migrated()
-        from bw2data.backends.schema import DatabaseRecord
-
-        return DatabaseRecord.select().count()
-
-    def __contains__(self, name):
-        self._ensure_migrated()
-        from bw2data.backends.schema import DatabaseRecord
-
-        return DatabaseRecord.select().where(DatabaseRecord.name == name).exists()
 
     def __str__(self):
         names = list(self)
@@ -729,76 +892,9 @@ Metadata state is unchanged, but database state is unknown.
             metadata.pop("dirty", None)
             metadata.save()
 
-    @property
-    def list(self):
-        """List the keys of the dictionary."""
-        return sorted(self)
-
-    def random(self):
-        """Return a random database name, or ``None`` if empty."""
-        import random as _random
-
-        names = list(self)
-        return _random.choice(names) if names else None
-
-    # ------------------------------------------------------------------
-    # Deprecated shims
-    # ------------------------------------------------------------------
-
-    def flush(self, signal: bool = True):
-        """Deprecated. Saves pending metadata changes for all databases.
-
-        Use ``Database(name).metadata.save()`` or ``databases[name].save()`` instead."""
-        warnings.warn(
-            "`databases.flush()` is deprecated; save a database's metadata with "
-            "`Database(name).metadata.save()` or `databases[name].save()` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        pending = [proxy for proxy in self._proxies.values() if proxy._has_changes()]
-        if not pending:
-            return
-        send = signal and self._should_signal()
-        old = self._as_dict() if send else None
-        for proxy in pending:
-            self._write_changes(proxy, proxy._changed_keys())
-        if send:
-            self._emit(old)
-
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-
-    def _write_changes(self, proxy, changed):
-        """Write the ``changed`` keys of ``proxy`` to SQLite, then reload it.
-
-        Known fields are written column by column. Custom keys are merged into the stored
-        ``extra`` value, so keys saved elsewhere since ``proxy`` was loaded are kept."""
-        from bw2data.backends.schema import DatabaseRecord
-        from bw2data.errors import UnknownObject
-
-        row = proxy._row
-        where = DatabaseRecord.name == row.name
-        updates = {
-            getattr(DatabaseRecord, key): getattr(row, key)
-            for key in changed
-            if key in _KNOWN_FIELDS
-        }
-        extra_changed = [key for key in changed if key not in _KNOWN_FIELDS]
-
-        with DatabaseRecord._meta.database.atomic():
-            if extra_changed:
-                stored = dict(DatabaseRecord.select(DatabaseRecord.extra).where(where).scalar() or {})
-                mine = row.extra or {}
-                for key in extra_changed:
-                    if key in mine:
-                        stored[key] = mine[key]
-                    else:
-                        stored.pop(key, None)
-                updates[DatabaseRecord.extra] = stored or None
-            if not DatabaseRecord.update(updates).where(where).execute():
-                raise UnknownObject(f"Database {row.name!r} is not registered")
-            proxy._load(DatabaseRecord.get(where))
 
     def _should_signal(self) -> bool:
         """Whether a save should build ``old``/``new`` snapshots and emit
@@ -814,20 +910,7 @@ Metadata state is unchanged, but database state is unknown.
         """Emit on_database_metadata_change with the given old state and current new state."""
         on_database_metadata_change.send(self, old=old, new=self._as_dict())
 
-    def _as_dict(self):
-        """Plain dict of all saved metadata, read from SQLite (used for signal old/new payloads).
-
-        Pending changes that haven't been saved are not included."""
-        from bw2data.backends.schema import DatabaseRecord
-
-        return {row.name: _row_as_dict(row) for row in DatabaseRecord.select()}
-
-    @property
-    def data(self):
-        """Return the full saved metadata as a plain dict. Used by the revision system."""
-        return self._as_dict()
-
-    @data.setter
+    @_RecordRegistry.data.setter
     def data(self, new_data):
         """Replace all metadata rows. Used by the revision system to replay patches."""
         from bw2data.backends.schema import DatabaseRecord
@@ -838,36 +921,6 @@ Metadata state is unchanged, but database state is unknown.
             known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
             DatabaseRecord.replace(name=name, extra=meta or None, **known).execute()
         self._proxies.clear()
-
-    def _ensure_migrated(self):
-        if not self._migrated:
-            self._migrated = True
-            self._migrate_from_json()
-
-    def _migrate_from_json(self):
-        """One-time migration from ``databases.json`` to SQLite on first access."""
-        from bw2data.project import projects
-        from bw2data.backends.schema import DatabaseRecord
-        import json
-
-        json_path = projects.dir / "databases.json"
-        if not json_path.exists():
-            return
-        if DatabaseRecord.select().count() > 0:
-            return
-
-        warnings.warn(
-            f"Migrating {json_path} to SQLite (one-time operation). "
-            "The original file is kept as a backup.",
-            stacklevel=2,
-        )
-        with open(json_path, encoding="utf-8") as f:
-            data = json.load(f)
-
-        for name, meta in data.items():
-            meta = dict(meta)
-            known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
-            DatabaseRecord.replace(name=name, extra=meta or None, **known).execute()
 
 
 class CalculationSetups(PickledDict):
@@ -894,22 +947,149 @@ class DynamicCalculationSetups(PickledDict):
     filename = "dynamicsetups.pickle"
 
 
-class Methods(CompoundJSONDict):
-    """A dictionary for method metadata. File data is saved in ``methods.json``."""
+class _LCIARegistry(_RecordRegistry):
+    """Dict-like registry of LCIA objects of one kind (methods, weightings or
+    normalizations), backed by one table in the per-project ``lci/databases.db``.
 
-    filename = "methods.json"
+    Names are non-empty tuples, like ``("ReCiPe", "climate change")``; a list is accepted
+    wherever a name is expected and treated as the equal tuple. Previously stored in a JSON
+    file in the project directory; the file is moved into SQLite by schema migration 4 (see
+    ``bw2data.backends.migrations``) when the project is opened.
+
+    Adding, replacing or deleting a whole entry (``methods[name] = {...}``,
+    ``del methods[name]``) is saved immediately. Changes to an entry
+    (``methods[name]["key"] = value``) are saved by ``methods[name].save()``, or with
+    ``Method(name).metadata.save()``.
+    """
+
+    _known_fields = frozenset({"abbreviation"})
+
+    def _key(self, name):
+        if isinstance(name, list):
+            name = tuple(name)
+        if not isinstance(name, tuple) or not name:
+            return None
+        try:
+            # Names are dictionary keys here and JSON lists in the table
+            hash(name)
+            json.dumps(name)
+        except (TypeError, ValueError):
+            return None
+        return name
+
+    def _order(self):
+        return (self._model().id,)
+
+    def _where(self, key):
+        # Peewee would otherwise compare with a row value of the tuple's elements
+        field = self._model().name
+        return field == Value(key, converter=field.db_value, unpack=False)
+
+    def __setitem__(self, name, value):
+        key = self._key(name)
+        if key is None:
+            raise TypeError(
+                f"{self._what} names must be non-empty tuples of values which can be stored "
+                f"as JSON (normally strings), not {name!r}"
+            )
+        known, extra = self._split(value)
+        # Replaces all metadata: known fields which aren't given are cleared
+        fields = {
+            **{field: None for field in self._known_fields},
+            **known,
+            "extra": extra or None,
+        }
+        model = self._model()
+        with _write_transaction(model):
+            row = model.get_or_none(self._where(key))
+            if row is None:
+                model.insert(id=self._unused_id(model), name=key, **fields).execute()
+            else:
+                if fields.get("abbreviation") is None:
+                    # Set when the object was registered, and needed to find its files:
+                    # ``Method(name).metadata = {...}`` must not remove it
+                    del fields["abbreviation"]
+                # Updated in place, so that the id, which other rows refer to, is kept
+                model.update(**fields).where(model.id == row.id).execute()
+        if key in self._proxies:
+            self._proxies[key]._load(model.get(self._where(key)))
+
+    def __delitem__(self, name):
+        key = self._key(name)
+        model = self._model()
+        if key is None or not model.delete().where(self._where(key)).execute():
+            raise KeyError(name)
+        self._proxies.pop(key, None)
+
+    @staticmethod
+    def _unused_id(model) -> int:
+        """A new snowflake id which isn't used in ``model`` yet. Call within a write
+        transaction. Processes on one machine can produce the same id in the same
+        millisecond, so an id which is already used is replaced by the next one."""
+        for _ in range(_SNOWFLAKE_ATTEMPTS):
+            id_ = next(snowflake_id_generator)
+            if not model.select().where(model.id == id_).exists():
+                return id_
+        raise RuntimeError(f"Could not find an unused id for table {model._meta.table_name}")
+
+    def __str__(self):
+        names = list(self)
+        label = type(self).__name__
+        if not names:
+            return f"{label} dictionary with 0 objects"
+        elif len(names) > 20:
+            return (
+                "{} dictionary with {} objects, including:"
+                "{}\nUse `list(this object)` to get the complete list."
+            ).format(label, len(names), "".join(f"\n\t{x}" for x in sorted(names)[:10]))
+        return "{} dictionary with {} object(s):{}".format(
+            label, len(names), "".join(f"\n\t{x}" for x in sorted(names))
+        )
+
+    __repr__ = __str__
 
 
-class WeightingMeta(Methods):
-    """A dictionary for weighting metadata. File data is saved in ``methods.json``."""
+class Methods(_LCIARegistry):
+    """Registry of LCIA method metadata, in the ``method`` table of ``lci/databases.db``.
+    Previously stored in ``methods.json``."""
 
-    filename = "weightings.json"
+    _known_fields = frozenset({"abbreviation", "num_cfs", "geocollections"})
+    _what = "Method"
+    _registry_name = "methods"
+    _flush_hint = "`Method(name).metadata.save()` or `methods[name].save()`"
+
+    def _model(self):
+        from bw2data.backends.schema import MethodRecord
+
+        return MethodRecord
 
 
-class NormalizationMeta(Methods):
-    """A dictionary for normalization metadata. File data is saved in ``methods.json``."""
+class WeightingMeta(_LCIARegistry):
+    """Registry of LCIA weighting metadata, in the ``weighting`` table of
+    ``lci/databases.db``. Previously stored in ``weightings.json``."""
 
-    filename = "normalizations.json"
+    _what = "Weighting"
+    _registry_name = "weightings"
+    _flush_hint = "`Weighting(name).metadata.save()` or `weightings[name].save()`"
+
+    def _model(self):
+        from bw2data.backends.schema import WeightingRecord
+
+        return WeightingRecord
+
+
+class NormalizationMeta(_LCIARegistry):
+    """Registry of LCIA normalization metadata, in the ``normalization`` table of
+    ``lci/databases.db``. Previously stored in ``normalizations.json``."""
+
+    _what = "Normalization"
+    _registry_name = "normalizations"
+    _flush_hint = "`Normalization(name).metadata.save()` or `normalizations[name].save()`"
+
+    def _model(self):
+        from bw2data.backends.schema import NormalizationRecord
+
+        return NormalizationRecord
 
 
 class Preferences(MutableMapping):

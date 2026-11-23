@@ -2,6 +2,8 @@ from contextlib import closing
 
 from peewee import (
     BooleanField,
+    CompositeKey,
+    FloatField,
     DatabaseError,
     DataError,
     DoesNotExist,
@@ -29,7 +31,7 @@ from bw2data.signals import (
     signaleddataset_on_delete,
 )
 from bw2data.snowflake_ids import SnowflakeIDBaseClass
-from bw2data.sqlite import JSONField, PickleField
+from bw2data.sqlite import JSONField, PickleField, TupleNameField
 
 #: Real (on-disk) table names of the two LCI tables. Pinned explicitly so that they never
 #: depend on peewee's naming rules; raw SQL and the extension overlay refer to these.
@@ -84,6 +86,114 @@ class DatabaseRecord(Model):
     searchable = BooleanField(null=True)
     geocollections = JSONField(null=True)
     extra = JSONField(null=True)          # arbitrary user-defined fields
+
+    class Meta:
+        table_name = "databaserecord"
+
+
+class _LCIARecord(Model):
+    """Registry record of an LCIA method, weighting or normalization; one table per kind.
+
+    ``id`` is a snowflake id: rows which refer to a record (e.g. its factors) use it, and it
+    doesn't collide with the ids in another project's file. The natural key is ``name``, the
+    tuple identifier, stored as a compact JSON list. Metadata keys other than the columns are
+    stored in ``extra``; all columns except ``id`` and ``name`` are nullable, ``NULL`` meaning
+    the key isn't set."""
+
+    id = IntegerField(primary_key=True)
+    name = TupleNameField(unique=True)
+    abbreviation = TextField(null=True)
+    extra = JSONField(null=True)
+    #: Whether the object's data (characterization factors, normalization factors or
+    #: weighting) is stored in SQLite. Not part of the metadata dict.
+    has_data = BooleanField(default=False)
+
+
+class MethodRecord(_LCIARecord):
+    """Registry record of an LCIA method. Read and written through ``bw2data.methods``."""
+
+    num_cfs = IntegerField(null=True)
+    geocollections = JSONField(null=True)
+
+    class Meta:
+        table_name = "method"
+
+
+class WeightingRecord(_LCIARecord):
+    """Registry record of an LCIA weighting. Read and written through ``bw2data.weightings``."""
+
+    class Meta:
+        table_name = "weighting"
+
+
+class NormalizationRecord(_LCIARecord):
+    """Registry record of an LCIA normalization. Read and written through
+    ``bw2data.normalizations``."""
+
+    class Meta:
+        table_name = "normalization"
+
+
+class _Factor(Model):
+    """One value of an LCIA object: a characterization factor, a normalization factor or a
+    weighting. One table per kind; rows refer to their object by its snowflake id, and are
+    deleted with it.
+
+    ``position`` keeps the order in which the rows were written. The value is ``amount``
+    and, if it was given as an uncertainty dictionary, the other keys of that dictionary in
+    ``uncertainty`` (``{}`` for a dictionary with only ``amount``; ``NULL`` for a plain
+    number)."""
+
+    position = IntegerField()
+    amount = FloatField(null=True)
+    uncertainty = JSONField(null=True)
+
+
+class CharacterizationFactor(_Factor):
+    """Characterization factor of an LCIA method. Read and written through
+    ``Method(name).load()`` and ``Method(name).write()``.
+
+    ``flow`` is an activity id, not a foreign key: the activity can be in another (attached)
+    file, or deleted. The location is stored by name, never as a geomapping id: ``location``
+    alone for a bare location string, ``geocollection`` and ``location`` for a
+    ``(geocollection, location)`` tuple, both ``NULL`` for the global location."""
+
+    method = ForeignKeyField(
+        MethodRecord, on_delete="CASCADE", column_name="method_id", index=False
+    )
+    flow = IntegerField(index=True)
+    geocollection = TextField(null=True)
+    location = TextField(null=True)
+
+    class Meta:
+        table_name = "characterizationfactor"
+        primary_key = CompositeKey("method", "position")
+
+
+class NormalizationFactor(_Factor):
+    """Normalization factor of an LCIA normalization. ``flow`` is an activity id, as in
+    ``CharacterizationFactor``."""
+
+    normalization = ForeignKeyField(
+        NormalizationRecord, on_delete="CASCADE", column_name="normalization_id", index=False
+    )
+    flow = IntegerField(index=True)
+
+    class Meta:
+        table_name = "normalizationfactor"
+        primary_key = CompositeKey("normalization", "position")
+
+
+class WeightingFactor(_Factor):
+    """The weighting of an LCIA weighting (a single row)."""
+
+    weighting = ForeignKeyField(
+        WeightingRecord, on_delete="CASCADE", column_name="weighting_id", index=False
+    )
+
+    class Meta:
+        table_name = "weightingfactor"
+        primary_key = CompositeKey("weighting", "position")
 
 
 class Preference(Model):

@@ -106,17 +106,21 @@ def test_extraction_input_formats(test_bw2_database):
         assert extract_brightway_databases({"food": None})
 
 
-def test_extraction_with_properties():
+def test_extraction_with_properties(test_bw2_database):
     data = extract_brightway_databases("food")
+    assert data
     assert all("properties" not in exc for ds in data for exc in ds["exchanges"])
     data = extract_brightway_databases("food", add_properties=True)
+    assert data
     assert all("properties" in exc for ds in data for exc in ds["exchanges"])
 
 
-def test_extraction_with_identifiers():
+def test_extraction_with_identifiers(test_bw2_database):
     data = extract_brightway_databases("food")
+    assert data
     assert all("properties" not in exc for ds in data for exc in ds["exchanges"])
     data = extract_brightway_databases("food", add_identifiers=True)
+    assert data
     assert all("id" in ds for ds in data)
     assert all("id" in exc for ds in data for exc in ds["exchanges"])
     assert all("code" in exc for ds in data for exc in ds["exchanges"])

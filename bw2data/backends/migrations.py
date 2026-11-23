@@ -31,13 +31,15 @@ Rules for migration steps:
   bw2data can still open the project.
 """
 
+import json
+import numbers
 import pickle
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from peewee import Database, OperationalError
+from peewee import Database, InterfaceError, OperationalError, ProgrammingError
 
 from bw2data.logs import stdout_feedback_logger
 from bw2data.sqlite import _cannot_write
@@ -160,6 +162,404 @@ def _geomapping_without_autoincrement(db: Database, project_dir: Path) -> None:
     )
 
 
+#: Columns of ``databaserecord`` with their own column at schema version 3; other keys go
+#: into ``extra``. Fixed here, and not read from the model, as the step must not change when
+#: the model does.
+_DATABASERECORD_COLUMNS = (
+    "backend",
+    "depends",
+    "dirty",
+    "geocollections",
+    "modified",
+    "number",
+    "searchable",
+    "version",
+)
+#: ``JSONField``, ``IntegerField`` and ``BooleanField`` columns of ``databaserecord``; the
+#: others are ``TextField`` columns
+_DATABASERECORD_JSON = frozenset({"depends", "geocollections"})
+_DATABASERECORD_INTEGER = frozenset({"number", "version"})
+_DATABASERECORD_BOOLEAN = frozenset({"dirty", "searchable"})
+
+
+def _json_value(value):
+    """``value`` as stored by ``bw2data.sqlite.JSONField``."""
+    if value is None:
+        return None
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        indent=2,
+        default=lambda x: x.isoformat() if hasattr(x, "isoformat") else x,
+    )
+
+
+def _integer_value(value):
+    """``value`` as stored by a peewee ``IntegerField``: an integer if it can be converted to
+    one, otherwise unchanged. Values which SQLite can't store (lists, dicts) are stored as
+    JSON text."""
+    try:
+        return int(value)
+    except ValueError:
+        return value
+    except TypeError:
+        return None if value is None else _json_value(value)
+
+
+def _databaserecord_value(column: str, value):
+    """``value`` as stored by the model field of ``column``. Legacy values of the wrong type
+    are converted as the field would do it, so that every value can be stored."""
+    if value is None:
+        return None
+    if column in _DATABASERECORD_JSON:
+        return _json_value(value)
+    if column in _DATABASERECORD_INTEGER:
+        return _integer_value(value)
+    if column in _DATABASERECORD_BOOLEAN:
+        return bool(value)
+    return value if isinstance(value, str) else str(value)
+
+
+def _databases_json_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move ``databases.json`` into the ``databaserecord`` table.
+
+    Databases which are already in the table are kept as they are; this happens when the
+    migration was postponed and databases were registered in the meantime, and for projects
+    opened by a development version of bw2data which moved the file on first access. Values
+    of the wrong type (e.g. a list as ``version``) are converted to something which can be
+    stored. An unreadable file, entries which aren't dictionaries and entries which still
+    can't be stored are skipped with a warning; the file is kept as a backup either way."""
+    path = project_dir / "databases.json"
+    if not path.is_file():
+        return
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            legacy = json.load(f)
+        if not isinstance(legacy, dict):
+            raise ValueError("not a JSON object")
+    except Exception as err:
+        warnings.warn(
+            f"Can't read {path} ({err}); starting with no registered databases.",
+            stacklevel=2,
+        )
+        return
+
+    migrated, skipped = 0, []
+    columns = ("name", *_DATABASERECORD_COLUMNS, "extra")
+    sql = 'INSERT OR IGNORE INTO main."databaserecord" ({}) VALUES ({})'.format(
+        ", ".join(f'"{c}"' for c in columns), ", ".join("?" * len(columns))
+    )
+    for name, metadata in legacy.items():
+        if not isinstance(metadata, dict):
+            skipped.append(name)
+            continue
+        metadata = dict(metadata)
+        values = [name]
+        for column in _DATABASERECORD_COLUMNS:
+            values.append(_databaserecord_value(column, metadata.pop(column, None)))
+        values.append(_json_value(metadata or None))
+        try:
+            migrated += db.execute_sql(sql, values).rowcount
+        except (InterfaceError, ProgrammingError, OverflowError, ValueError, TypeError):
+            # A value which SQLite can't store, e.g. an integer with more than 64 bits
+            skipped.append(name)
+    if skipped:
+        warnings.warn(
+            f"Entries in {path} which are not dictionaries, or have values which can't be "
+            f"stored, can't be migrated, and are only kept in the file: {skipped!r}",
+            stacklevel=2,
+        )
+    stdout_feedback_logger.info(
+        "Migrated %s database(s) from %s to SQLite; the file is kept as a backup",
+        migrated,
+        path,
+    )
+
+
+#: Legacy LCIA metadata files, their tables, and the metadata keys with their own column in
+#: each table at schema version 4 (``abbreviation`` is a text column in all tables)
+_LCIA_METADATA = (
+    ("methods.json", "method", ("num_cfs", "geocollections")),
+    ("weightings.json", "weighting", ()),
+    ("normalizations.json", "normalization", ()),
+)
+
+
+def _tuple_name_value(name) -> str:
+    """``name`` as stored by ``bw2data.sqlite.TupleNameField``."""
+    return json.dumps(list(name), ensure_ascii=False)
+
+
+def _lcia_metadata_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move ``methods.json``, ``weightings.json`` and ``normalizations.json`` into the
+    ``method``, ``weighting`` and ``normalization`` tables.
+
+    Objects which are already in a table are kept as they are; this happens when the
+    migration was postponed and objects were registered in the meantime. Rows get new
+    snowflake ids; the names are the natural key. Entries which can't be migrated (names
+    which aren't non-empty lists or can't be dictionary keys, metadata which isn't a
+    dictionary, values which can't be stored) are skipped with a warning, as is an
+    unreadable file. The files are kept as backups.
+
+    ``has_data`` is ``0``: the data is still in ``intermediate/*.pickle``."""
+    # Imported here: only this step needs it, and it has no dependency on the models
+    from bw2data.snowflake_ids import snowflake_id_generator
+
+    for filename, table, columns in _LCIA_METADATA:
+        path = project_dir / filename
+        if not path.is_file():
+            continue
+
+        try:
+            with open(path, encoding="utf-8") as f:
+                legacy = json.load(f)
+            if not isinstance(legacy, list):
+                raise ValueError("not a JSON list")
+        except Exception as err:
+            warnings.warn(
+                f"Can't read {path} ({err}); starting with no registered {table}s.",
+                stacklevel=2,
+            )
+            continue
+
+        # Same as ``CompoundJSONDict.unpack``: a later entry for the same name wins
+        entries, skipped = {}, []
+        for entry in legacy:
+            if (
+                isinstance(entry, list)
+                and len(entry) == 2
+                and isinstance(entry[0], list)
+                and entry[0]
+                and isinstance(entry[1], dict)
+            ):
+                try:
+                    entries[tuple(entry[0])] = dict(entry[1])
+                    continue
+                except TypeError:
+                    # A name with a list or dictionary in it can't be a dictionary key, and
+                    # so can't be a name in the registry either
+                    pass
+            skipped.append(entry[0] if isinstance(entry, list) and entry else entry)
+
+        migrated = 0
+        all_columns = ("id", "name", "abbreviation", *columns, "extra", "has_data")
+        sql = 'INSERT OR IGNORE INTO main."{}" ({}) VALUES ({})'.format(
+            table, ", ".join(f'"{c}"' for c in all_columns), ", ".join("?" * len(all_columns))
+        )
+        for name, metadata in entries.items():
+            values = [next(snowflake_id_generator), _tuple_name_value(name)]
+            abbreviation = metadata.pop("abbreviation", None)
+            values.append(None if abbreviation is None else str(abbreviation))
+            for column in columns:
+                if column == "num_cfs":
+                    values.append(_integer_value(metadata.pop(column, None)))
+                else:
+                    values.append(_json_value(metadata.pop(column, None)))
+            values.append(_json_value(metadata or None))
+            values.append(0)
+            try:
+                migrated += db.execute_sql(sql, values).rowcount
+            except (InterfaceError, ProgrammingError, OverflowError, ValueError, TypeError):
+                # A value which SQLite can't store, e.g. an integer with more than 64 bits
+                skipped.append(list(name))
+
+        if skipped:
+            warnings.warn(
+                f"Entries in {path} which aren't a name (list of strings) and metadata "
+                f"(dictionary), or have values which can't be stored, can't be migrated, and "
+                f"are only kept in the file: {skipped[:20]!r}",
+                stacklevel=2,
+            )
+        stdout_feedback_logger.info(
+            "Migrated %s %s(s) from %s to SQLite; the file is kept as a backup",
+            migrated,
+            table,
+            path,
+        )
+
+
+#: Registry table, factor table, foreign key column and kind of row, for migration 5
+_LCIA_FACTORS = (
+    ("method", "characterizationfactor", "method_id", "method"),
+    ("weighting", "weightingfactor", "weighting_id", "weighting"),
+    ("normalization", "normalizationfactor", "normalization_id", "normalization"),
+)
+
+
+class _CantMigrate(ValueError):
+    pass
+
+
+def _m5_plain(value):
+    return value.item() if hasattr(value, "item") and not isinstance(value, (int, float)) else value
+
+
+def _m5_amount(amount) -> float:
+    """``amount`` as stored in the ``amount`` column. SQLite stores NaN as ``NULL``, which
+    would be read back as a missing amount, so NaN can't be migrated."""
+    if not isinstance(amount, numbers.Number) or isinstance(amount, bool):
+        raise _CantMigrate(f"amount {amount!r} is not a number")
+    try:
+        result = float(amount)
+    except TypeError:
+        raise _CantMigrate(f"amount {amount!r} is not a real number") from None
+    if result != result:
+        raise _CantMigrate("an amount is NaN (not a number)")
+    return result
+
+
+def _m5_value(value) -> tuple:
+    """``(amount, uncertainty JSON)`` columns of a factor value, as written by
+    ``bw2data.ia_data_store.value_as_columns`` and ``JSONField``."""
+    if isinstance(value, dict):
+        amount = value.get("amount")
+        rest = {k: _m5_plain(v) for k, v in value.items() if k != "amount"}
+        return (None if amount is None else _m5_amount(amount), _json_value(rest))
+    if isinstance(value, numbers.Number) and not isinstance(value, bool):
+        return (_m5_amount(value), None)
+    raise _CantMigrate(f"value {value!r} is not a number or an uncertainty dictionary")
+
+
+def _m5_location(row) -> tuple:
+    """``(geocollection, location)`` columns of a CF row."""
+    if len(row) < 3 or row[2] is None or row[2] == "":
+        return (None, None)
+    location = row[2]
+    if isinstance(location, str):
+        return (None, location)
+    if (
+        isinstance(location, (tuple, list))
+        and len(location) == 2
+        and isinstance(location[0], str)
+        and location[0]
+    ):
+        geocollection, feature = location
+        if isinstance(feature, numbers.Integral) and not isinstance(feature, bool):
+            # Integer feature ids become strings, as in the migration of ``geomapping.pickle``
+            feature = str(int(feature))
+        if isinstance(feature, str) and feature:
+            return (geocollection, feature)
+    raise _CantMigrate(f"location {location!r} is not a string or a pair of strings")
+
+
+def _m5_flow(db: Database, flow, cache: dict) -> int:
+    """Activity id of ``flow`` (an id or a ``(database, code)`` key)."""
+    if isinstance(flow, numbers.Integral) and not isinstance(flow, bool):
+        # Also NumPy integers
+        return int(flow)
+    if isinstance(flow, (tuple, list)) and len(flow) == 2:
+        key = tuple(flow)
+        if key not in cache:
+            found = db.execute_sql(
+                'SELECT "id" FROM main."activitydataset" WHERE "database" = ? AND "code" = ?',
+                key,
+            ).fetchone()
+            cache[key] = None if found is None else found[0]
+        if cache[key] is None:
+            raise _CantMigrate(f"flow {key!r} doesn't exist")
+        return cache[key]
+    raise _CantMigrate(f"flow {flow!r} is not an activity id or a (database, code) key")
+
+
+def _m5_rows(db: Database, kind: str, data, cache: dict) -> list[tuple]:
+    """Factor columns, without the owner and position, for the legacy ``data`` of a
+    ``kind``."""
+    if not isinstance(data, (list, tuple)):
+        raise _CantMigrate("the data is not a list")
+    rows = []
+    for line in data:
+        if kind == "weighting":
+            rows.append(_m5_value(line))
+            continue
+        lengths = (2, 3) if kind == "method" else (2,)
+        if not isinstance(line, (tuple, list)) or len(line) not in lengths:
+            raise _CantMigrate(f"row {line!r} has the wrong form")
+        columns = (_m5_flow(db, line[0], cache), *_m5_value(line[1]))
+        if kind == "method":
+            columns += _m5_location(line)
+        rows.append(columns)
+    return rows
+
+
+def _lcia_factors_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move the data of LCIA methods, weightings and normalizations from
+    ``intermediate/<abbreviation>.pickle`` into the ``characterizationfactor``,
+    ``weightingfactor`` and ``normalizationfactor`` tables, and set ``has_data``.
+
+    Only objects with ``has_data = 0`` and a pickle are migrated. Flows given as
+    ``(database, code)`` keys (normalizations, and methods written before bw2data 4) are
+    stored as activity ids. An object whose pickle can't be read, or has rows which can't be
+    stored (a flow which doesn't exist, a location which isn't a string or a pair of
+    strings, an amount which is NaN, ...), is skipped with a warning: it keeps ``has_data = 0``, so its data can't be
+    loaded until it is written again, e.g. from the pickle, which is kept as a backup like
+    all others."""
+    from contextlib import closing
+
+    cache = {}
+    for table, factor_table, owner, kind in _LCIA_FACTORS:
+        records = db.execute_sql(
+            f'SELECT "id", "name", "abbreviation" FROM main."{table}" '
+            'WHERE NOT "has_data" AND "abbreviation" IS NOT NULL ORDER BY "id"'
+        ).fetchall()
+        migrated, skipped = 0, []
+        for id_, name, abbreviation in records:
+            path = project_dir / "intermediate" / f"{abbreviation}.pickle"
+            if not path.is_file():
+                continue
+            try:
+                with open(path, "rb") as f:
+                    rows = _m5_rows(db, kind, pickle.load(f), cache)
+            except Exception as err:
+                skipped.append(f"{name} ({path.name}: {err})")
+                continue
+            columns = ["position", "amount", "uncertainty", owner]
+            if kind != "weighting":
+                columns.insert(1, "flow")
+            if kind == "method":
+                columns += ["geocollection", "location"]
+            sql = 'INSERT INTO main."{}" ({}) VALUES ({})'.format(
+                factor_table, ", ".join(f'"{c}"' for c in columns), ", ".join("?" * len(columns))
+            )
+
+            def values(rows=rows):
+                for position, row in enumerate(rows):
+                    if kind == "weighting":
+                        yield (position, *row, id_)
+                    elif kind == "method":
+                        flow, amount, uncertainty, geocollection, location = row
+                        yield (position, flow, amount, uncertainty, id_, geocollection, location)
+                    else:
+                        yield (position, *row, id_)
+
+            try:
+                # A savepoint, so that an object which can't be stored changes nothing
+                with db.atomic():
+                    with closing(db.cursor()) as cursor:
+                        cursor.executemany(sql, values())
+                    db.execute_sql(
+                        f'UPDATE main."{table}" SET "has_data" = 1 WHERE "id" = ?', (id_,)
+                    )
+            except (OverflowError, ValueError, TypeError) as err:
+                skipped.append(f"{name} ({path.name}: {err})")
+                continue
+            migrated += 1
+
+        if skipped:
+            warnings.warn(
+                f"The data of these {table}s can't be moved into SQLite; their pickles are "
+                f"kept, but the data can't be loaded until it is written again: {skipped[:20]}",
+                stacklevel=2,
+            )
+        if migrated:
+            stdout_feedback_logger.info(
+                "Migrated the data of %s %s(s) from intermediate/*.pickle to SQLite; the files "
+                "are kept as backups",
+                migrated,
+                table,
+            )
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -167,6 +567,17 @@ MIGRATIONS: tuple[Migration, ...] = (
         2,
         "Use snowflake ids for new geomapping and geocollection ids (remove AUTOINCREMENT)",
         _geomapping_without_autoincrement,
+    ),
+    Migration(3, "Move databases.json into SQLite", _databases_json_to_sqlite),
+    Migration(
+        4,
+        "Move methods.json, weightings.json and normalizations.json into SQLite",
+        _lcia_metadata_to_sqlite,
+    ),
+    Migration(
+        5,
+        "Move the data of LCIA methods, weightings and normalizations into SQLite",
+        _lcia_factors_to_sqlite,
     ),
 )
 
