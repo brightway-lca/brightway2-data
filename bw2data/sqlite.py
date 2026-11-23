@@ -276,11 +276,15 @@ class CompressedJSONField(BlobField):
     So the same column can hold values in both formats, for example while a schema migration
     is postponed."""
 
+    def encode(self, value) -> bytes:
+        """``value`` as it is stored, before compression. Dictionaries are trained on this."""
+        return codec.dumps(value)
+
     def db_value(self, value):
         if value is None:
             return None
         store = zstd_dictionaries(self.model._meta.database)
-        return super().db_value(store.compress(codec.dumps(value)))
+        return super().db_value(store.compress(self.encode(value)))
 
     def python_value(self, value):
         if value is None:

@@ -7,7 +7,7 @@ from typing import Any, Optional
 import numpy as np
 
 from bw2data import config
-from bw2data.backends.schema import get_id
+from bw2data.backends.schema import add_exchange_keys, get_id
 from bw2data.configuration import labels
 from bw2data.errors import InvalidExchange, UntypedExchange
 from bw2data.meta import databases, methods
@@ -61,10 +61,13 @@ def convert_backend(database_name, backend):
 
 
 def check_exchange(exc):
-    """Check exchange data validity when processing"""
+    """Check exchange data validity when processing.
+
+    ``exc`` is the stored ``data``. It doesn't need ``input``, which is stored in the key
+    columns; they can't be empty (see ``ExchangeDataField``)."""
     if "type" not in exc:
         raise UntypedExchange
-    if "amount" not in exc or "input" not in exc:
+    if "amount" not in exc:
         raise InvalidExchange
     if np.isnan(exc["amount"]) or np.isinf(exc["amount"]):
         raise ValueError("Invalid amount in exchange {}".format(exc))
@@ -192,6 +195,10 @@ def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
 
 
 def dict_as_exchangedataset(ds: Any) -> dict:
+    """Column values of an ``ExchangeDataset`` for exchange data ``ds``.
+
+    ``data`` is ``ds`` itself, with ``input`` and ``output``; the ``data`` field leaves them
+    out when it stores the value (see ``ExchangeDataField``)."""
     return {
         "data": ds,
         "input_database": ds["input"][0],
@@ -200,6 +207,25 @@ def dict_as_exchangedataset(ds: Any) -> dict:
         "output_code": ds["output"][1],
         "type": ds["type"],
     }
+
+
+def exchange_row_as_dict(row: dict) -> dict:
+    """Exchange data from a row of an ``ExchangeDataset`` query made with ``.dicts()``, with
+    ``input`` and ``output`` from the key columns.
+
+    The ``data`` column doesn't store ``input`` and ``output`` (see ``ExchangeDataField``), so
+    every reader which doesn't go through an ``ExchangeDataset`` instance needs this. The row
+    must have the ``data``, ``input_database``, ``input_code``, ``output_database`` and
+    ``output_code`` columns. Model instances do this themselves: ``exc.data`` has both keys.
+
+    Returns ``row["data"]``, changed in place."""
+    return add_exchange_keys(
+        row["data"],
+        row["input_database"],
+        row["input_code"],
+        row["output_database"],
+        row["output_code"],
+    )
 
 
 def get_obj_as_dict(cls: SignaledDataset, obj_id: Optional[int]) -> dict:

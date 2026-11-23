@@ -8,6 +8,7 @@ from peewee import (
     DatabaseError,
     DataError,
     DoesNotExist,
+    FieldAccessor,
     ForeignKeyField,
     IntegerField,
     IntegrityError,
@@ -80,8 +81,64 @@ class ActivityDataset(_SavedInTransaction, SnowflakeIDBaseClass):
         return (self.database, self.code)
 
 
+#: Keys of exchange data which aren't stored in the ``data`` column, because the key columns
+#: of ``ExchangeDataset`` already hold them. See ``ExchangeDataField``.
+EXCHANGE_KEYS = ("input", "output")
+
+
+def add_exchange_keys(data: dict, input_database, input_code, output_database, output_code) -> dict:
+    """Put ``input`` and ``output`` into exchange ``data`` (in place), from the key columns.
+
+    The columns are canonical, so they replace any ``input`` or ``output`` already in
+    ``data``. A key whose columns are both ``None`` (e.g. a model instance which isn't
+    filled in yet) is left as it is. Returns ``data``."""
+    if input_database is not None or input_code is not None:
+        data["input"] = (input_database, input_code)
+    if output_database is not None or output_code is not None:
+        data["output"] = (output_database, output_code)
+    return data
+
+
+class _ExchangeDataAccessor(FieldAccessor):
+    """Reading ``ExchangeDataset.data`` on a model instance gives ``input`` and ``output``
+    from the key columns of the same instance, as they were stored before they left the
+    ``data`` column. Columns which weren't selected are left out."""
+
+    def __get__(self, instance, instance_type=None):
+        if instance is None:
+            return self.field
+        row = instance.__data__
+        value = row.get(self.name)
+        if isinstance(value, dict):
+            add_exchange_keys(
+                value,
+                row.get("input_database"),
+                row.get("input_code"),
+                row.get("output_database"),
+                row.get("output_code"),
+            )
+        return value
+
+
+class ExchangeDataField(CompressedJSONField):
+    """``CompressedJSONField`` for ``ExchangeDataset.data``, which doesn't store ``input`` and
+    ``output``. They are already in the key columns, and as tuples they made every row a
+    tagged value, which is decoded on the slow path (see ``bw2data.codec.loads``).
+
+    Rows written by older versions still hold both keys. They are read as they are; the key
+    columns win wherever the two differ."""
+
+    accessor_class = _ExchangeDataAccessor
+
+    def encode(self, value) -> bytes:
+        if isinstance(value, dict) and any(key in value for key in EXCHANGE_KEYS):
+            value = {k: v for k, v in value.items() if k not in EXCHANGE_KEYS}
+        return super().encode(value)
+
+
 class ExchangeDataset(_SavedInTransaction, SnowflakeIDBaseClass):
-    data = CompressedJSONField()  # Canonical, except for other C fields
+    # Canonical, except for other C fields. Without `input` and `output`; see `ExchangeDataField`
+    data = ExchangeDataField()
     input_code = TextField()  # Canonical
     input_database = TextField()  # Canonical
     output_code = TextField()  # Canonical

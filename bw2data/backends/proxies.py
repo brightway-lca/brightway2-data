@@ -710,15 +710,8 @@ class Exchange(ExchangeProxyBase):
             self._data = kwargs
         else:
             self._document = document
+            # Has `input` and `output` from the key columns; see `ExchangeDataField`
             self._data = self._document.data
-            self._data["input"] = (
-                self._document.input_database,
-                self._document.input_code,
-            )
-            self._data["output"] = (
-                self._document.output_database,
-                self._document.output_code,
-            )
             # Stored as JSON; see `dict_as_exchangedataset`
             if "temporal_distribution" in self._data:
                 self._data = restore_temporal_distribution(self._data)
