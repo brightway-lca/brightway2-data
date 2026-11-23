@@ -17,7 +17,11 @@ import deepdiff
 from bw2data import databases
 from bw2data.backends.proxies import Activity, Exchange
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset
-from bw2data.backends.utils import dict_as_activitydataset, dict_as_exchangedataset
+from bw2data.backends.utils import (
+    dict_as_activitydataset,
+    dict_as_exchangedataset,
+    serialize_temporal_distribution,
+)
 from bw2data.database import DatabaseChooser
 from bw2data.errors import DifferentObjects, IncompatibleClasses
 from bw2data.parameters import (
@@ -565,7 +569,8 @@ class RevisionedEdge(RevisionedORMProxy):
 
     @classmethod
     def orm_as_dict(cls, orm_object: ORM_CLASS) -> dict:
-        return dict_as_exchangedataset(orm_object.data)
+        # Revisions are plain JSON, so temporal distributions are stored as JSON strings
+        return dict_as_exchangedataset(serialize_temporal_distribution(orm_object.data))
 
 
 class RevisionedDatabase:

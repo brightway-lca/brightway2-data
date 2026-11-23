@@ -29,6 +29,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
+    "backports.zstd>=1.0.0; python_version < '3.14'",
     "blinker",
     "bw2parameters>=1.1.0",
     "bw_processing>=1.6",
@@ -65,6 +66,8 @@ tracker = "https://github.com/brightway-lca/bw2data/issues"
 testing = [
     "bw2data",
     "bw2calc>=2.4.0",
+    # Raise to the release after 1.3.1 once it is out: it adds ``bw_temporalis.codec``,
+    # without which the tests that store temporal distributions are skipped
     "bw_temporalis>=1.3",
     "pytest",
     "pytest-cov",
