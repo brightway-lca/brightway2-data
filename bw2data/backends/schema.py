@@ -90,33 +90,40 @@ def add_exchange_keys(data: dict, input_database, input_code, output_database, o
     """Put ``input`` and ``output`` into exchange ``data`` (in place), from the key columns.
 
     The columns are canonical, so they replace any ``input`` or ``output`` already in
-    ``data``. A key whose columns are both ``None`` (e.g. a model instance which isn't
-    filled in yet) is left as it is. Returns ``data``."""
-    if input_database is not None or input_code is not None:
+    ``data``. A key is only set when both of its columns are known; with one of them ``None``
+    (e.g. a column which wasn't selected) it is left as it is. Returns ``data``."""
+    if input_database is not None and input_code is not None:
         data["input"] = (input_database, input_code)
-    if output_database is not None or output_code is not None:
+    if output_database is not None and output_code is not None:
         data["output"] = (output_database, output_code)
     return data
 
 
 class _ExchangeDataAccessor(FieldAccessor):
-    """Reading ``ExchangeDataset.data`` on a model instance gives ``input`` and ``output``
-    from the key columns of the same instance, as they were stored before they left the
-    ``data`` column. Columns which weren't selected are left out."""
+    """Gives the ``data`` of an ``ExchangeDataset`` read from the database its ``input`` and
+    ``output``, from the key columns of the same instance.
+
+    This happens once, the first time ``data`` is read, because the key columns may be set
+    after ``data`` while a row is loaded. Later reads return the dict as it is, so changes
+    made to it in memory stay. ``data`` which was assigned in memory is never changed: not
+    on an instance built in Python, and not after assigning to ``data`` of a loaded one."""
 
     def __get__(self, instance, instance_type=None):
         if instance is None:
             return self.field
         row = instance.__data__
         value = row.get(self.name)
-        if isinstance(value, dict):
-            add_exchange_keys(
-                value,
-                row.get("input_database"),
-                row.get("input_code"),
-                row.get("output_database"),
-                row.get("output_code"),
-            )
+        if getattr(instance, "_keys_pending", False):
+            instance._keys_pending = False
+            # peewee clears `_dirty` after loading a row, so a dirty `data` was assigned later
+            if isinstance(value, dict) and self.name not in instance._dirty:
+                add_exchange_keys(
+                    value,
+                    row.get("input_database"),
+                    row.get("input_code"),
+                    row.get("output_database"),
+                    row.get("output_code"),
+                )
         return value
 
 
@@ -126,7 +133,7 @@ class ExchangeDataField(CompressedJSONField):
     tagged value, which is decoded on the slow path (see ``bw2data.codec.loads``).
 
     Rows written by older versions still hold both keys. They are read as they are; the key
-    columns win wherever the two differ."""
+    columns win wherever the two differ, when a row is loaded as a model instance."""
 
     accessor_class = _ExchangeDataAccessor
 
@@ -147,6 +154,12 @@ class ExchangeDataset(_SavedInTransaction, SnowflakeIDBaseClass):
 
     class Meta:
         table_name = EXCHANGE_TABLE
+
+    def __init__(self, *args, **kwargs):
+        # peewee passes `__no_default__` for every instance it builds from a row, and only
+        # then. These get `input` and `output` in `data`; see `_ExchangeDataAccessor`.
+        self._keys_pending = bool(kwargs.get("__no_default__"))
+        super().__init__(*args, **kwargs)
 
 
 #: The tables with a ``CompressedJSONField``, and the name of its column

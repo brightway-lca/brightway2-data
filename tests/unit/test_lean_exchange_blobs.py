@@ -2,10 +2,12 @@
 
 import pickle
 
+import pytest
+
 from bw2data import codec, get_node
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.base import DICTIONARY_MIN_DATASETS
-from bw2data.backends.schema import ExchangeDataset
+from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.utils import exchange_row_as_dict
 from bw2data.database import DatabaseChooser
 from bw2data.revisions import RevisionedEdge
@@ -116,6 +118,72 @@ def test_model_instance_without_key_columns_gives_data_as_stored():
     _database()
     row = ExchangeDataset.select(ExchangeDataset.data).first()
     assert "input" not in row.data and "output" not in row.data
+
+    # Half of a key is no key
+    row = ExchangeDataset.select(ExchangeDataset.data, ExchangeDataset.input_code).first()
+    assert "input" not in row.data and "output" not in row.data
+
+    row = ExchangeDataset.select(
+        ExchangeDataset.data, ExchangeDataset.input_code, ExchangeDataset.input_database
+    ).first()
+    assert row.data["input"] == (row.input_database, row.input_code)
+    assert "output" not in row.data
+
+
+@bw2test
+def test_model_instance_from_a_join_gets_keys():
+    _database()
+    rows = list(
+        ExchangeDataset.select(ExchangeDataset, ActivityDataset)
+        .join(
+            ActivityDataset,
+            on=(
+                (ExchangeDataset.input_code == ActivityDataset.code)
+                & (ExchangeDataset.input_database == ActivityDataset.database)
+            ),
+        )
+        .where(ExchangeDataset.type == "technosphere")
+    )
+    assert rows
+    for row in rows:
+        assert row.data["input"] == (row.input_database, row.input_code)
+        assert row.data["output"] == (row.output_database, row.output_code)
+
+
+@bw2test
+def test_reading_data_keeps_changes_made_in_memory():
+    _database()
+    exc = next(iter(get_node(database="db", code="0").technosphere()))
+    exc["input"] = ("db", "0")
+    assert exc._document.data["input"] == ("db", "0")
+    assert exc["input"] == ("db", "0")
+    exc.save()
+    assert ExchangeDataset.get_by_id(exc.id).input_code == "0"
+
+    row = ExchangeDataset.get_by_id(exc.id)
+    row.data["input"] = ("db", "1")
+    assert row.data["input"] == ("db", "1")
+
+    # Assigned data is never changed, on built and on loaded instances
+    given = {"amount": 1, "type": "technosphere", "input": ("other", "x")}
+    built = ExchangeDataset(
+        data=given, input_database="db", input_code="1", output_database="db", output_code="0"
+    )
+    assert built.data is given and given["input"] == ("other", "x") and "output" not in given
+    loaded = ExchangeDataset.get_by_id(exc.id)
+    loaded.data = given
+    assert loaded.data is given and given["input"] == ("other", "x") and "output" not in given
+
+
+@bw2test
+def test_invalid_amount_error_names_the_exchange():
+    db = _database()
+    exc = next(iter(get_node(database="db", code="0").technosphere()))
+    exc["amount"] = float("nan")
+    exc.save()
+    with pytest.raises(ValueError, match="Invalid amount") as err:
+        db.process()
+    assert "('db', '1')" in str(err.value) and "('db', '0')" in str(err.value)
 
 
 @bw2test
