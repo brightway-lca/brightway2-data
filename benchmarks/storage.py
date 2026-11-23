@@ -86,16 +86,19 @@ def timed(label: str, results: dict):
 
 
 def measure(sqlite3_lci_db, db, results: dict, decode, pickles: bool = False) -> None:
-    """``decode`` turns a stored value into the dataset. ``pickles``: the rows are pickles,
+    """``decode`` turns a stored value and the four key columns into the dataset. ``pickles``: the rows are pickles,
     so the file has to be measured without the zstd dictionary, which earlier versions
     didn't have."""
     with timed("process()", results):
         db.process()
     with timed("read all exchanges", results):
-        cursor = sqlite3_lci_db.db.connection().execute("SELECT data FROM exchangedataset")
+        cursor = sqlite3_lci_db.db.connection().execute(
+            "SELECT data, input_database, input_code, output_database, output_code "
+            "FROM exchangedataset"
+        )
         try:
-            for (value,) in cursor:
-                decode(value)
+            for value, *keys in cursor:
+                decode(value, *keys)
         finally:
             cursor.close()
     if pickles:
@@ -113,7 +116,7 @@ def main():
     os.environ["BRIGHTWAY2_DIR"] = tempfile.mkdtemp(prefix="bw2data-benchmark-")
     import bw2data as bd
     from bw2data.backends import sqlite3_lci_db
-    from bw2data.backends.schema import ActivityDataset, ExchangeDataset
+    from bw2data.backends.schema import ActivityDataset, ExchangeDataset, add_exchange_keys
 
     bd.projects.set_current("storage benchmark")
     data = synthetic_data("bench", args.activities, args.exchanges_per_activity)
@@ -122,7 +125,13 @@ def main():
     compressed = {}
     with timed("write()", compressed):
         db.write(data, process=False, searchable=False)
-    measure(sqlite3_lci_db, db, compressed, ExchangeDataset.data.python_value)
+    measure(
+        sqlite3_lci_db,
+        db,
+        compressed,
+        # `input` and `output` aren't in the stored value; the pickles below hold them
+        lambda value, *keys: add_exchange_keys(ExchangeDataset.data.python_value(value), *keys),
+    )
 
     # The same rows as pickles, as written by earlier versions (``PickleField``)
     pickled = {}
@@ -134,7 +143,7 @@ def main():
                     f"UPDATE {table} SET data = ? WHERE id = ?", rows
                 )
     pickled["write()"] = None  # not comparable: decodes and re-encodes every row
-    measure(sqlite3_lci_db, db, pickled, lambda value: pickle.loads(bytes(value)), pickles=True)
+    measure(sqlite3_lci_db, db, pickled, lambda value, *keys: pickle.loads(bytes(value)), pickles=True)
 
     exchanges = args.activities * args.exchanges_per_activity
     print(f"{args.activities:,} activities, {exchanges:,} exchanges")
