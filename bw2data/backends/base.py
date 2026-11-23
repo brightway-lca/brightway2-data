@@ -1201,7 +1201,9 @@ Here are the type values usually used for nodes:
             # Modify ``dependents`` in place
             if input_database != output_database:
                 dependents.add(input_database)
-            check_exchange(data)
+            check_exchange(
+                data, input=(input_database, input_code), output=(output_database, output_code)
+            )
             if row is None or col is None:
                 raise UnknownObject(
                     (

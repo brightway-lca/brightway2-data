@@ -60,16 +60,21 @@ def convert_backend(database_name, backend):
     return new_db
 
 
-def check_exchange(exc):
+def check_exchange(exc, input=None, output=None):
     """Check exchange data validity when processing.
 
     ``exc`` is the stored ``data``. It doesn't need ``input``, which is stored in the key
-    columns; they can't be empty (see ``ExchangeDataField``)."""
+    columns; they can't be empty (see ``ExchangeDataField``). ``input`` and ``output`` are
+    the keys from these columns, to name the exchange in the error message."""
     if "type" not in exc:
         raise UntypedExchange
     if "amount" not in exc:
         raise InvalidExchange
     if np.isnan(exc["amount"]) or np.isinf(exc["amount"]):
+        if input is not None:
+            exc = {**exc, "input": input}
+        if output is not None:
+            exc = {**exc, "output": output}
         raise ValueError("Invalid amount in exchange {}".format(exc))
 
 
@@ -216,7 +221,8 @@ def exchange_row_as_dict(row: dict) -> dict:
     The ``data`` column doesn't store ``input`` and ``output`` (see ``ExchangeDataField``), so
     every reader which doesn't go through an ``ExchangeDataset`` instance needs this. The row
     must have the ``data``, ``input_database``, ``input_code``, ``output_database`` and
-    ``output_code`` columns. Model instances do this themselves: ``exc.data`` has both keys.
+    ``output_code`` columns. Model instances read from the database do this themselves:
+    ``exc.data`` has both keys.
 
     Returns ``row["data"]``, changed in place."""
     return add_exchange_keys(
