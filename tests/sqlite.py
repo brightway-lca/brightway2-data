@@ -1,3 +1,4 @@
+import os
 import sys
 from copy import copy
 
@@ -491,3 +492,335 @@ def test_lci_table_names_are_pinned():
 
     assert ActivityDataset._meta.table_name == ACTIVITY_TABLE == "activitydataset"
     assert ExchangeDataset._meta.table_name == EXCHANGE_TABLE == "exchangedataset"
+
+
+def _file_with_one_table(path):
+    from peewee import Model, TextField
+
+    from bw2data.sqlite import SubstitutableDatabase
+
+    class Old(Model):
+        name = TextField()
+
+        class Meta:
+            table_name = "old"
+
+    class New(Model):
+        name = TextField()
+
+        class Meta:
+            table_name = "new"
+
+    sub = SubstitutableDatabase(path, [Old])
+    Old.create(name="kept")
+    sub.db.close()
+    return Old, New
+
+
+def _tables(db):
+    return {
+        row[0]
+        for row in db.execute_sql(
+            "SELECT name FROM main.sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    }
+
+
+class _Locked:
+    """Hold a lock on ``path`` from a second connection, as another process would:
+    ``IMMEDIATE`` leaves the file readable, ``EXCLUSIVE`` doesn't."""
+
+    def __init__(self, path, mode):
+        import sqlite3
+
+        self.conn = sqlite3.connect(path, isolation_level=None)
+        self.conn.execute(f"BEGIN {mode}")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.conn.execute("ROLLBACK")
+        self.conn.close()
+
+
+def _table_warnings(recwarn):
+    return [w for w in recwarn if "create the tables" in str(w.message)]
+
+
+def test_substitutable_database_opens_read_only_file_without_new_table(tmp_path):
+    from bw2data.sqlite import SubstitutableDatabase, _sqlite_uri
+
+    path = tmp_path / "old.db"
+    Old, New = _file_with_one_table(path)
+
+    opened = []
+    with pytest.warns(UserWarning, match="Can't create the tables new in") as record:
+        sub = SubstitutableDatabase(
+            _sqlite_uri(path, mode="ro"), [Old, New], on_open=opened.append, postpone_tables=True
+        )
+    try:
+        # Reported where the file was opened, not inside bw2data
+        assert record[0].filename == __file__
+        assert "next time the file is opened" in str(record[0].message)
+        # The file is open and readable, and ``on_open`` still ran
+        assert [row.name for row in Old.select()] == ["kept"]
+        assert opened == [sub.db]
+        assert _tables(sub.db) == {"old"}
+    finally:
+        sub.db.close()
+
+    # Created the next time the file is opened and can be written
+    sub = SubstitutableDatabase(path, [Old, New], postpone_tables=True)
+    try:
+        assert _tables(sub.db) == {"old", "new"}
+    finally:
+        sub.db.close()
+
+
+def test_substitutable_database_opens_up_to_date_read_only_file_without_warning(
+    tmp_path, recwarn
+):
+    from bw2data.sqlite import SubstitutableDatabase, _sqlite_uri
+
+    path = tmp_path / "current.db"
+    Old, _ = _file_with_one_table(path)
+
+    sub = SubstitutableDatabase(_sqlite_uri(path, mode="ro"), [Old], postpone_tables=True)
+    try:
+        assert [row.name for row in Old.select()] == ["kept"]
+        assert not _table_warnings(recwarn)
+    finally:
+        sub.db.close()
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or getattr(os, "geteuid", lambda: 1)() == 0,
+    reason="needs a directory in which files can't be created",
+)
+def test_substitutable_database_opens_file_in_read_only_directory(tmp_path):
+    from bw2data.sqlite import SubstitutableDatabase
+
+    directory = tmp_path / "ro"
+    directory.mkdir()
+    path = directory / "old.db"
+    Old, New = _file_with_one_table(path)
+
+    # The file itself can be written, but SQLite can't create its journal
+    directory.chmod(0o555)
+    try:
+        with pytest.warns(UserWarning, match="Can't create the tables new in"):
+            sub = SubstitutableDatabase(path, [Old, New], postpone_tables=True)
+        try:
+            assert [row.name for row in Old.select()] == ["kept"]
+        finally:
+            sub.db.close()
+    finally:
+        directory.chmod(0o755)
+
+
+def test_substitutable_database_tables_are_not_postponed_by_default(tmp_path):
+    # ``projects.db`` and ``parameters.db``: the code using them needs their tables
+    from peewee import OperationalError
+
+    from bw2data.sqlite import SubstitutableDatabase, _sqlite_uri
+
+    path = tmp_path / "old.db"
+    Old, New = _file_with_one_table(path)
+
+    with pytest.raises(OperationalError, match="readonly"):
+        SubstitutableDatabase(_sqlite_uri(path, mode="ro"), [Old, New])
+    with _Locked(path, "IMMEDIATE"):
+        with pytest.raises(OperationalError, match="locked"):
+            SubstitutableDatabase(path, [Old, New], pragmas={"busy_timeout": 0})
+
+
+def test_substitutable_database_finishes_setup_of_write_locked_file_when_unlocked(tmp_path):
+    from bw2data.sqlite import SubstitutableDatabase
+
+    path = tmp_path / "locked.db"
+    Old, New = _file_with_one_table(path)
+
+    opened = []
+    with _Locked(path, "IMMEDIATE"):
+        with pytest.warns(UserWarning, match="Can't create the tables new in") as record:
+            sub = SubstitutableDatabase(
+                path,
+                [Old, New],
+                pragmas={"busy_timeout": 0},
+                on_open=opened.append,
+                postpone_tables=True,
+            )
+        assert "no longer locked" in str(record[0].message)
+        # Readable, but ``on_open`` (the migrations) must not run without the tables
+        assert [row.name for row in Old.select()] == ["kept"]
+        assert _tables(sub.db) == {"old"}
+        assert opened == []
+    try:
+        # No reopening needed: done before the first statement once the lock is gone
+        assert list(New.select()) == []
+        assert _tables(sub.db) == {"old", "new"}
+        assert opened == [sub.db]
+        # ... and only once, with the busy timeout as it was
+        Old.create(name="more")
+        assert opened == [sub.db]
+        assert sub.db.execute_sql("PRAGMA busy_timeout").fetchone() == (0,)
+    finally:
+        sub.db.close()
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_substitutable_database_opens_file_locked_for_reading(tmp_path, recwarn, missing):
+    from peewee import OperationalError
+
+    from bw2data.sqlite import SubstitutableDatabase
+
+    path = tmp_path / "locked.db"
+    Old, New = _file_with_one_table(path)
+    tables = [Old, New] if missing else [Old]
+
+    opened = []
+    with _Locked(path, "EXCLUSIVE"):
+        sub = SubstitutableDatabase(
+            path,
+            tables,
+            pragmas={"busy_timeout": 0},
+            on_open=opened.append,
+            postpone_tables=True,
+        )
+        # Which tables the file has can't be known, so there is nothing to warn about
+        assert not _table_warnings(recwarn)
+        assert opened == []
+        with pytest.raises(OperationalError, match="locked"):
+            Old.select().count()
+        assert opened == []
+    try:
+        assert [row.name for row in Old.select()] == ["kept"]
+        assert opened == [sub.db]
+        assert _tables(sub.db) == {model._meta.table_name for model in tables}
+    finally:
+        sub.db.close()
+
+
+def test_substitutable_database_deferred_on_open_error_is_raised_and_tried_again(tmp_path):
+    from bw2data.sqlite import SubstitutableDatabase
+
+    path = tmp_path / "locked.db"
+    Old, New = _file_with_one_table(path)
+
+    calls = []
+
+    def on_open(db):
+        calls.append(db)
+        if len(calls) == 1:
+            raise RuntimeError("migration failed")
+
+    with _Locked(path, "EXCLUSIVE"):
+        sub = SubstitutableDatabase(
+            path, [Old, New], pragmas={"busy_timeout": 0}, on_open=on_open, postpone_tables=True
+        )
+    try:
+        with pytest.raises(RuntimeError, match="migration failed"):
+            Old.select().count()
+        assert Old.select().count() == 1
+        assert calls == [sub.db, sub.db]
+    finally:
+        sub.db.close()
+
+
+def test_substitutable_database_deferred_setup_waits_for_end_of_transaction(tmp_path):
+    from bw2data.sqlite import SubstitutableDatabase
+
+    path = tmp_path / "locked.db"
+    Old, New = _file_with_one_table(path)
+
+    opened = []
+    lock = _Locked(path, "IMMEDIATE")
+    with pytest.warns(UserWarning, match="Can't create the tables new in"):
+        sub = SubstitutableDatabase(
+            path,
+            [Old, New],
+            pragmas={"busy_timeout": 0},
+            on_open=opened.append,
+            postpone_tables=True,
+        )
+    try:
+        # A read transaction started while the file is locked
+        with sub.db.atomic() as txn:
+            assert Old.select().count() == 1
+            lock.__exit__()
+            assert Old.select().count() == 1
+            # Not created here, where they would be rolled back
+            assert opened == []
+            txn.rollback()
+        assert _tables(sub.db) == {"old", "new"}
+        assert opened == [sub.db]
+    finally:
+        sub.db.close()
+
+
+@pytest.mark.parametrize("message", ["disk I/O error", "database table is locked"])
+def test_substitutable_database_other_create_errors_are_raised(tmp_path, monkeypatch, message):
+    from peewee import OperationalError
+
+    from bw2data.sqlite import BWSqliteDatabase, SubstitutableDatabase
+
+    path = tmp_path / "broken.db"
+    Old, New = _file_with_one_table(path)
+
+    def broken(self, models, **options):
+        raise OperationalError(message)
+
+    monkeypatch.setattr(BWSqliteDatabase, "create_tables", broken)
+    with pytest.raises(OperationalError, match=message):
+        SubstitutableDatabase(path, [Old, New], postpone_tables=True)
+
+
+def test_write_obstacle_uses_sqlite_error_codes(tmp_path):
+    from peewee import OperationalError
+
+    from bw2data.sqlite import BWSqliteDatabase, _cannot_write, _sqlite_uri, _write_obstacle
+
+    path = tmp_path / "old.db"
+    _file_with_one_table(path)
+
+    def error(db, sql):
+        with pytest.raises(OperationalError) as excinfo:
+            db.execute_sql(sql)
+        return excinfo.value
+
+    db = BWSqliteDatabase(path, pragmas={"busy_timeout": 0})
+    try:
+        with _Locked(path, "EXCLUSIVE"):
+            assert _write_obstacle(error(db, "SELECT * FROM old")) == "locked"
+        err = error(db, "SELECT * FROM missing")
+        assert _write_obstacle(err) is None and not _cannot_write(err)
+    finally:
+        db.close()
+
+    db = BWSqliteDatabase(_sqlite_uri(path, mode="ro"))
+    try:
+        err = error(db, "INSERT INTO old (name) VALUES ('x')")
+        assert _write_obstacle(err) == "readonly" and _cannot_write(err)
+    finally:
+        db.close()
+
+
+@pytest.mark.parametrize(
+    "message, expected",
+    [
+        ("database is locked", "locked"),
+        ("attempt to write a readonly database", "readonly"),
+        ("unable to open database file", "readonly"),
+        # A conflict inside one connection, which doesn't go away by waiting
+        ("database table is locked", None),
+        ("database table is locked: old", None),
+        ("no such table: old", None),
+    ],
+)
+def test_write_obstacle_from_message(message, expected):
+    from peewee import OperationalError
+
+    from bw2data.sqlite import _write_obstacle
+
+    assert _write_obstacle(OperationalError(message)) == expected

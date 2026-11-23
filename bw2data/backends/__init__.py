@@ -50,6 +50,9 @@ sqlite3_lci_db = SubstitutableDatabase(
     pragmas={"foreign_keys": 1, "page_size": LCI_PAGE_SIZE},
     # ``projects.dir`` already points at the new project when the file is switched
     on_open=lambda db: migrate(db, projects.dir),
+    # A project which is read-only, or in use by another process, can still be opened after
+    # an upgrade of bw2data which adds tables
+    postpone_tables=True,
 )
 
 from bw2data.backends.base import SQLiteBackend

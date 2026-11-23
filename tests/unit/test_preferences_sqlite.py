@@ -145,6 +145,25 @@ def test_migration_is_postponed_when_file_is_locked():
 
 
 @bw2test
+def test_migration_is_postponed_when_file_cannot_be_read():
+    _reset_schema_version()
+    sqlite3_lci_db.execute_sql("PRAGMA busy_timeout = 0")
+    # An exclusive lock, as held by another process while it commits: no reading either
+    conn = sqlite3.connect(sqlite3_lci_db.db.database, isolation_level=None)
+    conn.execute("BEGIN EXCLUSIVE")
+    try:
+        with pytest.warns(UserWarning, match="Can't read the schema version") as record:
+            assert migrate(sqlite3_lci_db.db, projects.dir) == []
+        assert record[0].filename == __file__
+    finally:
+        conn.execute("ROLLBACK")
+        conn.close()
+
+    # Tried again on the next open
+    assert migrate(sqlite3_lci_db.db, projects.dir) == list(range(1, SCHEMA_VERSION + 1))
+
+
+@bw2test
 def test_migration_is_postponed_when_file_is_read_only():
     _reset_schema_version()
     db = BWSqliteDatabase(_sqlite_uri(sqlite3_lci_db.db.database, mode="ro"))
