@@ -843,7 +843,8 @@ class SQLiteBackend(ProcessedDataStore):
         sqlite3_lci_db.db.autocommit = False
         try:
             sqlite3_lci_db.db.begin()
-            self.delete(keep_params=True, warn=False, vacuum=False)
+            # The search index is kept: ``write`` builds it again, or leaves it as it is
+            self.delete(keep_params=True, warn=False, vacuum=False, keep_index=True)
             exchanges, activities = [], []
 
             for ds in tqdm_wrapper(data, getattr(config, "is_test", False)):
@@ -1096,23 +1097,28 @@ Here are the type values usually used for nodes:
             return
         databases[self.name]["searchable"] = True
         databases[self.name].save(signal=signal)
-        IndexManager(self.filename).create()
-        IndexManager(self.filename).add_datasets(self)
+        IndexManager(self.name).add_all()
 
     def make_unsearchable(self, signal: bool = True):
         databases[self.name]["searchable"] = False
         databases[self.name].save(signal=signal)
-        IndexManager(self.filename).delete_database()
+        IndexManager(self.name).delete_database()
 
     def delete(
-        self, keep_params: bool = False, warn: bool = True, vacuum: bool = True, signal: bool = True
+        self,
+        keep_params: bool = False,
+        warn: bool = True,
+        vacuum: bool = True,
+        signal: bool = True,
+        keep_index: bool = False,
     ):
         """Delete all data from SQLite database and search index.
 
         ``keep_params`` keeps activity and database parameters for this database.
         ``vacuum`` allows compacting the shared LCI SQLite file afterwards, subject to
         ``config.vacuum`` (see ``bw2data.sqlite.SubstitutableDatabase.vacuum``). Pass
-        ``False`` when calling inside a transaction."""
+        ``False`` when calling inside a transaction. ``keep_index`` keeps the search index,
+        for a caller which builds it again."""
         if warn:
             MESSAGE = """
             Please use `del databases['{}']` instead.
@@ -1153,7 +1159,8 @@ Here are the type values usually used for nodes:
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
         ExchangeDataset.delete().where(ExchangeDataset.output_database == self.name).execute()
-        IndexManager(self.filename).delete_database()
+        if not keep_index:
+            IndexManager(self.name).delete_database()
 
         if not keep_params:
             from bw2data.parameters import (
@@ -1404,7 +1411,7 @@ Here are the type values usually used for nodes:
         * ``proxy``: Return ``Activity`` proxies instead of dictionary index Models. Default is ``True``.
 
         Returns a list of ``Activity`` datasets."""
-        with Searcher(self.filename) as s:
+        with Searcher(self.name) as s:
             results = s.search(string=string, **kwargs)
         return results
 

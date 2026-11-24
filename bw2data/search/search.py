@@ -1,7 +1,5 @@
 from itertools import groupby
 
-import peewee
-
 from bw2data.search.indices import IndexManager
 
 
@@ -21,6 +19,8 @@ class Searcher:
     }
 
     def __init__(self, database):
+        """``database`` is the name of a database (or its ``filename``, as in earlier
+        versions)."""
         self._database = database
 
     def __enter__(self):
@@ -64,13 +64,7 @@ class Searcher:
             kwargs["mask"] = mask
 
         with self:
-            try:
-                results = self.index.search(string, weights=boosts, **kwargs)
-            except peewee.OperationalError as e:
-                if "no such table" in str(e):
-                    results = None
-                else:
-                    raise
+            results = self.index.search(string, weights=boosts, **kwargs)
 
         if facet:
             results = {k: list(v) for k, v in groupby(results, lambda x: x.get(facet))}

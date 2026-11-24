@@ -292,6 +292,9 @@ def merge_databases(parent_db, other):
 
     Database(parent_db).process()
     del databases[other]
+    if databases[parent_db].get("searchable"):
+        # The nodes which were moved are not in the index of ``parent_db``
+        Database(parent_db).make_searchable(reset=True)
 
 
 def download_file(filename, directory="downloads", url=None):

@@ -60,6 +60,7 @@ from bw2data.sqlite import (
     _cannot_write,
     _user_stacklevel,
     zstd,
+    zstd_dictionaries,
 )
 
 #: What a step can return: called with the database after the migration is committed
@@ -858,6 +859,110 @@ def _compress_lci_data(db: Database, project_dir: Path) -> Optional[AfterCommit]
     return _m6_vacuum
 
 
+_M7_FIELDS = ("name", "comment", "product", "categories", "synonyms", "location", "code")
+
+
+def _m7_location(value) -> str:
+    if isinstance(value, tuple):
+        value = value[1]
+    if isinstance(value, str):
+        return "" if value.lower() == "none" else value.lower().strip()
+    return ""
+
+
+def _m7_text(code, data: dict) -> tuple:
+    """The indexed text of a node, in the order of ``_M7_FIELDS``."""
+    return (
+        (data.get("name") or "").lower(),
+        (data.get("comment") or "").lower(),
+        (data.get("reference product") or "").lower(),
+        ", ".join(data.get("categories") or []).lower(),
+        ", ".join(data.get("synonyms") or []).lower(),
+        _m7_location(data.get("location") or ""),
+        str(code or ""),
+    )
+
+
+def _m7_remove_search_files(project_dir: Path) -> AfterCommit:
+    def remove(db: Database) -> None:
+        directory = project_dir / "search"
+        if not directory.is_dir():
+            return
+        for path in directory.iterdir():
+            try:
+                if path.is_file():
+                    path.unlink()
+            except OSError as err:
+                warnings.warn(f"Can't delete the old search index {path}: {err}")
+
+    return remove
+
+
+def _search_indexes_to_sqlite(db: Database, project_dir: Path) -> Optional[AfterCommit]:
+    """Build the search index of every searchable database as a contentless FTS5 table
+    ``searchindex_<md5 of the database name>`` in this file, with the node id as ``rowid``
+    (see ``bw2data.search.indices``).
+
+    The indexes were one SQLite file per database in the ``search`` directory before. They
+    are not read: they have no node ids, and can have rows of nodes which no longer exist.
+    The files are deleted after the commit; they can be built again from the nodes.
+
+    A database whose nodes can't be read is not indexed, with a warning; it is marked as not
+    searchable."""
+    import hashlib
+
+    store = zstd_dictionaries(db)
+    columns = ", ".join(f'"{field}"' for field in _M7_FIELDS)
+    marks = ", ".join("?" * len(_M7_FIELDS))
+    names = [
+        name
+        for (name,) in db.execute_sql(
+            'SELECT "name" FROM main."databaserecord" WHERE "searchable" = 1 ORDER BY "name"'
+        ).fetchall()
+    ]
+    for name in names:
+        table = "searchindex_" + hashlib.md5(name.encode("utf-8")).hexdigest()
+        try:
+            with db.atomic():
+                db.execute_sql(f'DROP TABLE IF EXISTS main."{table}"')
+                db.execute_sql(
+                    f'CREATE VIRTUAL TABLE main."{table}" USING fts5('
+                    f"{columns}, content='', tokenize='unicode61')"
+                )
+                cursor = db.execute_sql(
+                    'SELECT "id", "code", "data" FROM main."activitydataset" '
+                    'WHERE "database" = ? ORDER BY "id"',
+                    (name,),
+                )
+                count = 0
+                with closing(cursor), closing(db.connection().cursor()) as insert:
+                    while rows := cursor.fetchmany(1000):
+                        values = []
+                        for id_, code, blob in rows:
+                            data = {}
+                            if blob is not None:
+                                data = codec.loads(store.decompress(bytes(blob)))
+                            values.append((id_, *_m7_text(code, data)))
+                        insert.executemany(
+                            f'INSERT INTO main."{table}" (rowid, {columns}) VALUES (?, {marks})',
+                            values,
+                        )
+                        count += len(rows)
+                # One segment: smaller, and faster to search
+                db.execute_sql(f'INSERT INTO main."{table}" ("{table}") VALUES (\'optimize\')')
+            stdout_feedback_logger.info("Built the search index of %s (%s nodes)", name, count)
+        except (ValueError, TypeError, AttributeError, zstd.ZstdError) as err:
+            warnings.warn(
+                f"Can't build the search index of database {name!r} ({err}); it is no longer "
+                "searchable. `Database(name).make_searchable(reset=True)` builds the index.",
+                stacklevel=_user_stacklevel(),
+            )
+            db.execute_sql(
+                'UPDATE main."databaserecord" SET "searchable" = 0 WHERE "name" = ?', (name,)
+            )
+    return _m7_remove_search_files(Path(project_dir))
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -881,6 +986,11 @@ MIGRATIONS: tuple[Migration, ...] = (
         6,
         "Store activity and exchange data as compressed JSON instead of pickles",
         _compress_lci_data,
+    ),
+    Migration(
+        7,
+        "Move the search indexes into SQLite",
+        _search_indexes_to_sqlite,
     ),
 )
 
