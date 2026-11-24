@@ -26,30 +26,56 @@ Rules for migration steps:
   and not with the peewee models, which describe the *current* schema and change between
   releases. It must use the ``main`` schema explicitly, as other files can be attached to the
   connection.
-* A step must not open or close transactions; it already runs inside one.
+* A step must not open or close transactions; it already runs inside one, and in a
+  savepoint of its own. It may use nested savepoints (``db.atomic()``).
 * A step which moves data in from a legacy file keeps that file, so older versions of
   bw2data can still open the project.
+* A step which can't be applied yet (not enough free disk space, data it refuses to read)
+  raises ``MigrationPostponed``. Its changes are rolled back, the steps before it are
+  committed, and it is tried again the next time the file is opened.
+* A step can return a function, which is called with the database after the transaction
+  is committed, for work which can't run inside a transaction, like ``VACUUM``. It must not
+  raise: the migration is already committed.
 """
 
+import datetime
 import json
 import numbers
 import pickle
+import shutil
 import warnings
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from peewee import Database, InterfaceError, OperationalError, ProgrammingError
 
+from bw2data import codec
+from bw2data.configuration import config
 from bw2data.logs import stdout_feedback_logger
-from bw2data.sqlite import _cannot_write, _user_stacklevel
+from bw2data.sqlite import (
+    ZSTD_DICTIONARY_SIZE,
+    ZSTD_LEVEL,
+    _cannot_write,
+    _user_stacklevel,
+    zstd,
+)
+
+#: What a step can return: called with the database after the migration is committed
+AfterCommit = Callable[[Database], None]
 
 
 @dataclass(frozen=True)
 class Migration:
     version: int
     description: str
-    apply: Callable[[Database, Path], None]
+    apply: Callable[[Database, Path], Optional[AfterCommit]]
+
+
+class MigrationPostponed(Exception):
+    """Raised by a migration step which can't be applied yet. The message says why, and what
+    the user can do about it; it is shown as a warning."""
 
 
 def _preferences_to_sqlite(db: Database, project_dir: Path) -> None:
@@ -560,6 +586,278 @@ def _lcia_factors_to_sqlite(db: Database, project_dir: Path) -> None:
             )
 
 
+#: Tables converted by migration 6, and whether their rows are exchanges. Fixed here, and
+#: not read from the models, as the step must not change when the models do.
+_M6_TABLES = (("activitydataset", False), ("exchangedataset", True))
+#: Rows read and written at a time
+_M6_BATCH_SIZE = 10_000
+#: Most rows a dictionary is trained on, and the fewest activity rows worth one: a
+#: dictionary takes 110 KB, more than the data of a small project
+_M6_SAMPLES = 5_000
+_M6_MIN_ACTIVITIES = 500
+#: Free disk space needed, as a multiple of the size of the pages which hold pickled rows.
+#: The rollback journal holds a copy of every page which is changed, until the commit.
+_M6_SPACE_FACTOR = 1.1
+#: Exchange keys which are stored in the key columns, and not in ``data``
+_M6_EXCHANGE_KEYS = ("input", "output")
+#: Values which aren't zstd frames (``28 b5 2f fd``), i.e. pickles
+_M6_PICKLED = "substr(\"data\", 1, 4) != X'28B52FFD'"
+#: Most different problems listed in the warning, and most rows named for each of them
+_M6_MAX_PROBLEMS = 20
+_M6_MAX_EXAMPLES = 3
+#: Key columns which name a row in the warning
+_M6_KEY_COLUMNS = {
+    "activitydataset": ("database", "code"),
+    "exchangedataset": ("input_database", "input_code", "output_database", "output_code"),
+}
+
+
+def _free_space(path: Path) -> int:
+    return shutil.disk_usage(path).free
+
+
+def _m6_temporal_distribution(td: str):
+    """A temporal distribution stored as the JSON string written by ``to_json()`` (bw2data
+    4), as the tagged value which ``bw_temporalis`` registers with ``bw2data.codec``: the tag
+    is the ``__loader__``, and the value the parsed JSON. ``bw_temporalis`` isn't imported.
+    Returns ``None`` for a string which isn't a serialized temporal distribution."""
+    if "__loader__" not in td:
+        return None
+    try:
+        payload = json.loads(td)
+    except ValueError:
+        return None
+    loader = payload.get("__loader__") if isinstance(payload, dict) else None
+    if not isinstance(loader, str) or not loader.startswith("bw_temporalis."):
+        return None
+    return codec.UnknownTaggedValue({codec.TAG: loader, "v": payload})
+
+
+def _m6_encode(blob: bytes, exchange: bool) -> bytes:
+    """A pickled ``data`` value as tagged JSON, before compression. Raises for a pickle which
+    can't be read, or a value which can't be stored."""
+    value = codec.safe_pickle_loads(blob)
+    if exchange and isinstance(value, dict):
+        value = {k: v for k, v in value.items() if k not in _M6_EXCHANGE_KEYS}
+        td = value.get("temporal_distribution")
+        if isinstance(td, str):
+            tagged = _m6_temporal_distribution(td)
+            if tagged is not None:
+                value["temporal_distribution"] = tagged
+    return codec.dumps(value)
+
+
+def _m6_store_dictionary(db: Database, dictionary) -> bool:
+    """Store ``dictionary`` as the active one. Returns ``False`` if a different dictionary
+    with the same id is stored (very unlikely, as zstd derives ids from the content)."""
+    stored = db.execute_sql(
+        'SELECT "content" FROM main."zstddictionary" WHERE "id" = ?', (dictionary.dict_id,)
+    ).fetchone()
+    if stored is not None and bytes(stored[0]) != dictionary.dict_content:
+        return False
+    db.execute_sql('UPDATE main."zstddictionary" SET "active" = 0 WHERE "active" = 1')
+    if stored is None:
+        db.execute_sql(
+            'INSERT INTO main."zstddictionary" ("id", "content", "created", "active") '
+            "VALUES (?, ?, ?, 1)",
+            (
+                dictionary.dict_id,
+                dictionary.dict_content,
+                datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds"),
+            ),
+        )
+    else:
+        db.execute_sql(
+            'UPDATE main."zstddictionary" SET "active" = 1 WHERE "id" = ?',
+            (dictionary.dict_id,),
+        )
+    return True
+
+
+def _m6_dictionary(db: Database, counts: dict[str, int]):
+    """The dictionary to compress the converted rows with (``None`` for no dictionary).
+
+    This is the active one, if there is one: it was trained on rows written since, e.g. while
+    this step was postponed, and stays the one to write new rows with. Otherwise, with enough
+    rows, a new one is trained on a sample of them and made the active one."""
+    active = db.execute_sql(
+        'SELECT "content" FROM main."zstddictionary" WHERE "active" = 1'
+    ).fetchone()
+    if active:
+        return zstd.ZstdDict(bytes(active[0]))
+    if counts["activitydataset"] < _M6_MIN_ACTIVITIES:
+        return None
+    total = sum(counts.values())
+    samples = []
+    for table, exchange in _M6_TABLES:
+        if not counts[table]:
+            continue
+        limit = max(1, round(_M6_SAMPLES * counts[table] / total))
+        rows = db.execute_sql(
+            f'SELECT "data" FROM main."{table}" WHERE {_M6_PICKLED} ORDER BY random() LIMIT ?',
+            (limit,),
+        ).fetchall()
+        samples.extend(_m6_encode(bytes(blob), exchange) for (blob,) in rows)
+    try:
+        dictionary = zstd.train_dict(samples, ZSTD_DICTIONARY_SIZE) if samples else None
+    except (zstd.ZstdError, ValueError):
+        return None
+    if dictionary is not None and dictionary.dict_id and _m6_store_dictionary(db, dictionary):
+        return dictionary
+    return None
+
+
+def _m6_batches(db: Database, table: str, columns: tuple = ()):
+    """The pickled rows of ``table`` in batches, as ``(id, data, *columns)``. By id, so that
+    each batch starts where the previous one ended, also when the rows before were changed."""
+    select = ", ".join(f'"{column}"' for column in ("id", "data", *columns))
+    last_id = None
+    while True:
+        if last_id is None:
+            where, params = _M6_PICKLED, (_M6_BATCH_SIZE,)
+        else:
+            where, params = f'{_M6_PICKLED} AND "id" > ?', (last_id, _M6_BATCH_SIZE)
+        rows = db.execute_sql(
+            f'SELECT {select} FROM main."{table}" WHERE {where} ORDER BY "id" LIMIT ?', params
+        ).fetchall()
+        if not rows:
+            return
+        last_id = rows[-1][0]
+        yield rows
+
+
+def _m6_row_name(exchange: bool, id_: int, keys: tuple) -> str:
+    if exchange:
+        return f"exchange {id_} from {keys[:2]!r} to {keys[2:]!r}"
+    return f"activity {keys!r}"
+
+
+def _m6_problems(db: Database, counts: dict[str, int]) -> list[str]:
+    """What stops the pickled rows from being converted: one line for each different error,
+    with the number of rows and the first of them. Nothing is changed. Stops reading at
+    ``_M6_MAX_PROBLEMS`` different errors."""
+    found: dict[str, list] = {}
+    for table, exchange in _M6_TABLES:
+        if not counts[table]:
+            continue
+        for rows in _m6_batches(db, table, _M6_KEY_COLUMNS[table]):
+            for id_, blob, *keys in rows:
+                try:
+                    _m6_encode(bytes(blob), exchange)
+                except Exception as err:
+                    count_and_examples = found.setdefault(f"{type(err).__name__}: {err}", [0, []])
+                    count_and_examples[0] += 1
+                    if len(count_and_examples[1]) < _M6_MAX_EXAMPLES:
+                        count_and_examples[1].append(_m6_row_name(exchange, id_, tuple(keys)))
+            if len(found) >= _M6_MAX_PROBLEMS:
+                break
+        if len(found) >= _M6_MAX_PROBLEMS:
+            break
+    return [
+        f"{error} ({count} row(s), e.g. {'; '.join(examples)})"
+        for error, (count, examples) in found.items()
+    ]
+
+
+def _m6_vacuum(db: Database) -> None:
+    """``VACUUM`` after migration 6, which frees the space of the old rows and switches the
+    file to the current page size. Skipped if ``config.vacuum`` is ``False``. A failure only
+    warns: the data is converted, and the file is compacted at a later ``VACUUM``."""
+    if config.vacuum is False:
+        stdout_feedback_logger.info("Not compacting %s, as `config.vacuum` is False", db.database)
+        return
+    if db.in_transaction():
+        return
+    stdout_feedback_logger.info("Compacting %s", db.database)
+    try:
+        db.execute_sql("VACUUM")
+    except OperationalError as err:
+        warnings.warn(
+            f"Can't compact the project database {db.database} after converting its data "
+            f"({err}). The data is converted, but the file only gets smaller once it is "
+            "vacuumed, e.g. after a database is deleted.",
+            stacklevel=_user_stacklevel(),
+        )
+
+
+def _compress_lci_data(db: Database, project_dir: Path) -> Optional[AfterCommit]:
+    """Convert the pickled ``data`` of activities and exchanges to tagged JSON (see
+    ``bw2data.codec``) compressed with zstd, as ``bw2data.sqlite.CompressedJSONField`` stores
+    it. Exchanges no longer store ``input`` and ``output``, which are in the key columns, and
+    temporal distributions stored as JSON strings become tagged values.
+
+    Pickles are read with ``codec.safe_pickle_loads``. The rows are compressed with the
+    active dictionary; if there is none, and at least 500 activities to convert, one is
+    trained on a sample of the rows and made the active one. The file is vacuumed after the
+    commit.
+
+    The step is postponed if there is not enough free disk space for the rollback journal
+    (1.1 times the size of the pages with pickled rows), or if a row can't be converted: a
+    pickle with a class which isn't allowed (see ``config.trusted_pickle_classes``), a pickle
+    which can't be read, or a value which can't be stored. All rows are checked before the
+    first one is changed, so a project with such a row is only read, on every attempt.
+    Pickled rows can still be read until then.
+
+    Older versions of bw2data can't read the converted file. No backup is kept: it would be
+    as large as the file which this step makes smaller."""
+    counts, size = {}, 0
+    for table, _ in _M6_TABLES:
+        counts[table], pickled = db.execute_sql(
+            f'SELECT count(*), coalesce(sum(length("data")), 0) FROM main."{table}" '
+            f"WHERE {_M6_PICKLED}"
+        ).fetchone()
+        size += pickled
+    if not any(counts.values()):
+        return None
+
+    path = Path(db.database) if db.database not in ("", ":memory:") else None
+    if path is not None and path.is_file():
+        # Every page with a pickled row is copied to the journal, whole
+        page_size = db.execute_sql("PRAGMA main.page_size").fetchone()[0]
+        pages = min(path.stat().st_size, size + sum(counts.values()) * page_size)
+        needed = int(pages * _M6_SPACE_FACTOR)
+        free = _free_space(path.parent)
+        if free < needed:
+            raise MigrationPostponed(
+                f"Converting the activities and exchanges in {path} needs about "
+                f"{needed / 1e6:,.0f} MB of free disk space, but only {free / 1e6:,.0f} MB are "
+                "free. The project can be used as it is until there is enough space."
+            )
+
+    stdout_feedback_logger.info("Checking %s rows", sum(counts.values()))
+    problems = _m6_problems(db, counts)
+    if problems:
+        raise MigrationPostponed(
+            "Some activities or exchanges can't be converted from pickles, so none are; they "
+            "can be used as they are until then. If you trust where the data came from, allow "
+            "the classes named below with `config.trusted_pickle_classes`; otherwise change or "
+            "delete these activities or exchanges.\n"
+            + "\n".join(f"* {problem}" for problem in problems)
+        )
+
+    dictionary = _m6_dictionary(db, counts)
+    compressor = zstd.ZstdCompressor(level=ZSTD_LEVEL, zstd_dict=dictionary)
+    for table, exchange in _M6_TABLES:
+        if not counts[table]:
+            continue
+        done = 0
+        for rows in _m6_batches(db, table):
+            updates = [
+                (
+                    compressor.compress(
+                        _m6_encode(bytes(blob), exchange), mode=zstd.ZstdCompressor.FLUSH_FRAME
+                    ),
+                    id_,
+                )
+                for id_, blob in rows
+            ]
+            with closing(db.cursor()) as cursor:
+                cursor.executemany(f'UPDATE main."{table}" SET "data" = ? WHERE "id" = ?', updates)
+            done += len(rows)
+            stdout_feedback_logger.info("Converted %s of %s rows of %s", done, counts[table], table)
+    return _m6_vacuum
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -578,6 +876,11 @@ MIGRATIONS: tuple[Migration, ...] = (
         5,
         "Move the data of LCIA methods, weightings and normalizations into SQLite",
         _lcia_factors_to_sqlite,
+    ),
+    Migration(
+        6,
+        "Store activity and exchange data as compressed JSON instead of pickles",
+        _compress_lci_data,
     ),
 )
 
@@ -608,7 +911,10 @@ def migrate(db: Database, project_dir: Path) -> list[int]:
 
     If the file is locked by another process (even for reading) or read-only, nothing is
     applied: the migration is postponed with a warning, and tried again the next time the file
-    is opened."""
+    is opened. A step which raises ``MigrationPostponed`` is postponed the same way, but the
+    steps before it are committed.
+
+    Functions returned by the applied steps run after the commit, in order."""
     # Checked before taking the write lock: opening an up to date or newer file must work
     # while another process is writing, and for a read-only file.
     try:
@@ -630,7 +936,7 @@ def migrate(db: Database, project_dir: Path) -> list[int]:
         _warn_newer(db, current)
         return []
 
-    applied = []
+    applied, after_commit, postponed = [], [], None
     try:
         with db.atomic("IMMEDIATE"):
             # Read again under the write lock: another process may have migrated in between
@@ -642,11 +948,19 @@ def migrate(db: Database, project_dir: Path) -> list[int]:
                 stdout_feedback_logger.info(
                     "Applying schema migration %s: %s", step.version, step.description
                 )
-                step.apply(db, Path(project_dir))
+                try:
+                    # A savepoint, so that a postponed step changes nothing
+                    with db.atomic():
+                        action = step.apply(db, Path(project_dir))
+                except MigrationPostponed as err:
+                    postponed = (step, err)
+                    break
                 applied.append(step.version)
+                if action is not None:
+                    after_commit.append(action)
             if applied:
                 # ``user_version`` is part of the transaction, and can't take a bound parameter
-                db.execute_sql(f"PRAGMA main.user_version = {int(SCHEMA_VERSION)}")
+                db.execute_sql(f"PRAGMA main.user_version = {int(applied[-1])}")
     except OperationalError as err:
         if not _cannot_write(err):
             raise
@@ -658,4 +972,13 @@ def migrate(db: Database, project_dir: Path) -> list[int]:
             stacklevel=_user_stacklevel(),
         )
         return []
+    if postponed is not None:
+        step, err = postponed
+        warnings.warn(
+            f"Schema migration {step.version} of the project database {db.database} "
+            f"({step.description}) is postponed until the project is next opened: {err}",
+            stacklevel=_user_stacklevel(),
+        )
+    for action in after_commit:
+        action(db)
     return applied

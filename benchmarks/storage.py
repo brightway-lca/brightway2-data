@@ -10,7 +10,8 @@ compressed rows with ``CompressedJSONField``, the pickles with ``pickle.loads``.
 can only be run by this version, which reads pickles with the restricted unpickler
 (``codec.safe_pickle_loads``), slower than the ``pickle.loads`` of earlier versions; its
 time for pickles is therefore an upper bound. The zstd dictionary is deleted before the
-size of the file with pickles is measured. Usage::
+size of the file with pickles is measured. Finally, schema migration 6 converts the pickles
+back, and its time (including ``VACUUM``) and the resulting file size are reported. Usage::
 
     python benchmarks/storage.py [--activities N] [--exchanges-per-activity M]
 
@@ -145,6 +146,17 @@ def main():
     pickled["write()"] = None  # not comparable: decodes and re-encodes every row
     measure(sqlite3_lci_db, db, pickled, lambda value, *keys: pickle.loads(bytes(value)), pickles=True)
 
+    # Schema migration 6 converts the pickles back, as for a project of an earlier version
+    from bw2data.backends.migrations import migrate
+
+    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 5")
+    # The dictionaries were deleted above
+    del sqlite3_lci_db.db._bw_zstd_dictionaries
+    start = time.perf_counter()
+    migrate(sqlite3_lci_db.db, bd.projects.dir)
+    migration_time = time.perf_counter() - start
+    migrated_size = os.path.getsize(sqlite3_lci_db.db.database) / 1e6
+
     exchanges = args.activities * args.exchanges_per_activity
     print(f"{args.activities:,} activities, {exchanges:,} exchanges")
     print(f"{'':24}{'compressed JSON':>18}{'pickle':>12}")
@@ -153,6 +165,10 @@ def main():
         cells = [f"{v:12.2f}" if v is not None else f"{'-':>12}" for v in values]
         print(f"{label:24}{cells[0]:>18}{cells[1]:>12}")
     print("process() with pickles uses the restricted unpickler of this version (upper bound)")
+    print(
+        f"Schema migration 6 (pickles to compressed JSON, with VACUUM): {migration_time:.2f} s, "
+        f"file size afterwards {migrated_size:.2f} MB"
+    )
 
 
 if __name__ == "__main__":
