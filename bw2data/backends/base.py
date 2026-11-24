@@ -1126,7 +1126,11 @@ Here are the type values usually used for nodes:
             return
         databases[self.name]["searchable"] = True
         databases[self.name].save(signal=signal)
-        IndexManager(self.name).add_all()
+        index = IndexManager(self.name)
+        if index.read_only:
+            # A database in an extension whose file has its index: nothing to build
+            return
+        index.add_all()
 
     def make_unsearchable(self, signal: bool = True):
         databases[self.name]["searchable"] = False

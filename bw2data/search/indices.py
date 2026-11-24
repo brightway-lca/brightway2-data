@@ -23,6 +23,13 @@ which builds all indexes again.
 
 Contentless tables without the ``contentless_delete`` option are used on purpose: they are
 read by every SQLite version with FTS5, also when the file was written with a newer one.
+
+A database stored in an attached read-only extension is searched with the index table in the
+extension's file, which can't be changed. If the file has none (e.g. it was built before
+indexes were stored with the data), ``Database.make_searchable`` builds one in the project's
+own file, which is dropped when the extension is detached. An index in the extension's file
+is only used while the database is searchable in the project (``is_searchable``), as
+``make_unsearchable`` can't drop it.
 """
 
 import hashlib
@@ -98,13 +105,47 @@ class IndexManager:
     kept one index file per database, the ``filename`` of a registered database is accepted
     as well.
 
-    The index refers to nodes by id, so only nodes which are stored can be indexed."""
+    The index refers to nodes by id, so only nodes which are stored can be indexed.
 
-    schema = "main"
+    ``schema`` is where the index is read: ``main``, or the schema of the attached extension
+    whose file has the index of ``database``. Such an index is ``read_only``; writes always go
+    to ``main``."""
 
     def __init__(self, database: str):
         self.database = self._database_name(database)
         self.table = index_table(self.database)
+        self.schema = self._extension_schema() or "main"
+
+    @property
+    def read_only(self) -> bool:
+        """If the index is in an attached extension's file, and can't be changed."""
+        return self.schema != "main"
+
+    def _extension_schema(self) -> str | None:
+        """Schema of the attached extension which stores the database, if its file has the
+        index and the database is searchable in the project."""
+        from bw2data.backends.extensions import extension_of
+
+        extension = extension_of(self.database)
+        if extension is None or not is_searchable(self.database):
+            return None
+        if self._table_in(extension.schema):
+            return extension.schema
+        return None
+
+    def _table_in(self, schema: str) -> bool:
+        sql = f"SELECT 1 FROM {schema}.sqlite_master WHERE type = 'table' AND name = ?"
+        with closing(self.db.execute_sql(sql, (self.table,))) as cursor:
+            return cursor.fetchone() is not None
+
+    def _check_writable(self) -> None:
+        if self.read_only:
+            from bw2data.errors import ReadOnlyExtensionError
+
+            raise ReadOnlyExtensionError(
+                f"The search index of database {self.database!r} is stored in a read-only "
+                "extension, and can't be changed"
+            )
 
     @staticmethod
     def _database_name(value: str) -> str:
@@ -133,19 +174,19 @@ class IndexManager:
     # The table
 
     def exists(self) -> bool:
-        sql = f"SELECT 1 FROM {self.schema}.sqlite_master WHERE type = 'table' AND name = ?"
-        with closing(self.db.execute_sql(sql, (self.table,))) as cursor:
-            return cursor.fetchone() is not None
+        return self._table_in(self.schema)
 
     def create(self):
         """Create an empty index, in place of the existing one if there is one."""
+        self._check_writable()
         with self.db.atomic():
             self.delete_database()
             self.db.execute_sql(create_table_sql(self.table, self.schema))
 
     def delete_database(self):
-        """Delete the index, if there is one."""
-        self.db.execute_sql(f'DROP TABLE IF EXISTS {self.schema}."{self.table}"')
+        """Delete the index in the project's own file, if there is one. An index in an
+        extension's file is left alone."""
+        self.db.execute_sql(f'DROP TABLE IF EXISTS main."{self.table}"')
 
     # Rows
 
@@ -215,6 +256,7 @@ class IndexManager:
         """Index the stored nodes ``ids`` of this database. Call this after their rows are
         written. Nodes which are already in the index, or are in another database, are
         skipped. Creates the index if needed."""
+        self._check_writable()
         with self.db.atomic():
             if self.exists():
                 indexed = self._indexed(ids)
@@ -235,6 +277,7 @@ class IndexManager:
         Nodes which are not in the index, or are in another database, are skipped."""
         if not self.exists():
             return
+        self._check_writable()
         with self.db.atomic():
             indexed = self._indexed(ids)
             self._write(
@@ -250,6 +293,7 @@ class IndexManager:
         """Index all stored nodes of the database, in a new index."""
         from bw2data.backends.schema import ActivityDataset as AD
 
+        self._check_writable()
         with self.db.atomic():
             self.create()
             query = AD.select(AD.id, AD.code, AD.data).where(AD.database == self.database)

@@ -11,7 +11,10 @@ from bw2data.backends.schema import ExtensionDatabaseState
 from bw2data.errors import ReadOnlyExtensionError
 from bw2data.parameters import DatabaseParameter, parameters
 
-from .test_extension_attach import files  # noqa: F401
+from bw2data.search import IndexManager
+from bw2data.search.indices import index_table
+
+from .test_extension_attach import edit, files  # noqa: F401
 
 
 @pytest.fixture
@@ -365,15 +368,81 @@ def test_new_version_of_a_file_is_processed_again(attached):
     assert databases["bio"]["dirty"] is False
 
 
-def test_search(attached):
-    # The record says ``searchable`` (as in the project the file was built from), but this
-    # project has no index yet; building it on attach is for PR 6
+# Search: the index is read from the extension's file
+
+
+def main_tables():
+    return {
+        row[0]
+        for row in sqlite3_lci_db.execute_sql("SELECT name FROM main.sqlite_master").fetchall()
+    }
+
+
+def codes(database, term):
+    return {node["code"] for node in Database(database).search(term)}
+
+
+def test_search_reads_the_index_in_the_extension(attached):
     assert databases["bio"]["searchable"] is True
+    index = IndexManager("bio")
+    assert index.read_only
+    assert index.schema == Database("bio").extension.schema
+    assert codes("bio", "flow") == {"0", "1", "2"}
+    assert codes("inv", "b") == {"b"}
+    assert [r["code"] for r in Database("bio").search("flow 1", proxy=False)] == ["1"]
+    # Nothing is built in the project
     Database("bio").make_searchable(reset=True)
-    assert databases["bio"]["searchable"] is True
-    assert {node["code"] for node in Database("bio").search("flow")} == {"0", "1", "2"}
+    assert index_table("bio") not in main_tables()
+    assert codes("bio", "flow") == {"0", "1", "2"}
+    # The project's own databases are searched as before
+    assert codes("mine", "x") == {"x"}
+
+
+def test_unsearchable_extension_database(attached):
     Database("bio").make_unsearchable()
     assert databases["bio"]["searchable"] is False
+    assert local_state()["bio"].searchable is False
+    assert not IndexManager("bio").read_only
+    assert codes("bio", "flow") == set()
+    Database("bio").make_searchable()
+    assert codes("bio", "flow") == {"0", "1", "2"}
+    assert index_table("bio") not in main_tables()
+
+
+def test_index_in_the_extension_cant_be_changed(attached):
+    node = get_node(database="bio", code="0")
+    index = IndexManager("bio")
+    for change in (
+        lambda: index.add([node.id]),
+        lambda: index.remove([node.id]),
+        index.add_all,
+        index.create,
+    ):
+        with refused("search index of database 'bio' is stored in a read-only extension"):
+            change()
+    # Dropping only drops an index in the project
+    index.delete_database()
+    assert codes("bio", "flow") == {"0", "1", "2"}
+
+
+def test_extension_without_index(files):
+    bio, inv = files
+    edit(bio, f'DROP TABLE "{index_table("bio")}"')
+    projects.attach_extension(list(files))
+    assert codes("bio", "flow") == set()
+    Database("bio").make_searchable(reset=True)
+    assert index_table("bio") in main_tables()
+    assert not IndexManager("bio").read_only
+    assert codes("bio", "flow") == {"0", "1", "2"}
+    projects.detach_extension("inv")
+    projects.detach_extension("bio")
+    assert index_table("bio") not in main_tables()
+
+
+def test_copy_of_an_extension_database_is_indexed_in_the_project(attached):
+    Database("bio").copy("my bio")
+    assert codes("my bio", "flow") == {"0", "1", "2"}
+    assert index_table("my bio") in main_tables()
 
 
 def test_parameters_are_kept(attached):

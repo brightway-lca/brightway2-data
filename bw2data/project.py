@@ -815,9 +815,14 @@ class ProjectManager(Iterable):
             self._store_extensions(stored)
             raise
         if databases:
+            from bw2data.search.indices import index_table
+
             ExtensionDatabaseState.delete().where(
                 ExtensionDatabaseState.name.in_(list(databases))
             ).execute()
+            # Indexes built in the project for databases whose file had none
+            for database in databases:
+                lci_db.execute_sql(f'DROP TABLE IF EXISTS main."{index_table(database)}"')
         bw2signals.on_extension_detached.send(self, name=name, databases=tuple(databases))
 
     @staticmethod
