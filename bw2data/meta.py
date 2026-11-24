@@ -1226,8 +1226,11 @@ dynamic_calculation_setups = DynamicCalculationSetups()
 
 def _forget_database_proxies(sender, **kwargs):
     """Attaching or detaching a read-only extension adds or removes databases. Proxies with
-    unsaved changes are otherwise kept as they are, also for a database which is gone."""
-    databases._proxies.clear()
+    unsaved changes are otherwise kept as they are, also for a database which is gone. Those of
+    the databases which are still there are kept, with their unsaved changes."""
+    for name in list(databases._proxies):
+        if name not in databases:
+            del databases._proxies[name]
 
 
 on_extension_attached.connect(_forget_database_proxies)

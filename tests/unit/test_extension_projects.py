@@ -11,7 +11,7 @@ import warnings
 
 import pytest
 
-from bw2data import Database, databases, get_node, projects
+from bw2data import Database, Method, Normalization, databases, get_node, projects
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.schema import ActivityDataset
 from bw2data.errors import ExtensionDependencyError, ExtensionError
@@ -94,10 +94,14 @@ def test_failed_attach_changes_nothing(files):
 
 def test_attach_arguments(files, tmp_path):
     bio, inv = files
-    with pytest.raises(ValueError, match="single"):
+    with pytest.raises(ValueError, match="list of names"):
         projects.attach_extension([bio, inv], name="both")
+    with pytest.raises(ValueError, match="2 files, but 1 names"):
+        projects.attach_extension([bio, inv], name=["both"])
     with pytest.raises(ValueError, match="No extension file"):
         projects.attach_extension([])
+    with pytest.raises(ExtensionError, match="given twice"):
+        projects.attach_extension([bio, str(bio)])
     projects.attach_extension(bio)
     with pytest.raises(ExtensionError, match="already an extension of this project, named 'bio'"):
         projects.attach_extension(bio, name="again")
@@ -108,6 +112,19 @@ def test_attach_arguments(files, tmp_path):
     with pytest.raises(ExtensionError, match="same extension"):
         projects.attach_extension(copy)
     assert statuses() == {"bio": "available"}
+
+
+def test_default_names_get_a_number(files, tmp_path):
+    bio, inv = files
+    renamed = tmp_path / "x" / "inv.db"
+    renamed.parent.mkdir()
+    bio.rename(renamed)
+    # Two files named ``inv.db``
+    new = projects.attach_extension([renamed, inv])
+    assert [extension.name for extension in new] == ["inv", "inv_2"]
+    assert projects.extensions[0].databases == ("bio",)
+    projects.detach_extension("inv_2")
+    assert [e.name for e in projects.attach_extension(inv)] == ["inv_2"]
 
 
 def test_extensions_which_require_each_other(files):
@@ -215,6 +232,91 @@ def test_detach_refused_while_the_project_links_to_it(files):
     assert sorted(databases) == ["mine"]
 
 
+def test_detach_refused_while_methods_use_its_flows(files):
+    bio, inv = files
+    projects.attach_extension(bio)
+    Method(("m",)).write([(("bio", "1"), 2.0)])
+    Normalization(("n",)).write([(("bio", "2"), 0.5)])
+    with pytest.raises(ExtensionError) as caught:
+        projects.detach_extension("bio")
+    message = str(caught.value)
+    assert "these methods have factors for its flows: \"('m',)\"" in message
+    assert "these normalizations have factors for its flows: \"('n',)\"" in message
+    assert "exchanges" not in message
+    assert statuses() == {"bio": "available"}
+    with pytest.warns(UserWarning, match="methods have factors"):
+        projects.detach_extension("bio", force=True)
+    assert projects.extensions == ()
+
+
+# Attaching and detaching keep the project as it is otherwise
+
+
+def test_unsaved_metadata_of_the_projects_databases_is_kept(files):
+    bio, inv = files
+    Database("mine").register()
+    databases["mine"]["description"] = "not saved yet"
+    projects.attach_extension(bio)
+    assert databases["mine"]["description"] == "not saved yet"
+    projects.detach_extension("bio")
+    assert databases["mine"]["description"] == "not saved yet"
+
+
+def test_attach_when_a_stored_extension_no_longer_fits(files):
+    bio, inv = files
+    projects.attach_extension([bio, inv])
+    with pytest.warns(UserWarning):
+        projects.detach_extension("bio", force=True)
+    # While ``inv`` is not available, the project gets its own database ``inv``
+    Database("inv").write({("inv", "x"): {"name": "x"}})
+    with pytest.warns(
+        UserWarning, match="'inv' of project 'target' is not available \\(invalid\\)"
+    ):
+        new = projects.attach_extension(bio)
+    assert [extension.status for extension in new] == ["available"]
+    assert statuses() == {"inv": "invalid", "bio": "available"}
+    assert "each database can only be stored in one file" in projects.extensions[0].problem
+    assert sorted(databases) == ["bio", "inv"]
+    assert len(Database("inv")) == 1
+    assert ActivityDataset._meta.table_name == "lci_activitydataset"
+
+
+def test_attach_is_undone_if_the_file_can_not_be_opened(files, monkeypatch):
+    bio, inv = files
+    projects.attach_extension(bio)
+    change_path = sqlite3_lci_db.change_path
+
+    def locked(filepath, extensions=()):
+        if len(extensions) > 1:
+            raise sqlite3.OperationalError("database is locked")
+        return change_path(filepath, extensions)
+
+    monkeypatch.setattr(sqlite3_lci_db, "change_path", locked)
+    with pytest.raises(sqlite3.OperationalError):
+        projects.attach_extension(inv)
+    monkeypatch.undo()
+    assert statuses() == {"bio": "available"}
+    assert [e.name for e in sqlite3_lci_db.extensions] == ["bio"]
+    reopen()
+    assert statuses() == {"bio": "available"}
+
+
+def test_unrelated_problems_are_not_warned_about_again(files, tmp_path):
+    bio, inv = files
+    gone = tmp_path / "gone.db"
+    gone.write_bytes(bio.read_bytes())
+    edit(gone, "UPDATE extension_info SET value = 'gone-id' WHERE key = 'id'")
+    projects.attach_extension(gone)
+    gone.unlink()
+    with pytest.warns(UserWarning, match="'gone'"):
+        reopen()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        projects.attach_extension([bio, inv])
+        projects.detach_extension("inv")
+    assert statuses() == {"gone": "missing file", "bio": "available"}
+
+
 # Extensions which can't be attached when the project is opened
 
 
@@ -289,6 +391,44 @@ def test_extensions_which_no_longer_fit_the_project(files):
     assert statuses() == {"bio": "invalid"}
     assert sqlite3_lci_db.extensions == ()
     assert len(Database("bio")) == 3
+
+
+def test_other_errors_in_attaching_leave_the_project_open(files, monkeypatch):
+    bio, inv = files
+    projects.attach_extension(bio)
+    change_path = sqlite3_lci_db.change_path
+
+    def unreadable(filepath, extensions=()):
+        if extensions:
+            raise PermissionError("the network share is gone")
+        return change_path(filepath, extensions)
+
+    # Also what happens when bw2data is imported
+    monkeypatch.setattr(sqlite3_lci_db, "change_path", unreadable)
+    with pytest.warns(UserWarning, match="not available \\(invalid\\): the network share"):
+        reopen()
+    monkeypatch.undo()
+    assert statuses() == {"bio": "invalid"}
+    assert sorted(databases) == []
+    assert ActivityDataset._meta.table_name == "activitydataset"
+    projects.detach_extension("bio")
+
+
+def test_the_file_is_opened_once_per_switch(files, monkeypatch):
+    bio, inv = files
+    projects.attach_extension([bio, inv])
+    projects.set_current("somewhere else")
+    calls = []
+    change_path = sqlite3_lci_db.change_path
+
+    def counted(filepath, extensions=()):
+        calls.append(len(extensions))
+        return change_path(filepath, extensions)
+
+    monkeypatch.setattr(sqlite3_lci_db, "change_path", counted)
+    projects.set_current("target")
+    assert calls == [2]
+    assert sorted(databases) == ["bio", "inv"]
 
 
 # Copying and deleting projects
