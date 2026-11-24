@@ -8,7 +8,12 @@ from collections.abc import Mapping, MutableMapping
 from peewee import JOIN, Value
 
 from bw2data.serialization import PickledDict
-from bw2data.signals import on_database_delete, on_database_metadata_change
+from bw2data.signals import (
+    on_database_delete,
+    on_database_metadata_change,
+    on_extension_attached,
+    on_extension_detached,
+)
 from bw2data.snowflake_ids import snowflake_id_generator
 
 
@@ -1217,3 +1222,13 @@ preferences = Preferences()
 weightings = WeightingMeta()
 calculation_setups = CalculationSetups()
 dynamic_calculation_setups = DynamicCalculationSetups()
+
+
+def _forget_database_proxies(sender, **kwargs):
+    """Attaching or detaching a read-only extension adds or removes databases. Proxies with
+    unsaved changes are otherwise kept as they are, also for a database which is gone."""
+    databases._proxies.clear()
+
+
+on_extension_attached.connect(_forget_database_proxies)
+on_extension_detached.connect(_forget_database_proxies)
