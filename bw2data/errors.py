@@ -1,5 +1,11 @@
 import pickle
 
+from peewee import IntegrityError
+
+#: Start of the message of every error raised by the triggers of the read-only LCI extensions
+#: (``bw2data.backends.extensions``)
+EXTENSION_ERROR_PREFIX = "bw2data-extension:"
+
 
 class BW2Exception(Exception):
     """Base class for exceptions in Brightway2"""
@@ -137,5 +143,15 @@ class ExtensionError(BW2Exception):
 class ExtensionDependencyError(ExtensionError):
     """A read-only LCI extension requires a database which no attached file provides, or
     provides with a different fingerprint"""
+
+    pass
+
+
+class ReadOnlyExtensionError(ExtensionError, IntegrityError):
+    """A change to data stored in a read-only LCI extension, or to a database name used by
+    one, was refused.
+
+    Also a ``peewee.IntegrityError``, which is what SQLite's own refusal (by the triggers of
+    the overlay) raised before, so that ``except IntegrityError`` still catches it."""
 
     pass

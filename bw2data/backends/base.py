@@ -19,6 +19,12 @@ from tqdm import tqdm
 
 from bw2data import calculation_setups, config, databases, geomapping
 from bw2data.backends import sqlite3_lci_db
+from bw2data.backends.extensions import (
+    AttachedExtension,
+    check_name_free,
+    check_writable,
+    extension_of,
+)
 from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset, _insert_many, get_id
 from bw2data.backends.typos import (
@@ -262,6 +268,17 @@ class SQLiteBackend(ProcessedDataStore):
         self._filters = {}
         self._order_by = None
 
+    @property
+    def extension(self) -> Optional[AttachedExtension]:
+        """The attached read-only extension which stores this database, or ``None``."""
+        return extension_of(self.name)
+
+    @property
+    def is_extension(self) -> bool:
+        """Whether this database is stored in an attached read-only extension, so that its
+        nodes and edges can be read and processed, but not changed."""
+        return self.extension is not None
+
     ### Generic LCI backend methods
     ###############################
 
@@ -274,6 +291,7 @@ class SQLiteBackend(ProcessedDataStore):
             * *name* (str): Name of the new database. Must not already exist.
 
         """
+        check_name_free(name)
         assert name not in databases, ValueError("This database exists")
         data = self.relabel_data(copy.deepcopy(self.load()), self.name, name)
         with warnings.catch_warnings():
@@ -627,6 +645,8 @@ class SQLiteBackend(ProcessedDataStore):
             New ``Database`` object.
 
         """
+        check_writable(self.name, "can't be renamed")
+        check_name_free(name)
         old_name = self.name
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -902,6 +922,7 @@ class SQLiteBackend(ProcessedDataStore):
         ``bw2data.sqlite.SubstitutableDatabase.vacuum``."""
         from bw2data import projects
 
+        check_writable(self.name, "can't be written")
         if signal is None:
             signal = projects.dataset.is_sourced
 
@@ -1044,6 +1065,7 @@ class SQLiteBackend(ProcessedDataStore):
             ...                      unit="kg", location="GLO")
             >>> product.save()
         """
+        check_writable(self.name, "can't get new nodes")
         obj = self.node_class()
         if "database" in kwargs:
             if kwargs["database"] != self.name:
@@ -1120,6 +1142,7 @@ Here are the type values usually used for nodes:
             Call `.delete(warn=False)` to skip this message in the future.
             """
             warnings.warn(MESSAGE.format(self.name), UserWarning)
+        check_writable(self.name, "can't be deleted")
 
         # Ignore ``self.filters``: ``delete()`` removes the whole database, so every node
         # must be purged from the calculation setups.
@@ -1367,7 +1390,10 @@ Here are the type values usually used for nodes:
         dp.metadata["database_dependencies"] = sorted(dependents)
         dp.finalize_serialization()
 
-        self.metadata["depends"] = sorted(dependents)
+        # ``depends`` of a database in a read-only extension was set when it was built; only
+        # ``processed`` and ``dirty`` are the project's
+        if not self.is_extension:
+            self.metadata["depends"] = sorted(dependents)
         self.metadata["dirty"] = False
         self.metadata.save()
 
@@ -1445,6 +1471,8 @@ Here are the type values usually used for nodes:
             for field in fields:
                 lst.append(exchange.get(field))
             return tuple(lst)
+
+        check_writable(self.name)
 
         exchange_mapping = defaultdict(list)
 
