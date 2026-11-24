@@ -48,6 +48,7 @@ from bw2data.errors import (
 from bw2data.logs import stdout_feedback_logger
 from bw2data.query import Query
 from bw2data.search import IndexManager, Searcher
+from bw2data.search.indices import is_searchable
 from bw2data.signals import on_database_reset, on_database_write
 from bw2data.sqlite import zstd_dictionaries
 from bw2data.utils import as_uncertainty_dict, get_geocollection, get_node, set_correct_process_type
@@ -283,7 +284,7 @@ class SQLiteBackend(ProcessedDataStore):
             metadata["format"] = f"Copied from '{self.name}'"
             new_database.register(**metadata)
 
-        new_database.write(data, searchable=databases[name].get("searchable"))
+        new_database.write(data, searchable=is_searchable(name))
         self._copy_parameters(name)
         return new_database
 
@@ -633,7 +634,7 @@ class SQLiteBackend(ProcessedDataStore):
             new_db = self.__class__(name)
             databases[name] = databases[old_name]
         new_data = self.relabel_data(self.load(), old_name, name)
-        new_db.write(new_data, searchable=databases[name].get("searchable"))
+        new_db.write(new_data, searchable=is_searchable(name))
         del databases[old_name]
         self.name = name
         return new_db
@@ -953,6 +954,12 @@ class SQLiteBackend(ProcessedDataStore):
 
         if searchable:
             self.make_searchable(reset=True, signal=False)
+        elif data:
+            # The index kept by ``_efficient_write_many_data`` is out of date. Without data
+            # (e.g. ``register``), no node was changed, and the flag is kept as it is: a
+            # database which is only registered keeps no flag, so that the nodes saved into
+            # it later are indexed.
+            self.make_unsearchable(signal=False)
 
         if process:
             self.process()

@@ -129,3 +129,54 @@ def test_project_without_search_directory():
     (projects.dir / "search").rmdir()
     assert migrate(sqlite3_lci_db.db, projects.dir) == [7]
     assert DatabaseChooser("first").search("lollipop")
+
+
+@bw2test
+def test_any_error_makes_the_database_unsearchable(monkeypatch):
+    """E.g. a node with an unknown tag: the project must still open."""
+    import bw2data.backends.migrations as migrations
+
+    _write()
+    _as_before("first", "second")
+    loads = migrations.codec.loads
+
+    def fail_for_first(text):
+        value = loads(text)
+        if value.get("name") == "Lollipop":
+            raise KeyError("unknown tag")
+        return value
+
+    monkeypatch.setattr(migrations.codec, "loads", fail_for_first)
+    with pytest.warns(UserWarning, match="database 'first' \\(KeyError"):
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [7]
+    monkeypatch.undo()
+    assert index_table("first") not in tables()
+    assert DatabaseChooser("second").search("lollipop")
+    searchable = dict(sqlite3_lci_db.execute_sql("SELECT name, searchable FROM databaserecord"))
+    assert searchable == {"first": 0, "second": 1, "unsearchable": 0}
+
+
+@bw2test
+def test_databases_without_searchable_flag():
+    """Nodes saved into such a database were indexed; a database written with
+    ``searchable=False`` was not."""
+    _write()
+    DatabaseChooser("empty").register()
+    # Only "first" has rows in its old index file
+    _as_before("first", "second")
+    (projects.dir / "search" / DatabaseChooser("second").filename).unlink()
+    sqlite3_lci_db.execute_sql(
+        "UPDATE databaserecord SET searchable = NULL "
+        "WHERE name IN ('first', 'second', 'unsearchable', 'empty')"
+    )
+
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [7]
+    searchable = dict(sqlite3_lci_db.execute_sql("SELECT name, searchable FROM databaserecord"))
+    assert searchable == {"first": 1, "second": 0, "unsearchable": 0, "empty": None}
+    assert index_table("first") in tables()
+    assert index_table("second") not in tables()
+    assert [node.key for node in DatabaseChooser("first").search("lollipop")] == [("first", "a")]
+
+    # The nodes saved into a database which is only registered are indexed
+    DatabaseChooser("empty").new_node(code="e", name="lollipop", type="process").save()
+    assert [node.key for node in DatabaseChooser("empty").search("lollipop")] == [("empty", "e")]

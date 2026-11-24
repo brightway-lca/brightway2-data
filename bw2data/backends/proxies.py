@@ -25,6 +25,7 @@ from bw2data.errors import ValidityError
 from bw2data.logs import stdout_feedback_logger
 from bw2data.proxies import ActivityProxyBase, ExchangeProxyBase
 from bw2data.search import IndexManager
+from bw2data.search.indices import is_searchable
 from bw2data.signals import on_activity_code_change, on_activity_database_change
 
 
@@ -268,7 +269,7 @@ class Activity(ActivityProxyBase):
         return (self.get("database"), self.get("code"))
 
     def delete(self, signal: bool = True):
-        from bw2data import Database, calculation_setups
+        from bw2data import calculation_setups
         from bw2data.parameters import ActivityParameter, ParameterizedExchange
 
         def purge(obj: Activity, dct: dict) -> dict:
@@ -334,8 +335,6 @@ class Activity(ActivityProxyBase):
 
         Saves the activity if it's valid, otherwise raises ValidityError.
         """
-        from bw2data import Database
-
         if not data_already_set and not self.valid():
             raise ValidityError(
                 "This activity can't be saved for the "
@@ -366,17 +365,22 @@ class Activity(ActivityProxyBase):
                 if key != "id":
                     setattr(self._document, key, value)
 
-        # The search index changes with the row: the stored node is removed from it before
-        # the row is written, and added again afterwards
-        index = None
-        if databases[self["database"]].get("searchable", True):
-            index = IndexManager(self["database"])
+        # The search index changes with the row: the stored node is removed from the index
+        # of the database it is stored in before the row is written, and added to the index
+        # of its new database afterwards. The two differ when the document was given a new
+        # database (``data_already_set``, e.g. by revisions).
         with sqlite3_lci_db.atomic():
-            if index is not None and self._document.id is not None:
-                index.remove([self._document.id])
+            if self._document.id is not None:
+                stored = (
+                    ActivityDataset.select(ActivityDataset.database)
+                    .where(ActivityDataset.id == self._document.id)
+                    .scalar()
+                )
+                if stored is not None:
+                    IndexManager(stored).remove([self._document.id])
             self._document.save(signal=signal, force_insert=force_insert)
-            if index is not None:
-                index.add([self._document.id])
+            if is_searchable(self._document.database):
+                IndexManager(self._document.database).add([self._document.id])
 
     def _change_code(self, new_code: str, signal: bool = True):
         if self["code"] == new_code:
@@ -395,7 +399,7 @@ class Activity(ActivityProxyBase):
             raise ValueError("Activity database with code `{}` already exists".format(new_code))
 
         index = None
-        if databases[self["database"]].get("searchable", True):
+        if is_searchable(self["database"]):
             index = IndexManager(self["database"])
 
         with sqlite3_lci_db.atomic() as txn:
@@ -431,7 +435,7 @@ class Activity(ActivityProxyBase):
             raise ValueError("Database {} does not exist".format(new_database))
 
         with sqlite3_lci_db.atomic() as txn:
-            if databases[previous].get("searchable", True):
+            if is_searchable(previous):
                 IndexManager(previous).remove([self.id])
             self.ORMDataset.update(database=new_database).where(
                 self.ORMDataset.id == self.id
@@ -444,7 +448,7 @@ class Activity(ActivityProxyBase):
                 ExchangeDataset.input_database == self["database"],
                 ExchangeDataset.input_code == self["code"],
             ).execute()
-            if databases[new_database].get("searchable", True):
+            if is_searchable(new_database):
                 IndexManager(new_database).add([self.id])
 
         self._data["database"] = new_database

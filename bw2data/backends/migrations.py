@@ -859,30 +859,6 @@ def _compress_lci_data(db: Database, project_dir: Path) -> Optional[AfterCommit]
     return _m6_vacuum
 
 
-_M7_FIELDS = ("name", "comment", "product", "categories", "synonyms", "location", "code")
-
-
-def _m7_location(value) -> str:
-    if isinstance(value, tuple):
-        value = value[1]
-    if isinstance(value, str):
-        return "" if value.lower() == "none" else value.lower().strip()
-    return ""
-
-
-def _m7_text(code, data: dict) -> tuple:
-    """The indexed text of a node, in the order of ``_M7_FIELDS``."""
-    return (
-        (data.get("name") or "").lower(),
-        (data.get("comment") or "").lower(),
-        (data.get("reference product") or "").lower(),
-        ", ".join(data.get("categories") or []).lower(),
-        ", ".join(data.get("synonyms") or []).lower(),
-        _m7_location(data.get("location") or ""),
-        str(code or ""),
-    )
-
-
 def _m7_remove_search_files(project_dir: Path) -> AfterCommit:
     def remove(db: Database) -> None:
         directory = project_dir / "search"
@@ -898,6 +874,23 @@ def _m7_remove_search_files(project_dir: Path) -> AfterCommit:
     return remove
 
 
+def _m7_had_index(project_dir: Path, name: str) -> bool:
+    """If the old index file of database ``name`` has rows. Opening a database's index in
+    earlier versions created an empty file, so the file existing is not enough."""
+    import sqlite3
+
+    from bw_processing import safe_filename
+
+    path = project_dir / "search" / safe_filename(name)
+    if not path.is_file():
+        return False
+    try:
+        with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as conn:
+            return conn.execute("SELECT 1 FROM bw2schema LIMIT 1").fetchone() is not None
+    except sqlite3.Error:
+        return False
+
+
 def _search_indexes_to_sqlite(db: Database, project_dir: Path) -> Optional[AfterCommit]:
     """Build the search index of every searchable database as a contentless FTS5 table
     ``searchindex_<md5 of the database name>`` in this file, with the node id as ``rowid``
@@ -907,28 +900,44 @@ def _search_indexes_to_sqlite(db: Database, project_dir: Path) -> Optional[After
     are not read: they have no node ids, and can have rows of nodes which no longer exist.
     The files are deleted after the commit; they can be built again from the nodes.
 
-    A database whose nodes can't be read is not indexed, with a warning; it is marked as not
-    searchable."""
-    import hashlib
+    A database without a ``searchable`` flag had its nodes indexed when they were saved, but
+    not when the database was written. Such a database with nodes is indexed if its old index
+    file has rows, and gets the flag which says so; one without nodes keeps no flag, so that
+    the nodes saved into it later are indexed.
 
+    A database whose index can't be built is not indexed, with a warning; it is marked as not
+    searchable.
+
+    The indexed text is the one bw2data indexes (``format_dataset``), and not a copy, because
+    a row can only be removed from a contentless table with the text which was added. A
+    change of ``format_dataset`` needs a new step which builds all indexes again."""
+    from bw2data.search.indices import FIELDS, create_table_sql, format_dataset, index_table
+
+    project_dir = Path(project_dir)
     store = zstd_dictionaries(db)
-    columns = ", ".join(f'"{field}"' for field in _M7_FIELDS)
-    marks = ", ".join("?" * len(_M7_FIELDS))
-    names = [
-        name
-        for (name,) in db.execute_sql(
-            'SELECT "name" FROM main."databaserecord" WHERE "searchable" = 1 ORDER BY "name"'
-        ).fetchall()
-    ]
+    columns = ", ".join(f'"{field}"' for field in FIELDS)
+    marks = ", ".join("?" * len(FIELDS))
+    records = db.execute_sql(
+        'SELECT r."name", r."searchable", EXISTS (SELECT 1 FROM main."activitydataset" a '
+        'WHERE a."database" = r."name") FROM main."databaserecord" r ORDER BY r."name"'
+    ).fetchall()
+    names = []
+    for name, searchable, has_nodes in records:
+        if searchable is None and has_nodes:
+            searchable = _m7_had_index(project_dir, name)
+            db.execute_sql(
+                'UPDATE main."databaserecord" SET "searchable" = ? WHERE "name" = ?',
+                (searchable, name),
+            )
+        if searchable:
+            names.append(name)
+
     for name in names:
-        table = "searchindex_" + hashlib.md5(name.encode("utf-8")).hexdigest()
+        table = index_table(name)
         try:
             with db.atomic():
                 db.execute_sql(f'DROP TABLE IF EXISTS main."{table}"')
-                db.execute_sql(
-                    f'CREATE VIRTUAL TABLE main."{table}" USING fts5('
-                    f"{columns}, content='', tokenize='unicode61')"
-                )
+                db.execute_sql(create_table_sql(table))
                 cursor = db.execute_sql(
                     'SELECT "id", "code", "data" FROM main."activitydataset" '
                     'WHERE "database" = ? ORDER BY "id"',
@@ -942,7 +951,8 @@ def _search_indexes_to_sqlite(db: Database, project_dir: Path) -> Optional[After
                             data = {}
                             if blob is not None:
                                 data = codec.loads(store.decompress(bytes(blob)))
-                            values.append((id_, *_m7_text(code, data)))
+                            text = format_dataset({**data, "code": code})
+                            values.append((id_, *(text[field] for field in FIELDS)))
                         insert.executemany(
                             f'INSERT INTO main."{table}" (rowid, {columns}) VALUES (?, {marks})',
                             values,
@@ -951,16 +961,19 @@ def _search_indexes_to_sqlite(db: Database, project_dir: Path) -> Optional[After
                 # One segment: smaller, and faster to search
                 db.execute_sql(f'INSERT INTO main."{table}" ("{table}") VALUES (\'optimize\')')
             stdout_feedback_logger.info("Built the search index of %s (%s nodes)", name, count)
-        except (ValueError, TypeError, AttributeError, zstd.ZstdError) as err:
+        except Exception as err:
+            # Any error: one database which can't be indexed (unreadable node, SQLite without
+            # FTS5, ...) must not stop the project from opening
             warnings.warn(
-                f"Can't build the search index of database {name!r} ({err}); it is no longer "
-                "searchable. `Database(name).make_searchable(reset=True)` builds the index.",
+                f"Can't build the search index of database {name!r} "
+                f"({type(err).__name__}: {err}); it is no longer searchable. "
+                "`Database(name).make_searchable(reset=True)` builds the index.",
                 stacklevel=_user_stacklevel(),
             )
             db.execute_sql(
                 'UPDATE main."databaserecord" SET "searchable" = 0 WHERE "name" = ?', (name,)
             )
-    return _m7_remove_search_files(Path(project_dir))
+    return _m7_remove_search_files(project_dir)
 
 
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.

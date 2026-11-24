@@ -5,12 +5,21 @@ The index of a database is an FTS5 table in the same SQLite file as its nodes
 is *contentless*: it stores the index but not the text, which is already in the nodes. Its
 ``rowid`` is the id of the node.
 
-A row can only be removed from a contentless table by giving the text which was indexed.
-This is read from the stored node, so a node must be removed from the index *before* its row
-is changed or deleted, and added *after* its row is written; ``IndexManager.remove`` and
-``IndexManager.add`` are used in this order by ``Activity.save`` and the other methods which
-change nodes. If nodes were changed in another way (e.g. with ``ActivityDataset`` directly),
+A row can only be removed from a contentless table by giving the text which was indexed;
+removing a row which is not in the table, or with other text, corrupts the index. So:
+
+* The text is always read from the stored node (``format_dataset``), when it is added and
+  when it is removed. A node is removed from the index *before* its row is changed or
+  deleted, and added *after* its row is written; ``Activity.save`` and the other methods
+  which change nodes do this in one transaction.
+* ``IndexManager.remove`` only removes nodes which are in the index, and ``IndexManager.add``
+  skips nodes which already are.
+
+If nodes were changed in another way (e.g. with ``ActivityDataset`` directly),
 ``Database.make_searchable(reset=True)`` builds the index again.
+
+Changing ``format_dataset`` changes the text of existing rows, so it needs a schema migration
+which builds all indexes again.
 
 Contentless tables without the ``contentless_delete`` option are used on purpose: they are
 read by every SQLite version with FTS5, also when the file was written with a newer one.
@@ -35,6 +44,15 @@ def index_table(database: str) -> str:
     From a hash of the database name, so that every name gives a valid table name which can't
     clash with the shadow tables (``<table>_data`` etc.) of another index."""
     return TABLE_PREFIX + hashlib.md5(database.encode("utf-8")).hexdigest()
+
+
+def is_searchable(database: str) -> bool:
+    """If the nodes of ``database`` are indexed when they are saved. A database without a
+    ``searchable`` flag (registered, but not written) is."""
+    from bw2data import databases
+
+    flag = databases[database].get("searchable") if database in databases else None
+    return True if flag is None else bool(flag)
 
 
 def _fix_location(value) -> str:
@@ -164,6 +182,16 @@ class IndexManager:
             ids.append(id_)
         return ids
 
+    def _indexed(self, ids: Iterable[int]) -> set[int]:
+        """The ids among ``ids`` which have a row in the index."""
+        found = set()
+        for chunk in _chunks(list(ids)):
+            marks = ", ".join("?" * len(chunk))
+            sql = f'SELECT id FROM {self.schema}."{self.table}_docsize" WHERE id IN ({marks})'
+            with closing(self.db.execute_sql(sql, chunk)) as cursor:
+                found.update(row[0] for row in cursor.fetchall())
+        return found
+
     def _write(self, rows: list[tuple[int, dict]], delete: bool = False) -> None:
         if not rows:
             return
@@ -184,22 +212,39 @@ class IndexManager:
             )
 
     def add(self, ids: Iterable[int]) -> None:
-        """Index the stored nodes ``ids``, which must not be in the index. Call this after
-        their rows are written. Creates the index if needed."""
-        rows = [(id_, values) for id_, _, _, values in self._stored(ids)]
+        """Index the stored nodes ``ids`` of this database. Call this after their rows are
+        written. Nodes which are already in the index, or are in another database, are
+        skipped. Creates the index if needed."""
         with self.db.atomic():
-            if not self.exists():
+            if self.exists():
+                indexed = self._indexed(ids)
+            else:
                 self.db.execute_sql(create_table_sql(self.table, self.schema))
-            self._write(rows)
+                indexed = set()
+            self._write(
+                [
+                    (id_, values)
+                    for id_, database, _, values in self._stored(ids)
+                    if database == self.database and id_ not in indexed
+                ]
+            )
 
     def remove(self, ids: Iterable[int]) -> None:
-        """Remove the stored nodes ``ids`` from the index. Call this before their rows are
-        changed or deleted: the indexed text is taken from the stored nodes."""
+        """Remove the stored nodes ``ids`` of this database from the index. Call this before
+        their rows are changed or deleted: the indexed text is taken from the stored nodes.
+        Nodes which are not in the index, or are in another database, are skipped."""
         if not self.exists():
             return
-        rows = [(id_, values) for id_, _, _, values in self._stored(ids)]
         with self.db.atomic():
-            self._write(rows, delete=True)
+            indexed = self._indexed(ids)
+            self._write(
+                [
+                    (id_, values)
+                    for id_, database, _, values in self._stored(ids)
+                    if database == self.database and id_ in indexed
+                ],
+                delete=True,
+            )
 
     def add_all(self) -> None:
         """Index all stored nodes of the database, in a new index."""
@@ -235,14 +280,12 @@ class IndexManager:
         self.remove(self._node_ids([ds]))
 
     def update_dataset(self, ds):
-        """Replace the node ``ds`` in the index with the values of ``ds``. Call this before
-        the new values are stored."""
+        """Index the node ``ds`` again, with its stored values. The values of ``ds`` itself
+        are not indexed: saving the node updates the index."""
         (id_,) = self._node_ids([ds])
         with self.db.atomic():
             self.remove([id_])
-            if not self.exists():
-                self.db.execute_sql(create_table_sql(self.table, self.schema))
-            self._write([(id_, format_dataset(ds))])
+            self.add([id_])
 
     # Searching
 

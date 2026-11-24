@@ -776,3 +776,130 @@ def test_merge_databases_indexes_the_moved_nodes():
     merge_databases("foo", "other")
     assert [n.key for n in SQLiteBackend("foo").search("candy")] == [("foo", "b")]
     assert index_table("other") not in tables()
+
+
+# The index only removes rows it holds, with the text which was added (review of #348)
+
+
+def integrity_check(database="foo"):
+    """Raises ``sqlite3.DatabaseError`` if the index of ``database`` is corrupt."""
+    table = index_table(database)
+    sqlite3_lci_db.execute_sql(f'INSERT INTO "{table}" ("{table}") VALUES (\'integrity-check\')')
+
+
+@bw2test
+def test_removing_nodes_which_are_not_indexed():
+    db = SQLiteBackend("foo")
+    db.write({("foo", "a"): {"name": "lollipop"}, ("foo", "b"): {"name": "candy"}})
+    b = get_node(database="foo", code="b")
+    index = IndexManager("foo")
+    index.remove([b.id])
+    index.remove([b.id])
+    b.delete()
+    integrity_check()
+    assert indexed() == 1
+    assert [n["code"] for n in db.search("lollipop")] == ["a"]
+
+
+@bw2test
+def test_adding_nodes_which_are_indexed():
+    add({"database": "foo", "code": "bar", "name": "lollipop"})
+    node = get_node(database="foo", code="bar")
+    IndexManager("foo").add([node.id])
+    IndexManager("foo").add_datasets([node])
+    assert indexed() == 1
+    node["name"] = "candy"
+    node.save()
+    integrity_check()
+    assert indexed() == 1
+    assert not SQLiteBackend("foo").search("lollipop")
+
+
+@bw2test
+def test_nodes_of_another_database_are_not_indexed():
+    add({"database": "foo", "code": "bar", "name": "lollipop"})
+    SQLiteBackend("other").write({("other", "x"): {"name": "candy"}})
+    node = get_node(database="foo", code="bar")
+    IndexManager("other").add([node.id])
+    IndexManager("other").remove([node.id])
+    assert indexed("other") == 1
+    integrity_check("other")
+
+
+@bw2test
+def test_saving_into_a_database_written_as_unsearchable():
+    db = SQLiteBackend("foo")
+    db.write({("foo", str(i)): {"name": f"lollipop {i}"} for i in range(4)}, searchable=False)
+    assert databases["foo"]["searchable"] is False
+    get_node(database="foo", code="0").save()
+    for code in "123":
+        get_node(database="foo", code=code).delete()
+    assert index_table("foo") not in tables()
+    assert len(db) == 1
+
+
+@bw2test
+def test_unsearchable_rewrite_of_a_searchable_database():
+    db = SQLiteBackend("foo")
+    data = {("foo", str(i)): {"name": f"lollipop {i}"} for i in range(3)}
+    db.write(data)
+    db.write(data, searchable=False)
+    assert databases["foo"]["searchable"] is False
+    assert index_table("foo") not in tables()
+    node = get_node(database="foo", code="1")
+    node.save()
+    node.delete()
+    db.make_searchable()
+    assert len(db.search("lollipop")) == 2
+
+
+@bw2test
+def test_registered_database_indexes_saved_nodes():
+    db = SQLiteBackend("foo")
+    db.register()
+    assert databases["foo"].get("searchable") is None
+    db.new_node(code="a", name="lollipop", type="process").save()
+    assert [n["code"] for n in db.search("lollipop")] == ["a"]
+
+
+@bw2test
+def test_copying_a_registered_database_keeps_it_searchable():
+    db = SQLiteBackend("foo")
+    db.register()
+    db.new_node(code="a", name="lollipop", type="process").save()
+    copy = db.copy("bar")
+    assert [n["code"] for n in copy.search("lollipop")] == ["a"]
+
+
+@bw2test
+def test_save_with_a_new_database_in_the_document():
+    """As revisions do it: the document has the new database before ``save``."""
+    add({"database": "foo", "code": "bar", "name": "lollipop"})
+    other = SQLiteBackend("other")
+    other.write({("other", "x"): {"name": "candy"}})
+    node = get_node(database="foo", code="bar")
+    node._document.database = "other"
+    node._data["database"] = "other"
+    node.save(data_already_set=True)
+    integrity_check("foo")
+    integrity_check("other")
+    assert (indexed("foo"), indexed("other")) == (0, 2)
+    assert [n.key for n in other.search("lollipop")] == [("other", "bar")]
+    get_node(database="other", code="bar").delete()
+    integrity_check("other")
+    assert indexed("other") == 1
+
+
+@bw2test
+def test_update_dataset_indexes_the_stored_values():
+    add({"database": "foo", "code": "bar", "name": "lollipop", "comment": "sweet"})
+    IndexManager("foo").update_dataset({"database": "foo", "code": "bar", "name": "toffee"})
+    db = SQLiteBackend("foo")
+    assert not db.search("toffee")
+    assert db.search("sweet")
+    node = get_node(database="foo", code="bar")
+    node["comment"] = "sour"
+    node.save()
+    integrity_check()
+    assert not db.search("sweet")
+    assert db.search("sour")
