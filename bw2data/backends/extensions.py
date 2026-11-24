@@ -34,20 +34,33 @@ Refusals raise ``sqlite3.IntegrityError`` with a message starting with ``EXTENSI
 Writes through a view report ``rowcount == 0``, also when rows were changed: SQLite doesn't
 count changes made by triggers.
 
-These are pure functions; nothing here opens a connection.
+The SQL builders are pure functions. ``check_extensions`` and ``attach_hook`` are used by
+``SubstitutableDatabase`` to attach extension files (``ExtensionSpec``) to every connection; see
+"Attaching" below.
 """
 
+import hashlib
+import json
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from contextlib import closing
+from dataclasses import dataclass, field
+from os import PathLike
+from pathlib import Path
+from types import MappingProxyType
 
-from peewee import Model
+from peewee import Model, sqlite3
 
 from bw2data.backends.schema import (
+    ACTIVITY_TABLE,
+    EXCHANGE_TABLE,
     ActivityDataset,
     DatabaseRecord,
     ExchangeDataset,
     ExtensionDatabaseState,
 )
+from bw2data.errors import ExtensionDependencyError, ExtensionError
+from bw2data.sqlite import ZSTD_DICTIONARY_TABLE, ConnectionHook, _sqlite_uri
 
 #: Start of the message of every error raised by the extension triggers
 EXTENSION_ERROR_PREFIX = "bw2data-extension:"
@@ -85,13 +98,36 @@ _SCHEMA_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _RESERVED_SCHEMAS = {"main", "temp"}
 
 
+#: The overlaid models, in the order their views are created, and the names of their tables.
+#: While extensions are attached, the models point at the views instead (``use_views``), so
+#: ``model._meta.table_name`` can't be used to find the table.
+TABLE_NAMES: Mapping[type[Model], str] = MappingProxyType(
+    {
+        ActivityDataset: ACTIVITY_TABLE,
+        ExchangeDataset: EXCHANGE_TABLE,
+        DatabaseRecord: "databaserecord",
+    }
+)
+OVERLAID_MODELS = tuple(TABLE_NAMES)
+
+
+def _table(model: type[Model]) -> str:
+    """Name of the table of ``model``, also while the model points at its view."""
+    return TABLE_NAMES.get(model, model._meta.table_name)
+
+
 def view_name(model: type[Model]) -> str:
     """Name of the TEMP view which overlays the table of ``model``."""
-    return f"lci_{model._meta.table_name}"
+    return f"lci_{_table(model)}"
 
 
-#: The overlaid models, in the order their views are created
-OVERLAID_MODELS = (ActivityDataset, ExchangeDataset, DatabaseRecord)
+def use_views(on: bool) -> None:
+    """Point the overlaid models at their views (``on``) or back at their tables.
+
+    The models are shared by all threads; only ``SubstitutableDatabase`` should call this, when
+    it opens a file."""
+    for model in OVERLAID_MODELS:
+        model._meta.set_table_name(view_name(model) if on else _table(model))
 
 
 def _q(name: str) -> str:
@@ -132,7 +168,7 @@ def _raise_if(condition: str, message: str) -> str:
 
 
 def _id_in_extensions(model: type[Model], schemas: Sequence[str], expression: str) -> str:
-    table = _q(model._meta.table_name)
+    table = _q(_table(model))
     return "(" + " OR ".join(
         f"EXISTS (SELECT 1 FROM {_q(s)}.{table} WHERE id = {expression})" for s in schemas
     ) + ")"
@@ -152,7 +188,7 @@ def _registry_sql(schemas: Sequence[str]) -> list[str]:
         f"CREATE TEMP TABLE {_q(REGISTRY_TABLE)} "
         "(database TEXT NOT NULL PRIMARY KEY, schema TEXT NOT NULL);"
     ]
-    record = _q(DatabaseRecord._meta.table_name)
+    record = _q(_table(DatabaseRecord))
     for schema in schemas:
         # An extension has a record for every database name it owns (see
         # ``ownership_check_sql``), so the records are enough. A name in two extensions fails
@@ -178,11 +214,11 @@ def ownership_check_sql(schemas: Sequence[str]) -> str:
 
     The same problem can be reported more than once, e.g. for activities and for exchanges."""
     _check_schemas(schemas)
-    record = _q(DatabaseRecord._meta.table_name)
+    record = _q(_table(DatabaseRecord))
     owned_columns = (
         (record, "name"),
-        (_q(ActivityDataset._meta.table_name), "database"),
-        (_q(ExchangeDataset._meta.table_name), "output_database"),
+        (_q(_table(ActivityDataset)), "database"),
+        (_q(_table(ExchangeDataset)), "output_database"),
     )
     parts = []
     for schema in schemas:
@@ -211,7 +247,7 @@ def ownership_check_sql(schemas: Sequence[str]) -> str:
 
 def _union_view_sql(model: type[Model], schemas: Sequence[str]) -> str:
     columns = ", ".join(_q(c) for c in _columns(model))
-    table = _q(model._meta.table_name)
+    table = _q(_table(model))
     selects = [f"SELECT {columns} FROM main.{table}"] + [
         f"SELECT {columns} FROM {_q(s)}.{table}" for s in schemas
     ]
@@ -222,7 +258,7 @@ def _record_view_sql(schemas: Sequence[str]) -> str:
     """The database record view. Rows from an extension show the project-local state from
     ``extensiondatabasestate`` where it is set (not ``NULL``)."""
     columns = _columns(DatabaseRecord)
-    table = _q(DatabaseRecord._meta.table_name)
+    table = _q(_table(DatabaseRecord))
     state = _q(ExtensionDatabaseState._meta.table_name)
 
     def extension_column(column: str) -> str:
@@ -250,7 +286,7 @@ def _node_edge_triggers_sql(
     ``database_column`` (``database``, or ``output_database`` for exchanges: an exchange
     whose input is in an extension is allowed, as that is how editable nodes link to it)."""
     view = _q(view_name(model))
-    table = _q(model._meta.table_name)
+    table = _q(_table(model))
     cols = _columns(model)
     column_list = ", ".join(_q(c) for c in cols)
     new_values = ", ".join(f"NEW.{_q(c)}" for c in cols)
@@ -318,7 +354,7 @@ def _extra_differs() -> str:
 
 def _record_triggers_sql() -> list[str]:
     view = _q(view_name(DatabaseRecord))
-    table = _q(DatabaseRecord._meta.table_name)
+    table = _q(_table(DatabaseRecord))
     state = _q(ExtensionDatabaseState._meta.table_name)
     cols = _columns(DatabaseRecord)
     column_list = ", ".join(_q(c) for c in cols)
@@ -347,8 +383,7 @@ def _record_triggers_sql() -> list[str]:
 
     state_columns = ", ".join(["name", *(_q(c) for c in LOCAL_STATE_COLUMNS)])
     state_values = ", ".join(
-        ["OLD.name"]
-        + [f"CASE WHEN {changed(c)} THEN NEW.{_q(c)} END" for c in LOCAL_STATE_COLUMNS]
+        ["OLD.name"] + [f"CASE WHEN {changed(c)} THEN NEW.{_q(c)} END" for c in LOCAL_STATE_COLUMNS]
     )
     state_updates = ", ".join(
         f"{_q(c)} = CASE WHEN {changed(c)} THEN NEW.{_q(c)} ELSE {_q(c)} END"
@@ -406,3 +441,397 @@ def overlay_sql(schemas: Sequence[str]) -> list[str]:
     statements += _node_edge_triggers_sql(ExchangeDataset, "output_database", schemas)
     statements += _record_triggers_sql()
     return statements
+
+
+# Attaching
+#
+# An extension file is a copy of the LCI schema holding the rows of some databases, plus two
+# tables of its own: ``extension_info`` (``key``/``value`` text rows: its id, version label and
+# the fingerprint of each database) and, if it needs databases from other extensions,
+# ``extension_requires`` (``database``, ``extension_id``, ``fingerprint``). ``check_extensions``
+# reads them, and checks the files against each other and the project's own file, on a separate
+# read-only connection. ``attach_hook`` then attaches the files and creates the overlay on every
+# connection of the project's file.
+
+#: Table of an extension file with its identity, as ``key``/``value`` text rows
+INFO_TABLE = "extension_info"
+#: Table of an extension file with the databases it needs from other extensions
+REQUIRES_TABLE = "extension_requires"
+#: Key of ``INFO_TABLE``: the extension's id (a UUID), the same for every copy of the file
+INFO_ID = "id"
+#: Key of ``INFO_TABLE``: a version label, for people
+INFO_VERSION = "version"
+#: Key of ``INFO_TABLE``: a JSON object with the fingerprint of each database in the file
+INFO_FINGERPRINTS = "fingerprints"
+#: Start of every fingerprint, naming the hash function
+FINGERPRINT_PREFIX = "sha256:"
+
+#: SQLite's default maximum number of attached files, if the driver can't tell
+_DEFAULT_ATTACH_LIMIT = 10
+
+
+@dataclass(frozen=True)
+class ExtensionSpec:
+    """A read-only extension file to attach to a project's ``lci/databases.db``.
+
+    * ``name`` identifies the extension in the project, and must be unique there.
+    * ``immutable`` tells SQLite that the file never changes, for files on network or
+      read-only volumes. SQLite then takes no locks; if the file does change while it is
+      attached, reads can give wrong results or fail.
+    * ``allow_main_requirements`` lets a database in the project's own file meet a requirement
+      of this extension, if its fingerprint is the required one. It is checked again every
+      time the project is opened."""
+
+    name: str
+    path: str | PathLike
+    immutable: bool = False
+    allow_main_requirements: bool = False
+
+
+@dataclass(frozen=True)
+class AttachedExtension:
+    """An extension file which passed ``check_extensions``, and what was read from it."""
+
+    spec: ExtensionSpec
+    #: Schema name the file is attached under (``ext_1``, ``ext_2``, ...)
+    schema: str
+    #: URI the file is attached with
+    uri: str
+    #: Value of ``INFO_ID``
+    id: str
+    #: Value of ``INFO_VERSION``, if any
+    version: str | None
+    #: Names of the databases stored in the file, sorted
+    databases: tuple[str, ...]
+    #: Fingerprint of each database in the file, as written when it was built
+    fingerprints: Mapping[str, str] = field(compare=False)
+    #: ``(database, extension id, fingerprint)`` of each database the file needs from another
+    #: extension
+    requirements: tuple[tuple[str, str, str], ...] = ()
+
+    @property
+    def name(self) -> str:
+        return self.spec.name
+
+    @property
+    def path(self) -> Path:
+        return Path(self.spec.path)
+
+    def __str__(self) -> str:
+        return f"extension {self.name!r} ({self.path})"
+
+
+def database_fingerprint(connection, schema: str, database: str) -> str:
+    """Fingerprint of ``database`` in the file attached as ``schema`` on ``connection``.
+
+    A SHA-256 hash of the sorted ``(code, type)`` pairs of its activities. Edges and
+    characterization factors refer to activities by ``(database, code)``, so two builds of a
+    database with the same fingerprint can be used in place of each other. Names, amounts and
+    other data are not part of it."""
+    sql = f"SELECT code, type FROM {_q(schema)}.{_q(_table(ActivityDataset))} WHERE database = ?"
+    with closing(connection.execute(sql, (database,))) as cursor:
+        rows = sorted(cursor, key=lambda row: (row[0], row[1] or ""))
+    digest = hashlib.sha256()
+    for code, type_ in rows:
+        digest.update(json.dumps([code, type_], ensure_ascii=False).encode("utf8") + b"\n")
+    return FINGERPRINT_PREFIX + digest.hexdigest()
+
+
+def _rows(connection, sql: str, params=()) -> list:
+    with closing(connection.execute(sql, params)) as cursor:
+        return cursor.fetchall()
+
+
+def _attach_limit(connection) -> int:
+    getlimit = getattr(connection, "getlimit", None)
+    category = getattr(sqlite3, "SQLITE_LIMIT_ATTACHED", None)
+    if getlimit is None or category is None:
+        return _DEFAULT_ATTACH_LIMIT
+    return getlimit(category)
+
+
+def _tables(connection, schema: str) -> set[str]:
+    sql = f"SELECT name FROM {_q(schema)}.sqlite_master WHERE type = 'table'"
+    return {row[0] for row in _rows(connection, sql)}
+
+
+def _check_specs(specs: Sequence[ExtensionSpec]) -> None:
+    names, paths = set(), {}
+    for spec in specs:
+        if not isinstance(spec, ExtensionSpec):
+            raise TypeError(f"Extensions must be given as ExtensionSpec, not {spec!r}")
+        if not isinstance(spec.name, str) or not spec.name:
+            raise ValueError(f"An extension needs a name: {spec!r}")
+        if spec.name in names:
+            raise ExtensionError(f"Two extensions are named {spec.name!r}")
+        names.add(spec.name)
+        path = Path(spec.path).resolve()
+        if path in paths:
+            raise ExtensionError(
+                f"Extensions {paths[path]!r} and {spec.name!r} are the same file ({path})"
+            )
+        paths[path] = spec.name
+
+
+def _check_main(connection, main_path) -> None:
+    needed = [
+        *TABLE_NAMES.values(),
+        ExtensionDatabaseState._meta.table_name,
+        ZSTD_DICTIONARY_TABLE,
+    ]
+    existing = _tables(connection, "main")
+    missing = [table for table in needed if table not in existing]
+    if missing:
+        raise ExtensionError(
+            f"Can't attach extensions to {main_path}: it lacks the tables {', '.join(missing)}, "
+            "which are created the next time it is opened and can be written"
+        )
+
+
+def _attach(connection, number: int, spec: ExtensionSpec) -> AttachedExtension:
+    from bw2data.backends.migrations import MIN_EXTENSION_SCHEMA_VERSION, SCHEMA_VERSION
+
+    path = Path(spec.path)
+    label = f"extension {spec.name!r} ({path})"
+    if not path.is_file():
+        raise ExtensionError(f"Can't attach {label}: the file doesn't exist")
+    params = {"mode": "ro"}
+    if spec.immutable:
+        params["immutable"] = "1"
+    uri = _sqlite_uri(path, **params)
+    schema = f"ext_{number}"
+    try:
+        connection.execute(f"ATTACH DATABASE ? AS {_q(schema)}", (uri,)).close()
+        # Reading is what fails for a file which is not an SQLite database
+        tables = _tables(connection, schema)
+        ((version,),) = _rows(connection, f"PRAGMA {_q(schema)}.user_version")
+    except sqlite3.DatabaseError as err:
+        raise ExtensionError(f"Can't attach {label}: {err}") from err
+    if INFO_TABLE not in tables:
+        raise ExtensionError(
+            f"Can't attach {label}: it is not a bw2data extension (no {INFO_TABLE} table)"
+        )
+    if version > SCHEMA_VERSION:
+        raise ExtensionError(
+            f"Can't attach {label}: it has schema version {version}, but this version of "
+            f"bw2data only reads extensions up to schema version {SCHEMA_VERSION}. It was "
+            "built by a newer version of bw2data."
+        )
+    if version < MIN_EXTENSION_SCHEMA_VERSION:
+        raise ExtensionError(
+            f"Can't attach {label}: it has schema version {version}, and this version of "
+            f"bw2data needs at least {MIN_EXTENSION_SCHEMA_VERSION}. An extension can't be "
+            "updated; build it again with a newer version of bw2data."
+        )
+    missing = [t for t in (*TABLE_NAMES.values(), ZSTD_DICTIONARY_TABLE) if t not in tables]
+    if missing:
+        raise ExtensionError(f"Can't attach {label}: it lacks the tables {', '.join(missing)}")
+
+    info = dict(_rows(connection, f"SELECT key, value FROM {_q(schema)}.{_q(INFO_TABLE)}"))
+    extension_id = info.get(INFO_ID)
+    if not isinstance(extension_id, str) or not extension_id:
+        raise ExtensionError(f"Can't attach {label}: {INFO_TABLE} has no {INFO_ID!r}")
+    try:
+        fingerprints = json.loads(info.get(INFO_FINGERPRINTS) or "{}")
+    except (TypeError, ValueError):
+        fingerprints = None
+    if not isinstance(fingerprints, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in fingerprints.items()
+    ):
+        raise ExtensionError(
+            f"Can't attach {label}: {INFO_FINGERPRINTS!r} in {INFO_TABLE} is not a JSON object "
+            "of strings"
+        )
+    record = _q(_table(DatabaseRecord))
+    sql = f"SELECT name FROM {_q(schema)}.{record} ORDER BY name"
+    databases = tuple(row[0] for row in _rows(connection, sql))
+    requirements = ()
+    if REQUIRES_TABLE in tables:
+        sql = (
+            f"SELECT database, extension_id, fingerprint FROM {_q(schema)}.{_q(REQUIRES_TABLE)} "
+            "ORDER BY database"
+        )
+        requirements = tuple(tuple(row) for row in _rows(connection, sql))
+    return AttachedExtension(
+        spec=spec,
+        schema=schema,
+        uri=uri,
+        id=extension_id,
+        version=info.get(INFO_VERSION),
+        databases=databases,
+        fingerprints=MappingProxyType(fingerprints),
+        requirements=requirements,
+    )
+
+
+def _check_unique_ids(attached: Sequence[AttachedExtension]) -> None:
+    seen = {}
+    for extension in attached:
+        if extension.id in seen:
+            raise ExtensionError(
+                f"{seen[extension.id]} and {extension} are the same extension (id "
+                f"{extension.id}); attach only one of them"
+            )
+        seen[extension.id] = extension
+
+
+def _check_requirements(connection, attached: Sequence[AttachedExtension]) -> None:
+    by_id = {extension.id: extension for extension in attached}
+    record = _q(_table(DatabaseRecord))
+    main_databases = {row[0] for row in _rows(connection, f"SELECT name FROM main.{record}")}
+    main_fingerprints = {}
+    problems = []
+    for extension in attached:
+        for database, required_id, fingerprint in extension.requirements:
+            provider = by_id.get(required_id)
+            if (
+                provider is not None
+                and database in provider.databases
+                and provider.fingerprints.get(database) == fingerprint
+            ):
+                continue
+            in_main = extension.spec.allow_main_requirements and database in main_databases
+            if in_main:
+                if database not in main_fingerprints:
+                    main_fingerprints[database] = database_fingerprint(connection, "main", database)
+                if main_fingerprints[database] == fingerprint:
+                    continue
+            if provider is None:
+                problem = f"from the extension with id {required_id}, which is not attached"
+            elif database not in provider.databases:
+                problem = f"from {provider}, which doesn't have it"
+            else:
+                problem = (
+                    f"from {provider}, which has a different version of it (fingerprint "
+                    f"{provider.fingerprints.get(database)})"
+                )
+            if in_main:
+                problem += "; the database in the project has a different fingerprint too"
+            problems.append(
+                f"{extension} needs database {database!r} with fingerprint {fingerprint} " + problem
+            )
+    if problems:
+        raise ExtensionDependencyError("\n".join(problems))
+
+
+def _labels(attached: Sequence[AttachedExtension]) -> dict[str, str]:
+    labels = {extension.schema: str(extension) for extension in attached}
+    labels["main"] = "the project"
+    return labels
+
+
+def _check_ownership(connection, attached: Sequence[AttachedExtension]) -> None:
+    labels = _labels(attached)
+    rows = _rows(connection, ownership_check_sql([extension.schema for extension in attached]))
+    problems = []
+    for problem, database, schema, other in sorted(set(rows), key=lambda r: tuple(map(str, r))):
+        if problem == NO_RECORD:
+            problems.append(
+                f"{labels[schema]} has activities or exchanges in database {database!r}, but no "
+                "database record for it"
+            )
+        else:
+            problems.append(
+                f"Database {database!r} is in {labels[schema]} and also in {labels[other]}; "
+                "each database can only be stored in one file"
+            )
+    if problems:
+        raise ExtensionError("\n".join(problems))
+
+
+def _check_ids(connection, attached: Sequence[AttachedExtension]) -> None:
+    """No activity or exchange id may be in two files: the views would show both rows."""
+    labels = _labels(attached)
+    schemas = ["main"] + [extension.schema for extension in attached]
+    problems = []
+    for model, what in ((ActivityDataset, "activity"), (ExchangeDataset, "exchange")):
+        table = _q(_table(model))
+        for position, first in enumerate(schemas):
+            for second in schemas[position + 1 :]:
+                ((count, example),) = _rows(
+                    connection,
+                    f"SELECT count(*), min(a.id) FROM {_q(first)}.{table} AS a "
+                    f"JOIN {_q(second)}.{table} AS b ON a.id = b.id",
+                )
+                if count:
+                    problems.append(
+                        f"{count} {what} ids are used in both {labels[first]} and "
+                        f"{labels[second]} (for example {example})"
+                    )
+    if problems:
+        raise ExtensionError("\n".join(problems))
+
+
+def _check_dictionaries(connection, attached: Sequence[AttachedExtension]) -> None:
+    """A zstd frame names its dictionary by id, which is looked up in every file. Two files may
+    have the same dictionary, but not two different ones with the same id."""
+    labels = _labels(attached)
+    seen = {}
+    problems = []
+    for schema in ["main"] + [extension.schema for extension in attached]:
+        sql = f"SELECT id, content FROM {_q(schema)}.{_q(ZSTD_DICTIONARY_TABLE)}"
+        for dict_id, content in _rows(connection, sql):
+            content = bytes(content)
+            if dict_id not in seen:
+                seen[dict_id] = (content, schema)
+            elif seen[dict_id][0] != content:
+                problems.append(
+                    f"{labels[schema]} and {labels[seen[dict_id][1]]} have different zstd "
+                    f"dictionaries with the same id {dict_id}"
+                )
+    if problems:
+        raise ExtensionError("\n".join(problems))
+
+
+def check_extensions(main_path, specs: Sequence[ExtensionSpec]) -> tuple[AttachedExtension, ...]:
+    """Check that the extension files ``specs`` can be attached to the project file
+    ``main_path``, and read what is needed to attach them. Raises ``ExtensionError`` (or
+    ``ExtensionDependencyError`` for requirements) naming every problem found by the first
+    check which fails:
+
+    * the project file has the tables the overlay needs;
+    * names and files are unique, and there are no more files than SQLite can attach;
+    * each file exists, is an extension (has ``INFO_TABLE`` with an id), and has a schema
+      version between ``MIN_EXTENSION_SCHEMA_VERSION`` and ``SCHEMA_VERSION``;
+    * no extension is given twice under different paths (same id);
+    * every requirement is met: by an extension in ``specs`` with the required id which has the
+      database with exactly the required fingerprint or, if the requiring extension allows it,
+      by a database in the project's file with that fingerprint;
+    * each database name belongs to one file (``ownership_check_sql``);
+    * no activity or exchange id is in two files;
+    * no two files have different zstd dictionaries with the same id.
+
+    Uses its own read-only connection, which is closed again."""
+    specs = tuple(specs)
+    _check_specs(specs)
+    connection = sqlite3.connect(_sqlite_uri(main_path, mode="ro"), uri=True, isolation_level=None)
+    with closing(connection):
+        _check_main(connection, main_path)
+        limit = _attach_limit(connection)
+        if len(specs) > limit:
+            raise ExtensionError(
+                f"Can't attach {len(specs)} extensions: SQLite attaches at most {limit} files"
+            )
+        attached = [_attach(connection, number, spec) for number, spec in enumerate(specs, 1)]
+        _check_unique_ids(attached)
+        _check_requirements(connection, attached)
+        _check_ownership(connection, attached)
+        _check_ids(connection, attached)
+        _check_dictionaries(connection, attached)
+    return tuple(attached)
+
+
+def attach_hook(attached: Sequence[AttachedExtension]) -> ConnectionHook:
+    """A connection hook which attaches the checked extensions ``attached`` and creates the
+    overlay on a new connection to the project's file."""
+    attached = tuple(attached)
+    statements = overlay_sql([extension.schema for extension in attached])
+
+    def attach_extensions(connection) -> None:
+        for extension in attached:
+            sql = f"ATTACH DATABASE ? AS {_q(extension.schema)}"
+            connection.execute(sql, (extension.uri,)).close()
+        for statement in statements:
+            connection.execute(statement).close()
+
+    return attach_extensions

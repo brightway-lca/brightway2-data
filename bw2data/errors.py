@@ -126,3 +126,16 @@ class IncompatibleBW2IOVersion(BW2Exception):
     """The installed ``bw2io`` version can't be used with this ``bw2data`` version"""
 
     pass
+
+
+class ExtensionError(BW2Exception):
+    """A read-only LCI extension file can't be attached to the project"""
+
+    pass
+
+
+class ExtensionDependencyError(ExtensionError):
+    """A read-only LCI extension requires a database which no attached file provides, or
+    provides with a different fingerprint"""
+
+    pass

@@ -199,12 +199,16 @@ def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
     return val
 
 
-def dict_as_exchangedataset(ds: Any) -> dict:
+def dict_as_exchangedataset(ds: Any, add_snowflake_id: bool = False) -> dict:
     """Column values of an ``ExchangeDataset`` for exchange data ``ds``.
 
     ``data`` is ``ds`` itself, with ``input`` and ``output``; the ``data`` field leaves them
-    out when it stores the value (see ``ExchangeDataField``)."""
-    return {
+    out when it stores the value (see ``ExchangeDataField``).
+
+    ``add_snowflake_id`` adds a new snowflake ``id``, as ``ExchangeDataset.save()`` does; use it
+    for rows inserted without ``save()``. Without an id, SQLite numbers the rows of a file
+    1, 2, 3, ..., which collide with the ids in other files, e.g. read-only extensions."""
+    val = {
         "data": ds,
         "input_database": ds["input"][0],
         "input_code": ds["input"][1],
@@ -212,6 +216,9 @@ def dict_as_exchangedataset(ds: Any) -> dict:
         "output_code": ds["output"][1],
         "type": ds["type"],
     }
+    if add_snowflake_id:
+        val["id"] = next(snowflake_id_generator)
+    return val
 
 
 def exchange_row_as_dict(row: dict) -> dict:
