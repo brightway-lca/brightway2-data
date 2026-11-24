@@ -38,6 +38,7 @@ def convert_backend(database_name, backend):
 
     from bw2data import projects
     from bw2data.database import Database
+    from bw2data.search.indices import is_searchable
 
     db = Database(database_name)
     if db.backend == backend:
@@ -56,7 +57,7 @@ def convert_backend(database_name, backend):
         warnings.simplefilter("ignore")
         new_db = Database(database_name, backend)
         new_db.register(**metadata)
-        new_db.write(data, searchable=databases[database_name].get("searchable"))
+        new_db.write(data, searchable=is_searchable(database_name))
     return new_db
 
 

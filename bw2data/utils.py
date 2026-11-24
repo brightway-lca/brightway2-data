@@ -292,6 +292,11 @@ def merge_databases(parent_db, other):
 
     Database(parent_db).process()
     del databases[other]
+    from bw2data.search.indices import is_searchable
+
+    if is_searchable(parent_db):
+        # The nodes which were moved are not in the index of ``parent_db``
+        Database(parent_db).make_searchable(reset=True)
 
 
 def download_file(filename, directory="downloads", url=None):

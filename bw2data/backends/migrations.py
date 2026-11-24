@@ -60,6 +60,7 @@ from bw2data.sqlite import (
     _cannot_write,
     _user_stacklevel,
     zstd,
+    zstd_dictionaries,
 )
 
 #: What a step can return: called with the database after the migration is committed
@@ -858,6 +859,123 @@ def _compress_lci_data(db: Database, project_dir: Path) -> Optional[AfterCommit]
     return _m6_vacuum
 
 
+def _m7_remove_search_files(project_dir: Path) -> AfterCommit:
+    def remove(db: Database) -> None:
+        directory = project_dir / "search"
+        if not directory.is_dir():
+            return
+        for path in directory.iterdir():
+            try:
+                if path.is_file():
+                    path.unlink()
+            except OSError as err:
+                warnings.warn(f"Can't delete the old search index {path}: {err}")
+
+    return remove
+
+
+def _m7_had_index(project_dir: Path, name: str) -> bool:
+    """If the old index file of database ``name`` has rows. Opening a database's index in
+    earlier versions created an empty file, so the file existing is not enough."""
+    import sqlite3
+
+    from bw_processing import safe_filename
+
+    path = project_dir / "search" / safe_filename(name)
+    if not path.is_file():
+        return False
+    try:
+        with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as conn:
+            return conn.execute("SELECT 1 FROM bw2schema LIMIT 1").fetchone() is not None
+    except sqlite3.Error:
+        return False
+
+
+def _search_indexes_to_sqlite(db: Database, project_dir: Path) -> Optional[AfterCommit]:
+    """Build the search index of every searchable database as a contentless FTS5 table
+    ``searchindex_<md5 of the database name>`` in this file, with the node id as ``rowid``
+    (see ``bw2data.search.indices``).
+
+    The indexes were one SQLite file per database in the ``search`` directory before. They
+    are not read: they have no node ids, and can have rows of nodes which no longer exist.
+    The files are deleted after the commit; they can be built again from the nodes.
+
+    A database without a ``searchable`` flag had its nodes indexed when they were saved, but
+    not when the database was written. Such a database with nodes is indexed if its old index
+    file has rows, and gets the flag which says so; one without nodes keeps no flag, so that
+    the nodes saved into it later are indexed.
+
+    A database whose index can't be built is not indexed, with a warning; it is marked as not
+    searchable.
+
+    The indexed text is the one bw2data indexes (``format_dataset``), and not a copy, because
+    a row can only be removed from a contentless table with the text which was added. A
+    change of ``format_dataset`` needs a new step which builds all indexes again."""
+    from bw2data.search.indices import FIELDS, create_table_sql, format_dataset, index_table
+
+    project_dir = Path(project_dir)
+    store = zstd_dictionaries(db)
+    columns = ", ".join(f'"{field}"' for field in FIELDS)
+    marks = ", ".join("?" * len(FIELDS))
+    records = db.execute_sql(
+        'SELECT r."name", r."searchable", EXISTS (SELECT 1 FROM main."activitydataset" a '
+        'WHERE a."database" = r."name") FROM main."databaserecord" r ORDER BY r."name"'
+    ).fetchall()
+    names = []
+    for name, searchable, has_nodes in records:
+        if searchable is None and has_nodes:
+            searchable = _m7_had_index(project_dir, name)
+            db.execute_sql(
+                'UPDATE main."databaserecord" SET "searchable" = ? WHERE "name" = ?',
+                (searchable, name),
+            )
+        if searchable:
+            names.append(name)
+
+    for name in names:
+        table = index_table(name)
+        try:
+            with db.atomic():
+                db.execute_sql(f'DROP TABLE IF EXISTS main."{table}"')
+                db.execute_sql(create_table_sql(table))
+                cursor = db.execute_sql(
+                    'SELECT "id", "code", "data" FROM main."activitydataset" '
+                    'WHERE "database" = ? ORDER BY "id"',
+                    (name,),
+                )
+                count = 0
+                with closing(cursor), closing(db.connection().cursor()) as insert:
+                    while rows := cursor.fetchmany(1000):
+                        values = []
+                        for id_, code, blob in rows:
+                            data = {}
+                            if blob is not None:
+                                data = codec.loads(store.decompress(bytes(blob)))
+                            text = format_dataset({**data, "code": code})
+                            values.append((id_, *(text[field] for field in FIELDS)))
+                        insert.executemany(
+                            f'INSERT INTO main."{table}" (rowid, {columns}) VALUES (?, {marks})',
+                            values,
+                        )
+                        count += len(rows)
+                # One segment: smaller, and faster to search
+                db.execute_sql(f'INSERT INTO main."{table}" ("{table}") VALUES (\'optimize\')')
+            stdout_feedback_logger.info("Built the search index of %s (%s nodes)", name, count)
+        except Exception as err:
+            # Any error: one database which can't be indexed (unreadable node, SQLite without
+            # FTS5, ...) must not stop the project from opening
+            warnings.warn(
+                f"Can't build the search index of database {name!r} "
+                f"({type(err).__name__}: {err}); it is no longer searchable. "
+                "`Database(name).make_searchable(reset=True)` builds the index.",
+                stacklevel=_user_stacklevel(),
+            )
+            db.execute_sql(
+                'UPDATE main."databaserecord" SET "searchable" = 0 WHERE "name" = ?', (name,)
+            )
+    return _m7_remove_search_files(project_dir)
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -881,6 +999,11 @@ MIGRATIONS: tuple[Migration, ...] = (
         6,
         "Store activity and exchange data as compressed JSON instead of pickles",
         _compress_lci_data,
+    ),
+    Migration(
+        7,
+        "Move the search indexes into SQLite",
+        _search_indexes_to_sqlite,
     ),
 )
 
