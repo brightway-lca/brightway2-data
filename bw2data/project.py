@@ -730,6 +730,8 @@ class ProjectManager(Iterable):
                     "name": extension.name,
                     "path": str(extension.path),
                     "id": extension.id,
+                    # To clean up after an extension which is detached while unavailable
+                    "databases": list(extension.databases),
                     "immutable": extension.spec.immutable,
                     "allow_main_requirements": extension.spec.allow_main_requirements,
                 }
@@ -764,11 +766,15 @@ class ProjectManager(Iterable):
         self._warn_extension_problems(problems, previous)
         # The project has no processed data for the databases which it now gets, or data of
         # another version of the file: start from a new local state, to be processed
+        from bw2data.search.indices import index_table
+
         before = {spec.name for spec in attached_now}
         for extension in lci_db.extensions:
             if extension.name not in before:
                 for database in extension.databases:
                     ExtensionDatabaseState.replace(name=database, dirty=True).execute()
+                    # A search index built in the project is for another version of the file
+                    lci_db.execute_sql(f'DROP TABLE IF EXISTS main."{index_table(database)}"')
         bw2signals.on_extension_attached.send(self, names=[entry["name"] for entry in entries])
         return tuple(e for e in self.extensions if e.name in new_names)
 
@@ -790,7 +796,12 @@ class ProjectManager(Iterable):
         lci_db = self._lci_db()
         attached = {e.name: e for e in lci_db.extensions}
         extension = attached.get(name)
-        databases = extension.databases if extension is not None else ()
+        if extension is not None:
+            databases = extension.databases
+        else:
+            # Not available: the databases it had when it was attached
+            (entry,) = [entry for entry in stored if entry["name"] == name]
+            databases = tuple(entry.get("databases") or ())
         if extension is not None:
             problems = [
                 f"extension {other.name!r} requires it"
@@ -814,6 +825,16 @@ class ProjectManager(Iterable):
         except BaseException:
             self._store_extensions(stored)
             raise
+        signal_databases = tuple(databases) if extension is not None else ()
+        if databases and extension is None:
+            # Names which the project's own file or another extension uses by now are not
+            # this extension's any more
+            marks = ", ".join("?" * len(databases))
+            sql = f'SELECT "name" FROM main."databaserecord" WHERE "name" IN ({marks})'
+            with closing(lci_db.execute_sql(sql, databases)) as cursor:
+                used = {row[0] for row in cursor.fetchall()}
+            used.update(lci_db.extension_databases())
+            databases = tuple(database for database in databases if database not in used)
         if databases:
             from bw2data.search.indices import index_table
 
@@ -823,7 +844,7 @@ class ProjectManager(Iterable):
             # Indexes built in the project for databases whose file had none
             for database in databases:
                 lci_db.execute_sql(f'DROP TABLE IF EXISTS main."{index_table(database)}"')
-        bw2signals.on_extension_detached.send(self, name=name, databases=tuple(databases))
+        bw2signals.on_extension_detached.send(self, name=name, databases=signal_databases)
 
     @staticmethod
     def _extension_users(lci_db, extension) -> list[str]:

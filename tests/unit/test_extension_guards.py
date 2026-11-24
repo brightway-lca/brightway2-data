@@ -12,9 +12,10 @@ from bw2data.errors import ReadOnlyExtensionError
 from bw2data.parameters import DatabaseParameter, parameters
 
 from bw2data.search import IndexManager
-from bw2data.search.indices import index_table
+from bw2data.search.indices import create_table_sql, index_table
 
 from .test_extension_attach import edit, files  # noqa: F401
+from .test_extension_projects import reopen
 
 
 @pytest.fixture
@@ -368,7 +369,7 @@ def test_new_version_of_a_file_is_processed_again(attached):
     assert databases["bio"]["dirty"] is False
 
 
-# Search: the index is read from the extension's file
+# Search: the index is read from the extension's file, or from the project if it has one
 
 
 def main_tables():
@@ -382,6 +383,17 @@ def codes(database, term):
     return {node["code"] for node in Database(database).search(term)}
 
 
+def empty_index(path, database, definition=None):
+    """Replace the index of ``database`` in the file ``path`` with an empty one: an index
+    which is out of date. ``definition``: of another table than bw2data creates."""
+    table = index_table(database)
+    edit(
+        path,
+        f'DROP TABLE "{table}"',
+        f'CREATE VIRTUAL TABLE "{table}" {definition}' if definition else create_table_sql(table),
+    )
+
+
 def test_search_reads_the_index_in_the_extension(attached):
     assert databases["bio"]["searchable"] is True
     index = IndexManager("bio")
@@ -391,52 +403,154 @@ def test_search_reads_the_index_in_the_extension(attached):
     assert codes("inv", "b") == {"b"}
     assert [r["code"] for r in Database("bio").search("flow 1", proxy=False)] == ["1"]
     # Nothing is built in the project
-    Database("bio").make_searchable(reset=True)
+    Database("bio").make_searchable()
     assert index_table("bio") not in main_tables()
-    assert codes("bio", "flow") == {"0", "1", "2"}
     # The project's own databases are searched as before
     assert codes("mine", "x") == {"x"}
 
 
 def test_unsearchable_extension_database(attached):
+    # An index made before sees the change
+    index = IndexManager("bio")
+    assert index.search("flow")
     Database("bio").make_unsearchable()
     assert databases["bio"]["searchable"] is False
     assert local_state()["bio"].searchable is False
-    assert not IndexManager("bio").read_only
+    assert not index.read_only
+    assert index.search("flow") == []
     assert codes("bio", "flow") == set()
     Database("bio").make_searchable()
+    assert index.read_only
     assert codes("bio", "flow") == {"0", "1", "2"}
     assert index_table("bio") not in main_tables()
 
 
-def test_index_in_the_extension_cant_be_changed(attached):
+def test_index_follows_the_attached_extensions(attached):
+    index = IndexManager("inv")
+    assert index.schema == Database("inv").extension.schema
+    Database("mine").delete(warn=False)
+    projects.detach_extension("inv")
+    assert index.schema == "main"
+    assert index.search("b") == []
+
+
+def test_single_nodes_cant_be_indexed_or_removed(attached):
     node = get_node(database="bio", code="0")
     index = IndexManager("bio")
-    for change in (
-        lambda: index.add([node.id]),
-        lambda: index.remove([node.id]),
-        index.add_all,
-        index.create,
-    ):
-        with refused("search index of database 'bio' is stored in a read-only extension"):
-            change()
+    for unsearchable in (False, True):
+        if unsearchable:
+            Database("bio").make_unsearchable()
+        for change in (
+            lambda: index.add([node.id]),
+            lambda: index.remove([node.id]),
+            lambda: index.add_dataset(node),
+            lambda: index.delete_dataset(node),
+            index.create,
+        ):
+            with refused("single nodes can't be added to or removed from its search index"):
+                change()
+        assert index_table("bio") not in main_tables()
+    Database("bio").make_searchable()
     # Dropping only drops an index in the project
     index.delete_database()
     assert codes("bio", "flow") == {"0", "1", "2"}
+
+
+def test_reset_replaces_an_index_which_is_out_of_date(files):
+    bio, inv = files
+    empty_index(bio, "bio")
+    projects.attach_extension(list(files))
+    assert IndexManager("bio").read_only
+    assert codes("bio", "flow") == set()
+    Database("bio").make_searchable()
+    assert codes("bio", "flow") == set()
+
+    Database("bio").make_searchable(reset=True)
+    assert index_table("bio") in main_tables()
+    assert not IndexManager("bio").read_only
+    assert codes("bio", "flow") == {"0", "1", "2"}
+    reopen()
+    assert codes("bio", "flow") == {"0", "1", "2"}
+
+    # Back to the index in the file
+    Database("bio").make_unsearchable()
+    assert index_table("bio") not in main_tables()
+    Database("bio").make_searchable()
+    assert IndexManager("bio").read_only
+    assert codes("bio", "flow") == set()
 
 
 def test_extension_without_index(files):
     bio, inv = files
     edit(bio, f'DROP TABLE "{index_table("bio")}"')
     projects.attach_extension(list(files))
+    assert databases["bio"]["searchable"] is True
     assert codes("bio", "flow") == set()
-    Database("bio").make_searchable(reset=True)
+    # Without ``reset``, although the record says ``searchable``
+    Database("bio").make_searchable()
     assert index_table("bio") in main_tables()
     assert not IndexManager("bio").read_only
     assert codes("bio", "flow") == {"0", "1", "2"}
     projects.detach_extension("inv")
     projects.detach_extension("bio")
     assert index_table("bio") not in main_tables()
+
+
+@pytest.mark.parametrize(
+    "definition",
+    [
+        "USING fts5(name, comment, content='', tokenize='unicode61')",
+        "USING fts5(name, comment, product, categories, synonyms, location, code, content='')",
+    ],
+)
+def test_index_of_another_version_is_not_used(files, definition):
+    bio, inv = files
+    empty_index(bio, "bio", definition)
+    projects.attach_extension(list(files))
+    index = IndexManager("bio")
+    assert not index.read_only
+    assert not index.exists()
+    assert codes("bio", "flow") == set()
+    Database("bio").make_searchable()
+    assert index_table("bio") in main_tables()
+    assert codes("bio", "flow") == {"0", "1", "2"}
+
+
+def test_attaching_drops_an_index_in_the_project(files):
+    bio, inv = files
+    sqlite3_lci_db.execute_sql(create_table_sql(index_table("bio")))
+    projects.attach_extension(bio)
+    assert index_table("bio") not in main_tables()
+    assert codes("bio", "flow") == {"0", "1", "2"}
+
+
+def test_detaching_an_unavailable_extension_drops_its_index_in_the_project(files):
+    bio, inv = files
+    edit(inv, f'DROP TABLE "{index_table("inv")}"')
+    projects.attach_extension(list(files))
+    Database("inv").make_searchable()
+    Database("inv").process()
+    assert index_table("inv") in main_tables()
+    assert "inv" in local_state()
+    inv.unlink()
+    with pytest.warns(UserWarning, match="'inv' of project 'target' is not available"):
+        reopen()
+    assert index_table("inv") in main_tables()
+    projects.detach_extension("inv")
+    assert index_table("inv") not in main_tables()
+    assert "inv" not in local_state()
+
+
+def test_detaching_an_unavailable_extension_keeps_what_the_project_uses_by_now(files):
+    bio, inv = files
+    projects.attach_extension(list(files))
+    inv.unlink()
+    with pytest.warns(UserWarning, match="not available"):
+        reopen()
+    Database("inv").write({("inv", "mine"): {"name": "lollipop"}})
+    projects.detach_extension("inv")
+    assert index_table("inv") in main_tables()
+    assert codes("inv", "lollipop") == {"mine"}
 
 
 def test_copy_of_an_extension_database_is_indexed_in_the_project(attached):
