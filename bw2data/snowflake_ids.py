@@ -24,6 +24,18 @@ EPOCH_START_MS = 1704067200000
 snowflake_id_generator = SnowflakeGenerator(instance=uuid.getnode() % 1024, epoch=EPOCH_START_MS)
 
 
+def new_snowflake_id() -> int:
+    """A new snowflake id.
+
+    ``next(snowflake_id_generator)`` returns ``None`` instead of an id when 4096 ids were
+    already made in the current millisecond, or when the system clock was set back; this
+    tries again until there is one."""
+    while True:
+        id_ = next(snowflake_id_generator)
+        if id_ is not None:
+            return id_
+
+
 class SnowflakeIDBaseClass(SignaledDataset):
     id = IntegerField(primary_key=True)
 
@@ -34,6 +46,6 @@ class SnowflakeIDBaseClass(SignaledDataset):
             # isn't a matching row. Need for force an `INSERT` query instead as we generate the ids
             # ourselves.
             # https://docs.peewee-orm.com/en/latest/peewee/models.html#id4
-            self.id = next(snowflake_id_generator)
+            self.id = new_snowflake_id()
             kwargs["force_insert"] = True
         super().save(**kwargs)

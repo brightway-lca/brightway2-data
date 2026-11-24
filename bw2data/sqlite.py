@@ -86,12 +86,21 @@ class ZstdDictionaries:
             return cursor.fetchall()
 
     def _attached_schemas(self) -> list[str]:
-        """Names of the files attached to the connection, other than ``main`` and ``temp``:
-        the read-only extensions (see ``bw2data.backends.extensions``)."""
-        return [
+        """Names of the attached files which have a dictionary table: the read-only extensions
+        (see ``bw2data.backends.extensions``). Other files, e.g. attached by a connection hook
+        of the user, are left alone."""
+        schemas = [
             row[1]
             for row in self._execute("PRAGMA database_list")
             if row[1] not in ("main", "temp")
+        ]
+        return [
+            schema
+            for schema in schemas
+            if self._execute(
+                f'SELECT 1 FROM "{schema}".sqlite_master WHERE type = \'table\' AND name = ?',
+                (ZSTD_DICTIONARY_TABLE,),
+            )
         ]
 
     def _stored(self, dict_id: int, schema: str = "main") -> bytes | None:
@@ -604,8 +613,10 @@ class SubstitutableDatabase:
         files attached to every connection, whose activities, exchanges and database records
         are shown together with those of the file itself (only for the LCI file, whose
         ``tables`` include the overlaid models). They are checked and attached when the file is
-        opened, after the tables are created and ``on_open`` has run, so that schema
-        migrations only ever see the file itself. While at least one is attached, the overlaid
+        opened, after the tables are created and ``on_open`` has run. Only if the file was
+        locked (see ``postpone_tables``) do both run later, with the extensions already
+        attached; ``on_open`` must therefore only touch the ``main`` schema, as the schema
+        migrations do. While at least one is attached, the overlaid
         models point at TEMP views instead of their tables; see
         ``bw2data.backends.extensions``. ``change_path`` takes the extensions of the new file."""
         self._filepath = filepath
@@ -653,6 +664,13 @@ class SubstitutableDatabase:
             self._use_views(False)
             db.close()
             raise
+        if attached or self._extensions:
+            # The same ``(database, code)`` can have another id in another build of an
+            # extension. A project switch clears this cache itself, but the same file can be
+            # opened again with other extensions.
+            from bw2data.backends.schema import _get_id_cache
+
+            _get_id_cache.clear()
         self._extensions, self._extension_hook = attached, hook
         return db
 

@@ -95,10 +95,20 @@ def attach(*specs):
     sqlite3_lci_db.change_path(lci_path(), extensions=list(specs))
 
 
+@bw2test
+def _temporary_directory():
+    """Move bw2data to a new temporary directory, as ``bw2test`` does for a test."""
+
+
 @pytest.fixture
 def files(tmp_path):
     """``bio.db`` (database ``bio``) and ``inv.db`` (``inv``, requires ``bio``), built in a
-    project ``source``; then a new, empty project is current."""
+    project ``source``; then a new, empty project ``target`` is current.
+
+    Tests which use this fixture must not use ``bw2test`` as well: fixtures run before the
+    decorator, which would then move to another temporary directory, leaving the test with
+    other projects than the ones made here."""
+    _temporary_directory()
     projects.set_current("source")
     Database("bio").write(BIO)
     Database("inv").write(INV)
@@ -127,7 +137,6 @@ def main_objects():
 # Reading and writing through the overlay
 
 
-@bw2test
 def test_attached_databases_are_read(files):
     attach(*specs(files))
     assert sorted(databases) == ["bio", "inv"]
@@ -141,7 +150,6 @@ def test_attached_databases_are_read(files):
     assert Database("inv").load()[("inv", "a")]["exchanges"][1]["input"] == ("bio", "0")
 
 
-@bw2test
 def test_introspection(files):
     bio, inv = files
     attach(*specs(files))
@@ -160,7 +168,6 @@ def test_introspection(files):
     assert str(attached[0]) == f"extension 'bio' ({bio})"
 
 
-@bw2test
 def test_models_point_at_views_only_while_attached(files):
     attach(*specs(files))
     assert ActivityDataset._meta.table_name == "lci_activitydataset"
@@ -174,7 +181,6 @@ def test_models_point_at_views_only_while_attached(files):
     assert databases.__len__() == 0
 
 
-@bw2test
 def test_editable_database_links_to_extension(files):
     attach(*specs(files))
     data = {
@@ -207,7 +213,6 @@ def test_editable_database_links_to_extension(files):
     Database("mine").process()
 
 
-@bw2test
 def test_single_saves_and_metadata_saves(files):
     attach(*specs(files))
     Database("mine").register()
@@ -228,7 +233,6 @@ def test_single_saves_and_metadata_saves(files):
     conn.close()
 
 
-@bw2test
 def test_extension_data_is_read_only(files):
     from peewee import IntegrityError
 
@@ -241,22 +245,23 @@ def test_extension_data_is_read_only(files):
     assert len(Database("bio")) == 3
 
 
-@bw2test
 def test_switching_to_a_project_without_extensions_leaves_its_file_clean(files):
+    assert projects.current == "target"
     attach(*specs(files))
+    Database("mine").write({("mine", "1"): {"name": "x"}})
     projects.set_current("clean")
     assert sqlite3_lci_db.extensions == ()
     assert ActivityDataset._meta.table_name == "activitydataset"
     assert not any(name.startswith("lci_") for name in main_objects())
     Database("clean").write({("clean", "1"): {"name": "x"}})
     assert sorted(databases) == ["clean"]
-    # Neither in the file which had the extensions
+    # Neither in the file which had the extensions. They are not attached again: the project
+    # doesn't store them yet.
     projects.set_current("target")
     assert not any(name.startswith("lci_") for name in main_objects())
-    assert sorted(databases) == []
+    assert sorted(databases) == ["mine"]
 
 
-@bw2test
 def test_tables_created_late_get_their_own_names(files):
     # As when the file was locked while it was opened: the tables are created before a later
     # statement, while the models point at the views
@@ -271,7 +276,6 @@ def test_tables_created_late_get_their_own_names(files):
     assert ActivityDataset._meta.table_name == "lci_activitydataset"
 
 
-@bw2test
 def test_other_threads_see_the_overlay(files):
     attach(*specs(files))
     result = {}
@@ -288,7 +292,6 @@ def test_other_threads_see_the_overlay(files):
     assert result == {"count": 5}
 
 
-@bw2test
 def test_vacuum(files):
     attach(*specs(files))
     Database("mine").write({("mine", "1"): {"name": "x"}})
@@ -323,7 +326,6 @@ def test_values_compressed_with_an_extension_dictionary(tmp_path):
         sqlite3_lci_db.change_path(lci_path())
 
 
-@bw2test
 def test_immutable(files):
     bio, inv = files
     attach(ExtensionSpec("bio", bio, immutable=True), ExtensionSpec("inv", inv))
@@ -334,14 +336,12 @@ def test_immutable(files):
 # Refusals
 
 
-@bw2test
 def test_missing_requirement(files):
     bio, inv = files
     with pytest.raises(ExtensionDependencyError, match="'bio'.*bio-id, which is not attached"):
         attach(ExtensionSpec("inv", inv))
 
 
-@bw2test
 def test_requirement_with_other_fingerprint(files, tmp_path):
     bio, inv = files
     other = tmp_path / "other-bio.db"
@@ -353,7 +353,6 @@ def test_requirement_with_other_fingerprint(files, tmp_path):
         attach(ExtensionSpec("bio", other), ExtensionSpec("inv", inv))
 
 
-@bw2test
 def test_requirement_provider_lacks_database(files, tmp_path):
     bio, inv = files
     edit(bio, "UPDATE extension_info SET value = 'other-id' WHERE key = 'id'")
@@ -366,7 +365,6 @@ def test_requirement_provider_lacks_database(files, tmp_path):
         attach(ExtensionSpec("bio", bio), ExtensionSpec("x", other), ExtensionSpec("inv", inv))
 
 
-@bw2test
 def test_requirement_met_by_main_only_with_opt_in(files):
     bio, inv = files
     Database("bio").write(BIO)
@@ -378,7 +376,6 @@ def test_requirement_met_by_main_only_with_opt_in(files):
     assert [e.input["name"] for e in node.biosphere()] == ["flow 0"]
 
 
-@bw2test
 def test_requirement_met_by_main_checks_the_fingerprint(files):
     bio, inv = files
     Database("bio").write({("bio", "0"): {"name": "flow 0", "type": "emission"}})
@@ -386,14 +383,12 @@ def test_requirement_met_by_main_checks_the_fingerprint(files):
         attach(ExtensionSpec("inv", inv, allow_main_requirements=True))
 
 
-@bw2test
 def test_database_in_main_and_extension(files):
     Database("bio").write(BIO)
     with pytest.raises(ExtensionError, match="'bio' is in extension 'bio'.*also in the project"):
         attach(*specs(files))
 
 
-@bw2test
 def test_database_in_two_extensions(files, tmp_path):
     bio, inv = files
     copy = tmp_path / "copy.db"
@@ -403,7 +398,6 @@ def test_database_in_two_extensions(files, tmp_path):
         attach(ExtensionSpec("bio", bio), ExtensionSpec("copy", copy))
 
 
-@bw2test
 def test_rows_without_a_record(files):
     bio, inv = files
     edit(bio, "DELETE FROM databaserecord")
@@ -411,7 +405,6 @@ def test_rows_without_a_record(files):
         attach(ExtensionSpec("bio", bio))
 
 
-@bw2test
 def test_same_ids_in_two_files(files, tmp_path):
     bio, inv = files
     renamed = tmp_path / "renamed.db"
@@ -426,7 +419,6 @@ def test_same_ids_in_two_files(files, tmp_path):
         attach(ExtensionSpec("bio", bio), ExtensionSpec("renamed", renamed))
 
 
-@bw2test
 def test_same_extension_twice(files, tmp_path):
     bio, inv = files
     copy = tmp_path / "copy.db"
@@ -439,7 +431,6 @@ def test_same_extension_twice(files, tmp_path):
         attach(ExtensionSpec("bio", bio), ExtensionSpec("bio", copy))
 
 
-@bw2test
 def test_different_dictionaries_with_the_same_id(files):
     bio, inv = files
     sqlite3_lci_db.execute_sql(
@@ -453,7 +444,6 @@ def test_different_dictionaries_with_the_same_id(files):
     attach(ExtensionSpec("bio", bio))
 
 
-@bw2test
 @pytest.mark.parametrize(
     "version, message",
     [(MIN_EXTENSION_SCHEMA_VERSION - 1, "needs at least"), (SCHEMA_VERSION + 1, "newer")],
@@ -465,7 +455,6 @@ def test_schema_version(files, version, message):
         attach(ExtensionSpec("bio", bio))
 
 
-@bw2test
 def test_oldest_and_newest_schema_versions_are_accepted(files):
     bio, inv = files
     for version in (MIN_EXTENSION_SCHEMA_VERSION, SCHEMA_VERSION):
@@ -474,7 +463,6 @@ def test_oldest_and_newest_schema_versions_are_accepted(files):
         assert len(Database("bio")) == 3
 
 
-@bw2test
 def test_not_an_extension(files, tmp_path):
     bio, inv = files
     with pytest.raises(ExtensionError, match="the file doesn't exist"):
@@ -488,7 +476,6 @@ def test_not_an_extension(files, tmp_path):
         attach(ExtensionSpec("bio", bio))
 
 
-@bw2test
 def test_extension_info_needs_an_id_and_valid_fingerprints(files):
     bio, inv = files
     edit(bio, "UPDATE extension_info SET value = '[1]' WHERE key = 'fingerprints'")
@@ -499,21 +486,18 @@ def test_extension_info_needs_an_id_and_valid_fingerprints(files):
         attach(ExtensionSpec("bio", bio))
 
 
-@bw2test
 def test_too_many_extensions(files, monkeypatch):
     monkeypatch.setattr(ext, "_attach_limit", lambda connection: 1)
     with pytest.raises(ExtensionError, match="at most 1 files"):
         attach(*specs(files))
 
 
-@bw2test
 def test_specs_must_be_extension_specs(files):
     bio, inv = files
     with pytest.raises(TypeError):
         attach(bio)
 
 
-@bw2test
 def test_failed_attach_keeps_the_previous_file_and_extensions(files):
     bio, inv = files
     attach(*specs(files))
@@ -527,7 +511,6 @@ def test_failed_attach_keeps_the_previous_file_and_extensions(files):
     assert len(Database("bio")) == 3
 
 
-@bw2test
 def test_check_extensions_leaves_the_files_alone(files):
     bio, inv = files
     before = bio.read_bytes(), lci_path().read_bytes()
@@ -537,7 +520,6 @@ def test_check_extensions_leaves_the_files_alone(files):
     assert callable(attach_hook(attached))
 
 
-@bw2test
 def test_fingerprint_covers_codes_and_types_only(files):
     conn = sqlite3.connect(files[0])
     first = database_fingerprint(conn, "main", "bio")
@@ -547,3 +529,68 @@ def test_fingerprint_covers_codes_and_types_only(files):
     assert database_fingerprint(conn, "main", "bio") != first
     conn.close()
     assert first.startswith("sha256:")
+
+
+def test_extension_table_with_other_columns(files):
+    bio, inv = files
+    edit(
+        bio,
+        "DROP TABLE extension_info",
+        "CREATE TABLE extension_info (name TEXT, data TEXT)",
+    )
+    with pytest.raises(ExtensionError, match="Can't attach extension 'bio'.*no such column"):
+        attach(ExtensionSpec("bio", bio))
+
+
+def test_overlaid_table_with_missing_column(files):
+    bio, inv = files
+    edit(bio, "ALTER TABLE activitydataset DROP COLUMN product")
+    with pytest.raises(ExtensionError, match="activitydataset lacks the columns product"):
+        attach(ExtensionSpec("bio", bio))
+
+
+def test_id_cache_is_cleared_when_extensions_change(files, tmp_path):
+    from bw2data.backends.schema import get_id
+
+    bio, inv = files
+    rebuilt = tmp_path / "rebuilt.db"
+    rebuilt.write_bytes(bio.read_bytes())
+    edit(rebuilt, "UPDATE activitydataset SET id = id + 1000")
+    attach(ExtensionSpec("bio", bio))
+    first = get_id(("bio", "0"))
+    attach(ExtensionSpec("bio", rebuilt))
+    assert get_id(("bio", "0")) == first + 1000
+
+
+@bw2test
+def test_other_attached_files_are_left_alone(tmp_path):
+    # A file attached by a connection hook of the user has no dictionary table. At least 500
+    # datasets, so that a dictionary is trained, stored and used.
+    other = tmp_path / "other.db"
+    sqlite3.connect(other).close()
+
+    def hook(connection):
+        connection.execute("ATTACH DATABASE ? AS other", (str(other),))
+
+    sqlite3_lci_db.add_connection_hook(hook)
+    try:
+        Database("big").write(
+            {
+                ("big", str(i)): {"name": f"activity {i}", "comment": "same " * 20}
+                for i in range(500)
+            }
+        )
+        assert get_node(database="big", code="7")["comment"] == "same " * 20
+        cursor = sqlite3_lci_db.execute_sql("SELECT count(*) FROM zstddictionary")
+        assert cursor.fetchone() == (1,)
+    finally:
+        sqlite3_lci_db.remove_connection_hook(hook)
+        sqlite3_lci_db.db.close()
+
+
+def test_new_snowflake_id_tries_again(monkeypatch):
+    from bw2data import snowflake_ids
+
+    # ``None``: too many ids in one millisecond, or the clock was set back
+    monkeypatch.setattr(snowflake_ids, "snowflake_id_generator", iter([None, None, 42]))
+    assert snowflake_ids.new_snowflake_id() == 42

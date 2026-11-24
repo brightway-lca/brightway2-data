@@ -12,7 +12,7 @@ from bw2data.configuration import labels
 from bw2data.errors import InvalidExchange, UntypedExchange
 from bw2data.meta import databases, methods
 from bw2data.signals import SignaledDataset
-from bw2data.snowflake_ids import snowflake_id_generator
+from bw2data.snowflake_ids import new_snowflake_id
 
 
 def get_csv_data_dict(ds):
@@ -195,7 +195,7 @@ def dict_as_activitydataset(ds: Any, add_snowflake_id: bool = False) -> dict:
     # Use during `insert_many` calls as these skip auto id generation because they don't call
     # `.save()`
     if add_snowflake_id:
-        val["id"] = next(snowflake_id_generator)
+        val["id"] = new_snowflake_id()
     return val
 
 
@@ -217,7 +217,7 @@ def dict_as_exchangedataset(ds: Any, add_snowflake_id: bool = False) -> dict:
         "type": ds["type"],
     }
     if add_snowflake_id:
-        val["id"] = next(snowflake_id_generator)
+        val["id"] = new_snowflake_id()
     return val
 
 

@@ -589,6 +589,16 @@ def _check_main(connection, main_path) -> None:
 
 
 def _attach(connection, number: int, spec: ExtensionSpec) -> AttachedExtension:
+    try:
+        return _read_extension(connection, number, spec)
+    except sqlite3.Error as err:
+        # E.g. an extension table with other columns
+        raise ExtensionError(
+            f"Can't attach extension {spec.name!r} ({Path(spec.path)}): {err}"
+        ) from err
+
+
+def _read_extension(connection, number: int, spec: ExtensionSpec) -> AttachedExtension:
     from bw2data.backends.migrations import MIN_EXTENSION_SCHEMA_VERSION, SCHEMA_VERSION
 
     path = Path(spec.path)
@@ -626,6 +636,17 @@ def _attach(connection, number: int, spec: ExtensionSpec) -> AttachedExtension:
     missing = [t for t in (*TABLE_NAMES.values(), ZSTD_DICTIONARY_TABLE) if t not in tables]
     if missing:
         raise ExtensionError(f"Can't attach {label}: it lacks the tables {', '.join(missing)}")
+    # The views select the columns of the models from every file
+    for model in OVERLAID_MODELS:
+        table = _table(model)
+        existing = {
+            row[1] for row in _rows(connection, f"PRAGMA {_q(schema)}.table_info({_q(table)})")
+        }
+        missing = [column for column in _columns(model) if column not in existing]
+        if missing:
+            raise ExtensionError(
+                f"Can't attach {label}: its table {table} lacks the columns {', '.join(missing)}"
+            )
 
     info = dict(_rows(connection, f"SELECT key, value FROM {_q(schema)}.{_q(INFO_TABLE)}"))
     extension_id = info.get(INFO_ID)
@@ -801,9 +822,17 @@ def check_extensions(main_path, specs: Sequence[ExtensionSpec]) -> tuple[Attache
     * no activity or exchange id is in two files;
     * no two files have different zstd dictionaries with the same id.
 
-    Uses its own read-only connection, which is closed again."""
+    Uses its own read-only connection, which is closed again. An SQLite error while checking,
+    e.g. because the project file is locked, is raised as ``ExtensionError`` too."""
     specs = tuple(specs)
     _check_specs(specs)
+    try:
+        return _check_extensions(main_path, specs)
+    except sqlite3.Error as err:
+        raise ExtensionError(f"Can't check the extensions of {main_path}: {err}") from err
+
+
+def _check_extensions(main_path, specs: tuple[ExtensionSpec, ...]) -> tuple[AttachedExtension, ...]:
     connection = sqlite3.connect(_sqlite_uri(main_path, mode="ro"), uri=True, isolation_level=None)
     with closing(connection):
         _check_main(connection, main_path)
