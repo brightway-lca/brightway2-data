@@ -10,10 +10,11 @@ from contextlib import closing, contextmanager
 from pathlib import Path, PurePath
 from urllib.parse import quote, urlencode
 
-from peewee import BlobField, OperationalError, SqliteDatabase, TextField, sqlite3
+from peewee import BlobField, IntegrityError, OperationalError, SqliteDatabase, TextField, sqlite3
 
 from bw2data import codec
 from bw2data.configuration import config
+from bw2data.errors import EXTENSION_ERROR_PREFIX, ReadOnlyExtensionError
 from bw2data.logs import stdout_feedback_logger
 
 if sys.version_info >= (3, 14):
@@ -486,7 +487,14 @@ class BWSqliteDatabase(SqliteDatabase):
             and self.transaction_token() is None
         ):
             self._run_deferred_setup()
-        return super().execute_sql(sql, params)
+        try:
+            return super().execute_sql(sql, params)
+        except IntegrityError as err:
+            # Refused by a trigger of the read-only extensions; see
+            # ``bw2data.backends.extensions``
+            if EXTENSION_ERROR_PREFIX in str(err):
+                raise ReadOnlyExtensionError(str(err)) from err
+            raise
 
     def _run_deferred_setup(self) -> None:
         # Another thread is already at it; its result is not waited for

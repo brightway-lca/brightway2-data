@@ -22,7 +22,7 @@ from peewee import (
     fn,
 )
 
-from bw2data.errors import UnknownObject
+from bw2data.errors import EXTENSION_ERROR_PREFIX, ReadOnlyExtensionError, UnknownObject
 from bw2data.signals import (
     on_activity_code_change,
     on_activity_database_change,
@@ -488,7 +488,12 @@ def _as_peewee_error(exc: Exception) -> Exception:
     """
     for cls in type(exc).__mro__:
         if cls.__name__ in _PEEWEE_ERRORS:
-            return _PEEWEE_ERRORS[cls.__name__](exc, *exc.args)
+            error = _PEEWEE_ERRORS[cls.__name__](exc, *exc.args)
+            if isinstance(error, IntegrityError) and EXTENSION_ERROR_PREFIX in str(exc):
+                # Refused by a trigger of the read-only extensions, as in
+                # ``BWSqliteDatabase.execute_sql``
+                return ReadOnlyExtensionError(str(exc))
+            return error
     return exc
 
 

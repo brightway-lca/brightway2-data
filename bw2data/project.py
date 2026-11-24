@@ -656,6 +656,7 @@ class ProjectManager(Iterable):
             check_extensions,
             requirement_order,
         )
+        from bw2data.backends.schema import ExtensionDatabaseState
         from bw2data.errors import ExtensionError
 
         single = isinstance(path, (str, os.PathLike))
@@ -761,6 +762,13 @@ class ProjectManager(Iterable):
             raise
         self._extension_problems = problems
         self._warn_extension_problems(problems, previous)
+        # The project has no processed data for the databases which it now gets, or data of
+        # another version of the file: start from a new local state, to be processed
+        before = {spec.name for spec in attached_now}
+        for extension in lci_db.extensions:
+            if extension.name not in before:
+                for database in extension.databases:
+                    ExtensionDatabaseState.replace(name=database, dirty=True).execute()
         bw2signals.on_extension_attached.send(self, names=[entry["name"] for entry in entries])
         return tuple(e for e in self.extensions if e.name in new_names)
 
@@ -773,6 +781,7 @@ class ProjectManager(Iterable):
         characterization or normalization factors for its flows. ``force=True`` detaches
         anyway, with a warning: the extensions which require it are then no longer available,
         and such exchanges and factors point at nothing."""
+        from bw2data.backends.schema import ExtensionDatabaseState
         from bw2data.errors import ExtensionError
 
         stored = self._stored_extensions()
@@ -805,6 +814,10 @@ class ProjectManager(Iterable):
         except BaseException:
             self._store_extensions(stored)
             raise
+        if databases:
+            ExtensionDatabaseState.delete().where(
+                ExtensionDatabaseState.name.in_(list(databases))
+            ).execute()
         bw2signals.on_extension_detached.send(self, name=name, databases=tuple(databases))
 
     @staticmethod

@@ -236,12 +236,18 @@ def test_single_saves_and_metadata_saves(files):
 def test_extension_data_is_read_only(files):
     from peewee import IntegrityError
 
+    from bw2data.errors import ReadOnlyExtensionError
+
     attach(*specs(files))
-    with pytest.raises(IntegrityError, match="bw2data-extension"):
+    # Refused by the triggers; the error is also an ``IntegrityError``
+    with pytest.raises(ReadOnlyExtensionError, match="bw2data-extension") as caught:
         ActivityDataset.delete().where(ActivityDataset.database == "bio").execute()
-    with pytest.raises(IntegrityError, match="bw2data-extension"):
+    assert isinstance(caught.value, IntegrityError)
+    # Refused before any SQL runs
+    with pytest.raises(IntegrityError, match="only its keys .* can be changed, not comment"):
         databases["bio"]["comment"] = "changed"
         databases["bio"].save()
+    assert "comment" not in databases["bio"]
     assert len(Database("bio")) == 3
 
 

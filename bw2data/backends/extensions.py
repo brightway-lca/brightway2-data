@@ -59,11 +59,13 @@ from bw2data.backends.schema import (
     ExchangeDataset,
     ExtensionDatabaseState,
 )
-from bw2data.errors import ExtensionDependencyError, ExtensionError
+from bw2data.errors import (
+    EXTENSION_ERROR_PREFIX,
+    ExtensionDependencyError,
+    ExtensionError,
+    ReadOnlyExtensionError,
+)
 from bw2data.sqlite import ZSTD_DICTIONARY_TABLE, ConnectionHook, _sqlite_uri
-
-#: Start of the message of every error raised by the extension triggers
-EXTENSION_ERROR_PREFIX = "bw2data-extension:"
 
 #: TEMP table with one row per database name stored in an attached extension
 REGISTRY_TABLE = "lci_extension_databases"
@@ -71,6 +73,11 @@ REGISTRY_TABLE = "lci_extension_databases"
 #: Columns of ``DatabaseRecord`` which are local to the project, also for a database stored in
 #: an extension
 LOCAL_STATE_COLUMNS = ("dirty", "searchable", "modified")
+
+#: Key of ``DatabaseRecord.extra`` which is local to the project, also for a database stored in
+#: an extension: when the project last processed the database. Stored in the ``processed``
+#: column of ``ExtensionDatabaseState``.
+LOCAL_STATE_EXTRA_KEY = "processed"
 
 #: Values of the ``problem`` column of the query built by ``ownership_check_sql``
 NO_RECORD = "no_record"
@@ -88,7 +95,7 @@ DUPLICATE_ID = f"{EXTENSION_ERROR_PREFIX} this id is already used in a read-only
 MISSING_ID = f"{EXTENSION_ERROR_PREFIX} a row needs an id when read-only extensions are attached"
 NOT_LOCAL_STATE = (
     f"{EXTENSION_ERROR_PREFIX} only the project-local fields ("
-    + ", ".join(LOCAL_STATE_COLUMNS)
+    + ", ".join(LOCAL_STATE_COLUMNS + (LOCAL_STATE_EXTRA_KEY,))
     + ") of a database stored in a read-only extension can be changed"
 )
 
@@ -266,6 +273,13 @@ def _record_view_sql(schemas: Sequence[str]) -> str:
     def extension_column(column: str) -> str:
         if column in LOCAL_STATE_COLUMNS:
             return f"COALESCE(s.{_q(column)}, e.{_q(column)}) AS {_q(column)}"
+        if column == "extra":
+            key = _literal(f"$.{LOCAL_STATE_EXTRA_KEY}")
+            processed = f"s.{_q(LOCAL_STATE_EXTRA_KEY)}"
+            return (
+                f"CASE WHEN {processed} IS NULL THEN e.extra "
+                f"ELSE json_set(COALESCE(e.extra, '{{}}'), {key}, {processed}) END AS extra"
+            )
         return f"e.{_q(column)}"
 
     main_select = f"SELECT {', '.join(_q(c) for c in columns)} FROM main.{table}"
@@ -338,13 +352,22 @@ def _json_differs(column: str) -> str:
     )
 
 
+def _extra_processed(expression: str) -> str:
+    """The ``LOCAL_STATE_EXTRA_KEY`` value in the ``extra`` JSON ``expression``, or ``NULL``."""
+    key = _literal(f"$.{LOCAL_STATE_EXTRA_KEY}")
+    return f"CASE WHEN json_valid({expression}) THEN json_extract({expression}, {key}) END"
+
+
 def _extra_differs() -> str:
-    """Whether ``NEW.extra`` and ``OLD.extra`` differ, ignoring formatting and the order of the
-    top-level keys. ``NULL`` and ``{}`` are the same. ``type`` is compared too, as ``json_each``
-    gives ``true`` and ``1`` the same value."""
+    """Whether ``NEW.extra`` and ``OLD.extra`` differ, ignoring formatting, the order of the
+    top-level keys and the project-local key ``LOCAL_STATE_EXTRA_KEY``. ``NULL`` and ``{}`` are
+    the same. ``type`` is compared too, as ``json_each`` gives ``true`` and ``1`` the same
+    value."""
 
     def keys(expression: str) -> str:
-        return f"SELECT key, type, value FROM json_each(COALESCE({expression}, '{{}}'))"
+        key = _literal(f"$.{LOCAL_STATE_EXTRA_KEY}")
+        stripped = f"json_remove(COALESCE({expression}, '{{}}'), {key})"
+        return f"SELECT key, type, value FROM json_each({stripped})"
 
     new, old = "NEW.extra", "OLD.extra"
     return (
@@ -379,19 +402,23 @@ def _record_triggers_sql() -> list[str]:
 
     # Only the local columns which this statement changes are stored: the others have the
     # extension's value in ``NEW``, and must keep following the extension. Changing a column
-    # to NULL stores NULL, which shows the extension's value again.
-    def changed(column: str) -> str:
-        return f"NEW.{_q(column)} IS NOT OLD.{_q(column)}"
+    # to NULL stores NULL, which shows the extension's value again. ``processed`` comes from
+    # the ``extra`` JSON.
+    local = {c: (f"NEW.{_q(c)}", f"OLD.{_q(c)}") for c in LOCAL_STATE_COLUMNS}
+    local[LOCAL_STATE_EXTRA_KEY] = (_extra_processed("NEW.extra"), _extra_processed("OLD.extra"))
 
-    state_columns = ", ".join(["name", *(_q(c) for c in LOCAL_STATE_COLUMNS)])
+    def changed(column: str) -> str:
+        new, old = local[column]
+        return f"({new}) IS NOT ({old})"
+
+    state_columns = ", ".join(["name", *(_q(c) for c in local)])
     state_values = ", ".join(
-        ["OLD.name"] + [f"CASE WHEN {changed(c)} THEN NEW.{_q(c)} END" for c in LOCAL_STATE_COLUMNS]
+        ["OLD.name"] + [f"CASE WHEN {changed(c)} THEN {local[c][0]} END" for c in local]
     )
     state_updates = ", ".join(
-        f"{_q(c)} = CASE WHEN {changed(c)} THEN NEW.{_q(c)} ELSE {_q(c)} END"
-        for c in LOCAL_STATE_COLUMNS
+        f"{_q(c)} = CASE WHEN {changed(c)} THEN {local[c][0]} ELSE {_q(c)} END" for c in local
     )
-    any_changed = " OR ".join(changed(c) for c in LOCAL_STATE_COLUMNS)
+    any_changed = " OR ".join(changed(c) for c in local)
     in_extension = _in_registry("OLD.name")
 
     insert = (
@@ -1008,3 +1035,36 @@ def requirement_order(attached: Sequence[AttachedExtension]) -> list[AttachedExt
     for extension in attached:
         visit(extension, ())
     return ordered
+
+
+# Python-level guards: refuse changes to the data of an extension before any SQL runs. The
+# triggers refuse them as well, but only once some changes (to calculation setups, search
+# indexes, parameters, the local state of the database record, ...) may already be made.
+
+#: Keys of a database's metadata which can be changed for a database stored in an extension
+LOCAL_METADATA_KEYS = frozenset(LOCAL_STATE_COLUMNS + (LOCAL_STATE_EXTRA_KEY,))
+
+
+def extension_of(database: str) -> AttachedExtension | None:
+    """The attached extension which stores ``database``, or ``None``."""
+    from bw2data.backends import sqlite3_lci_db
+
+    if not sqlite3_lci_db.extensions:
+        return None
+    return sqlite3_lci_db.extension_databases().get(database)
+
+
+def check_writable(database: str, what: str = "can't be changed") -> None:
+    """Raise ``ReadOnlyExtensionError`` if ``database`` is stored in an attached extension.
+    ``what`` ends the message, e.g. ``"can't be deleted"``."""
+    extension = extension_of(database)
+    if extension is not None:
+        raise ReadOnlyExtensionError(
+            f"Database {database!r} is stored in the read-only {extension} and {what}"
+        )
+
+
+def check_name_free(database: str) -> None:
+    """Raise ``ReadOnlyExtensionError`` if the database name ``database`` is used by an
+    attached extension, so that it can't be given to a database of the project."""
+    check_writable(database, "its name can't be used for a database of the project")

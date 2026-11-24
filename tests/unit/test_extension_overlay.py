@@ -601,6 +601,27 @@ def test_extension_record_processed_is_kept(conn):
     )
     conn.execute(f"UPDATE {RECORDS} SET dirty = 1 WHERE name = 'bio'")
     assert state(conn) == [("bio", 1, None, None, "then")]
+    # It is shown in ``extra``
+    assert record(conn, "bio")["extra"] == {**BIO_EXTRA, "processed": "then"}
+
+
+def test_extension_record_processed_is_local(conn):
+    # ``processed`` in ``extra`` is the project's, also for an extension's record
+    extra = json.dumps({**BIO_EXTRA, "processed": "now"})
+    conn.execute(f"UPDATE {RECORDS} SET extra = ? WHERE name = 'bio'", (extra,))
+    assert state(conn) == [("bio", None, None, None, "now")]
+    assert record(conn, "bio")["extra"] == {**BIO_EXTRA, "processed": "now"}
+    # Together with another local field, and with another key order
+    extra = json.dumps({"processed": "later", **BIO_EXTRA})
+    conn.execute(f"UPDATE {RECORDS} SET extra = ?, dirty = 0 WHERE name = 'bio'", (extra,))
+    assert state(conn) == [("bio", 0, None, None, "later")]
+    # Without it, the extension's ``extra`` is shown again
+    conn.execute(f"UPDATE {RECORDS} SET extra = ? WHERE name = 'bio'", (json.dumps(BIO_EXTRA),))
+    assert state(conn) == [("bio", 0, None, None, None)]
+    assert record(conn, "bio")["extra"] == BIO_EXTRA
+    # Other changes to ``extra`` are still refused
+    extra = json.dumps({**BIO_EXTRA, "processed": "now", "format": "changed"})
+    refused(conn, f"UPDATE {RECORDS} SET extra = ? WHERE name = 'bio'", (extra,), NOT_LOCAL_STATE)
 
 
 def test_extension_record_same_extra_allowed(conn):
@@ -631,7 +652,6 @@ def test_extension_record_same_json_allowed(conn):
         ("name = 'renamed'", ()),
         ("extra = ?", (json.dumps({**BIO_EXTRA, "format": "changed"}),)),
         ("extra = ?", (json.dumps({**BIO_EXTRA, "new": 1}),)),
-        ("extra = ?", (json.dumps({**BIO_EXTRA, "processed": "now"}),)),
         # ``true`` and ``1`` are different values
         ("extra = ?", (json.dumps({**BIO_EXTRA, "flag": 1}),)),
         ("extra = ?", (json.dumps({"format": "test"}),)),

@@ -802,8 +802,10 @@ class Databases(_RecordRegistry):
     # ------------------------------------------------------------------
 
     def __setitem__(self, name, value):
+        from bw2data.backends.extensions import check_writable
         from bw2data.backends.schema import DatabaseRecord
 
+        check_writable(name, "its metadata can't be replaced")
         send = self._should_signal()
         old = self._as_dict() if send else None
         value = dict(value)  # copy to avoid mutating caller's dict
@@ -816,9 +818,12 @@ class Databases(_RecordRegistry):
 
     def __delitem__(self, name: str, signal: bool = True):
         from bw2data import Database
+        from bw2data.backends.extensions import check_writable
 
         if name not in self:
             raise KeyError(name)
+        # Before anything is changed, e.g. calculation setups
+        check_writable(name, "can't be deleted; `projects.detach_extension` removes the extension")
 
         try:
             Database(name).delete(warn=False, signal=False)
@@ -905,6 +910,26 @@ Metadata state is unchanged, but database state is unknown.
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _write_changes(self, proxy, changed):
+        """As ``_RecordRegistry._write_changes``, but a database stored in a read-only extension
+        only takes changes to its project-local keys; other changes are discarded."""
+        from bw2data.backends.extensions import LOCAL_METADATA_KEYS, extension_of
+        from bw2data.backends.schema import DatabaseRecord
+        from bw2data.errors import ReadOnlyExtensionError
+
+        name = proxy._row.name
+        extension = extension_of(name)
+        if extension is not None:
+            other = sorted(set(changed) - LOCAL_METADATA_KEYS)
+            if other:
+                proxy._load(DatabaseRecord.get(DatabaseRecord.name == name))
+                raise ReadOnlyExtensionError(
+                    f"Database {name!r} is stored in the read-only {extension}, and only its "
+                    f"keys {', '.join(sorted(LOCAL_METADATA_KEYS))} can be changed, not "
+                    f"{', '.join(other)}. The unsaved changes of its metadata were discarded."
+                )
+        super()._write_changes(proxy, changed)
+
     def _should_signal(self) -> bool:
         """Whether a save should build ``old``/``new`` snapshots and emit
         ``on_database_metadata_change``.
@@ -921,11 +946,21 @@ Metadata state is unchanged, but database state is unknown.
 
     @_RecordRegistry.data.setter
     def data(self, new_data):
-        """Replace all metadata rows. Used by the revision system to replay patches."""
+        """Replace all metadata rows. Used by the revision system to replay patches.
+
+        The records of databases stored in read-only extensions are left as they are, with
+        their project-local state."""
+        from bw2data.backends import sqlite3_lci_db
         from bw2data.backends.schema import DatabaseRecord
 
-        DatabaseRecord.delete().execute()
+        in_extensions = set(sqlite3_lci_db.extension_databases())
+        query = DatabaseRecord.delete()
+        if in_extensions:
+            query = query.where(DatabaseRecord.name.not_in(in_extensions))
+        query.execute()
         for name, meta in new_data.items():
+            if name in in_extensions:
+                continue
             meta = dict(meta)
             known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
             DatabaseRecord.replace(name=name, extra=meta or None, **known).execute()
