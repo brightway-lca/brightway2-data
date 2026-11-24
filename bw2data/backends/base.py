@@ -771,7 +771,7 @@ class SQLiteBackend(ProcessedDataStore):
                 exchange["output"] = (ds["database"], ds["code"])
             if "temporal_distribution" in exchange:
                 check_temporal_distribution_sum(exchange)
-            exchanges.append(dict_as_exchangedataset(exchange))
+            exchanges.append(dict_as_exchangedataset(exchange, add_snowflake_id=True))
 
             # Flushed in batches only to bound memory use
             if len(exchanges) >= WRITE_BATCH_SIZE:

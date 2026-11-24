@@ -737,7 +737,11 @@ class _RecordRegistry(MutableMapping):
                     else:
                         stored.pop(key, None)
                 updates[model.extra] = stored or None
-            if not model.update(updates).where(where).execute():
+            # The row count can't tell: an update through the view of a read-only extension
+            # (``bw2data.backends.extensions``) always reports 0 rows, as SQLite doesn't count
+            # changes made by triggers
+            model.update(updates).where(where).execute()
+            if not model.select().where(where).exists():
                 raise UnknownObject(f"{self._what} {row.name!r} is not registered")
             proxy._load(model.get(where))
 

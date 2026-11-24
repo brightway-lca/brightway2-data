@@ -1010,6 +1010,13 @@ MIGRATIONS: tuple[Migration, ...] = (
 #: Schema version of a fully migrated ``lci/databases.db``
 SCHEMA_VERSION = len(MIGRATIONS)
 
+#: Oldest schema version of a read-only extension file which can be attached. An extension
+#: can never be migrated, so it is read as it is: its overlaid tables (activities, exchanges,
+#: database records, zstd dictionaries) must be stored as this version of bw2data stores them.
+#: Raise this to the new version whenever a step changes how one of these tables is stored.
+#: 6: activity and exchange data as compressed tagged JSON, without pickles.
+MIN_EXTENSION_SCHEMA_VERSION = 6
+
 
 def schema_version(db: Database) -> int:
     """Schema version stored in the ``main`` file of ``db``."""
