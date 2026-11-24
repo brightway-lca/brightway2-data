@@ -259,6 +259,36 @@ No expected return value.
 """,
 )
 
+on_extension_attached = signal(
+    "bw2data.on_extension_attached",
+    doc="""
+Emitted *after* read-only LCI extensions were attached to the current project with
+`projects.attach_extension`: they are stored with the project, and their databases can be read.
+
+Not sent when a project which already has extensions is opened; use `project_changed` for that.
+
+Expected inputs:
+    * `names`: list[str] - the names of the new extensions, as in `projects.extensions`
+
+No expected return value.
+""",
+)
+
+on_extension_detached = signal(
+    "bw2data.on_extension_detached",
+    doc="""
+Emitted *after* a read-only LCI extension was detached from the current project with
+`projects.detach_extension`: its databases are no longer in the project.
+
+Expected inputs:
+    * `name`: str - the name the extension had in `projects.extensions`
+    * `databases`: tuple[str] - the names of the databases which were stored in it; empty if
+      the extension was not available
+
+No expected return value.
+""",
+)
+
 
 class SignaledDataset(Model):
     @override

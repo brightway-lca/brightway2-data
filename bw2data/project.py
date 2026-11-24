@@ -3,6 +3,7 @@ import os
 import shutil
 import warnings
 from collections.abc import Iterable
+from contextlib import closing
 from copy import copy
 from functools import partial
 from pathlib import Path
@@ -474,8 +475,386 @@ class ProjectManager(Iterable):
             obj.__init__()
 
     def _reset_sqlite3_databases(self):
+        lci_db = self._lci_db()
+        # A project with extensions opens its LCI file only once, with them, below
+        deferred = lci_db if lci_db is not None and self._stored_extensions() else None
         for relative_path, substitutable_db in config.sqlite3_databases:
-            substitutable_db.change_path(self.dir / relative_path)
+            if substitutable_db is not deferred:
+                substitutable_db.change_path(self.dir / relative_path)
+        self._attach_stored_extensions(opened=deferred is None)
+
+    ### Read-only LCI extensions
+
+    #: Key of ``ProjectDataset.data`` with the extensions of a project: a list of dicts with
+    #: ``name``, ``path`` (absolute), ``id``, ``immutable`` and ``allow_main_requirements``.
+    #: Stored in ``projects.db``, so that they are known before the project's files are opened.
+    _EXTENSIONS_KEY = "lci_extensions"
+    _LCI_DATABASE = os.path.join("lci", "databases.db")
+    #: ``{name: (status, problem)}`` of the current project's extensions which are not attached
+    _extension_problems: dict = {}
+
+    def _lci_db(self) -> Optional[SubstitutableDatabase]:
+        """The LCI database file object; ``None`` while ``bw2data`` is being imported."""
+        for relative_path, substitutable_db in config.sqlite3_databases:
+            if str(relative_path) == self._LCI_DATABASE:
+                return substitutable_db
+        return None
+
+    def _stored_extensions(self) -> list[dict]:
+        return list(self.dataset.data.get(self._EXTENSIONS_KEY) or [])
+
+    def _usable_extensions(self, stored: list[dict]) -> tuple[list, dict]:
+        """``usable_extensions`` for the stored entries ``stored``."""
+        from bw2data.backends.extensions import ExtensionSpec, usable_extensions
+
+        if not stored:
+            return [], {}
+        specs = [
+            ExtensionSpec(
+                name=entry["name"],
+                path=entry["path"],
+                immutable=bool(entry.get("immutable")),
+                allow_main_requirements=bool(entry.get("allow_main_requirements")),
+            )
+            for entry in stored
+        ]
+        return usable_extensions(
+            self.dir / self._LCI_DATABASE,
+            specs,
+            ids={entry["name"]: entry["id"] for entry in stored},
+        )
+
+    def _attach_stored_extensions(self, opened: bool = True, previous: Optional[dict] = None):
+        """Open the LCI file of the current project with its stored extensions.
+
+        An extension which can't be attached (missing file, replaced file, missing
+        requirement, ...) is left out with a warning, together with the extensions which need
+        it; the project still opens. ``projects.extensions`` then shows why. Only an error in
+        opening the project's own file is passed on.
+
+        ``opened`` is false if the LCI file of the project is not open yet. ``previous`` are
+        the problems from before an attach or detach; only changed ones are warned about."""
+        self._extension_problems = {}
+        lci_db = self._lci_db()
+        if lci_db is None:
+            # ``bw2data.backends`` calls this again once the file is open
+            return
+        stored = self._stored_extensions()
+        path = self.dir / self._LCI_DATABASE
+        if not stored:
+            if lci_db.extensions or not opened:
+                lci_db.change_path(path)
+            return
+
+        from bw2data.backends.extensions import INVALID
+
+        def all_invalid(names, err):
+            return {name: (INVALID, str(err)) for name in names}
+
+        stored_names = [entry["name"] for entry in stored]
+        try:
+            usable, problems = self._usable_extensions(stored)
+        except Exception as err:
+            if opened:
+                usable, problems = [], all_invalid(stored_names, err)
+            else:
+                # E.g. tables which are only created when the file is opened
+                lci_db.change_path(path)
+                opened = True
+                try:
+                    usable, problems = self._usable_extensions(stored)
+                except Exception as err:
+                    usable, problems = [], all_invalid(stored_names, err)
+        if usable or lci_db.extensions or not opened:
+            try:
+                lci_db.change_path(path, extensions=usable)
+            except Exception as err:
+                # The files don't fit together, or to the project's own databases, or can't be
+                # read. ``change_path`` went back to what was open before, maybe another file.
+                problems.update(all_invalid([spec.name for spec in usable], err))
+                lci_db.change_path(path)
+        self._extension_problems = problems
+        self._warn_extension_problems(problems, previous)
+
+    def _warn_extension_problems(self, problems: dict, previous: Optional[dict] = None) -> None:
+        from bw2data.sqlite import _user_stacklevel
+
+        for name, (status, problem) in problems.items():
+            if previous is not None and previous.get(name, (None,))[0] == status:
+                continue
+            warnings.warn(
+                f"Extension {name!r} of project {self.current!r} is not available ({status}): "
+                f"{problem}. Its databases are not in the project until this is solved; "
+                "`projects.detach_extension` removes the extension from the project.",
+                stacklevel=_user_stacklevel(),
+            )
+
+    @property
+    def extensions(self) -> tuple:
+        """The read-only LCI extensions of the current project, as
+        ``bw2data.backends.extensions.ProjectExtension``: ``name``, ``path``, ``id``, ``status``
+        (``"available"``, ``"missing file"``, ``"missing requirement"`` or ``"invalid"``),
+        ``problem`` and ``databases``."""
+        stored = self._stored_extensions()
+        if not stored:
+            return ()
+        from bw2data.backends.extensions import AVAILABLE, INVALID, ProjectExtension
+
+        lci_db = self._lci_db()
+        attached = {e.name: e for e in lci_db.extensions} if lci_db is not None else {}
+        result = []
+        for entry in stored:
+            name = entry["name"]
+            status, problem = self._extension_problems.get(name, (AVAILABLE, None))
+            if name not in attached and status == AVAILABLE:
+                status, problem = INVALID, "the extension is not attached"
+            result.append(
+                ProjectExtension(
+                    name=name,
+                    path=Path(entry["path"]),
+                    id=entry["id"],
+                    immutable=bool(entry.get("immutable")),
+                    allow_main_requirements=bool(entry.get("allow_main_requirements")),
+                    status=status,
+                    problem=problem,
+                    databases=attached[name].databases if name in attached else (),
+                )
+            )
+        return tuple(result)
+
+    def attach_extension(
+        self,
+        path,
+        name: Union[str, Sequence[str], None] = None,
+        immutable: bool = False,
+        allow_main_requirements: bool = False,
+    ) -> tuple:
+        """Attach read-only LCI extension files to the current project.
+
+        The databases stored in an extension are read like the project's own, and the
+        project's databases can link to them, but they can't be changed. The extensions are
+        stored with the project, and attached again every time it is opened.
+
+        ``path`` is one file or a list of files. Files which need each other must be given
+        together, in any order, unless the ones they need are already attached. ``name``
+        identifies an extension in the project; for a list, it is a list of names in the same
+        order. The default is the file name without its suffix, followed by ``_2``, ``_3``,
+        ... if the project already has an extension with this name. ``immutable`` and
+        ``allow_main_requirements`` are as in ``bw2data.backends.extensions.ExtensionSpec``.
+
+        Raises ``bw2data.errors.ExtensionError`` (``ExtensionDependencyError`` for
+        requirements) if the files can't be attached; see
+        ``bw2data.backends.extensions.check_extensions``. Nothing is changed then.
+
+        Stored extensions which were not available are attached as well if they now can be,
+        e.g. because a new file is what they were missing.
+
+        Returns the new entries of ``projects.extensions``."""
+        from bw2data.backends.extensions import (
+            INVALID,
+            ExtensionSpec,
+            check_extensions,
+            requirement_order,
+        )
+        from bw2data.errors import ExtensionError
+
+        single = isinstance(path, (str, os.PathLike))
+        paths = [path] if single else list(path)
+        if not paths:
+            raise ValueError("No extension file given")
+        if name is None:
+            given_names = [None] * len(paths)
+        elif isinstance(name, str):
+            if not single:
+                raise ValueError("For a list of files, `name` must be a list of names")
+            given_names = [name]
+        else:
+            given_names = list(name)
+            if len(given_names) != len(paths):
+                raise ValueError(f"{len(paths)} files, but {len(given_names)} names")
+        lci_db = self._lci_db()
+        stored = self._stored_extensions()
+        names = {entry["name"] for entry in stored}
+        stored_paths = {Path(entry["path"]): entry["name"] for entry in stored}
+        # Names given explicitly are not taken by default names
+        reserved = {given for given in given_names if given is not None}
+        new_specs, new_paths = [], {}
+        for filepath, spec_name in zip(paths, given_names):
+            filepath = Path(filepath).resolve()
+            if filepath in stored_paths:
+                raise ExtensionError(
+                    f"{filepath} is already an extension of this project, named "
+                    f"{stored_paths[filepath]!r}"
+                )
+            if filepath in new_paths:
+                raise ExtensionError(f"{filepath} is given twice")
+            new_paths[filepath] = True
+            if spec_name is None:
+                spec_name, number = filepath.stem, 1
+                while spec_name in names or spec_name in reserved:
+                    number += 1
+                    spec_name = f"{filepath.stem}_{number}"
+            elif spec_name in names:
+                raise ExtensionError(
+                    f"This project already has an extension named {spec_name!r}; give "
+                    f"{filepath} another `name`"
+                )
+            names.add(spec_name)
+            new_specs.append(
+                ExtensionSpec(
+                    name=spec_name,
+                    path=filepath,
+                    immutable=immutable,
+                    allow_main_requirements=allow_main_requirements,
+                )
+            )
+
+        main_path = self.dir / self._LCI_DATABASE
+        # With the extensions which are attached now
+        attached_now = [e.spec for e in lci_db.extensions]
+        attached = check_extensions(main_path, attached_now + new_specs)
+        new_names = [spec.name for spec in new_specs]
+        stored_ids = {entry["id"]: entry["name"] for entry in stored}
+        entries = []
+        for extension in requirement_order(attached):
+            if extension.name not in new_names:
+                continue
+            if extension.id in stored_ids:
+                raise ExtensionError(
+                    f"{extension} is already an extension of this project, named "
+                    f"{stored_ids[extension.id]!r} (id {extension.id})"
+                )
+            entries.append(
+                {
+                    "name": extension.name,
+                    "path": str(extension.path),
+                    "id": extension.id,
+                    "immutable": extension.spec.immutable,
+                    "allow_main_requirements": extension.spec.allow_main_requirements,
+                }
+            )
+
+        # Stored extensions which were not available come back if they can
+        usable, problems = self._usable_extensions(stored + entries)
+        for spec_name in new_names:
+            if spec_name in problems:
+                raise ExtensionError(
+                    f"Can't attach extension {spec_name!r}: {problems[spec_name][1]}"
+                )
+        try:
+            check_extensions(main_path, usable)
+        except ExtensionError as err:
+            # Some of those which come back don't fit (any more); they stay unavailable
+            keep = {spec.name for spec in attached_now} | set(new_names)
+            problems.update(
+                {spec.name: (INVALID, str(err)) for spec in usable if spec.name not in keep}
+            )
+            usable = [spec for spec in usable if spec.name in keep]
+
+        previous = dict(self._extension_problems)
+        self._store_extensions(stored + entries)
+        try:
+            lci_db.change_path(main_path, extensions=usable)
+        except BaseException:
+            # ``change_path`` went back to the file with the extensions attached before
+            self._store_extensions(stored)
+            raise
+        self._extension_problems = problems
+        self._warn_extension_problems(problems, previous)
+        bw2signals.on_extension_attached.send(self, names=[entry["name"] for entry in entries])
+        return tuple(e for e in self.extensions if e.name in new_names)
+
+    def detach_extension(self, name: str, force: bool = False) -> None:
+        """Remove the read-only LCI extension ``name`` from the current project. The file itself
+        is not touched.
+
+        Refused with ``bw2data.errors.ExtensionError`` while another attached extension
+        requires it, or while the project has exchanges whose input is in it, or
+        characterization or normalization factors for its flows. ``force=True`` detaches
+        anyway, with a warning: the extensions which require it are then no longer available,
+        and such exchanges and factors point at nothing."""
+        from bw2data.errors import ExtensionError
+
+        stored = self._stored_extensions()
+        if name not in {entry["name"] for entry in stored}:
+            raise ValueError(f"This project has no extension named {name!r}")
+        lci_db = self._lci_db()
+        attached = {e.name: e for e in lci_db.extensions}
+        extension = attached.get(name)
+        databases = extension.databases if extension is not None else ()
+        if extension is not None:
+            problems = [
+                f"extension {other.name!r} requires it"
+                for other in attached.values()
+                if other is not extension
+                and any(required_id == extension.id for _, required_id, _ in other.requirements)
+            ]
+            if databases:
+                problems.extend(self._extension_users(lci_db, extension))
+            if problems:
+                message = f"extension {name!r}: " + "; ".join(problems)
+                if not force:
+                    raise ExtensionError(
+                        f"Can't detach {message}. Pass `force=True` to detach it anyway."
+                    )
+                warnings.warn(f"Detaching {message}", stacklevel=2)
+        previous = dict(self._extension_problems)
+        self._store_extensions([entry for entry in stored if entry["name"] != name])
+        try:
+            self._attach_stored_extensions(previous=previous)
+        except BaseException:
+            self._store_extensions(stored)
+            raise
+        bw2signals.on_extension_detached.send(self, name=name, databases=tuple(databases))
+
+    @staticmethod
+    def _extension_users(lci_db, extension) -> list[str]:
+        """What in the project's own file links to the attached ``extension``: databases with
+        exchanges whose input is in it, and methods and normalizations with factors for its
+        activities."""
+        from bw2data.backends.schema import MethodRecord, NormalizationRecord
+
+        databases = extension.databases
+        marks = ", ".join("?" * len(databases))
+        result = []
+        sql = (
+            'SELECT DISTINCT "output_database" FROM main."exchangedataset" '
+            f'WHERE "input_database" IN ({marks}) ORDER BY 1'
+        )
+        with closing(lci_db.execute_sql(sql, databases)) as cursor:
+            users = [row[0] for row in cursor.fetchall()]
+        if users:
+            result.append(
+                "these databases of the project have exchanges with inputs in it: "
+                + ", ".join(repr(user) for user in users)
+            )
+        flows = (
+            f'SELECT "id" FROM "{extension.schema}"."activitydataset" '
+            f'WHERE "database" IN ({marks})'
+        )
+        for record, table, column, label in (
+            (MethodRecord, "characterizationfactor", "method_id", "methods"),
+            (NormalizationRecord, "normalizationfactor", "normalization_id", "normalizations"),
+        ):
+            sql = f'SELECT DISTINCT "{column}" FROM main."{table}" WHERE "flow" IN ({flows})'
+            with closing(lci_db.execute_sql(sql, databases)) as cursor:
+                ids = [row[0] for row in cursor.fetchall()]
+            if ids:
+                names = sorted(
+                    str(row.name) for row in record.select(record.name).where(record.id.in_(ids))
+                )
+                result.append(
+                    f"these {label} have factors for its flows: "
+                    + ", ".join(repr(n) for n in names)
+                )
+        return result
+
+    def _store_extensions(self, entries: list[dict]) -> None:
+        if entries:
+            self.dataset.data[self._EXTENSIONS_KEY] = entries
+        else:
+            self.dataset.data.pop(self._EXTENSIONS_KEY, None)
+        self.dataset.save()
 
     ### Public API
     @property

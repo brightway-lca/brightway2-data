@@ -85,9 +85,7 @@ EXTENSION_DATABASE_NAME = (
     f"{EXTENSION_ERROR_PREFIX} this database name is used by a read-only extension"
 )
 DUPLICATE_ID = f"{EXTENSION_ERROR_PREFIX} this id is already used in a read-only extension"
-MISSING_ID = (
-    f"{EXTENSION_ERROR_PREFIX} a row needs an id when read-only extensions are attached"
-)
+MISSING_ID = f"{EXTENSION_ERROR_PREFIX} a row needs an id when read-only extensions are attached"
 NOT_LOCAL_STATE = (
     f"{EXTENSION_ERROR_PREFIX} only the project-local fields ("
     + ", ".join(LOCAL_STATE_COLUMNS)
@@ -169,9 +167,13 @@ def _raise_if(condition: str, message: str) -> str:
 
 def _id_in_extensions(model: type[Model], schemas: Sequence[str], expression: str) -> str:
     table = _q(_table(model))
-    return "(" + " OR ".join(
-        f"EXISTS (SELECT 1 FROM {_q(s)}.{table} WHERE id = {expression})" for s in schemas
-    ) + ")"
+    return (
+        "("
+        + " OR ".join(
+            f"EXISTS (SELECT 1 FROM {_q(s)}.{table} WHERE id = {expression})" for s in schemas
+        )
+        + ")"
+    )
 
 
 def drop_overlay_sql() -> list[str]:
@@ -697,6 +699,16 @@ def _check_unique_ids(attached: Sequence[AttachedExtension]) -> None:
 
 
 def _check_requirements(connection, attached: Sequence[AttachedExtension]) -> None:
+    problems = _unmet_requirements(connection, attached)
+    if problems:
+        raise ExtensionDependencyError("\n".join(problem for _, problem in problems))
+
+
+def _unmet_requirements(
+    connection, attached: Sequence[AttachedExtension]
+) -> list[tuple[AttachedExtension, str]]:
+    """The requirements which ``attached`` and the project's own file don't meet, as
+    ``(extension with the requirement, message)``."""
     by_id = {extension.id: extension for extension in attached}
     record = _q(_table(DatabaseRecord))
     main_databases = {row[0] for row in _rows(connection, f"SELECT name FROM main.{record}")}
@@ -729,10 +741,13 @@ def _check_requirements(connection, attached: Sequence[AttachedExtension]) -> No
             if in_main:
                 problem += "; the database in the project has a different fingerprint too"
             problems.append(
-                f"{extension} needs database {database!r} with fingerprint {fingerprint} " + problem
+                (
+                    extension,
+                    f"{extension} needs database {database!r} with fingerprint {fingerprint} "
+                    + problem,
+                )
             )
-    if problems:
-        raise ExtensionDependencyError("\n".join(problems))
+    return problems
 
 
 def _labels(attached: Sequence[AttachedExtension]) -> dict[str, str]:
@@ -864,3 +879,132 @@ def attach_hook(attached: Sequence[AttachedExtension]) -> ConnectionHook:
             connection.execute(statement).close()
 
     return attach_extensions
+
+
+# Extensions of a project
+#
+# A project stores the extensions attached to it (``projects.attach_extension``). When it is
+# opened, an extension which can't be attached must not keep the project from opening: it is left
+# out, with the extensions which need it. ``usable_extensions`` decides which ones are left.
+
+#: Values of ``ProjectExtension.status``
+AVAILABLE = "available"
+MISSING_FILE = "missing file"
+MISSING_REQUIREMENT = "missing requirement"
+#: The file can't be attached for another reason; see ``ProjectExtension.problem``
+INVALID = "invalid"
+
+
+@dataclass(frozen=True)
+class ProjectExtension:
+    """An extension stored with a project, as listed by ``projects.extensions``."""
+
+    name: str
+    #: Absolute path of the file
+    path: Path
+    #: Id of the extension when it was attached to the project
+    id: str
+    immutable: bool
+    allow_main_requirements: bool
+    #: ``AVAILABLE`` if the extension is attached; otherwise why it isn't: ``MISSING_FILE``,
+    #: ``MISSING_REQUIREMENT`` or ``INVALID``
+    status: str
+    #: What is wrong, if the extension is not available
+    problem: str | None = None
+    #: Names of the databases stored in the file; empty if the extension is not available
+    databases: tuple[str, ...] = ()
+
+    @property
+    def available(self) -> bool:
+        return self.status == AVAILABLE
+
+
+def usable_extensions(
+    main_path, specs: Sequence[ExtensionSpec], ids: Mapping[str, str] | None = None
+) -> tuple[list[ExtensionSpec], dict[str, tuple[str, str]]]:
+    """Which of the extensions ``specs`` of the project file ``main_path`` can be attached.
+
+    Returns the specs to attach, in the given order, and ``{name: (status, problem)}`` for the
+    others. An extension is left out if its file is missing or can't be read as an extension,
+    if the file is not the extension with the id in ``ids`` (``{name: id}``: the file was
+    replaced), or if one of its requirements is met neither by the extensions which are left
+    nor, where allowed, by the project's own file. Leaving one out can leave out others which
+    need it.
+
+    The checks between files (``check_extensions``) are not made here."""
+    specs = tuple(specs)
+    ids = ids or {}
+    _check_specs(specs)
+    problems: dict[str, tuple[str, str]] = {}
+    try:
+        connection = sqlite3.connect(
+            _sqlite_uri(main_path, mode="ro"), uri=True, isolation_level=None
+        )
+        with closing(connection):
+            _check_main(connection, main_path)
+            attached = []
+            for number, spec in enumerate(specs, 1):
+                path = Path(spec.path)
+                if not path.is_file():
+                    problems[spec.name] = (MISSING_FILE, f"the file {path} doesn't exist")
+                    continue
+                problem = None
+                try:
+                    extension = _attach(connection, number, spec)
+                except ExtensionError as err:
+                    problem = str(err)
+                else:
+                    expected = ids.get(spec.name)
+                    if expected is not None and extension.id != expected:
+                        problem = (
+                            f"the file {path} is not the extension which was attached: it has "
+                            f"the id {extension.id} instead of {expected}. If this is intended, "
+                            "detach the extension and attach the file again."
+                        )
+                if problem is None:
+                    attached.append(extension)
+                    continue
+                problems[spec.name] = (INVALID, problem)
+                try:
+                    connection.execute(f"DETACH DATABASE {_q(f'ext_{number}')}").close()
+                except sqlite3.Error:
+                    # It was not attached
+                    pass
+            while True:
+                unmet = _unmet_requirements(connection, attached)
+                if not unmet:
+                    break
+                for extension, problem in unmet:
+                    problems.setdefault(extension.name, (MISSING_REQUIREMENT, problem))
+                attached = [extension for extension in attached if extension.name not in problems]
+    except sqlite3.Error as err:
+        raise ExtensionError(f"Can't check the extensions of {main_path}: {err}") from err
+    return [extension.spec for extension in attached], problems
+
+
+def requirement_order(attached: Sequence[AttachedExtension]) -> list[AttachedExtension]:
+    """``attached`` ordered such that each extension comes after the ones it requires, and
+    otherwise as given. Raises ``ExtensionDependencyError`` if extensions require each other
+    in a cycle."""
+    by_id = {extension.id: extension for extension in attached}
+    ordered: list[AttachedExtension] = []
+    done: set[str] = set()
+
+    def visit(extension: AttachedExtension, chain: tuple[AttachedExtension, ...]) -> None:
+        if extension.id in done:
+            return
+        if extension in chain:
+            cycle = chain[chain.index(extension) :] + (extension,)
+            raise ExtensionDependencyError(
+                "These extensions require each other: "
+                + ", which requires ".join(repr(e.name) for e in cycle)
+            )
+        for _, required_id, _ in extension.requirements:
+            if required_id in by_id and required_id != extension.id:
+                visit(by_id[required_id], chain + (extension,))
+        done.add(extension.id)
+        ordered.append(extension)
+
+    for extension in attached:
+        visit(extension, ())
+    return ordered

@@ -72,6 +72,9 @@ config.sqlite3_databases.append(
         sqlite3_lci_db,
     )
 )
+# The file was opened above without the read-only extensions of the project, which need this
+# module; later project switches attach them themselves
+projects._attach_stored_extensions()
 
 Node = Activity
 Edge = Exchange
