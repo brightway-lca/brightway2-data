@@ -36,6 +36,13 @@ def local_state():
     return {row.name: row for row in ExtensionDatabaseState.select()}
 
 
+def state_values():
+    return sorted(
+        (row.name, row.dirty, row.searchable, row.modified, row.processed)
+        for row in ExtensionDatabaseState.select()
+    )
+
+
 def refused(match="read-only extension"):
     return pytest.raises(ReadOnlyExtensionError, match=match)
 
@@ -175,6 +182,7 @@ def test_moving_a_node_of_the_project_into_an_extension_refused(attached):
 
 
 def test_edge_changes_refused(attached):
+    before = state_values()
     node = get_node(database="inv", code="b")
     edge = next(iter(node.technosphere()))
     edge["amount"] = 7
@@ -188,7 +196,55 @@ def test_edge_changes_refused(attached):
         node.exchanges().delete()
     assert [e["amount"] for e in node.technosphere()] == [0.5]
     assert len(node.exchanges()) == 2
-    assert "inv" not in local_state()
+    assert state_values() == before
+
+
+def test_moving_an_edge_out_of_an_extension_refused(attached):
+    Database("mine").process()
+    edge = next(iter(get_node(database="inv", code="b").technosphere()))
+    edge["output"] = ("mine", "x")
+    with refused("'inv' is stored in the read-only extension .* its edges can't be saved"):
+        edge.save()
+    # Refused before the project's database is marked as changed
+    assert not databases["mine"].get("dirty")
+    assert len(get_node(database="inv", code="b").exchanges()) == 2
+
+
+def test_upstream_edges_are_deleted_where_they_are_stored(attached):
+    # Edges of the project into a node of an extension are the project's
+    node = get_node(database="inv", code="b")
+    Database("mine").process()
+    before = state_values()
+    assert [e.output.key for e in node.upstream()] == [("mine", "x")]
+    node.upstream().delete()
+    assert len(node.upstream()) == 0
+    assert databases["mine"]["dirty"] is True
+    assert state_values() == before
+    # Edges of an extension into a node of an extension are not
+    node = get_node(database="inv", code="a")
+    assert [e.output.key for e in node.upstream()] == [("inv", "b")]
+    with refused("its edges can't be deleted"):
+        node.upstream().delete()
+    assert len(node.upstream()) == 1
+
+
+def test_bulk_insert_trigger_errors_are_read_only_extension_errors(attached):
+    from bw2data.backends.schema import ActivityDataset, _insert_many
+
+    node = get_node(database="bio", code="0")
+    row = {"id": node.id, "database": "mine", "code": "same id", "data": {}}
+    with refused("bw2data-extension: this id is already used in a read-only extension"):
+        with sqlite3_lci_db.atomic():
+            _insert_many(ActivityDataset, [row])
+
+
+def test_io_table_exchanges_refused(attached):
+    from bw2data.backends.iotable import IOTableBackend
+
+    with refused("can't be written"):
+        IOTableBackend("inv").write_exchanges([], [], [])
+    database = Database("inv")
+    assert not (database.dirpath_processed() / database.filename_processed()).exists()
 
 
 def test_edges_from_the_project_into_extensions_are_allowed(attached):
@@ -249,7 +305,9 @@ def test_process_and_calculate(attached):
     import bw2calc
 
     depends = databases["inv"]["depends"]
-    # Not processed automatically when attached
+    # Marked to be processed when attached, whatever the record in the file says
+    assert databases["inv"]["dirty"] is True
+    assert databases["bio"]["dirty"] is True
     Database("bio").process()
     Database("inv").process()
     metadata = databases["inv"]
@@ -264,6 +322,47 @@ def test_process_and_calculate(attached):
     lca.lci()
     # 2 b, 1 a per b: 1 a, and 2 kg of flow 0 per a
     assert lca.inventory.sum() == pytest.approx(2)
+
+
+def test_new_version_of_a_file_is_processed_again(attached):
+    import json
+    import sqlite3
+
+    import bw2calc
+
+    from bw2data.backends.extensions import database_fingerprint
+
+    def inventory():
+        lca = bw2calc.LCA({get_node(database="inv", code="b"): 1})
+        lca.lci()
+        return lca.inventory.sum()
+
+    # Processed as needed, without ``process()``
+    assert inventory() == pytest.approx(1)
+    assert databases["inv"]["dirty"] is False
+    assert databases["inv"]["processed"]
+
+    inv = attached[1]
+    Database("mine").delete(warn=False)
+    projects.detach_extension("inv")
+    assert sorted(local_state()) == ["bio"]
+
+    conn = sqlite3.connect(inv)
+    conn.execute("DELETE FROM exchangedataset WHERE type = 'biosphere'")
+    fingerprints = {"inv": database_fingerprint(conn, "main", "inv")}
+    conn.execute(
+        "UPDATE extension_info SET value = ? WHERE key = 'fingerprints'",
+        (json.dumps(fingerprints),),
+    )
+    conn.commit()
+    conn.close()
+
+    projects.attach_extension(inv)
+    state = local_state()["inv"]
+    assert (state.dirty, state.processed) == (True, None)
+    assert inventory() == 0
+    # ``bio`` stayed attached, and was not marked again
+    assert databases["bio"]["dirty"] is False
 
 
 def test_search(attached):

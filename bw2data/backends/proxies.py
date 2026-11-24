@@ -56,6 +56,7 @@ class Exchanges(Iterable):
 
     def __init__(self, key, kinds=None, reverse=False):
         self._key = key
+        self._reverse = reverse
         if reverse:
             self._args = [
                 ExchangeDataset.input_database == self._key[0],
@@ -81,8 +82,22 @@ class Exchanges(Iterable):
     def delete(self, allow_in_sourced_project: bool = False):
         if projects.dataset.is_sourced and not allow_in_sourced_project:
             raise NotImplementedError("Mass exchange deletion not supported in sourced projects")
-        check_writable(self._key[0], "its edges can't be deleted")
-        databases.set_dirty(self._key[0])
+        if self._reverse:
+            # The edges are stored with their outputs, which can be in other databases than
+            # the node
+            outputs = [
+                row[0]
+                for row in ExchangeDataset.select(ExchangeDataset.output_database)
+                .where(*self._args)
+                .distinct()
+                .tuples()
+            ]
+        else:
+            outputs = [self._key[0]]
+        for database in outputs:
+            check_writable(database, "its edges can't be deleted")
+        for database in outputs:
+            databases.set_dirty(database)
         ExchangeDataset.delete().where(*self._args).execute()
 
     def _get_queryset(self):
@@ -740,6 +755,10 @@ class Exchange(ExchangeProxyBase):
         output = self._data.get("output")
         if isinstance(output, (tuple, list)) and output:
             check_writable(output[0], "its edges can't be saved")
+        # Where the edge is now, if its output was changed
+        stored = getattr(self._document, "output_database", None)
+        if stored is not None:
+            check_writable(stored, "its edges can't be saved")
         if not data_already_set and not self.valid():
             raise ValidityError(
                 "This exchange can't be saved for the "

@@ -8,6 +8,7 @@ from fsspec.implementations.zip import ZipFileSystem
 
 from bw2data import config, databases, geomapping
 from bw2data.backends import SQLiteBackend
+from bw2data.backends.extensions import check_writable
 from bw2data.backends.iotable.proxies import IOTableActivity, IOTableExchanges
 from bw2data.configuration import labels
 from bw2data.logs import stdout_feedback_logger
@@ -42,6 +43,7 @@ class IOTableBackend(SQLiteBackend):
         automatically.
 
         """
+        check_writable(self.name, "can't be written")
         stdout_feedback_logger.info("Starting IO table write")
 
         # create empty datapackage
