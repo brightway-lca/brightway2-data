@@ -327,6 +327,9 @@ def _node_edge_triggers_sql(
     assignments = ", ".join(f"{_q(c)} = NEW.{_q(c)}" for c in cols)
     db_col = _q(database_column)
     trigger = view_name(model)
+    # The tables written to in the trigger bodies are not qualified with ``main.``: SQLite
+    # before 3.51 refuses qualified names there. Unqualified names are looked up in ``temp``,
+    # then ``main``, then the attached files, and ``temp`` has no tables with these names.
 
     insert = (
         f"CREATE TEMP TRIGGER {_q(trigger + '_insert')} INSTEAD OF INSERT ON {view} BEGIN "
@@ -336,7 +339,7 @@ def _node_edge_triggers_sql(
         + _raise_if("NEW.id IS NULL", MISSING_ID)
         + " "
         + _raise_if(_id_in_extensions(model, schemas, "NEW.id"), DUPLICATE_ID)
-        + f" INSERT INTO main.{table} ({column_list}) VALUES ({new_values}); END;"
+        + f" INSERT INTO {table} ({column_list}) VALUES ({new_values}); END;"
     )
     update = (
         f"CREATE TEMP TRIGGER {_q(trigger + '_update')} INSTEAD OF UPDATE ON {view} BEGIN "
@@ -350,12 +353,12 @@ def _node_edge_triggers_sql(
             f"NEW.id IS NOT OLD.id AND {_id_in_extensions(model, schemas, 'NEW.id')}",
             DUPLICATE_ID,
         )
-        + f" UPDATE main.{table} SET {assignments} WHERE id = OLD.id; END;"
+        + f" UPDATE {table} SET {assignments} WHERE id = OLD.id; END;"
     )
     delete = (
         f"CREATE TEMP TRIGGER {_q(trigger + '_delete')} INSTEAD OF DELETE ON {view} BEGIN "
         + _raise_if(_in_registry(f"OLD.{db_col}"), READ_ONLY_DATABASE)
-        + f" DELETE FROM main.{table} WHERE id = OLD.id; END;"
+        + f" DELETE FROM {table} WHERE id = OLD.id; END;"
     )
     return [insert, update, delete]
 
@@ -442,7 +445,7 @@ def _record_triggers_sql() -> list[str]:
     insert = (
         f"CREATE TEMP TRIGGER {_q(trigger + '_insert')} INSTEAD OF INSERT ON {view} BEGIN "
         + _raise_if(_in_registry("NEW.name"), EXTENSION_DATABASE_NAME)
-        + f" INSERT INTO main.{table} ({column_list}) VALUES ({new_values}); END;"
+        + f" INSERT INTO {table} ({column_list}) VALUES ({new_values}); END;"
     )
     update = (
         f"CREATE TEMP TRIGGER {_q(trigger + '_update')} INSTEAD OF UPDATE ON {view} BEGIN "
@@ -452,17 +455,17 @@ def _record_triggers_sql() -> list[str]:
         + " "
         + _raise_if(f"NOT {in_extension} AND {_in_registry('NEW.name')}", EXTENSION_DATABASE_NAME)
         # Extension record: store the changed local state in the project
-        + f" INSERT INTO main.{state} ({state_columns}) SELECT {state_values} "
+        + f" INSERT INTO {state} ({state_columns}) SELECT {state_values} "
         + f"WHERE {in_extension} AND ({any_changed})"
         + f" ON CONFLICT (name) DO UPDATE SET {state_updates};"
         # Record in main: update it
-        + f" UPDATE main.{table} SET {assignments} WHERE name = OLD.name AND NOT {in_extension};"
+        + f" UPDATE {table} SET {assignments} WHERE name = OLD.name AND NOT {in_extension};"
         + " END;"
     )
     delete = (
         f"CREATE TEMP TRIGGER {_q(trigger + '_delete')} INSTEAD OF DELETE ON {view} BEGIN "
         + _raise_if(in_extension, READ_ONLY_DATABASE)
-        + f" DELETE FROM main.{table} WHERE name = OLD.name; END;"
+        + f" DELETE FROM {table} WHERE name = OLD.name; END;"
     )
     return [insert, update, delete]
 
