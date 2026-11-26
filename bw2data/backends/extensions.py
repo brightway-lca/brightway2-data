@@ -40,10 +40,12 @@ The SQL builders are pure functions. ``check_extensions`` and ``attach_hook`` ar
 """
 
 import hashlib
+import io
 import json
 import os
 import re
 import uuid
+import zipfile
 from collections.abc import Iterable, Mapping, Sequence
 from contextlib import closing
 from dataclasses import dataclass, field
@@ -502,6 +504,9 @@ def overlay_sql(schemas: Sequence[str]) -> list[str]:
 INFO_TABLE = "extension_info"
 #: Table of an extension file with the databases it needs from other extensions
 REQUIRES_TABLE = "extension_requires"
+#: Optional table of an extension file with the processed datapackage of each database, as
+#: ``database``/``content`` rows; ``content`` is the ``bw_processing`` zip file
+DATAPACKAGE_TABLE = "extension_datapackage"
 #: Key of ``INFO_TABLE``: the extension's id (a UUID), the same for every copy of the file
 INFO_ID = "id"
 #: Key of ``INFO_TABLE``: a version label, for people
@@ -553,6 +558,8 @@ class AttachedExtension:
     #: ``(database, extension id, fingerprint)`` of each database the file needs from another
     #: extension
     requirements: tuple[tuple[str, str, str], ...] = ()
+    #: Names of the databases whose processed datapackage is stored in the file
+    datapackages: tuple[str, ...] = ()
 
     @property
     def name(self) -> str:
@@ -718,6 +725,10 @@ def _read_extension(connection, number: int, spec: ExtensionSpec) -> AttachedExt
             "ORDER BY database"
         )
         requirements = tuple(tuple(row) for row in _rows(connection, sql))
+    datapackages = ()
+    if DATAPACKAGE_TABLE in tables:
+        sql = f"SELECT database FROM {_q(schema)}.{_q(DATAPACKAGE_TABLE)} ORDER BY database"
+        datapackages = tuple(row[0] for row in _rows(connection, sql))
     return AttachedExtension(
         spec=spec,
         schema=schema,
@@ -727,6 +738,7 @@ def _read_extension(connection, number: int, spec: ExtensionSpec) -> AttachedExt
         databases=databases,
         fingerprints=MappingProxyType(fingerprints),
         requirements=requirements,
+        datapackages=datapackages,
     )
 
 
@@ -1204,6 +1216,55 @@ def check_name_free(database: str) -> None:
     check_writable(database, "its name can't be used for a database of the project")
 
 
+# Stored datapackages
+#
+# An extension file can hold the processed datapackage of each of its databases
+# (``DATAPACKAGE_TABLE``), written by ``build_extension``. The technosphere and biosphere
+# arrays use activity ids, which the file keeps, so the datapackage is the same in every
+# project, and ``Database.datapackage()`` reads it from the file instead of processing the
+# database. The ids in its ``inv_geomapping_matrix`` are those of the project which built the
+# file; they are not translated (only regionalized calculations read that array).
+
+
+def _requirements_met_by_project(extension: AttachedExtension) -> bool:
+    """Whether a requirement of the attached ``extension`` is met by a database of the
+    project's own file (``allow_main_requirements``) rather than by another extension."""
+    from bw2data.backends import sqlite3_lci_db
+
+    attached_ids = {other.id for other in sqlite3_lci_db.extensions}
+    return any(required_id not in attached_ids for _, required_id, _ in extension.requirements)
+
+
+def has_stored_datapackage(database: str) -> bool:
+    """Whether ``database`` is stored in an attached extension whose file holds its processed
+    datapackage, and that datapackage can be used in this project. It can't if a requirement
+    of the extension is met by a database of the project's own file: the arrays hold the
+    activity ids of the database it was built with, which the project's copy doesn't have."""
+    extension = extension_of(database)
+    return (
+        extension is not None
+        and database in extension.datapackages
+        and not _requirements_met_by_project(extension)
+    )
+
+
+def stored_datapackage(database: str, usable_only: bool = True) -> bytes | None:
+    """The processed datapackage of ``database`` (a ``bw_processing`` zip file) as stored in
+    its extension's file, if ``has_stored_datapackage(database)``; otherwise ``None``. With
+    ``usable_only=False``, also one which can't be used in this project."""
+    from bw2data.backends import sqlite3_lci_db
+
+    extension = extension_of(database)
+    if extension is None or database not in extension.datapackages:
+        return None
+    if usable_only and _requirements_met_by_project(extension):
+        return None
+    sql = f"SELECT content FROM {_q(extension.schema)}.{_q(DATAPACKAGE_TABLE)} WHERE database = ?"
+    with closing(sqlite3_lci_db.execute_sql(sql, (database,))) as cursor:
+        row = cursor.fetchone()
+    return bytes(row[0]) if row is not None else None
+
+
 # Building extensions
 #
 # ``build_extension`` writes databases of a project's own file into a new extension file. The
@@ -1257,6 +1318,137 @@ def _json_value(value):
     return json.loads(value)
 
 
+def _check_export_arguments(main_path, path: Path, databases, version, attached, overwrite):
+    """The checks of ``build_extension`` which need no data; returns the database names."""
+    names = [databases] if isinstance(databases, str) else list(databases)
+    if not names:
+        raise ValueError("No database to export")
+    if not all(isinstance(name, str) for name in names) or len(set(names)) != len(names):
+        raise ValueError(f"Databases must be given as distinct names: {names!r}")
+    if version is not None and not isinstance(version, str):
+        raise TypeError(f"The version label must be a string, not {version!r}")
+    # Never to be replaced, also with ``overwrite``
+    resolved = path.resolve()
+    if resolved == Path(main_path).resolve():
+        raise ExtensionError(f"Can't export to {path}: it is the project's own file")
+    for extension in attached:
+        if resolved == extension.path.resolve():
+            raise ExtensionError(
+                f"Can't export to {path}: it is the file of the attached {extension}; detach "
+                "it first"
+            )
+    if path.exists() and not overwrite:
+        raise FileExistsError(f"{path} exists; pass `overwrite=True` to replace it")
+    return names
+
+
+def check_export(
+    main_path,
+    path,
+    databases: Sequence[str],
+    version: str | None = None,
+    attached: Sequence[AttachedExtension] = (),
+    overwrite: bool = False,
+) -> None:
+    """Raise what ``build_extension`` would raise for these arguments before it writes
+    anything, and do nothing else: for callers which have work to do before the export, such
+    as processing the databases. Uses its own read-only connection."""
+    from bw2data.backends.migrations import SCHEMA_VERSION
+
+    names = _check_export_arguments(main_path, Path(path), databases, version, attached, overwrite)
+    try:
+        connection = sqlite3.connect(
+            _sqlite_uri(main_path, mode="ro"), uri=True, isolation_level=None
+        )
+        with closing(connection):
+            _export_plan(connection, "main", main_path, names, tuple(attached), SCHEMA_VERSION)
+    except sqlite3.Error as err:
+        raise ExtensionError(f"Can't export to {path}: {err}") from err
+
+
+def _export_plan(
+    connection,
+    schema: str,
+    main_path,
+    names: list[str],
+    attached: tuple[AttachedExtension, ...],
+    schema_version: int,
+) -> tuple[dict, dict, dict]:
+    """Check that the databases ``names`` of the project file, which ``connection`` has as
+    ``schema``, can be exported (``ExtensionError`` if not), and return their records, the
+    databases each one links to, and the requirements of the new file."""
+    marks = ", ".join("?" * len(names))
+    exchanges = _q(_table(ExchangeDataset))
+    records = _q(_table(DatabaseRecord))
+    source = _q(schema)
+
+    ((source_version,),) = _rows(connection, f"PRAGMA {source}.user_version")
+    if source_version != schema_version:
+        raise ExtensionError(
+            f"Can't export from {main_path}: it has schema version {source_version}, not "
+            f"{schema_version}; open the project to finish its migrations first"
+        )
+
+    # Which databases can be exported
+    record_columns = [r[1] for r in _rows(connection, f"PRAGMA {source}.table_info({records})")]
+    sql = f"SELECT * FROM {source}.{records} WHERE name IN ({marks})"
+    found = {
+        row["name"]: row
+        for row in (dict(zip(record_columns, r)) for r in _rows(connection, sql, names))
+    }
+    stored_in = {database: e for e in attached for database in e.databases}
+    problems = []
+    for name in names:
+        if name in stored_in:
+            problems.append(
+                f"database {name!r} is stored in the read-only {stored_in[name]}; copy it "
+                "into the project to export it"
+            )
+        elif name not in found:
+            problems.append(f"the project has no database {name!r}")
+        elif found[name]["backend"] == "iotable":
+            problems.append(
+                f"database {name!r} is an IO table database, whose exchanges are not "
+                "stored in the project's file"
+            )
+    if problems:
+        raise ExtensionError("Can't export: " + "; ".join(problems))
+
+    # What the exported databases link to
+    sql = (
+        f"SELECT DISTINCT output_database, input_database FROM {source}.{exchanges} "
+        f"WHERE output_database IN ({marks}) AND input_database != output_database "
+        "ORDER BY 1, 2"
+    )
+    depends = {name: set() for name in names}
+    requirements = {}
+    for output, input_ in _rows(connection, sql, names):
+        depends[output].add(input_)
+        if input_ in depends:
+            continue
+        provider = stored_in.get(input_)
+        if provider is None:
+            problems.append(
+                f"database {output!r} links to database {input_!r}, which is neither "
+                "exported nor in an attached extension"
+            )
+        elif input_ not in provider.fingerprints:
+            problems.append(
+                f"database {output!r} links to database {input_!r} in {provider}, which "
+                "has no fingerprint for it"
+            )
+        else:
+            requirements[input_] = (input_, provider.id, provider.fingerprints[input_])
+    if problems:
+        raise ExtensionError(
+            "Can't export: "
+            + "; ".join(problems)
+            + ". An extension can only link to databases in other extensions: export the "
+            "databases it links to as well, or attach them as an extension."
+        )
+    return found, depends, requirements
+
+
 def build_extension(
     main_path,
     path,
@@ -1264,6 +1456,7 @@ def build_extension(
     version: str | None = None,
     attached: Sequence[AttachedExtension] = (),
     overwrite: bool = False,
+    datapackages: Mapping[str, str | PathLike] | None = None,
 ) -> str:
     """Write the databases ``databases`` of the project file ``main_path`` into a new extension
     file ``path``, and return the id of the new extension. Use ``projects.export_extension``,
@@ -1288,7 +1481,10 @@ def build_extension(
     * no zstd dictionary of the project: if the values use one, they are compressed again
       with a new dictionary trained on them alone (``_recompress``);
     * ``INFO_TABLE`` (a new id, ``version``, the fingerprints, the bw2data version and the time
-      it was built) and ``REQUIRES_TABLE``.
+      it was built) and ``REQUIRES_TABLE``;
+    * with ``datapackages`` (``{database: path of its processed datapackage}``, for some or
+      all of the databases), ``DATAPACKAGE_TABLE`` with the content of these files. They must
+      be up to date: they are stored as they are.
 
     Only committed data is read. The file is built next to ``path``, and only moved there once
     it is complete and passes the checks made when an extension is attached. Raises
@@ -1296,30 +1492,22 @@ def build_extension(
     from bw2data.backends.migrations import SCHEMA_VERSION
 
     path = Path(path)
-    names = [databases] if isinstance(databases, str) else list(databases)
-    if not names:
-        raise ValueError("No database to export")
-    if not all(isinstance(name, str) for name in names) or len(set(names)) != len(names):
-        raise ValueError(f"Databases must be given as distinct names: {names!r}")
-    if version is not None and not isinstance(version, str):
-        raise TypeError(f"The version label must be a string, not {version!r}")
-    # Never to be replaced, also with ``overwrite``
-    resolved = path.resolve()
-    if resolved == Path(main_path).resolve():
-        raise ExtensionError(f"Can't export to {path}: it is the project's own file")
-    for extension in attached:
-        if resolved == extension.path.resolve():
-            raise ExtensionError(
-                f"Can't export to {path}: it is the file of the attached {extension}; detach "
-                "it first"
-            )
-    if path.exists() and not overwrite:
-        raise FileExistsError(f"{path} exists; pass `overwrite=True` to replace it")
+    names = _check_export_arguments(main_path, path, databases, version, attached, overwrite)
+    datapackages = dict(datapackages or {})
+    unknown = sorted(set(datapackages).difference(names))
+    if unknown:
+        raise ValueError(f"Datapackages given for databases which are not exported: {unknown}")
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
         try:
             extension_id = _build_extension(
-                main_path, temporary, names, version, tuple(attached), SCHEMA_VERSION
+                main_path,
+                temporary,
+                names,
+                version,
+                tuple(attached),
+                SCHEMA_VERSION,
+                datapackages,
             )
         except sqlite3.Error as err:
             raise ExtensionError(f"Can't export to {path}: {err}") from err
@@ -1336,6 +1524,7 @@ def _build_extension(
     version: str | None,
     attached: tuple[AttachedExtension, ...],
     schema_version: int,
+    datapackages: Mapping[str, str | PathLike],
 ) -> str:
     from bw2data import __version__
     from bw2data.backends import LCI_PAGE_SIZE
@@ -1355,70 +1544,9 @@ def _build_extension(
         connection.execute("ATTACH DATABASE ? AS source", (_sqlite_uri(main_path, mode="ro"),))
         # All reads see one state of the project file
         connection.execute("BEGIN")
-        ((source_version,),) = _rows(connection, "PRAGMA source.user_version")
-        if source_version != schema_version:
-            raise ExtensionError(
-                f"Can't export from {main_path}: it has schema version {source_version}, not "
-                f"{schema_version}; open the project to finish its migrations first"
-            )
-
-        # Which databases can be exported
-        record_columns = [r[1] for r in _rows(connection, f"PRAGMA source.table_info({records})")]
-        sql = f"SELECT * FROM source.{records} WHERE name IN ({marks})"
-        found = {
-            row["name"]: row
-            for row in (dict(zip(record_columns, r)) for r in _rows(connection, sql, names))
-        }
-        stored_in = {database: e for e in attached for database in e.databases}
-        problems = []
-        for name in names:
-            if name in stored_in:
-                problems.append(
-                    f"database {name!r} is stored in the read-only {stored_in[name]}; copy it "
-                    "into the project to export it"
-                )
-            elif name not in found:
-                problems.append(f"the project has no database {name!r}")
-            elif found[name]["backend"] == "iotable":
-                problems.append(
-                    f"database {name!r} is an IO table database, whose exchanges are not "
-                    "stored in the project's file"
-                )
-        if problems:
-            raise ExtensionError("Can't export: " + "; ".join(problems))
-
-        # What the exported databases link to
-        sql = (
-            f"SELECT DISTINCT output_database, input_database FROM source.{exchanges} "
-            f"WHERE output_database IN ({marks}) AND input_database != output_database "
-            "ORDER BY 1, 2"
+        found, depends, requirements = _export_plan(
+            connection, "source", main_path, names, attached, schema_version
         )
-        depends = {name: set() for name in names}
-        requirements = {}
-        for output, input_ in _rows(connection, sql, names):
-            depends[output].add(input_)
-            if input_ in depends:
-                continue
-            provider = stored_in.get(input_)
-            if provider is None:
-                problems.append(
-                    f"database {output!r} links to database {input_!r}, which is neither "
-                    "exported nor in an attached extension"
-                )
-            elif input_ not in provider.fingerprints:
-                problems.append(
-                    f"database {output!r} links to database {input_!r} in {provider}, which "
-                    "has no fingerprint for it"
-                )
-            else:
-                requirements[input_] = (input_, provider.id, provider.fingerprints[input_])
-        if problems:
-            raise ExtensionError(
-                "Can't export: "
-                + "; ".join(problems)
-                + ". An extension can only link to databases in other extensions: export the "
-                "databases it links to as well, or attach them as an extension."
-            )
 
         tables, indexes = _schema_sql(connection, "source")
         for statement in tables:
@@ -1499,6 +1627,25 @@ def _build_extension(
                 f"VALUES ({', '.join('?' * len(record))})",
                 list(record.values()),
             )
+
+        # Processed datapackages, as they are
+        if datapackages:
+            connection.execute(
+                f"CREATE TABLE main.{_q(DATAPACKAGE_TABLE)} "
+                "(database TEXT PRIMARY KEY, content BLOB NOT NULL)"
+            )
+            for name in names:
+                if name not in datapackages:
+                    continue
+                content = Path(datapackages[name]).read_bytes()
+                if not zipfile.is_zipfile(io.BytesIO(content)):
+                    raise ExtensionError(
+                        f"Can't export: the processed datapackage of database {name!r} "
+                        f"({datapackages[name]}) is not a zip file"
+                    )
+                connection.execute(
+                    f"INSERT INTO main.{_q(DATAPACKAGE_TABLE)} VALUES (?, ?)", (name, content)
+                )
 
         # Identity and requirements
         fingerprints = {name: database_fingerprint(connection, "main", name) for name in names}

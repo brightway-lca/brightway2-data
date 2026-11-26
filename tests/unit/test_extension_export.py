@@ -136,6 +136,7 @@ def test_file_contents(built):
     assert exported == project | {
         ("table", "extension_info"),
         ("table", "extension_requires"),
+        ("table", "extension_datapackage"),
         # Which a project's file only has after a bulk write
         ("index", "activitydataset_key"),
         ("index", "exchangedataset_input"),
