@@ -1121,12 +1121,20 @@ Here are the type values usually used for nodes:
     def make_searchable(self, reset: bool = False, signal: bool = True):
         if self.name not in databases:
             raise UnknownObject("This database is not yet registered")
-        if self._searchable and not reset:
+        index = IndexManager(self.name)
+        # The record of a database in an extension can say ``searchable`` while there is no
+        # index: the file has none, or one which can't be used
+        if self._searchable and not reset and (not self.is_extension or index.exists()):
             stdout_feedback_logger.info("This database is already searchable")
             return
         databases[self.name]["searchable"] = True
         databases[self.name].save(signal=signal)
-        IndexManager(self.name).add_all()
+        if index.read_only and not reset:
+            # A database in an extension whose file has its index: nothing to build
+            return
+        # In the project's own file, also for a database in an extension: ``reset`` replaces
+        # an index in the extension's file which is out of date
+        index.add_all()
 
     def make_unsearchable(self, signal: bool = True):
         databases[self.name]["searchable"] = False

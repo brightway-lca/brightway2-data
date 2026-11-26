@@ -24,6 +24,7 @@ from bw2data.backends.extensions import (
 from bw2data.backends.migrations import MIN_EXTENSION_SCHEMA_VERSION, SCHEMA_VERSION
 from bw2data.backends.schema import ActivityDataset, DatabaseRecord, ExchangeDataset
 from bw2data.errors import ExtensionDependencyError, ExtensionError
+from bw2data.search.indices import index_table
 from bw2data.tests import bw2test
 
 BIO = {("bio", str(i)): {"name": f"flow {i}", "type": "emission", "unit": "kg"} for i in range(3)}
@@ -61,6 +62,15 @@ def export(path, names, extension_id=None, requires=(), version=SCHEMA_VERSION):
     conn.execute(f"DELETE FROM activitydataset WHERE database NOT IN ({marks})", names)
     conn.execute(f"DELETE FROM exchangedataset WHERE output_database NOT IN ({marks})", names)
     conn.execute(f"DELETE FROM databaserecord WHERE name NOT IN ({marks})", names)
+    # The search indexes of the databases which are kept stay, with the data
+    kept = {index_table(name) for name in names}
+    tables = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'searchindex%' "
+        "AND sql LIKE 'CREATE VIRTUAL TABLE%'"
+    ).fetchall()
+    for (table,) in tables:
+        if table not in kept:
+            conn.execute(f'DROP TABLE "{table}"')
     fingerprints = {name: database_fingerprint(conn, "main", name) for name in names}
     conn.execute("CREATE TABLE extension_info (key TEXT PRIMARY KEY, value TEXT)")
     conn.executemany(

@@ -583,7 +583,7 @@ class RevisionedDatabase:
                 if value.get("searchable") and not databases.get(name, {}).get("searchable"):
                     DatabaseChooser(name).make_searchable(reset=False, signal=False)
                 elif not value.get("searchable") and databases.get(name, {}).get("searchable"):
-                    DatabaseChooser(name).make_unsearchable(reset=False, signal=False)
+                    DatabaseChooser(name).make_unsearchable(signal=False)
             databases.data = new_data
         if revision_data["change_type"] == "database_reset":
             DatabaseChooser(revision_data["id"]).delete(warn=False, signal=False)
