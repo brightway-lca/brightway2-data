@@ -42,7 +42,7 @@ def as_version_8():
     sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 8")
 
 
-def legacy_file(path, exchange_id):
+def legacy_file(path, exchange_id, exchange_group="g"):
     """A ``parameters.db`` as earlier versions wrote it."""
     conn = sqlite3.connect(path)
     for _, sql in _M9_TABLES:
@@ -57,7 +57,10 @@ def legacy_file(path, exchange_id):
         "INSERT INTO activityparameter VALUES (13, 'g', 'db', 'a', 'x', 'd + 1', 7.0, ?)",
         (pickle.dumps({}),),
     )
-    conn.execute("INSERT INTO parameterizedexchange VALUES (14, 'g', ?, 'x * 2')", (exchange_id,))
+    conn.execute(
+        "INSERT INTO parameterizedexchange VALUES (14, ?, ?, 'x * 2')",
+        (exchange_group, exchange_id),
+    )
     conn.execute("INSERT INTO groupdependency VALUES (1, 'g', 'db')")
     for id_, name in ((15, "project"), (16, "db"), (17, "g")):
         conn.execute(
@@ -161,6 +164,61 @@ def test_migration_moves_the_rows():
 
 
 @bw2test
+@pytest.mark.parametrize("exchange_group", ["g", "no such group"])
+def test_migration_when_the_project_is_opened(exchange_group):
+    """Opening a project creates the parameter tables with their triggers before the
+    migrations run. The rows are still copied without them: the groups keep their times, and
+    a row the triggers would refuse (a parameterized exchange whose group has no activity
+    parameter) doesn't stop the copy."""
+    write_activity()
+    exchange = ExchangeDataset.get(ExchangeDataset.output_code == "a")
+    legacy_file(projects.dir / "parameters.db", exchange.id, exchange_group)
+    as_version_8()
+    name = projects.current
+    projects.set_current("other")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        projects.set_current(name)
+    assert schema_version(sqlite3_lci_db.db) == 9
+
+    assert ProjectParameter.get(name="p").id == 11
+    assert ActivityParameter.get(name="x").code == "a"
+    assert ParameterizedExchange.get(id=14).group == exchange_group
+    assert GroupDependency.get(group="g").depends == "db"
+    assert {g.name for g in Group.select()} == {"project", "db", "g"}
+    assert {str(g.updated) for g in Group.select()} == {"2020-01-02 03:04:05"}
+    # The triggers are there again
+    assert {"activityparameter_UPDATE_trigger", "pe_group_INSERT", "gd_circular_UPDATE"} <= objects(
+        "trigger"
+    )
+    with pytest.raises(Exception, match="Missing activity parameter group"):
+        ParameterizedExchange.create(group="another", exchange=1, formula="1")
+
+
+@bw2test
+def test_failed_copy_leaves_no_rows():
+    write_activity()
+    exchange = ExchangeDataset.get(ExchangeDataset.output_code == "a")
+    path = projects.dir / "parameters.db"
+    legacy_file(path, exchange.id)
+    # The last table to be copied has an id which can't be stored
+    conn = sqlite3.connect(path)
+    conn.execute("DROP TABLE group_table")
+    conn.execute('CREATE TABLE group_table (id TEXT, name TEXT, fresh, updated, "order")')
+    conn.execute("INSERT INTO group_table VALUES ('x', 'g', 1, '2020-01-02 03:04:05', x'00')")
+    conn.commit()
+    conn.close()
+    as_version_8()
+    with pytest.warns(UserWarning, match="Can't copy the parameters .* only kept in the file"):
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [9]
+    for model in PARAMETER_MODELS:
+        assert not model.select().exists()
+    # The tables can be used
+    assert {"projectparameter_INSERT_trigger", "pe_group_INSERT"} <= objects("trigger")
+    ProjectParameter.create(name="p", amount=1)
+
+
+@bw2test
 def test_rows_which_are_already_there_are_kept():
     write_activity()
     exchange = ExchangeDataset.get(ExchangeDataset.output_code == "a")
@@ -187,7 +245,7 @@ def test_migration_without_a_file():
 def test_unreadable_file():
     (projects.dir / "parameters.db").write_bytes(b"not a database " * 100)
     as_version_8()
-    with pytest.warns(UserWarning, match="parameters are only kept in the file"):
+    with pytest.warns(UserWarning, match="Can't copy the parameters .* only kept in the file"):
         assert migrate(sqlite3_lci_db.db, projects.dir) == [9]
     assert set(TABLES) <= objects("table")
 

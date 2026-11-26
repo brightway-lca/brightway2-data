@@ -1222,13 +1222,16 @@ def _parameters_db_to_sqlite(db: Database, project_dir: Path) -> None:
 
     Creates the parameter tables, their indexes and their triggers (as ``parameters.db`` had
     them; ``bw2data.parameters`` uses them from now on), and copies the rows of each table,
-    keeping their ids. The triggers are created after the rows are copied, so the groups keep
-    their ``updated`` times. Rows which are already in the tables are kept as they are. The
-    file is kept as a backup.
+    keeping their ids. The rows are copied without the triggers, so the groups keep their
+    ``updated`` times, and rows which the triggers would refuse now (e.g. a parameterized
+    exchange whose group has no activity parameter left) are copied as they are. Triggers
+    which exist already (the tables are created with them when a project is opened after
+    ``bw2data.parameters`` is imported) are dropped first, and created again afterwards.
+    Rows which are already in the tables are kept as they are. The file is kept as a backup.
 
     Postponed if ``parameters.db`` is locked by another process (e.g. an older bw2data
-    which has the project open). A file which can't be read otherwise is skipped with a
-    warning: its parameters are only kept in the file."""
+    which has the project open). If the rows can't be copied otherwise (e.g. the file can't
+    be read), none of them are, with a warning: the parameters are only kept in the file."""
     import sqlite3
 
     from bw2data.sqlite import _sqlite_uri
@@ -1237,20 +1240,29 @@ def _parameters_db_to_sqlite(db: Database, project_dir: Path) -> None:
         db.execute_sql(sql)
     for sql in _M9_INDEXES:
         db.execute_sql(sql)
+    tables = [table for table, _ in _M9_TABLES]
+    triggers = db.execute_sql(
+        "SELECT name FROM main.sqlite_master WHERE type = 'trigger' AND tbl_name IN "
+        f"({', '.join('?' * len(tables))})",
+        tables,
+    ).fetchall()
+    for (trigger,) in triggers:
+        db.execute_sql(f'DROP TRIGGER main."{trigger}"')
 
     path = project_dir / "parameters.db"
     copied = {}
     if path.is_file():
         try:
             source = sqlite3.connect(_sqlite_uri(path, mode="ro"), uri=True, timeout=1)
-            with closing(source):
+            # A savepoint: all rows are copied, or none
+            with closing(source), db.atomic():
                 existing = {
                     row[0]
                     for row in source.execute(
                         "SELECT name FROM sqlite_master WHERE type = 'table'"
                     ).fetchall()
                 }
-                for table, _ in _M9_TABLES:
+                for table in tables:
                     if table not in existing:
                         continue
                     theirs = [row[1] for row in source.execute(f'PRAGMA table_info("{table}")')]
@@ -1269,19 +1281,16 @@ def _parameters_db_to_sqlite(db: Database, project_dir: Path) -> None:
                         with closing(db.cursor()) as cursor:
                             cursor.executemany(insert, rows)
                     copied[table] = len(rows)
-        except sqlite3.OperationalError as err:
-            if "locked" in str(err):
+        except sqlite3.DatabaseError as err:
+            if isinstance(err, sqlite3.OperationalError) and "locked" in str(err):
                 raise MigrationPostponed(
                     f"{path} is locked by another process ({err}); its parameters are moved "
                     "into the project's LCI database the next time the project is opened."
                 ) from err
+            # The savepoint is rolled back: no rows were copied
+            copied = {}
             warnings.warn(
-                f"Can't read {path} ({err}); its parameters are only kept in the file.",
-                stacklevel=2,
-            )
-        except sqlite3.DatabaseError as err:
-            warnings.warn(
-                f"Can't read {path} ({err}); its parameters are only kept in the file.",
+                f"Can't copy the parameters of {path} ({err}); they are only kept in the file.",
                 stacklevel=2,
             )
     for sql in _m9_triggers():
