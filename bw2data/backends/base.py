@@ -768,8 +768,11 @@ class SQLiteBackend(ProcessedDataStore):
     ) -> (list, list):
         """``checked``: exchange types and key sets which were already checked for typos in
         this write. The checks compare each key with every valid key; most exchanges have the
-        same few key sets, so checking each set once saves most of that work. The warnings
-        are the same: Python shows a warning only once per place in the code anyway."""
+        same few key sets, so checking each set once saves most of that work. With the
+        default warning filter the warnings are the same, as Python then shows a warning only
+        once per place in the code anyway. Code which records every warning (the ``"always"``
+        filter, ``pytest.warns``) gets one per distinct type or key set, not one per
+        exchange."""
         if checked is None:
             checked = set()
         for exchange in ds.get("exchanges", []):

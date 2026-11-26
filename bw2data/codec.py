@@ -561,6 +561,9 @@ def _encode_checked(obj, strings: bool = False, exclude=()):
             return _encode_without(obj, exclude, strings)
         return _encode(obj, strings)
     except _Unstorable as err:
+        if exclude and type(obj) is dict:
+            # Not a path through an excluded key, which wasn't encoded
+            obj = {k: v for k, v in obj.items() if k not in exclude}
         try:
             where = _path_to(err.obj, obj) or "value"
         except RecursionError:
@@ -579,10 +582,18 @@ def encode(obj) -> Any:
 
 def dumps(obj, exclude=()) -> bytes:
     """Serialize ``obj`` to UTF-8 JSON bytes. See the module docstring for what can be stored.
-    ``exclude``: keys left out if ``obj`` is a dict (only at the top level), as if they
-    weren't there; cheaper than leaving them out of a copy first.
+    ``exclude``: keys (an iterable, but not a single string) left out of ``obj`` as if they
+    weren't there, which is cheaper than leaving them out of a copy first. Only for a plain
+    ``dict``, and only at its top level: any other value, including an instance of a subclass
+    of ``dict``, is stored whole.
 
     Raises ``TypeError`` for a value that can't be stored."""
+    if type(exclude) is not frozenset:
+        if isinstance(exclude, (str, bytes)):
+            # Would match parts of keys
+            raise TypeError("`exclude` must be an iterable of keys, not a single string")
+        # Also so that an iterator isn't used up when the value is encoded a second time
+        exclude = frozenset(exclude)
     tree = _encode_checked(obj, exclude=exclude)
     try:
         return orjson.dumps(tree)
