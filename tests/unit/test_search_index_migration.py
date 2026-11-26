@@ -59,7 +59,7 @@ def test_builds_the_indexes_and_removes_the_files():
     _as_before("first", "second")
     assert not [name for name in tables() if name.startswith("searchindex_")]
 
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [7, 8, 9, 10]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [7, 8, 9, 10, 11]
     assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
 
     assert index_table("first") in tables()
@@ -113,7 +113,7 @@ def test_unreadable_nodes_make_the_database_unsearchable():
         "UPDATE activitydataset SET data = ? WHERE code = 'a'", (b"\x28\xb5\x2f\xfdnot zstd",)
     )
     with pytest.warns(UserWarning, match="Can't build the search index of database 'first'"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [7, 8, 9, 10]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [7, 8, 9, 10, 11]
     assert index_table("first") not in tables()
     assert index_table("second") in tables()
     searchable = dict(sqlite3_lci_db.execute_sql("SELECT name, searchable FROM databaserecord"))
@@ -127,7 +127,7 @@ def test_project_without_search_directory():
     for path in (projects.dir / "search").iterdir():
         path.unlink()
     (projects.dir / "search").rmdir()
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [7, 8, 9, 10]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [7, 8, 9, 10, 11]
     assert DatabaseChooser("first").search("lollipop")
 
 
@@ -148,7 +148,7 @@ def test_any_error_makes_the_database_unsearchable(monkeypatch):
 
     monkeypatch.setattr(migrations.codec, "loads", fail_for_first)
     with pytest.warns(UserWarning, match="database 'first' \\(KeyError"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [7, 8, 9, 10]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [7, 8, 9, 10, 11]
     monkeypatch.undo()
     assert index_table("first") not in tables()
     assert DatabaseChooser("second").search("lollipop")
@@ -170,7 +170,7 @@ def test_databases_without_searchable_flag():
         "WHERE name IN ('first', 'second', 'unsearchable', 'empty')"
     )
 
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [7, 8, 9, 10]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [7, 8, 9, 10, 11]
     searchable = dict(sqlite3_lci_db.execute_sql("SELECT name, searchable FROM databaserecord"))
     assert searchable == {"first": 1, "second": 0, "unsearchable": 0, "empty": None}
     assert index_table("first") in tables()

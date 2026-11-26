@@ -1,5 +1,5 @@
 """Parameters in ``lci/databases.db``: ``parameters.db`` is merged into the LCI file by schema
-migration 9, and parameters are written in the same file (and transactions) as the LCI data."""
+migration 10, and parameters are written in the same file (and transactions) as the LCI data."""
 
 import pickle
 import sqlite3
@@ -9,7 +9,7 @@ import pytest
 
 from bw2data import Database, get_node, projects
 from bw2data.backends import sqlite3_lci_db
-from bw2data.backends.migrations import _M9_TABLES, migrate, schema_version
+from bw2data.backends.migrations import _M10_TABLES, migrate, schema_version
 from bw2data.backends.schema import ExchangeDataset
 from bw2data.parameters import (
     PARAMETER_MODELS,
@@ -23,7 +23,7 @@ from bw2data.parameters import (
 )
 from bw2data.tests import bw2test
 
-TABLES = [table for table, _ in _M9_TABLES]
+TABLES = [table for table, _ in _M10_TABLES]
 
 
 def objects(type_):
@@ -35,17 +35,17 @@ def objects(type_):
     }
 
 
-def as_version_8():
-    """As a file before migration 9: without the parameter tables."""
+def as_version_9():
+    """As a file before migration 10: without the parameter tables."""
     for table in TABLES:
         sqlite3_lci_db.execute_sql(f'DROP TABLE IF EXISTS main."{table}"')
-    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 8")
+    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 9")
 
 
 def legacy_file(path, exchange_id, exchange_group="g"):
     """A ``parameters.db`` as earlier versions wrote it."""
     conn = sqlite3.connect(path)
-    for _, sql in _M9_TABLES:
+    for _, sql in _M10_TABLES:
         conn.execute(sql)
     data = pickle.dumps({"uncertainty type": 2, "loc": 1.0}, protocol=4)
     conn.execute("INSERT INTO projectparameter VALUES (11, 'p', NULL, 2.0, ?)", (data,))
@@ -131,7 +131,7 @@ def test_triggers_still_refuse():
         GroupDependency.create(group="h", depends="g")
 
 
-# Migration 9
+# Migration 10
 
 
 @bw2test
@@ -139,9 +139,9 @@ def test_migration_moves_the_rows():
     node = write_activity()
     exchange = ExchangeDataset.get(ExchangeDataset.output_code == "a")
     legacy_file(projects.dir / "parameters.db", exchange.id)
-    as_version_8()
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
-    assert schema_version(sqlite3_lci_db.db) == 10
+    as_version_9()
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [10, 11]
+    assert schema_version(sqlite3_lci_db.db) == 11
 
     assert ProjectParameter.get(name="p").id == 11
     assert ProjectParameter.get(name="p").data == {"uncertainty type": 2, "loc": 1.0}
@@ -173,13 +173,13 @@ def test_migration_when_the_project_is_opened(exchange_group):
     write_activity()
     exchange = ExchangeDataset.get(ExchangeDataset.output_code == "a")
     legacy_file(projects.dir / "parameters.db", exchange.id, exchange_group)
-    as_version_8()
+    as_version_9()
     name = projects.current
     projects.set_current("other")
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         projects.set_current(name)
-    assert schema_version(sqlite3_lci_db.db) == 10
+    assert schema_version(sqlite3_lci_db.db) == 11
 
     assert ProjectParameter.get(name="p").id == 11
     assert ActivityParameter.get(name="x").code == "a"
@@ -208,9 +208,9 @@ def test_failed_copy_leaves_no_rows():
     conn.execute("INSERT INTO group_table VALUES ('x', 'g', 1, '2020-01-02 03:04:05', x'00')")
     conn.commit()
     conn.close()
-    as_version_8()
+    as_version_9()
     with pytest.warns(UserWarning, match="Can't copy the parameters .* only kept in the file"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [10, 11]
     for model in PARAMETER_MODELS:
         assert not model.select().exists()
     # The tables can be used
@@ -223,20 +223,20 @@ def test_rows_which_are_already_there_are_kept():
     write_activity()
     exchange = ExchangeDataset.get(ExchangeDataset.output_code == "a")
     legacy_file(projects.dir / "parameters.db", exchange.id)
-    as_version_8()
-    for _, sql in _M9_TABLES:
+    as_version_9()
+    for _, sql in _M10_TABLES:
         sqlite3_lci_db.execute_sql(sql)
     sqlite3_lci_db.execute_sql(
         "INSERT INTO main.projectparameter VALUES (11, 'p', NULL, 5.0, ?)", (pickle.dumps({}),)
     )
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [10, 11]
     assert ProjectParameter.get(id=11).amount == 5
 
 
 @bw2test
 def test_migration_without_a_file():
-    as_version_8()
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
+    as_version_9()
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [10, 11]
     assert set(TABLES) <= objects("table")
     assert not ProjectParameter.select().exists()
 
@@ -244,9 +244,9 @@ def test_migration_without_a_file():
 @bw2test
 def test_unreadable_file():
     (projects.dir / "parameters.db").write_bytes(b"not a database " * 100)
-    as_version_8()
+    as_version_9()
     with pytest.warns(UserWarning, match="Can't copy the parameters .* only kept in the file"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [10, 11]
     assert set(TABLES) <= objects("table")
 
 
@@ -256,15 +256,15 @@ def test_locked_file_postpones_the_step():
     exchange = ExchangeDataset.get(ExchangeDataset.output_code == "a")
     path = projects.dir / "parameters.db"
     legacy_file(path, exchange.id)
-    as_version_8()
+    as_version_9()
     lock = sqlite3.connect(path, isolation_level=None)
     lock.execute("BEGIN EXCLUSIVE")
     try:
         with pytest.warns(UserWarning, match="locked by another process"):
             assert migrate(sqlite3_lci_db.db, projects.dir) == []
-        assert schema_version(sqlite3_lci_db.db) == 8
+        assert schema_version(sqlite3_lci_db.db) == 9
     finally:
         lock.execute("ROLLBACK")
         lock.close()
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [10, 11]
     assert ProjectParameter.get(name="p").amount == 2

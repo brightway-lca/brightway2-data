@@ -1,6 +1,7 @@
 """Exchange ``data`` blobs don't store ``input`` and ``output`` (storage S4)."""
 
 import pickle
+from collections import OrderedDict
 
 import pytest
 
@@ -278,3 +279,24 @@ def test_revisions_keep_keys_in_edge_data():
     assert state["data"]["input"] == ("db", "1")
     assert state["data"]["output"] == ("db", "0")
     assert state["input_code"] == "1"
+
+
+def test_encode_keeps_the_type_of_a_dict_subclass_without_keys():
+    value = OrderedDict(type="technosphere", amount=1)
+    stored = codec.loads(ExchangeDataset.data.encode(value))
+    assert type(stored) is OrderedDict
+    assert stored == value
+
+
+def test_encode_stores_an_unknown_tagged_value_as_it_was_read():
+    # As read from a row which a plugin wrote that is not installed here
+    value = codec.UnknownTaggedValue({"__bw__": "plugin.Edge", "v": {"amount": 1}})
+    encoded = ExchangeDataset.data.encode(value)
+    assert encoded == codec.dumps(value)
+    assert type(codec.loads(encoded)) is codec.UnknownTaggedValue
+
+
+def test_encode_of_a_dict_subclass_with_keys_leaves_them_out():
+    value = OrderedDict(input=("db", "a"), output=("db", "b"), amount=1)
+    assert codec.loads(ExchangeDataset.data.encode(value)) == {"amount": 1}
+    assert "input" in value

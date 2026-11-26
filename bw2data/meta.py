@@ -428,7 +428,7 @@ class GeoMapping(Mapping):
     def _migrate_from_pickle(self):
         """One-time migration from ``geomapping.pickle``: its locations are added. Their ids are
         derived from their names (``location_id``), as for every location; the ids in the file
-        are not kept, and schema migration 10 made the processed datapackages which use them be
+        are not kept, and schema migration 11 made the processed datapackages which use them be
         processed again. Integer feature ids in ``(geocollection, feature id)`` keys are
         converted to strings; keys which still aren't locations are skipped with a warning."""
         from bw2data.backends.schema import GeoMappingRecord
@@ -1054,7 +1054,7 @@ class _CalculationSetups(MutableMapping):
     """Dict-like registry of calculation setups, stored in the ``calculationsetup`` and
     ``calculationsetupdemand`` tables of ``lci/databases.db`` (see
     ``bw2data.backends.schema.CalculationSetupRecord``). Before, they were pickled to a file
-    in the project directory, which schema migration 8 moves into SQLite.
+    in the project directory, which schema migration 9 moves into SQLite.
 
     A setup is a dict, usually with:
 

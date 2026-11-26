@@ -529,10 +529,41 @@ def _too_deep(tree) -> str | None:
     return None
 
 
-def _encode_checked(obj, strings: bool = False):
+def _encode_without(obj: dict, exclude, strings: bool):
+    """``_encode`` of the dict ``obj`` without its keys in ``exclude``, without copying it
+    first. The same loop as the dict case of ``_encode``."""
+    if TAG not in obj:
+        out = {}
+        for k, v in obj.items():
+            if k in exclude:
+                continue
+            if type(k) is not str or (strings and _has_surrogates(k)):
+                break
+            vt = type(v)
+            if (
+                (vt is str and not strings)
+                or (vt is float and v - v == 0.0)
+                or v is None
+                or vt is bool
+                or (vt is int and _INT_MIN <= v <= _INT_MAX)
+            ):
+                out[k] = v
+            else:
+                out[k] = _encode(v, strings)
+        else:
+            return out
+    return _encode({k: v for k, v in obj.items() if k not in exclude}, strings)
+
+
+def _encode_checked(obj, strings: bool = False, exclude=()):
     try:
+        if exclude and type(obj) is dict:
+            return _encode_without(obj, exclude, strings)
         return _encode(obj, strings)
     except _Unstorable as err:
+        if exclude and type(obj) is dict:
+            # Not a path through an excluded key, which wasn't encoded
+            obj = {k: v for k, v in obj.items() if k not in exclude}
         try:
             where = _path_to(err.obj, obj) or "value"
         except RecursionError:
@@ -549,11 +580,21 @@ def encode(obj) -> Any:
     return _encode_checked(obj)
 
 
-def dumps(obj) -> bytes:
+def dumps(obj, exclude=()) -> bytes:
     """Serialize ``obj`` to UTF-8 JSON bytes. See the module docstring for what can be stored.
+    ``exclude``: keys (an iterable, but not a single string) left out of ``obj`` as if they
+    weren't there, which is cheaper than leaving them out of a copy first. Only for a plain
+    ``dict``, and only at its top level: any other value, including an instance of a subclass
+    of ``dict``, is stored whole.
 
     Raises ``TypeError`` for a value that can't be stored."""
-    tree = _encode_checked(obj)
+    if type(exclude) is not frozenset:
+        if isinstance(exclude, (str, bytes)):
+            # Would match parts of keys
+            raise TypeError("`exclude` must be an iterable of keys, not a single string")
+        # Also so that an iterator isn't used up when the value is encoded a second time
+        exclude = frozenset(exclude)
+    tree = _encode_checked(obj, exclude=exclude)
     try:
         return orjson.dumps(tree)
     except orjson.JSONEncodeError:
@@ -563,7 +604,7 @@ def dumps(obj) -> bytes:
         # ``encode`` only leaves values orjson can write, except strings with lone
         # surrogates, which pickle stored but UTF-8 can't represent. Tag those and try again;
         # anything else fails again here.
-        return orjson.dumps(_encode_checked(obj, strings=True))
+        return orjson.dumps(_encode_checked(obj, strings=True, exclude=exclude))
 
 
 # Decoding

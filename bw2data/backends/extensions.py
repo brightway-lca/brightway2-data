@@ -1583,7 +1583,7 @@ def _build_extension(
         dictionaries = _recompress(connection, (activities, exchanges))
         for statement in indexes:
             connection.execute(statement)
-        # A project's file has them only after a bulk write
+        # A project's file gets them from schema migration 8, which doesn't run here
         for statement in LCI_INDEX_SQL:
             connection.execute(statement)
 

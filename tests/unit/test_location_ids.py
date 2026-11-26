@@ -1,5 +1,5 @@
 """Location ids derived from location names (#331): the same in every project and every file.
-Schema migration 10 gives existing locations these ids and makes processed data be processed
+Schema migration 11 gives existing locations these ids and makes processed data be processed
 again."""
 
 import pytest
@@ -44,9 +44,9 @@ def score():
     return lca.score
 
 
-def as_version_9(rows, collections=()):
+def as_version_10(rows, collections=()):
     """``geomappingrecord`` with the ``rows`` (``(id, collection id, location)``), as written
-    before schema migration 10."""
+    before schema migration 11."""
     GeoMappingRecord.delete().execute()
     for id_, name in collections:
         Geocollection.insert(id=id_, name=name).on_conflict_ignore().execute()
@@ -56,18 +56,18 @@ def as_version_9(rows, collections=()):
             "VALUES (?, ?, ?)",
             row,
         )
-    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 9")
+    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 10")
     geomapping.__init__()
 
 
 @bw2test
 def test_migration_gives_ids_derived_from_names_and_merges_locations():
-    as_version_9(
+    as_version_10(
         [(1, None, "GLO"), (2, None, "Global"), (3, 50, "CH"), (4, None, "CH"), (5, 51, "X")],
         [(50, "world"), (51, "places")],
     )
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [10]
-    assert schema_version(sqlite3_lci_db.db) == 10
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [11]
+    assert schema_version(sqlite3_lci_db.db) == 11
     rows = set(
         sqlite3_lci_db.execute_sql(
             'SELECT "id", "geocollection_id", "location" FROM main."geomappingrecord"'
@@ -89,19 +89,19 @@ def test_migration_gives_ids_derived_from_names_and_merges_locations():
 
 @bw2test
 def test_migration_keeps_a_world_geocollection_with_metadata():
-    as_version_9([(1, None, "GLO"), (3, 50, "CH")], [(50, "world")])
+    as_version_10([(1, None, "GLO"), (3, 50, "CH")], [(50, "world")])
     Geocollection.update(extra={"file": "world.gpkg"}).where(Geocollection.id == 50).execute()
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [10]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [11]
     assert Geocollection.get(Geocollection.name == "world").extra == {"file": "world.gpkg"}
     assert geomapping["CH"] == location_id("CH")
 
 
 @bw2test
 def test_migration_resets_the_ids_which_geomapping_has_cached():
-    as_version_9([(1, None, "GLO"), (2, None, "CH")])
+    as_version_10([(1, None, "GLO"), (2, None, "CH")])
     # Read before the migration, as when it is deferred
     assert geomapping["CH"] == 2
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [10]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [11]
     assert geomapping["CH"] == location_id("CH")
 
 
@@ -109,11 +109,11 @@ def test_migration_resets_the_ids_which_geomapping_has_cached():
 def test_migration_is_postponed_if_two_locations_get_the_same_id(monkeypatch):
     from bw2data.backends import migrations
 
-    as_version_9([(1, None, "GLO"), (2, None, "CH")])
-    monkeypatch.setattr(migrations, "_m10_id", lambda collection, location: 7)
+    as_version_10([(1, None, "GLO"), (2, None, "CH")])
+    monkeypatch.setattr(migrations, "_m11_id", lambda collection, location: 7)
     with pytest.warns(UserWarning, match="would get the same id"):
         assert migrate(sqlite3_lci_db.db, projects.dir) == []
-    assert schema_version(sqlite3_lci_db.db) == 9
+    assert schema_version(sqlite3_lci_db.db) == 10
     assert GeoMappingRecord.select().count() == 2
 
 
@@ -124,10 +124,10 @@ def test_processed_data_is_processed_again():
     database_file = Database("inv").filepath_processed()
     method_file = Method(("m",)).filepath_processed()
     assert database_file.is_file() and method_file.is_file()
-    # Ids as before schema migration 10: the processed data uses them
+    # Ids as before schema migration 11: the processed data uses them
     rows = [(id_ + 1, None, key) for id_, key in enumerate(["GLO", "CH"])]
-    as_version_9(rows)
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [10]
+    as_version_10(rows)
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [11]
     # Removed after the commit; processed again when they are needed
     assert not database_file.exists() and not method_file.exists()
     assert score() == pytest.approx(before) == pytest.approx(2 * 3)
@@ -152,11 +152,11 @@ def test_processed_data_of_io_tables_is_kept():
     )
     path = Database("io").filepath_processed()
     assert path.is_file()
-    as_version_9([(1, None, "GLO"), (2, None, "CH")])
+    as_version_10([(1, None, "GLO"), (2, None, "CH")])
     with pytest.warns(
         UserWarning, match=r"IO table databases keeps the location ids.*: \['io'\]"
     ):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [10]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [11]
     assert path.is_file()
 
 

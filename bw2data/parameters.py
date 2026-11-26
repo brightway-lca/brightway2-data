@@ -1182,7 +1182,7 @@ class ParameterManager:
 
         # In the LCI file: parameters, and the exchange formulas they change, are written in
         # one transaction. Before, in a file of their own, ``parameters.db``, which schema
-        # migration 9 moves into the LCI file.
+        # migration 10 moves into the LCI file.
         sqlite3_lci_db.add_tables(PARAMETER_MODELS)
         self.db = sqlite3_lci_db
 

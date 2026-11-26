@@ -463,7 +463,7 @@ def test_migration_removes_autoincrement_keeping_ids():
 
     assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
     assert not _has_autoincrement()
-    # Schema migration 10 gives them the ids derived from their names
+    # Schema migration 11 gives them the ids derived from their names
     assert dict(geomapping.items()) == {
         key: location_id(key) for key in ("GLO", "CH", ("places", "DE"))
     }

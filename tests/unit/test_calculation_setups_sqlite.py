@@ -1,5 +1,5 @@
 """Calculation setups in SQLite (#314): ``calculation_setups`` and
-``dynamic_calculation_setups``, and schema migration 8, which moves ``setups.pickle`` and
+``dynamic_calculation_setups``, and schema migration 9, which moves ``setups.pickle`` and
 ``dynamicsetups.pickle`` into ``lci/databases.db``."""
 
 import pickle
@@ -224,7 +224,7 @@ def test_writing_a_database_again_removes_its_old_nodes():
     assert calculation_setups["s"] == {"inv": [], "ia": [("m",)]}
 
 
-# Migration 8
+# Migration 9
 
 
 def legacy(path, data):
@@ -254,9 +254,9 @@ def test_migration_moves_both_files():
         {"d": {"inv": [{a.key: 1}], "ia": [{("worst",): ("dynamic",)}], "colour": "red"}},
     )
     calculation_setups["kept"] = {"inv": [{a.key: 5}]}
-    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 7")
+    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 8")
     with pytest.warns(UserWarning) as caught:
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10, 11]
     messages = " ".join(str(w.message) for w in caught)
     assert "can't be stored are only kept in the file: ['nan', 'none', 'odd', ('a', 'tuple')]" in messages
     assert "'gone': [('db', 'deleted')]" in messages
@@ -281,13 +281,13 @@ def test_migration_moves_both_files():
 
 @bw2test
 def test_migration_without_files_and_with_unreadable_files():
-    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 7")
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10]
+    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 8")
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10, 11]
     (projects.dir / "setups.pickle").write_bytes(b"not a pickle")
-    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 7")
+    sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 8")
     with pytest.warns(UserWarning, match="Can't read .*setups.pickle"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10]
-    assert schema_version(sqlite3_lci_db.db) == 10
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10, 11]
+    assert schema_version(sqlite3_lci_db.db) == 11
     assert len(calculation_setups) == 0
 
 

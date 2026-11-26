@@ -176,7 +176,7 @@ class ProcessedDataStore(DataStore):
 
     def datapackage(self):
         """The processed datapackage, processed first if its file doesn't exist (e.g. after
-        schema migration 10 removed it)."""
+        schema migration 11 removed it)."""
         if not self.filepath_processed().is_file():
             self.process()
         return load_datapackage(ZipFileSystem(self.filepath_processed()))

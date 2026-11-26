@@ -86,6 +86,7 @@ class ActivityDataset(_SavedInTransaction, SnowflakeIDBaseClass):
 #: Keys of exchange data which aren't stored in the ``data`` column, because the key columns
 #: of ``ExchangeDataset`` already hold them. See ``ExchangeDataField``.
 EXCHANGE_KEYS = ("input", "output")
+_EXCLUDED_KEYS = frozenset(EXCHANGE_KEYS)
 
 
 def add_exchange_keys(data: dict, input_database, input_code, output_database, output_code) -> dict:
@@ -140,8 +141,13 @@ class ExchangeDataField(CompressedJSONField):
     accessor_class = _ExchangeDataAccessor
 
     def encode(self, value) -> bytes:
+        if type(value) is dict:
+            return codec.dumps(value, exclude=_EXCLUDED_KEYS)
         if isinstance(value, dict) and any(key in value for key in EXCHANGE_KEYS):
+            # A subclass can only be stored without the keys as a plain dict
             value = {k: v for k, v in value.items() if k not in EXCHANGE_KEYS}
+        # Anything else as it is, so that it is read back as the same type: an
+        # ``OrderedDict``, or a ``codec.UnknownTaggedValue`` which is stored again
         return super().encode(value)
 
 
@@ -167,8 +173,9 @@ class ExchangeDataset(_SavedInTransaction, SnowflakeIDBaseClass):
 #: The tables with a ``CompressedJSONField``, and the name of its column
 COMPRESSED_COLUMNS = {ACTIVITY_TABLE: "data", EXCHANGE_TABLE: "data"}
 
-#: Indexes on the natural keys of activities and exchanges. Not created with the tables: a bulk
-#: ``Database.write`` drops and adds them (``SQLiteBackend._add_indices``)
+#: Indexes on the natural keys of activities and exchanges, for files which are built without
+#: the schema migrations (extension files). A project's file gets them from schema migration 8
+#: (``bw2data.backends.migrations.LCI_INDEXES``)
 LCI_INDEX_SQL = (
     f'CREATE UNIQUE INDEX IF NOT EXISTS main."activitydataset_key" ON "{ACTIVITY_TABLE}" '
     '("database", "code")',
@@ -460,7 +467,7 @@ class GeoMappingRecord(Model):
     A location is either a bare string (``geocollection`` is ``NULL``: the default
     geocollection, ``"world"``), or a location in another ``Geocollection``. Its id is derived
     from its geocollection and name (``bw2data.meta.location_id``), so it is the same in every
-    project; schema migration 10 gave existing locations these ids.
+    project; schema migration 11 gave existing locations these ids.
     """
 
     id = IntegerField(primary_key=True)
