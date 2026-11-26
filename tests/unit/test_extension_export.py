@@ -21,6 +21,7 @@ from bw2data.backends.migrations import SCHEMA_VERSION
 from bw2data.errors import ExtensionDependencyError, ExtensionError, ReadOnlyExtensionError
 from bw2data.search import IndexManager
 from bw2data.search.indices import index_table
+from bw2data.signals import on_extension_attached, on_extension_detached
 
 from .test_extension_attach import _temporary_directory, lci_path
 
@@ -179,14 +180,27 @@ def test_compressed_values_can_be_read(tmp_path):
     Database("big").write(
         {("big", str(i)): {"name": f"activity {i}", "comment": "same " * 20} for i in range(500)}
     )
-    assert file_rows(lci_path(), "SELECT count(*) FROM zstddictionary") == [(1,)]
-    path = tmp_path / "big.db"
-    projects.export_extension(path, ["big"])
-    assert file_rows(path, "SELECT active FROM zstddictionary") == [(0,)]
+    # Written in a transaction, so compressed with the dictionary trained on ``big``
+    Database("small").write({("small", "x"): {"name": "little", "comment": "same " * 20}})
+    ((project_dictionary,),) = file_rows(lci_path(), "SELECT id FROM zstddictionary")
+    used = file_rows(
+        lci_path(), "SELECT hex(substr(data, 1, 4)) FROM activitydataset WHERE database = 'small'"
+    )
+    assert used == [("28B52FFD",)]
+    big, small = tmp_path / "big.db", tmp_path / "small.db"
+    projects.export_extension(big, ["big"])
+    projects.export_extension(small, ["small"])
+    # The project's dictionary holds pieces of all its data, and is in neither file. ``big``
+    # gets a new one, trained on its values alone; ``small`` needs none
+    ((new_dictionary, active),) = file_rows(big, "SELECT id, active FROM zstddictionary")
+    assert new_dictionary != project_dictionary and active == 0
+    assert file_rows(small, "SELECT count(*) FROM zstddictionary") == [(0,)]
     projects.set_current("target")
     try:
-        projects.attach_extension(path)
+        projects.attach_extension([big, small])
         assert get_node(database="big", code="7")["comment"] == "same " * 20
+        assert get_node(database="small", code="x")["comment"] == "same " * 20
+        assert [node["code"] for node in Database("small").search("little")] == ["x"]
     finally:
         sqlite3_lci_db.change_path(lci_path())
 
@@ -279,6 +293,53 @@ def test_existing_file(built):
     assert info(bio)[INFO_ID] == old_id
     new_id = projects.export_extension(bio, ["bio"], overwrite=True)
     assert info(bio)[INFO_ID] == new_id != old_id
+
+
+def test_files_of_the_project_are_never_replaced(built):
+    bio, inv = built
+    projects.set_current("inv-builder")
+    with pytest.raises(ExtensionError, match="the project's own file"):
+        projects.export_extension(lci_path(), ["inv"], overwrite=True)
+    with pytest.raises(ExtensionError, match="attached extension 'bio'"):
+        projects.export_extension(bio, ["inv"], overwrite=True)
+    assert sorted(databases) == ["bio", "inv"]
+    assert len(Database("bio")) == 3
+
+
+def test_failed_attach_steps_change_nothing(built, monkeypatch):
+    bio, inv = built
+    sent = []
+    on_extension_attached.connect(lambda sender, **kwargs: sent.append(kwargs), weak=False)
+
+    def fail(keys):
+        raise RuntimeError("no geomapping today")
+
+    monkeypatch.setattr(geomapping, "add", fail)
+    with pytest.raises(RuntimeError, match="no geomapping today"):
+        projects.attach_extension(bio)
+    assert projects.extensions == ()
+    assert sqlite3_lci_db.extensions == ()
+    assert sorted(databases) == []
+    assert sent == []
+    monkeypatch.undo()
+    projects.attach_extension(bio)
+    assert sorted(databases) == ["bio"]
+    assert len(sent) == 1
+
+
+def test_detach_with_processed_data_which_cannot_be_removed(built):
+    bio, inv = built
+    projects.attach_extension(bio)
+    processed = Database("bio").filepath_processed()
+    # Stands for a file which is still open, on Windows
+    processed.unlink()
+    processed.mkdir()
+    sent = []
+    on_extension_detached.connect(lambda sender, **kwargs: sent.append(kwargs), weak=False)
+    with pytest.warns(UserWarning, match="Can't remove the processed data of database 'bio'"):
+        projects.detach_extension("bio")
+    assert projects.extensions == ()
+    assert len(sent) == 1
 
 
 def test_not_inside_a_transaction(built, tmp_path):

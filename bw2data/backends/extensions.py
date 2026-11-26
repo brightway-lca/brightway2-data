@@ -69,7 +69,15 @@ from bw2data.errors import (
     ExtensionError,
     ReadOnlyExtensionError,
 )
-from bw2data.sqlite import ZSTD_DICTIONARY_TABLE, ConnectionHook, _sqlite_uri
+from bw2data.sqlite import (
+    ZSTD_DICTIONARY_SIZE,
+    ZSTD_DICTIONARY_TABLE,
+    ZSTD_LEVEL,
+    ZSTD_MAGIC,
+    ConnectionHook,
+    _sqlite_uri,
+    zstd,
+)
 
 #: TEMP table with one row per database name stored in an attached extension
 REGISTRY_TABLE = "lci_extension_databases"
@@ -1080,7 +1088,7 @@ def check_name_free(database: str) -> None:
 # file is a copy of the project file's schema (tables and indexes) holding only the rows of the
 # exported databases; the project-local tables are left empty. It carries the search index
 # tables of the exported databases with their rows, so that nothing has to be built when it is
-# attached, and the zstd dictionaries of the project, so that the compressed values can be read.
+# attached. The zstd dictionaries of the project stay behind: they hold pieces of all its data.
 
 #: Key of ``INFO_TABLE``: the version of bw2data which built the file
 INFO_BW2DATA_VERSION = "bw2data_version"
@@ -1089,6 +1097,9 @@ INFO_CREATED = "created"
 
 #: Rows written in one ``executemany``
 _COPY_CHUNK = 10_000
+#: Most values a new zstd dictionary is trained on, and fewest values to train one for
+_DICTIONARY_SAMPLES = 5_000
+_DICTIONARY_MIN_VALUES = 500
 
 
 def _schema_sql(connection, schema: str) -> tuple[list[str], list[str]]:
@@ -1152,7 +1163,8 @@ def build_extension(
       an index;
     * the search index tables of the searchable databases, copied with their rows, or built if
       the project has no index for one;
-    * the zstd dictionaries of the project file, none of them active;
+    * no zstd dictionary of the project: if the values use one, they are compressed again
+      with a new dictionary trained on them alone (``_recompress``);
     * ``INFO_TABLE`` (a new id, ``version``, the fingerprints, the bw2data version and the time
       it was built) and ``REQUIRES_TABLE``.
 
@@ -1169,6 +1181,16 @@ def build_extension(
         raise ValueError(f"Databases must be given as distinct names: {names!r}")
     if version is not None and not isinstance(version, str):
         raise TypeError(f"The version label must be a string, not {version!r}")
+    # Never to be replaced, also with ``overwrite``
+    resolved = path.resolve()
+    if resolved == Path(main_path).resolve():
+        raise ExtensionError(f"Can't export to {path}: it is the project's own file")
+    for extension in attached:
+        if resolved == extension.path.resolve():
+            raise ExtensionError(
+                f"Can't export to {path}: it is the file of the attached {extension}; detach "
+                "it first"
+            )
     if path.exists() and not overwrite:
         raise FileExistsError(f"{path} exists; pass `overwrite=True` to replace it")
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
@@ -1203,7 +1225,9 @@ def _build_extension(
     exchanges = _q(_table(ExchangeDataset))
     records = _q(_table(DatabaseRecord))
 
-    connection = sqlite3.connect(target, isolation_level=None)
+    # ``uri=True``: the project's file is attached by URI, which SQLite otherwise only accepts
+    # if it was compiled to
+    connection = sqlite3.connect(_sqlite_uri(target), uri=True, isolation_level=None)
     with closing(connection):
         connection.execute(f"PRAGMA main.page_size = {int(LCI_PAGE_SIZE)}")
         connection.execute("ATTACH DATABASE ? AS source", (_sqlite_uri(main_path, mode="ro"),))
@@ -1306,10 +1330,7 @@ def _build_extension(
                         for row in rows
                     ],
                 )
-        connection.execute(
-            f"INSERT INTO main.{_q(ZSTD_DICTIONARY_TABLE)} (id, content, created, active) "
-            f"SELECT id, content, created, 0 FROM source.{_q(ZSTD_DICTIONARY_TABLE)}"
-        )
+        dictionaries = _recompress(connection, (activities, exchanges))
         for statement in indexes:
             connection.execute(statement)
         # A project's file has them only after a bulk write
@@ -1336,7 +1357,7 @@ def _build_extension(
             ):
                 _copy_index(connection, table)
             else:
-                _build_index(connection, name, table)
+                _build_index(connection, name, table, dictionaries)
             searchable[name] = True
 
         # Database records
@@ -1386,15 +1407,144 @@ def _build_extension(
 
     # The file must attach on its own: the checks of ``check_extensions`` which look at one file,
     # with an empty project file
-    check = sqlite3.connect(":memory:", isolation_level=None)
+    check = sqlite3.connect(":memory:", uri=True, isolation_level=None)
     with closing(check):
         for statement in tables:
             check.execute(statement)
         extension = _attach(check, 1, ExtensionSpec("export", target))
-        problems = _rows(check, ownership_check_sql([extension.schema]))
-    if problems or dict(extension.fingerprints) != fingerprints:
-        raise ExtensionError(f"The exported file doesn't pass the checks for extensions: {problems}")
+        problems = [
+            f"database {problem[1]!r}: {problem[0]}"
+            for problem in _rows(check, ownership_check_sql([extension.schema]))
+        ]
+        if sorted(extension.databases) != sorted(names):
+            problems.append(f"it has the databases {list(extension.databases)}")
+        # As they are in the finished file, not as they were written into ``INFO_TABLE``
+        for name in names:
+            found_fingerprint = database_fingerprint(check, extension.schema, name)
+            if extension.fingerprints.get(name) != found_fingerprint:
+                problems.append(
+                    f"database {name!r} has the fingerprint {found_fingerprint}, but "
+                    f"{extension.fingerprints.get(name)} is stored"
+                )
+    if problems:
+        raise ExtensionError(
+            "The exported file doesn't pass the checks for extensions: " + "; ".join(problems)
+        )
     return extension_id
+
+
+def _dictionary_ids(connection, table: str) -> set[int]:
+    """Ids of the zstd dictionaries which the ``data`` values of the quoted ``table`` in
+    ``main`` were compressed with, read from the frame headers."""
+    # A frame header is at most 18 bytes
+    sql = f"SELECT substr(data, 1, 18) FROM main.{table}"
+    ids = set()
+    with closing(connection.execute(sql)) as cursor:
+        for (header,) in cursor:
+            header = bytes(header)
+            if header[:4] == ZSTD_MAGIC:
+                ids.add(zstd.get_frame_info(header).dictionary_id)
+    ids.discard(0)
+    return ids
+
+
+def _recompress(connection, tables: Sequence[str]) -> dict[int, bytes]:
+    """Free the copied ``data`` values of the quoted ``tables`` in ``main`` from the zstd
+    dictionaries of the project, and return the content of the dictionaries of the new file
+    by id: at most one.
+
+    A dictionary holds pieces of the data it was trained on, also of databases which are not
+    exported, and values written later are compressed with it too. So no dictionary of the
+    project goes into the file. If any copied value uses one, a new dictionary is trained on
+    the copied values alone, and all of them are compressed again with it; or without a
+    dictionary, if zstd can't train one from them. Does nothing if no value uses a
+    dictionary."""
+    used = set().union(*(_dictionary_ids(connection, table) for table in tables))
+    if not used:
+        return {}
+    old = {}
+    for dict_id in used:
+        rows = _rows(
+            connection,
+            f"SELECT content FROM source.{_q(ZSTD_DICTIONARY_TABLE)} WHERE id = ?",
+            (dict_id,),
+        )
+        if not rows:
+            raise ExtensionError(
+                f"Can't export: values of the databases were compressed with zstd dictionary "
+                f"{dict_id}, which is not in the project's file"
+            )
+        old[dict_id] = zstd.ZstdDict(bytes(rows[0][0]))
+
+    def content(frame: bytes) -> bytes:
+        dict_id = zstd.get_frame_info(frame).dictionary_id
+        return zstd.decompress(frame, zstd_dict=old[dict_id] if dict_id else None)
+
+    counts = {
+        table: _rows(connection, f"SELECT count(*) FROM main.{table}")[0][0] for table in tables
+    }
+    total = sum(counts.values())
+    samples = []
+    for table in tables:
+        limit = max(1, round(_DICTIONARY_SAMPLES * counts[table] / total))
+        sql = f"SELECT data FROM main.{table} ORDER BY random() LIMIT ?"
+        for (value,) in _rows(connection, sql, (limit,)):
+            value = bytes(value)
+            if value[:4] == ZSTD_MAGIC:
+                samples.append(content(value))
+    new = None
+    if total >= _DICTIONARY_MIN_VALUES:
+        try:
+            new = zstd.train_dict(samples, ZSTD_DICTIONARY_SIZE)
+        except (zstd.ZstdError, ValueError):
+            # Too few or too small samples
+            new = None
+    compressor = zstd.ZstdCompressor(level=ZSTD_LEVEL, zstd_dict=new)
+    for table in tables:
+        last = None
+        while True:
+            where, params = ("WHERE id > ?", (last,)) if last is not None else ("", ())
+            rows = _rows(
+                connection,
+                f"SELECT id, data FROM main.{table} {where} ORDER BY id LIMIT {_COPY_CHUNK}",
+                params,
+            )
+            if not rows:
+                break
+            last = rows[-1][0]
+            connection.executemany(
+                f"UPDATE main.{table} SET data = ? WHERE id = ?",
+                [
+                    (
+                        compressor.compress(content(value), mode=zstd.ZstdCompressor.FLUSH_FRAME),
+                        id_,
+                    )
+                    for id_, value in ((id_, bytes(value)) for id_, value in rows)
+                    if value[:4] == ZSTD_MAGIC
+                ],
+            )
+    if new is None:
+        return {}
+    connection.execute(
+        f"INSERT INTO main.{_q(ZSTD_DICTIONARY_TABLE)} (id, content, created, active) "
+        "VALUES (?, ?, ?, 0)",
+        (new.dict_id, new.dict_content, datetime.now(timezone.utc).isoformat()),
+    )
+    return {new.dict_id: new.dict_content}
+
+
+def _decode(value, dictionaries: Mapping[int, bytes], cache: dict):
+    """A stored ``CompressedJSONField`` value of the exported file, as Python data.
+    ``dictionaries`` has the content of the file's zstd dictionaries."""
+    from bw2data import codec
+
+    value = bytes(value)
+    if value[:4] != ZSTD_MAGIC:
+        return codec.safe_pickle_loads(value)
+    dict_id = zstd.get_frame_info(value).dictionary_id
+    if dict_id and dict_id not in cache:
+        cache[dict_id] = zstd.ZstdDict(dictionaries[dict_id])
+    return codec.loads(zstd.decompress(value, zstd_dict=cache[dict_id] if dict_id else None))
 
 
 def _copy_index(connection, table: str) -> None:
@@ -1407,21 +1557,26 @@ def _copy_index(connection, table: str) -> None:
         connection.execute(f"INSERT INTO main.{_q(shadow)} SELECT * FROM source.{_q(shadow)}")
 
 
-def _build_index(connection, database: str, table: str) -> None:
-    """Index the activities of ``database`` in the new table ``table`` in ``main``. They are read
-    through the project's models, which can decompress them."""
+def _build_index(
+    connection, database: str, table: str, dictionaries: Mapping[int, bytes]
+) -> None:
+    """Index the activities of ``database`` in the new table ``table`` in ``main``, from the
+    rows which were copied into the file."""
     from bw2data.search.indices import FIELDS, format_dataset
 
-    query = ActivityDataset.select(
-        ActivityDataset.id, ActivityDataset.code, ActivityDataset.data
-    ).where(ActivityDataset.database == database)
     columns = ", ".join(_q(field) for field in FIELDS)
     sql = (
         f"INSERT INTO main.{_q(table)} (rowid, {columns}) "
         f"VALUES (?, {', '.join('?' * len(FIELDS))})"
     )
-    rows = []
-    for id_, code, data in query.tuples().iterator():
+    stored = _rows(
+        connection,
+        f"SELECT id, code, data FROM main.{_q(_table(ActivityDataset))} WHERE database = ?",
+        (database,),
+    )
+    rows, cache = [], {}
+    for id_, code, data in stored:
+        data = _decode(data, dictionaries, cache) if data is not None else {}
         values = format_dataset({**(data or {}), "code": code})
         rows.append((id_, *(values[field] for field in FIELDS)))
     connection.executemany(sql, rows)

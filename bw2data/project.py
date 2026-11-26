@@ -762,26 +762,38 @@ class ProjectManager(Iterable):
             # ``change_path`` went back to the file with the extensions attached before
             self._store_extensions(stored)
             raise
-        self._extension_problems = problems
-        self._warn_extension_problems(problems, previous)
-        # The project has no processed data for the databases which it now gets, or data of
-        # another version of the file: start from a new local state, to be processed
-        from bw2data.search.indices import index_table
-
         from bw2data import geomapping
         from bw2data.backends import SQLiteBackend
+        from bw2data.search.indices import index_table
 
         before = {spec.name for spec in attached_now}
-        locations = set()
-        for extension in lci_db.extensions:
-            if extension.name not in before:
-                for database in extension.databases:
+        new_databases = [
+            database
+            for extension in lci_db.extensions
+            if extension.name not in before
+            for database in extension.databases
+        ]
+        try:
+            # Extensions have no geomapping: their location names get ids here. Added first;
+            # if what follows fails, they stay, as they do when an extension is detached
+            locations = set()
+            for database in new_databases:
+                locations.update(SQLiteBackend(database).inventory_locations())
+            geomapping.add(locations)
+            # The project has no processed data for the databases which it now gets, or data
+            # of another version of the file: start from a new local state, to be processed
+            with lci_db.atomic():
+                for database in new_databases:
                     ExtensionDatabaseState.replace(name=database, dirty=True).execute()
                     # A search index built in the project is for another version of the file
                     lci_db.execute_sql(f'DROP TABLE IF EXISTS main."{index_table(database)}"')
-                    # Extensions have no geomapping: their location names get ids here
-                    locations.update(SQLiteBackend(database).inventory_locations())
-        geomapping.add(locations)
+        except BaseException:
+            # Nothing is attached which wasn't before
+            self._store_extensions(stored)
+            lci_db.change_path(main_path, extensions=attached_now)
+            raise
+        self._extension_problems = problems
+        self._warn_extension_problems(problems, previous)
         bw2signals.on_extension_attached.send(self, names=[entry["name"] for entry in entries])
         return tuple(e for e in self.extensions if e.name in new_names)
 
@@ -893,9 +905,16 @@ class ProjectManager(Iterable):
                 lci_db.execute_sql(f'DROP TABLE IF EXISTS main."{index_table(database)}"')
                 # Processed data; geomapping entries stay, as other processed data may use them
                 backend = SQLiteBackend(database)
-                (backend.dirpath_processed() / backend.filename_processed()).unlink(
-                    missing_ok=True
-                )
+                processed = backend.dirpath_processed() / backend.filename_processed()
+                try:
+                    processed.unlink(missing_ok=True)
+                except OSError as err:
+                    # E.g. still open in a calculation, on Windows. The extension is detached
+                    warnings.warn(
+                        f"Can't remove the processed data of database {database!r} "
+                        f"({processed}): {err}",
+                        stacklevel=2,
+                    )
         bw2signals.on_extension_detached.send(self, name=name, databases=signal_databases)
 
     @staticmethod
