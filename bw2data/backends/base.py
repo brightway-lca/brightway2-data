@@ -764,7 +764,17 @@ class SQLiteBackend(ProcessedDataStore):
         exchanges: list,
         activities: list,
         check_typos: bool = True,
+        checked: Optional[set] = None,
     ) -> (list, list):
+        """``checked``: exchange types and key sets which were already checked for typos in
+        this write. The checks compare each key with every valid key; most exchanges have the
+        same few key sets, so checking each set once saves most of that work. With the
+        default warning filter the warnings are the same, as Python then shows a warning only
+        once per place in the code anyway. Code which records every warning (the ``"always"``
+        filter, ``pytest.warns``) gets one per distinct type or key set, not one per
+        exchange."""
+        if checked is None:
+            checked = set()
         for exchange in ds.get("exchanges", []):
             if "input" not in exchange or "amount" not in exchange:
                 raise InvalidExchange
@@ -772,8 +782,15 @@ class SQLiteBackend(ProcessedDataStore):
                 raise UntypedExchange
 
             if check_typos:
-                check_exchange_type(exchange.get("type"))
-                check_exchange_keys(exchange)
+                kind = exchange.get("type")
+                if not isinstance(kind, str) or ("type", kind) not in checked:
+                    check_exchange_type(kind)
+                    if isinstance(kind, str):
+                        checked.add(("type", kind))
+                keys = frozenset(exchange)
+                if keys not in checked:
+                    check_exchange_keys(exchange)
+                    checked.add(keys)
 
             if "output" not in exchange:
                 exchange["output"] = (ds["database"], ds["code"])
@@ -877,11 +894,11 @@ class SQLiteBackend(ProcessedDataStore):
                 sqlite3_lci_db.db.begin()
                 # The search index is kept: ``write`` builds it again, or leaves it as it is
                 self.delete(keep_params=True, warn=False, vacuum=False, keep_index=True)
-                exchanges, activities = [], []
+                exchanges, activities, checked = [], [], set()
 
                 for ds in tqdm_wrapper(data, getattr(config, "is_test", False)):
                     exchanges, activities = self._efficient_write_dataset(
-                        ds, exchanges, activities, check_typos
+                        ds, exchanges, activities, check_typos, checked
                     )
 
                 _insert_many(ActivityDataset, activities)

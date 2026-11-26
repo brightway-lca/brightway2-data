@@ -739,3 +739,61 @@ def test_error_path_reaches_into_plugin_payloads(clean_registry):
     codec.register(Point, "tests.Point", lambda p: [p.x, p.y], lambda v: Point(*v))
     with pytest.raises(TypeError, match=r"\(at value\['a'\]<tests.Point>\[1\]\)"):
         dumps({"a": Point(1, Hashable())})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"input": ("a", "b"), "output": ("c", "d"), "amount": 1.5, "type": "technosphere"},
+        {"input": ("a", "b"), "amount": float("nan"), "properties": {"x": {"amount": 1}}},
+        # Tagged dict: a key which isn't a string
+        {"input": ("a", "b"), 1: "one", "pedigree": (1, 2)},
+        # Strings which need tagging: the surrogate path
+        {"output": ("c", "d"), "comment": "bad \udcff surrogate"},
+        {"amount": 2},
+        {},
+    ],
+)
+def test_dumps_exclude_is_the_same_as_dumps_of_a_copy(value):
+    exclude = ("input", "output")
+    keys = list(value)
+    copy = {k: v for k, v in value.items() if k not in exclude}
+    assert codec.dumps(value, exclude=exclude) == codec.dumps(copy)
+    # The value itself is left as it is
+    assert list(value) == keys
+
+
+def test_dumps_exclude_only_applies_at_the_top_level():
+    value = {"input": 1, "nested": {"input": 2}}
+    assert codec.loads(codec.dumps(value, exclude=("input",))) == {"nested": {"input": 2}}
+    # Not a dict: nothing to exclude
+    assert codec.dumps([1, 2], exclude=("input",)) == codec.dumps([1, 2])
+
+
+def test_dumps_exclude_takes_any_iterable_of_keys():
+    value = {"input": 1, "output": 2, "comment": "bad \udcff surrogate"}
+    expected = codec.dumps({"comment": "bad \udcff surrogate"})
+    # A generator must still be there for the second pass, which tags the surrogate
+    assert codec.dumps(value, exclude=(k for k in ("input", "output"))) == expected
+    assert codec.dumps(value, exclude=["input", "output"]) == expected
+    assert codec.dumps(value, exclude={"input", "output"}) == expected
+    assert codec.dumps(value, exclude=frozenset({"input", "output"})) == expected
+
+
+@pytest.mark.parametrize("exclude", ["input", b"input"])
+def test_dumps_exclude_refuses_a_single_string(exclude):
+    # ``k in "input"`` is true for "in" and "put"
+    with pytest.raises(TypeError, match="not a single string"):
+        codec.dumps({"in": 1, "put": 2, "amount": 3}, exclude=exclude)
+
+
+def test_dumps_exclude_stores_dict_subclasses_whole():
+    value = OrderedDict(input=1, amount=2)
+    assert codec.dumps(value, exclude=("input",)) == codec.dumps(value)
+    assert codec.loads(codec.dumps(value, exclude=("input",))) == value
+
+
+def test_dumps_exclude_error_path_skips_excluded_keys():
+    unstorable = Hashable()
+    with pytest.raises(TypeError, match=r"\(at value\['foo'\]\)"):
+        codec.dumps({"input": unstorable, "foo": unstorable}, exclude=("input",))

@@ -22,6 +22,7 @@ from peewee import (
     fn,
 )
 
+from bw2data import codec
 from bw2data.errors import UnknownObject
 from bw2data.signals import (
     on_activity_code_change,
@@ -84,6 +85,7 @@ class ActivityDataset(_SavedInTransaction, SnowflakeIDBaseClass):
 #: Keys of exchange data which aren't stored in the ``data`` column, because the key columns
 #: of ``ExchangeDataset`` already hold them. See ``ExchangeDataField``.
 EXCHANGE_KEYS = ("input", "output")
+_EXCLUDED_KEYS = frozenset(EXCHANGE_KEYS)
 
 
 def add_exchange_keys(data: dict, input_database, input_code, output_database, output_code) -> dict:
@@ -138,8 +140,13 @@ class ExchangeDataField(CompressedJSONField):
     accessor_class = _ExchangeDataAccessor
 
     def encode(self, value) -> bytes:
+        if type(value) is dict:
+            return codec.dumps(value, exclude=_EXCLUDED_KEYS)
         if isinstance(value, dict) and any(key in value for key in EXCHANGE_KEYS):
+            # A subclass can only be stored without the keys as a plain dict
             value = {k: v for k, v in value.items() if k not in EXCHANGE_KEYS}
+        # Anything else as it is, so that it is read back as the same type: an
+        # ``OrderedDict``, or a ``codec.UnknownTaggedValue`` which is stored again
         return super().encode(value)
 
 
