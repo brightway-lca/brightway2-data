@@ -22,6 +22,7 @@ from peewee import (
     fn,
 )
 
+from bw2data import codec
 from bw2data.errors import UnknownObject
 from bw2data.signals import (
     on_activity_code_change,
@@ -138,8 +139,11 @@ class ExchangeDataField(CompressedJSONField):
     accessor_class = _ExchangeDataAccessor
 
     def encode(self, value) -> bytes:
-        if isinstance(value, dict) and any(key in value for key in EXCHANGE_KEYS):
-            value = {k: v for k, v in value.items() if k not in EXCHANGE_KEYS}
+        if isinstance(value, dict):
+            # ``exclude`` applies to plain dicts only
+            if type(value) is not dict:
+                value = dict(value)
+            return codec.dumps(value, exclude=EXCHANGE_KEYS)
         return super().encode(value)
 
 

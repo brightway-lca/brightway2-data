@@ -529,8 +529,36 @@ def _too_deep(tree) -> str | None:
     return None
 
 
-def _encode_checked(obj, strings: bool = False):
+def _encode_without(obj: dict, exclude, strings: bool):
+    """``_encode`` of the dict ``obj`` without its keys in ``exclude``, without copying it
+    first. The same loop as the dict case of ``_encode``."""
+    if TAG not in obj:
+        out = {}
+        for k, v in obj.items():
+            if k in exclude:
+                continue
+            if type(k) is not str or (strings and _has_surrogates(k)):
+                break
+            vt = type(v)
+            if (
+                (vt is str and not strings)
+                or (vt is float and v - v == 0.0)
+                or v is None
+                or vt is bool
+                or (vt is int and _INT_MIN <= v <= _INT_MAX)
+            ):
+                out[k] = v
+            else:
+                out[k] = _encode(v, strings)
+        else:
+            return out
+    return _encode({k: v for k, v in obj.items() if k not in exclude}, strings)
+
+
+def _encode_checked(obj, strings: bool = False, exclude=()):
     try:
+        if exclude and type(obj) is dict:
+            return _encode_without(obj, exclude, strings)
         return _encode(obj, strings)
     except _Unstorable as err:
         try:
@@ -549,11 +577,13 @@ def encode(obj) -> Any:
     return _encode_checked(obj)
 
 
-def dumps(obj) -> bytes:
+def dumps(obj, exclude=()) -> bytes:
     """Serialize ``obj`` to UTF-8 JSON bytes. See the module docstring for what can be stored.
+    ``exclude``: keys left out if ``obj`` is a dict (only at the top level), as if they
+    weren't there; cheaper than leaving them out of a copy first.
 
     Raises ``TypeError`` for a value that can't be stored."""
-    tree = _encode_checked(obj)
+    tree = _encode_checked(obj, exclude=exclude)
     try:
         return orjson.dumps(tree)
     except orjson.JSONEncodeError:
@@ -563,7 +593,7 @@ def dumps(obj) -> bytes:
         # ``encode`` only leaves values orjson can write, except strings with lone
         # surrogates, which pickle stored but UTF-8 can't represent. Tag those and try again;
         # anything else fails again here.
-        return orjson.dumps(_encode_checked(obj, strings=True))
+        return orjson.dumps(_encode_checked(obj, strings=True, exclude=exclude))
 
 
 # Decoding

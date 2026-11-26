@@ -739,3 +739,32 @@ def test_error_path_reaches_into_plugin_payloads(clean_registry):
     codec.register(Point, "tests.Point", lambda p: [p.x, p.y], lambda v: Point(*v))
     with pytest.raises(TypeError, match=r"\(at value\['a'\]<tests.Point>\[1\]\)"):
         dumps({"a": Point(1, Hashable())})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"input": ("a", "b"), "output": ("c", "d"), "amount": 1.5, "type": "technosphere"},
+        {"input": ("a", "b"), "amount": float("nan"), "properties": {"x": {"amount": 1}}},
+        # Tagged dict: a key which isn't a string
+        {"input": ("a", "b"), 1: "one", "pedigree": (1, 2)},
+        # Strings which need tagging: the surrogate path
+        {"output": ("c", "d"), "comment": "bad \udcff surrogate"},
+        {"amount": 2},
+        {},
+    ],
+)
+def test_dumps_exclude_is_the_same_as_dumps_of_a_copy(value):
+    exclude = ("input", "output")
+    keys = list(value)
+    copy = {k: v for k, v in value.items() if k not in exclude}
+    assert codec.dumps(value, exclude=exclude) == codec.dumps(copy)
+    # The value itself is left as it is
+    assert list(value) == keys
+
+
+def test_dumps_exclude_only_applies_at_the_top_level():
+    value = {"input": 1, "nested": {"input": 2}}
+    assert codec.loads(codec.dumps(value, exclude=("input",))) == {"nested": {"input": 2}}
+    # Not a dict: nothing to exclude
+    assert codec.dumps([1, 2], exclude=("input",)) == codec.dumps([1, 2])
