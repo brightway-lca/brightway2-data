@@ -44,7 +44,7 @@ import json
 import os
 import re
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -59,9 +59,13 @@ from bw2data.backends.schema import (
     EXCHANGE_TABLE,
     LCI_INDEX_SQL,
     ActivityDataset,
+    CharacterizationFactor,
     DatabaseRecord,
     ExchangeDataset,
     ExtensionDatabaseState,
+    MethodRecord,
+    NormalizationFactor,
+    NormalizationRecord,
 )
 from bw2data.errors import (
     EXTENSION_ERROR_PREFIX,
@@ -906,7 +910,13 @@ def _check_extensions(main_path, specs: tuple[ExtensionSpec, ...]) -> tuple[Atta
 
 def attach_hook(attached: Sequence[AttachedExtension]) -> ConnectionHook:
     """A connection hook which attaches the checked extensions ``attached`` and creates the
-    overlay on a new connection to the project's file."""
+    overlay on a new connection to the project's file.
+
+    Each connection attaches the file which is at the extension's path when it is opened. If
+    that is no longer the checked extension (the file was replaced while the project was
+    open), the connection is refused with ``ExtensionError``: its data would not fit to what
+    was checked, nor to the project's local state of the extension's databases.
+    ``projects.update_extension`` takes up the new version."""
     attached = tuple(attached)
     statements = overlay_sql([extension.schema for extension in attached])
 
@@ -914,10 +924,136 @@ def attach_hook(attached: Sequence[AttachedExtension]) -> ConnectionHook:
         for extension in attached:
             sql = f"ATTACH DATABASE ? AS {_q(extension.schema)}"
             connection.execute(sql, (extension.uri,)).close()
+            _check_same_extension(connection, extension)
         for statement in statements:
             connection.execute(statement).close()
 
     return attach_extensions
+
+
+def _check_same_extension(connection, extension: AttachedExtension) -> None:
+    """Raise ``ExtensionError`` if the file attached as ``extension.schema`` doesn't have the
+    id of ``extension``."""
+    sql = f"SELECT value FROM {_q(extension.schema)}.{_q(INFO_TABLE)} WHERE key = ?"
+    try:
+        rows = _rows(connection, sql, (INFO_ID,))
+    except sqlite3.DatabaseError as err:
+        found = f"can't be read as an extension any more ({err})"
+    else:
+        if [tuple(row) for row in rows] == [(extension.id,)]:
+            return
+        found = f"has the id {rows[0][0]}" if rows else f"has no {INFO_ID!r} in {INFO_TABLE}"
+    raise ExtensionError(
+        f"The file of {extension} was replaced while it was attached: it {found} instead of "
+        f"{extension.id}. Run `projects.update_extension({extension.name!r})` to use the new "
+        "version, which also resets the project's local state of its databases."
+    )
+
+
+def extension_id(path) -> str:
+    """The id of the extension file ``path``. Raises ``ExtensionError`` if it is missing or
+    is not an extension."""
+    path = Path(path)
+    if not path.is_file():
+        raise ExtensionError(f"The extension file {path} doesn't exist")
+    try:
+        connection = sqlite3.connect(_sqlite_uri(path, mode="ro"), uri=True, isolation_level=None)
+        with closing(connection):
+            if INFO_TABLE not in _tables(connection, "main"):
+                rows = []
+            else:
+                sql = f"SELECT value FROM {_q(INFO_TABLE)} WHERE key = ?"
+                rows = _rows(connection, sql, (INFO_ID,))
+    except sqlite3.DatabaseError as err:
+        raise ExtensionError(f"Can't read the extension file {path}: {err}") from err
+    if not rows or not isinstance(rows[0][0], str) or not rows[0][0]:
+        raise ExtensionError(f"{path} is not a bw2data extension (no {INFO_ID!r} in {INFO_TABLE})")
+    return rows[0][0]
+
+
+def missing_link_targets(
+    main_path,
+    specs: Sequence[ExtensionSpec],
+    databases: Sequence[str],
+    flows: Iterable[int] | None = None,
+) -> tuple[list[str], list[tuple], list[tuple]]:
+    """What in the project file ``main_path`` would point at nothing with the extension files
+    ``specs`` attached, as sorted lists of names:
+
+    * the databases of the project with exchanges whose input is in one of ``databases`` but
+      is not an activity in any of the files;
+    * the methods and the normalizations of the project with factors for one of the activity
+      ids ``flows`` which is in none of the files. Without ``flows``, the flows of all their
+      factors are checked.
+
+    Uses its own read-only connection, so it also works while the project's own connections
+    can't be opened. ``specs`` should have passed ``check_extensions``."""
+    specs = tuple(specs)
+    databases = list(databases)
+    try:
+        connection = sqlite3.connect(
+            _sqlite_uri(main_path, mode="ro"), uri=True, isolation_level=None
+        )
+        with closing(connection):
+            schemas = ["main"] + [
+                _attach(connection, number, spec).schema for number, spec in enumerate(specs, 1)
+            ]
+            activities = _q(_table(ActivityDataset))
+            exchanges = _q(_table(ExchangeDataset))
+            users = []
+            if databases:
+                exists = " OR ".join(
+                    f"EXISTS (SELECT 1 FROM {_q(schema)}.{activities} AS a "
+                    'WHERE a."database" = e."input_database" AND a."code" = e."input_code")'
+                    for schema in schemas
+                )
+                marks = ", ".join("?" * len(databases))
+                sql = (
+                    f'SELECT DISTINCT e."output_database" FROM main.{exchanges} AS e '
+                    f'WHERE e."input_database" IN ({marks}) AND NOT ({exists}) ORDER BY 1'
+                )
+                users = [row[0] for row in _rows(connection, sql, databases)]
+            connection.execute("CREATE TEMP TABLE bw_flows (id INTEGER PRIMARY KEY)").close()
+            if flows is None:
+                factor_tables = [
+                    _table(model)
+                    for model in (CharacterizationFactor, NormalizationFactor)
+                    if _table(model) in _tables(connection, "main")
+                ]
+                for table in factor_tables:
+                    sql = f'INSERT OR IGNORE INTO temp.bw_flows SELECT "flow" FROM main.{_q(table)}'
+                    connection.execute(sql).close()
+            else:
+                connection.executemany(
+                    "INSERT OR IGNORE INTO temp.bw_flows VALUES (?)", ((int(f),) for f in flows)
+                ).close()
+            known = " OR ".join(
+                f'EXISTS (SELECT 1 FROM {_q(schema)}.{activities} AS a WHERE a."id" = f."id")'
+                for schema in schemas
+            )
+            sql = (
+                "CREATE TEMP TABLE bw_missing AS "
+                f"SELECT f.id FROM temp.bw_flows AS f WHERE NOT ({known})"
+            )
+            connection.execute(sql).close()
+            names = []
+            for record, factor, column in (
+                (MethodRecord, CharacterizationFactor, "method_id"),
+                (NormalizationRecord, NormalizationFactor, "normalization_id"),
+            ):
+                sql = (
+                    f'SELECT r."name" FROM main.{_q(_table(record))} AS r WHERE r."id" IN '
+                    f"(SELECT x.{_q(column)} FROM main.{_q(_table(factor))} AS x "
+                    'WHERE x."flow" IN (SELECT id FROM temp.bw_missing))'
+                )
+                if _table(factor) in _tables(connection, "main"):
+                    rows = _rows(connection, sql)
+                else:
+                    rows = []
+                names.append(sorted(record.name.python_value(row[0]) for row in rows))
+    except sqlite3.Error as err:
+        raise ExtensionError(f"Can't check the links of {main_path}: {err}") from err
+    return users, names[0], names[1]
 
 
 # Extensions of a project
@@ -997,8 +1133,8 @@ def usable_extensions(
                     if expected is not None and extension.id != expected:
                         problem = (
                             f"the file {path} is not the extension which was attached: it has "
-                            f"the id {extension.id} instead of {expected}. If this is intended, "
-                            "detach the extension and attach the file again."
+                            f"the id {extension.id} instead of {expected}. If this is a new version "
+                            f"of it, `projects.update_extension({spec.name!r})` takes it up."
                         )
                 if problem is None:
                     attached.append(extension)
