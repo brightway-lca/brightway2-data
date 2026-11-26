@@ -910,13 +910,7 @@ def _check_extensions(main_path, specs: tuple[ExtensionSpec, ...]) -> tuple[Atta
 
 def attach_hook(attached: Sequence[AttachedExtension]) -> ConnectionHook:
     """A connection hook which attaches the checked extensions ``attached`` and creates the
-    overlay on a new connection to the project's file.
-
-    Each connection attaches the file which is at the extension's path when it is opened. If
-    that is no longer the checked extension (the file was replaced while the project was
-    open), the connection is refused with ``ExtensionError``: its data would not fit to what
-    was checked, nor to the project's local state of the extension's databases.
-    ``projects.update_extension`` takes up the new version."""
+    overlay on a new connection to the project's file."""
     attached = tuple(attached)
     statements = overlay_sql([extension.schema for extension in attached])
 
@@ -924,30 +918,10 @@ def attach_hook(attached: Sequence[AttachedExtension]) -> ConnectionHook:
         for extension in attached:
             sql = f"ATTACH DATABASE ? AS {_q(extension.schema)}"
             connection.execute(sql, (extension.uri,)).close()
-            _check_same_extension(connection, extension)
         for statement in statements:
             connection.execute(statement).close()
 
     return attach_extensions
-
-
-def _check_same_extension(connection, extension: AttachedExtension) -> None:
-    """Raise ``ExtensionError`` if the file attached as ``extension.schema`` doesn't have the
-    id of ``extension``."""
-    sql = f"SELECT value FROM {_q(extension.schema)}.{_q(INFO_TABLE)} WHERE key = ?"
-    try:
-        rows = _rows(connection, sql, (INFO_ID,))
-    except sqlite3.DatabaseError as err:
-        found = f"can't be read as an extension any more ({err})"
-    else:
-        if [tuple(row) for row in rows] == [(extension.id,)]:
-            return
-        found = f"has the id {rows[0][0]}" if rows else f"has no {INFO_ID!r} in {INFO_TABLE}"
-    raise ExtensionError(
-        f"The file of {extension} was replaced while it was attached: it {found} instead of "
-        f"{extension.id}. Run `projects.update_extension({extension.name!r})` to use the new "
-        "version, which also resets the project's local state of its databases."
-    )
 
 
 def extension_id(path) -> str:
@@ -986,8 +960,7 @@ def missing_link_targets(
       ids ``flows`` which is in none of the files. Without ``flows``, the flows of all their
       factors are checked.
 
-    Uses its own read-only connection, so it also works while the project's own connections
-    can't be opened. ``specs`` should have passed ``check_extensions``."""
+    Uses its own read-only connection. ``specs`` should have passed ``check_extensions``."""
     specs = tuple(specs)
     databases = list(databases)
     try:

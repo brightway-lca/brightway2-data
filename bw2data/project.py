@@ -904,11 +904,9 @@ class ProjectManager(Iterable):
         require it are then no longer available, and such exchanges and factors point at
         nothing. Nothing is changed if it raises.
 
-        Don't replace the file of an extension while a project uses it. Connections which the
-        project opens afterwards (e.g. in another thread) refuse the new file with
-        ``ExtensionError`` until this method is called, and connections which are already
-        open can read from either file. Build the new version at another path and pass it as
-        ``path``, or replace the file while no project uses it.
+        Replace the file of an extension only while no project uses it, or build the new
+        version at another path and pass it as ``path``. What happens to a project which has
+        the file open while it is replaced is undefined.
 
         Returns the extension's new entry of ``projects.extensions``."""
         from bw2data.backends.extensions import (
@@ -1056,10 +1054,7 @@ class ProjectManager(Iterable):
     @staticmethod
     def _extension_flows(lci_db, extension) -> Optional[set]:
         """Ids of the flows of the attached ``extension`` with factors in the project's
-        methods or normalizations; ``None`` if this can't be read, e.g. because the file was
-        replaced and the project's connection has to be opened again."""
-        from bw2data.errors import ExtensionError
-
+        methods or normalizations; ``None`` if it is not attached."""
         if extension is None:
             return None
         flows = (
@@ -1067,13 +1062,10 @@ class ProjectManager(Iterable):
             f'WHERE "database" IN ({", ".join("?" * len(extension.databases))})'
         )
         result = set()
-        try:
-            for table in ("characterizationfactor", "normalizationfactor"):
-                sql = f'SELECT DISTINCT "flow" FROM main."{table}" WHERE "flow" IN ({flows})'
-                with closing(lci_db.execute_sql(sql, extension.databases)) as cursor:
-                    result.update(row[0] for row in cursor.fetchall())
-        except ExtensionError:
-            return None
+        for table in ("characterizationfactor", "normalizationfactor"):
+            sql = f'SELECT DISTINCT "flow" FROM main."{table}" WHERE "flow" IN ({flows})'
+            with closing(lci_db.execute_sql(sql, extension.databases)) as cursor:
+                result.update(row[0] for row in cursor.fetchall())
         return result
 
     @staticmethod

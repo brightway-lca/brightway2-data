@@ -1,20 +1,17 @@
-"""A new version of a read-only LCI extension: a file replaced while the project is open is
-refused on new connections, and ``projects.update_extension`` takes up the new version."""
+"""A new version of a read-only LCI extension: ``projects.update_extension``."""
 
 import os
-import threading
 
 import pytest
 
 from bw2data import Database, Method, databases, projects
-from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.extensions import extension_id
-from bw2data.backends.schema import ActivityDataset, ExtensionDatabaseState
+from bw2data.backends.schema import ExtensionDatabaseState
 from bw2data.errors import ExtensionError
 from bw2data.signals import on_extension_attached, on_extension_detached
 
-from .test_extension_attach import edit, export, files  # noqa: F401
-from .test_extension_projects import reopen, statuses
+from .test_extension_attach import export, files  # noqa: F401
+from .test_extension_projects import statuses
 
 
 def new_version(path, extension_id="bio-2", add=("3",), remove=()):
@@ -31,77 +28,10 @@ def new_version(path, extension_id="bio-2", add=("3",), remove=()):
     return path
 
 
-def in_thread(function):
-    """Call ``function`` in a new thread, which opens its own connection; returns the result
-    or the exception."""
-    result = {}
-
-    def run():
-        try:
-            result["value"] = function()
-        except Exception as err:
-            result["value"] = err
-
-    thread = threading.Thread(target=run)
-    thread.start()
-    thread.join()
-    return result["value"]
-
-
 def link_to_bio(code="0"):
     Database("mine").write(
         {("mine", "x"): {"exchanges": [{"input": ("bio", code), "amount": 1, "type": "biosphere"}]}}
     )
-
-
-# Replaced while the project is open
-
-
-def test_new_connections_refuse_a_replaced_file(files, tmp_path):
-    bio, inv = files
-    projects.attach_extension(bio)
-    assert len(Database("bio")) == 3
-    os.replace(new_version(tmp_path / "v2.db"), bio)
-    # The connection which is open goes on reading the file it has open
-    assert len(Database("bio")) == 3
-    # A new one gets the file which is at the path now, which is not the checked extension
-    err = in_thread(lambda: ActivityDataset.select().count())
-    assert isinstance(err, ExtensionError)
-    assert "extension 'bio'" in str(err)
-    assert "was replaced while it was attached: it has the id bio-2 instead of bio-id" in str(err)
-    assert "projects.update_extension('bio')" in str(err)
-    sqlite3_lci_db.db.close()
-    with pytest.raises(ExtensionError, match="was replaced"):
-        ActivityDataset.select().count()
-
-
-def test_new_connections_refuse_a_file_which_is_no_extension_any_more(files):
-    bio, inv = files
-    projects.attach_extension(bio)
-    edit(bio, "DROP TABLE extension_info")
-    err = in_thread(lambda: ActivityDataset.select().count())
-    assert isinstance(err, ExtensionError)
-    assert "can't be read as an extension any more" in str(err)
-
-
-def test_update_after_the_file_was_replaced_while_open(files, tmp_path):
-    bio, inv = files
-    projects.attach_extension(bio)
-    os.replace(new_version(tmp_path / "v2.db"), bio)
-    sqlite3_lci_db.db.close()
-    entry = projects.update_extension("bio")
-    assert entry.name == "bio"
-    assert entry.id == "bio-2"
-    assert entry.path == bio.resolve()
-    assert entry.available
-    assert projects.extensions[0].id == "bio-2"
-    assert len(Database("bio")) == 4
-    # New connections take the new version
-    assert in_thread(lambda: ActivityDataset.select().count()) == 4
-    # Stored with the project
-    reopen()
-    assert statuses() == {"bio": "available"}
-    assert projects.extensions[0].id == "bio-2"
 
 
 # Replaced while the project is closed, or moved
@@ -270,13 +200,14 @@ def test_refused_while_methods_use_flows_which_are_gone(files, tmp_path):
 
 
 def test_refused_while_methods_use_flows_which_are_gone_also_after_a_replacement(files, tmp_path):
-    # The project can't read the old version any more: every flow which is in none of the
-    # files counts
+    # The old version is not attached: every flow which is in none of the files counts
     bio, inv = files
     projects.attach_extension(bio)
     Method(("m",)).write([(("bio", "1"), 2.0)])
+    projects.set_current("somewhere else")
     os.replace(new_version(tmp_path / "v2.db", remove=["1"]), bio)
-    sqlite3_lci_db.db.close()
+    with pytest.warns(UserWarning, match="not available"):
+        projects.set_current("target")
     with pytest.raises(ExtensionError, match="methods have factors.*\\('m',\\)"):
         projects.update_extension("bio")
 
