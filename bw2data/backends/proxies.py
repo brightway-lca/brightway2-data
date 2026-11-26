@@ -286,17 +286,10 @@ class Activity(ActivityProxyBase):
         return (self.get("database"), self.get("code"))
 
     def delete(self, signal: bool = True):
-        from bw2data import calculation_setups
+        from bw2data.meta import remove_nodes_from_calculation_setups
         from bw2data.parameters import ActivityParameter, ParameterizedExchange
 
         check_writable(self["database"], "its nodes can't be deleted")
-
-        def purge(obj: Activity, dct: dict) -> dict:
-            return {
-                key: value
-                for key, value in dct.items()
-                if key != obj.id and key != obj.key
-            }
 
         try:
             ap = ActivityParameter.get(database=self[0], code=self[1])
@@ -309,15 +302,9 @@ class Activity(ActivityProxyBase):
         self.exchanges().delete(allow_in_sourced_project=True)
         self.upstream().delete(allow_in_sourced_project=True)
 
-        for name, setup in calculation_setups.items():
-            if any(
-                (key == self.id or key == self.key)
-                for func_unit in setup["inv"]
-                for key in func_unit
-            ):
-                stdout_feedback_logger.warning("Removing this node from calculation setup %s", name)
-                setup["inv"] = [purge(self, dct) for dct in setup["inv"] if purge(self, dct)]
-        calculation_setups.flush()
+        remove_nodes_from_calculation_setups(
+            [self.id], "Removing this node from calculation setup %s"
+        )
 
         with sqlite3_lci_db.atomic():
             # Before the row is deleted: the indexed text is read from it

@@ -976,6 +976,130 @@ def _search_indexes_to_sqlite(db: Database, project_dir: Path) -> Optional[After
     return _m7_remove_search_files(project_dir)
 
 
+#: Legacy calculation setup files and the ``kind`` of their setups
+_SETUP_FILES = (("setups.pickle", "static"), ("dynamicsetups.pickle", "dynamic"))
+
+
+def _m8_demand_rows(db: Database, inv) -> tuple[list[tuple], list]:
+    """``(unit, node id, amount, key database, key code)`` rows for the functional units
+    ``inv``, and the keys of nodes which don't exist (left out). Raises ``ValueError`` for
+    ``inv`` which isn't a list of dicts of keys or ids."""
+    if not isinstance(inv, (list, tuple)):
+        raise ValueError("`inv` is not a list")
+    rows, missing = [], []
+    for position, unit in enumerate(inv):
+        if not isinstance(unit, dict):
+            raise ValueError("a functional unit is not a dict")
+        seen = set()
+        for node, amount in unit.items():
+            if isinstance(node, (tuple, list)) and len(node) == 2:
+                found = db.execute_sql(
+                    'SELECT "id" FROM main."activitydataset" WHERE "database" = ? AND "code" = ?',
+                    (node[0], node[1]),
+                ).fetchone()
+                if found is None:
+                    missing.append(tuple(node))
+                    continue
+                node_id, key = found[0], (node[0], node[1])
+            elif isinstance(node, int) and not isinstance(node, bool):
+                node_id, key = node, (None, None)
+            else:
+                raise ValueError(f"{node!r} is not a node key or id")
+            if node_id in seen:
+                continue
+            seen.add(node_id)
+            if isinstance(amount, numbers.Number) and hasattr(amount, "item"):
+                # E.g. a numpy scalar, which SQLite can't store
+                amount = amount.item()
+            rows.append((position, node_id, amount, *key))
+    return rows, missing
+
+
+def _calculation_setups_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move ``setups.pickle`` and ``dynamicsetups.pickle`` into the ``calculationsetup`` and
+    ``calculationsetupdemand`` tables (see ``bw2data.backends.schema.CalculationSetupRecord``).
+
+    The pickles are read with ``codec.safe_pickle_loads``. Nodes given by key are stored by
+    id, with the key; keys of nodes which don't exist are left out, with a warning. Setups
+    which are already in the table are kept as they are. An unreadable file, and setups which
+    can't be stored, are skipped with a warning; the files are kept as backups either way."""
+    from bw2data.snowflake_ids import new_snowflake_id
+
+    for filename, kind in _SETUP_FILES:
+        path = project_dir / filename
+        if not path.is_file():
+            continue
+        try:
+            legacy = codec.safe_pickle_loads(path.read_bytes())
+            if not isinstance(legacy, dict):
+                raise ValueError("not a dictionary")
+        except Exception as err:
+            warnings.warn(
+                f"Can't read {path} ({err}); its calculation setups are only kept in the file.",
+                stacklevel=2,
+            )
+            continue
+        migrated, skipped, missing = 0, [], {}
+        for name, setup in legacy.items():
+            exists = db.execute_sql(
+                'SELECT 1 FROM main."calculationsetup" WHERE "kind" = ? AND "name" = ?',
+                (kind, name),
+            ).fetchone()
+            if exists:
+                continue
+            try:
+                if not isinstance(name, str) or not isinstance(setup, dict):
+                    raise ValueError("not a named dictionary")
+                setup = dict(setup)
+                inv, ia = setup.pop("inv", None), setup.pop("ia", None)
+                rows, gone = ([], []) if inv is None else _m8_demand_rows(db, inv)
+                values = (
+                    new_snowflake_id(),
+                    kind,
+                    name,
+                    None if inv is None else len(inv),
+                    None if ia is None else codec.dumps(ia).decode("utf-8"),
+                    codec.dumps(setup).decode("utf-8") if setup else None,
+                )
+                with db.atomic():
+                    db.execute_sql(
+                        'INSERT INTO main."calculationsetup" '
+                        '("id", "kind", "name", "units", "ia", "extra") VALUES (?, ?, ?, ?, ?, ?)',
+                        values,
+                    )
+                    for row in rows:
+                        db.execute_sql(
+                            'INSERT INTO main."calculationsetupdemand" ("setup_id", "unit", '
+                            '"node", "amount", "key_database", "key_code") '
+                            "VALUES (?, ?, ?, ?, ?, ?)",
+                            (values[0], *row),
+                        )
+            except (TypeError, ValueError, OverflowError, InterfaceError, ProgrammingError):
+                skipped.append(name)
+                continue
+            if gone:
+                missing[name] = gone
+            migrated += 1
+        if skipped:
+            warnings.warn(
+                f"Calculation setups in {path} which can't be stored are only kept in the "
+                f"file: {skipped[:20]!r}",
+                stacklevel=2,
+            )
+        if missing:
+            warnings.warn(
+                f"Calculation setups in {path} refer to nodes which don't exist; these are left "
+                "out: "
+                + "; ".join(f"{name!r}: {keys[:5]!r}" for name, keys in list(missing.items())[:5]),
+                stacklevel=2,
+            )
+        stdout_feedback_logger.info(
+            "Migrated %s calculation setup(s) from %s to SQLite; the file is kept as a backup",
+            migrated,
+            path,
+        )
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -1004,6 +1128,11 @@ MIGRATIONS: tuple[Migration, ...] = (
         7,
         "Move the search indexes into SQLite",
         _search_indexes_to_sqlite,
+    ),
+    Migration(
+        8,
+        "Move setups.pickle and dynamicsetups.pickle into SQLite",
+        _calculation_setups_to_sqlite,
     ),
 )
 
