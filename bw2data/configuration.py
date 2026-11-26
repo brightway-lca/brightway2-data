@@ -159,12 +159,19 @@ class Config(BaseSettings):
     metadata: list = []
     sqlite3_databases: list = []
     # When the LCI SQLite file releases free pages; see ``SubstitutableDatabase.vacuum``.
-    # None (default): ``Database.delete()`` releases them, with ``PRAGMA incremental_vacuum``
-    # in files with ``auto_vacuum = INCREMENTAL`` (new files, and older ones after their next
-    # ``VACUUM``), otherwise with ``VACUUM`` when a meaningful share of the file is free
-    # pages. ``Database.write()`` doesn't: its new rows use the pages of the rows it replaces.
-    # True: always ``VACUUM``, also after writes. False: never.
+    # None (default): ``Database.delete()`` and ``Database.write()`` release them, with
+    # ``PRAGMA incremental_vacuum`` in files with ``auto_vacuum = INCREMENTAL`` (new files,
+    # and older ones after their next ``VACUUM``), otherwise with ``VACUUM`` when a
+    # meaningful share of the file is free pages. A write only leaves free pages if the
+    # database got smaller: its new rows use the pages of the rows it replaces.
+    # True: always ``VACUUM``. False: never.
     vacuum: Optional[bool] = None
+    # Upper limit of SQLite's page cache during ``Database.write()``, in KiB (default:
+    # 256 MiB). Keeping the indexes up to date during a large write is much faster with a
+    # large cache. SQLite only takes the memory as it caches pages, and gives it back after
+    # the write. Each connection (process) has its own cache: lower it where memory is
+    # short, or set it to 0 to keep SQLite's default (2 MiB).
+    write_cache_size: int = 262_144
     # Passed to ``asteval.Interpreter`` as ``max_statement_length``; asteval caps it at 1e8
     max_formula_length: int = 50_000
     # Extra classes ``bw2data.codec.safe_pickle_loads`` may load from data stored by older

@@ -571,8 +571,9 @@ class SubstitutableDatabase:
         Until the tables are created, anything which needs a missing table fails with "no such
         table". Use ``postpone_tables`` only when the code using the file can handle that.
 
-        ``before_vacuum``, if given, is called with the peewee database right before ``vacuum``
-        runs ``VACUUM``, for example to delete rows which are no longer needed."""
+        ``before_vacuum``, if given, is called with the peewee database before ``vacuum``
+        releases a large share of the file (see there), for example to delete rows which are
+        no longer needed."""
         self._filepath = filepath
         self._tables = tables
         self._pragmas = pragmas or {}
@@ -745,8 +746,10 @@ class SubstitutableDatabase:
         * ``config.vacuum is True``: always ``VACUUM``.
         * ``config.vacuum is False``: never anything.
 
-        ``before_vacuum`` runs before a ``VACUUM`` only. Must not be called inside a
-        transaction. Returns whether pages were released or the file was vacuumed."""
+        ``before_vacuum`` runs before a ``VACUUM``, and before an ``incremental_vacuum`` when
+        more than ``VACUUM_FREE_FRACTION`` of the pages are free, i.e. when a file in the other
+        mode would be vacuumed. Must not be called inside a transaction. Returns whether pages
+        were released or the file was vacuumed."""
         if config.vacuum is False:
             return False
         if config.vacuum is None:
@@ -754,6 +757,11 @@ class SubstitutableDatabase:
             if not free:
                 return False
             if self.auto_vacuum() == AUTO_VACUUM_INCREMENTAL:
+                if (
+                    self._before_vacuum is not None
+                    and free / self.page_count() > self.VACUUM_FREE_FRACTION
+                ):
+                    self._before_vacuum(self.db)
                 stdout_feedback_logger.info("Releasing %s free pages", free)
                 # One page per step of the statement: read it to the end, or only one page
                 # is released

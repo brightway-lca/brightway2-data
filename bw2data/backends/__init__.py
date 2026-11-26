@@ -3,7 +3,7 @@ import os
 from bw2data import config
 from bw2data.project import projects
 from bw2data.sqlite import AUTO_VACUUM_INCREMENTAL, SubstitutableDatabase, zstd_dictionaries
-from bw2data.backends.migrations import migrate
+from bw2data.backends.migrations import make_activity_keys_unique, migrate
 from bw2data.backends.schema import (
     COMPRESSED_COLUMNS,
     ActivityDataset,
@@ -32,6 +32,15 @@ from bw2data.backends.schema import (
 #: page size, because SQLite can't change it in that mode.
 LCI_PAGE_SIZE = 16384
 
+
+def _on_open(db):
+    # ``projects.dir`` already points at the new project when the file is switched
+    applied = migrate(db, projects.dir)
+    if 8 not in applied:
+        # Migration 8 has just looked for duplicate keys itself
+        make_activity_keys_unique(db)
+
+
 sqlite3_lci_db = SubstitutableDatabase(
     projects.dir / "lci" / "databases.db",
     [
@@ -58,8 +67,7 @@ sqlite3_lci_db = SubstitutableDatabase(
         "page_size": LCI_PAGE_SIZE,
         "auto_vacuum": AUTO_VACUUM_INCREMENTAL,
     },
-    # ``projects.dir`` already points at the new project when the file is switched
-    on_open=lambda db: migrate(db, projects.dir),
+    on_open=_on_open,
     # A project which is read-only, or in use by another process, can still be opened after
     # an upgrade of bw2data which adds tables
     postpone_tables=True,

@@ -1,10 +1,18 @@
 """Schema migration 8: the indexes of the activity and exchange tables always exist (#357)."""
 
+import warnings
+
 import pytest
 
 from bw2data import projects
 from bw2data.backends import sqlite3_lci_db
-from bw2data.backends.migrations import LCI_INDEXES, SCHEMA_VERSION, migrate, schema_version
+from bw2data.backends.migrations import (
+    LCI_INDEXES,
+    SCHEMA_VERSION,
+    make_activity_keys_unique,
+    migrate,
+    schema_version,
+)
 from bw2data.database import DatabaseChooser
 from bw2data.tests import bw2test
 
@@ -50,25 +58,79 @@ def test_keeps_existing_indexes():
     assert indexes() == NAMES
 
 
-@bw2test
-def test_duplicate_keys_postpone_the_step():
-    DatabaseChooser("db").write({("db", "a"): {"name": "a"}})
-    as_version_7_without_indexes()
-    # Without the unique index, nothing kept a second activity with the same key out
+def key_index_is_unique():
+    return {
+        row[1]: bool(row[2])
+        for row in sqlite3_lci_db.execute_sql('PRAGMA main.index_list("activitydataset")')
+    }["activitydataset_key"]
+
+
+def add_duplicate():
     sqlite3_lci_db.execute_sql(
         'INSERT INTO main."activitydataset" (id, data, code, database) '
         "SELECT id + 1, data, code, database FROM main.activitydataset"
     )
+
+
+@bw2test
+def test_duplicate_keys_get_an_index_which_is_not_unique():
+    DatabaseChooser("db").write({("db", "a"): {"name": "a"}})
+    as_version_7_without_indexes()
+    # Without the unique index, nothing kept a second activity with the same key out
+    add_duplicate()
     with pytest.warns(UserWarning, match=r"\('db', 'a'\) 2 times.*unique"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == []
-    assert schema_version(sqlite3_lci_db.db) == 7
-    assert indexes() == set()
-    # Once the duplicate is gone, the next opening creates them
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [8]
+    # The step is not postponed: the exchange indexes exist, and later steps can run
+    assert schema_version(sqlite3_lci_db.db) == 8
+    assert indexes() == NAMES
+    assert not key_index_is_unique()
+
+
+@bw2test
+def test_index_becomes_unique_once_the_duplicates_are_gone():
+    DatabaseChooser("db").write({("db", "a"): {"name": "a"}})
+    as_version_7_without_indexes()
+    add_duplicate()
+    with pytest.warns(UserWarning, match="2 times"):
+        migrate(sqlite3_lci_db.db, projects.dir)
+    # Opening the file again warns again, and changes nothing
+    with pytest.warns(UserWarning, match=r"\('db', 'a'\) 2 times.*delete_instance"):
+        sqlite3_lci_db.change_path(sqlite3_lci_db._filepath)
+    assert not key_index_is_unique()
+
     sqlite3_lci_db.execute_sql(
         'DELETE FROM main."activitydataset" WHERE id = (SELECT max(id) FROM main.activitydataset)'
     )
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [8]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        sqlite3_lci_db.change_path(sqlite3_lci_db._filepath)
+    assert key_index_is_unique()
     assert indexes() == NAMES
+    assert make_activity_keys_unique(sqlite3_lci_db.db)
+    with pytest.raises(Exception, match="UNIQUE"):
+        add_duplicate()
+
+
+@bw2test
+def test_unique_index_is_left_alone():
+    assert key_index_is_unique()
+    assert make_activity_keys_unique(sqlite3_lci_db.db)
+    assert key_index_is_unique()
+
+
+@bw2test
+def test_index_helpers_are_deprecated_and_do_nothing():
+    database = DatabaseChooser("db")
+    database.register()
+    with pytest.warns(DeprecationWarning, match="_drop_indices"):
+        database._drop_indices()
+    assert indexes() == NAMES
+    with pytest.warns(DeprecationWarning, match="_add_indices"):
+        database._add_indices()
+    with pytest.warns(DeprecationWarning, match="indices=False"):
+        database._efficient_write_many_data([{"database": "db", "code": "a"}], indices=False)
+    assert indexes() == NAMES
+    assert len(database) == 1
 
 
 @bw2test

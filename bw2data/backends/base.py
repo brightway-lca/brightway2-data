@@ -20,7 +20,13 @@ from tqdm import tqdm
 from bw2data import calculation_setups, config, databases, geomapping
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.proxies import Activity
-from bw2data.backends.schema import ActivityDataset, ExchangeDataset, _insert_many, get_id
+from bw2data.backends.schema import (
+    COMPRESSED_COLUMNS,
+    ActivityDataset,
+    ExchangeDataset,
+    _insert_many,
+    get_id,
+)
 from bw2data.backends.typos import (
     check_activity_keys,
     check_activity_type,
@@ -195,12 +201,6 @@ def get_biosphere_qs(database_name: str) -> Iterable:
         .tuples()
         .iterator()
     )
-
-
-#: ``PRAGMA cache_size`` during a bulk write: negative values are in KiB, so this is 256 MiB.
-#: SQLite only takes the memory as pages are cached, and gives it back when the cache size
-#: is set back after the write.
-WRITE_CACHE_SIZE = -262144
 
 
 class SQLiteBackend(ProcessedDataStore):
@@ -738,6 +738,26 @@ class SQLiteBackend(ProcessedDataStore):
 
     # Private methods
 
+    def _drop_indices(self):
+        """Deprecated: does nothing. The LCI indexes always exist, and are kept during
+        writes."""
+        warnings.warn(
+            "`_drop_indices` does nothing any more, and will be removed: the indexes of the "
+            "activity and exchange tables always exist, and are kept during writes.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    def _add_indices(self):
+        """Deprecated: does nothing. The LCI indexes always exist (schema migration 8
+        creates them), and are kept during writes."""
+        warnings.warn(
+            "`_add_indices` does nothing any more, and will be removed: the indexes of the "
+            "activity and exchange tables always exist, and are kept during writes.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     def _efficient_write_dataset(
         self,
         ds: dict,
@@ -830,45 +850,98 @@ class SQLiteBackend(ProcessedDataStore):
 
         The LCI indexes stay in place (schema migration 8 makes sure they exist): dropping
         them and creating them again over the whole tables cost more than it saved, above all
-        next to a large database. ``indices`` is ignored, and only kept for callers which pass
-        it. Index maintenance needs a larger page cache, which is raised for the write.
+        next to a large database. ``indices`` is deprecated and ignored. Index maintenance
+        needs a larger page cache, which is raised to ``config.write_cache_size`` for the
+        write.
 
-        There is no ``VACUUM`` afterwards, unless ``config.vacuum`` is ``True``: the rows
-        which the write replaces free pages which the new rows use again."""
-        self._train_dictionary(data)
-        cache_size = sqlite3_lci_db.execute_sql("PRAGMA main.cache_size").fetchone()[0]
-        sqlite3_lci_db.execute_sql(f"PRAGMA main.cache_size = {int(WRITE_CACHE_SIZE)}")
-        sqlite3_lci_db.db.autocommit = False
+        Afterwards, free pages are released according to ``config.vacuum`` (see
+        ``_release_free_pages``). The new rows use the pages of the rows they replace, so
+        there are only free pages to release if the database got smaller."""
+        if not indices:
+            warnings.warn(
+                "`indices=False` is ignored: the indexes of the activity and exchange tables "
+                "are no longer dropped and created again during a write.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        # The dictionary which an earlier write of this database trained is only removed if
+        # this one replaces it, and its rows
+        replaces_dictionary = (
+            self._train_dictionary(data) is not None
+            and ActivityDataset.select().where(ActivityDataset.database == self.name).exists()
+        )
+        cache_size = self._raise_cache_size()
         try:
-            sqlite3_lci_db.db.begin()
-            # The search index is kept: ``write`` builds it again, or leaves it as it is
-            self.delete(keep_params=True, warn=False, vacuum=False, keep_index=True)
-            exchanges, activities = [], []
+            sqlite3_lci_db.db.autocommit = False
+            try:
+                sqlite3_lci_db.db.begin()
+                # The search index is kept: ``write`` builds it again, or leaves it as it is
+                self.delete(keep_params=True, warn=False, vacuum=False, keep_index=True)
+                exchanges, activities = [], []
 
-            for ds in tqdm_wrapper(data, getattr(config, "is_test", False)):
-                exchanges, activities = self._efficient_write_dataset(
-                    ds, exchanges, activities, check_typos
-                )
+                for ds in tqdm_wrapper(data, getattr(config, "is_test", False)):
+                    exchanges, activities = self._efficient_write_dataset(
+                        ds, exchanges, activities, check_typos
+                    )
 
-            _insert_many(ActivityDataset, activities)
-            _insert_many(ExchangeDataset, exchanges)
-            sqlite3_lci_db.db.commit()
-        except:
-            sqlite3_lci_db.db.rollback()
-            raise
+                _insert_many(ActivityDataset, activities)
+                _insert_many(ExchangeDataset, exchanges)
+                sqlite3_lci_db.db.commit()
+            except:
+                sqlite3_lci_db.db.rollback()
+                raise
+            finally:
+                sqlite3_lci_db.db.autocommit = True
         finally:
-            sqlite3_lci_db.db.autocommit = True
-            # Gives the memory back
-            sqlite3_lci_db.execute_sql(f"PRAGMA main.cache_size = {int(cache_size)}")
-        if config.vacuum is not True:
+            self._restore_cache_size(cache_size)
+        self._release_free_pages("written", dictionaries=replaces_dictionary)
+
+    def _raise_cache_size(self) -> Optional[int]:
+        """Let SQLite's page cache grow up to ``config.write_cache_size`` during a bulk write.
+        Returns the value to pass to ``_restore_cache_size``: the ``PRAGMA cache_size`` to set
+        back, or ``None`` if it was not changed."""
+        if not config.write_cache_size:
+            return None
+        previous = sqlite3_lci_db.execute_sql("PRAGMA main.cache_size").fetchone()[0]
+        # Negative values are in KiB
+        sqlite3_lci_db.execute_sql(
+            f"PRAGMA main.cache_size = {-abs(int(config.write_cache_size))}"
+        )
+        return previous
+
+    def _restore_cache_size(self, cache_size: Optional[int]) -> None:
+        """Set ``PRAGMA cache_size`` back after a bulk write, which gives the memory back.
+        Runs while the write may be failing (e.g. on a broken connection), so its own failure
+        is only logged: the caller must see the error of the write."""
+        if cache_size is None:
             return
-        # The data is already committed, so a failure here (file locked by another process,
-        # no room for the temporary copy) must not make the write look like it failed.
         try:
+            sqlite3_lci_db.execute_sql(f"PRAGMA main.cache_size = {int(cache_size)}")
+        except Exception as err:
+            stdout_feedback_logger.warning(
+                "Could not set the SQLite cache size back after a write: %s", err
+            )
+
+    def _release_free_pages(self, done: str, dictionaries: bool = False) -> None:
+        """Release the free pages of the shared LCI file after this database was ``done``
+        (``"written"`` or ``"deleted"``), according to ``config.vacuum``; see
+        ``bw2data.sqlite.SubstitutableDatabase.vacuum``.
+
+        ``dictionaries`` also removes the zstd dictionaries which no row uses any more, which
+        reads the first bytes of every activity and exchange. ``vacuum`` only does this when
+        a large share of the file is free, which is not the case after a database was
+        replaced by one of about the same size, with a new dictionary.
+
+        The data is already committed, so a failure here (file locked by another process, no
+        room for the temporary copy of a ``VACUUM``) only warns: it must not make the write
+        or delete look like it failed."""
+        try:
+            if dictionaries and config.vacuum is None:
+                zstd_dictionaries(sqlite3_lci_db.db).remove_unused(COMPRESSED_COLUMNS)
             sqlite3_lci_db.vacuum()
         except Exception as err:
             warnings.warn(
-                f"Database '{self.name}' was written, but the LCI database file could "
+                f"Database '{self.name}' was {done}, but the LCI database file could "
                 f"not be compacted afterwards ({type(err).__name__}: {err}). This will "
                 "be tried again the next time the file is vacuumed."
             )
@@ -893,11 +966,13 @@ class SQLiteBackend(ProcessedDataStore):
 
         Writing a database first deletes all existing data for this database.
 
-        Afterwards the shared LCI SQLite file may be compacted with ``VACUUM``, which rewrites
-        the whole file and can be slow for large projects. By default this only happens when
-        the previous contents freed a meaningful share of the file; set ``config.vacuum`` to
-        ``True`` to always compact or ``False`` to never compact. See
-        ``bw2data.sqlite.SubstitutableDatabase.vacuum``."""
+        Afterwards the free pages of the shared LCI SQLite file are released, if the database
+        got smaller. New files do this with ``PRAGMA incremental_vacuum``, which is fast.
+        Older files need ``VACUUM``, which rewrites the whole file and can be slow for large
+        projects, so by default it only runs when a meaningful share of the file is free. Set
+        ``config.vacuum`` to ``True`` to always ``VACUUM`` or ``False`` to never release
+        anything. See ``bw2data.sqlite.SubstitutableDatabase.vacuum``. A failure to release
+        the pages only warns."""
         from bw2data import projects
 
         if signal is None:
@@ -1119,8 +1194,9 @@ Here are the type values usually used for nodes:
 
         ``keep_params`` keeps activity and database parameters for this database.
         ``vacuum`` allows compacting the shared LCI SQLite file afterwards, subject to
-        ``config.vacuum`` (see ``bw2data.sqlite.SubstitutableDatabase.vacuum``). Pass
-        ``False`` when calling inside a transaction. ``keep_index`` keeps the search index,
+        ``config.vacuum`` (see ``bw2data.sqlite.SubstitutableDatabase.vacuum``); a failure
+        to do so only warns, as the data is deleted by then. Pass ``False`` when calling
+        inside a transaction. ``keep_index`` keeps the search index,
         for a caller which builds it again."""
         if warn:
             MESSAGE = """
@@ -1185,7 +1261,7 @@ Here are the type values usually used for nodes:
             DatabaseParameter.delete().where(DatabaseParameter.database == self.name).execute()
 
         if vacuum:
-            sqlite3_lci_db.vacuum()
+            self._release_free_pages("deleted")
 
         if signal:
             on_database_reset.send(name=self.name)
