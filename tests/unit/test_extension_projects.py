@@ -25,10 +25,14 @@ def statuses():
     return {extension.name: extension.status for extension in projects.extensions}
 
 
-def reopen():
-    """Switch to another project and back, as a new session would open the project."""
+def reopen(while_closed=None):
+    """Switch to another project and back, as a new session would open the project.
+    ``while_closed``, if given, is called in between, while the project's files are closed:
+    Windows can't remove or rename a file which a connection has open."""
     name = projects.current
     projects.set_current("somewhere else")
+    if while_closed is not None:
+        while_closed()
     projects.set_current(name)
 
 
@@ -307,9 +311,8 @@ def test_unrelated_problems_are_not_warned_about_again(files, tmp_path):
     gone.write_bytes(bio.read_bytes())
     edit(gone, "UPDATE extension_info SET value = 'gone-id' WHERE key = 'id'")
     projects.attach_extension(gone)
-    gone.unlink()
     with pytest.warns(UserWarning, match="'gone'"):
-        reopen()
+        reopen(gone.unlink)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         projects.attach_extension([bio, inv])
@@ -323,9 +326,8 @@ def test_unrelated_problems_are_not_warned_about_again(files, tmp_path):
 def test_missing_file(files):
     bio, inv = files
     projects.attach_extension([bio, inv])
-    inv.unlink()
     with pytest.warns(UserWarning, match="'inv' of project 'target' is not available"):
-        reopen()
+        reopen(inv.unlink)
     assert statuses() == {"bio": "available", "inv": "missing file"}
     assert "doesn't exist" in projects.extensions[1].problem
     assert projects.extensions[1].databases == ()
@@ -338,9 +340,9 @@ def test_missing_file(files):
 def test_missing_file_of_a_required_extension(files):
     bio, inv = files
     projects.attach_extension([bio, inv])
-    moved = bio.rename(bio.with_name("moved.db"))
+    moved = bio.with_name("moved.db")
     with pytest.warns(UserWarning) as caught:
-        reopen()
+        reopen(lambda: bio.rename(moved))
     assert len([w for w in caught if "is not available" in str(w.message)]) == 2
     assert statuses() == {"bio": "missing file", "inv": "missing requirement"}
     assert sorted(databases) == []
@@ -380,9 +382,9 @@ def test_file_which_is_no_longer_an_extension(files):
 def test_extensions_which_no_longer_fit_the_project(files):
     bio, inv = files
     projects.attach_extension(bio)
-    moved = bio.rename(bio.with_name("moved.db"))
+    moved = bio.with_name("moved.db")
     with pytest.warns(UserWarning):
-        reopen()
+        reopen(lambda: bio.rename(moved))
     # While the extension is away, the project gets a database with the same name
     Database("bio").write(BIO)
     moved.rename(bio)

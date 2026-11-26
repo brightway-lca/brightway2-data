@@ -532,9 +532,8 @@ def test_detaching_an_unavailable_extension_drops_its_index_in_the_project(files
     Database("inv").process()
     assert index_table("inv") in main_tables()
     assert "inv" in local_state()
-    inv.unlink()
     with pytest.warns(UserWarning, match="'inv' of project 'target' is not available"):
-        reopen()
+        reopen(inv.unlink)
     assert index_table("inv") in main_tables()
     projects.detach_extension("inv")
     assert index_table("inv") not in main_tables()
@@ -544,9 +543,8 @@ def test_detaching_an_unavailable_extension_drops_its_index_in_the_project(files
 def test_detaching_an_unavailable_extension_keeps_what_the_project_uses_by_now(files):
     bio, inv = files
     projects.attach_extension(list(files))
-    inv.unlink()
     with pytest.warns(UserWarning, match="not available"):
-        reopen()
+        reopen(inv.unlink)
     Database("inv").write({("inv", "mine"): {"name": "lollipop"}})
     projects.detach_extension("inv")
     assert index_table("inv") in main_tables()
