@@ -175,6 +175,10 @@ class ProcessedDataStore(DataStore):
         return self.dirpath_processed() / self.filename_processed()
 
     def datapackage(self):
+        """The processed datapackage, processed first if its file doesn't exist (e.g. after
+        schema migration 10 removed it)."""
+        if not self.filepath_processed().is_file():
+            self.process()
         return load_datapackage(ZipFileSystem(self.filepath_processed()))
 
     def write(self, data, process=True):

@@ -457,12 +457,10 @@ class Geocollection(Model):
 class GeoMappingRecord(Model):
     """Integer id for a location, used in processed datapackages. Read through ``geomapping``.
 
-    A location is either a bare string (``geocollection`` is ``NULL``), or a feature id in a
-    ``Geocollection``. New ids are snowflake ids (see ``bw2data.snowflake_ids``), like the ids
-    of activities and exchanges: they are never reused after a location is deleted, and don't
-    collide with the ids in another project's file. Ids assigned before snowflake ids were
-    used (small integers from an SQLite sequence) are kept, as processed datapackages refer
-    to them.
+    A location is either a bare string (``geocollection`` is ``NULL``: the default
+    geocollection, ``"world"``), or a location in another ``Geocollection``. Its id is derived
+    from its geocollection and name (``bw2data.meta.location_id``), so it is the same in every
+    project; schema migration 10 gave existing locations these ids.
     """
 
     id = IntegerField(primary_key=True)

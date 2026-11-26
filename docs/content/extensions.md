@@ -108,7 +108,7 @@ Replace the file of an extension only while no project uses it, or build the new
 ## Limits
 
 - **Methods:** LCIA methods can't be stored in extensions yet. Methods in the project can use extension flows.
-- **Regionalization:** the location ids in a stored datapackage are those of the project which built the file. Regular calculations don't use them, but regionalized calculations (e.g. with bw2regional) can't use extension databases correctly until exported files carry their own location mapping.
+- **Regionalization:** location ids are derived from location names, so the ids in a stored datapackage are those of every project. bw2regional doesn't use this yet.
 - **Event-sourced projects:** attaching and detaching are not recorded as revisions.
 - **Parameters:** parameters can't be stored in extensions.
 

@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import datetime
 import json
 import math
@@ -34,6 +35,10 @@ _KNOWN_FIELDS = frozenset(
 
 #: Rows per query, to stay well under SQLite's limit on bound variables
 _CHUNK = 300
+
+#: Most nodes in the functional units of one calculation setup. Their rows are inserted with
+#: one query, of six bound variables per row; SQLite allows 32,766 (since version 3.32).
+MAX_SETUP_NODES = 5000
 
 #: Attempts to insert new geomapping rows when snowflake ids collide (see ``GeoMapping.add``)
 _SNOWFLAKE_ATTEMPTS = 5
@@ -72,23 +77,51 @@ def _insert_with_snowflake_ids(model, rows, still_missing, what):
     raise RuntimeError(f"Could not assign unique ids to {what} {rows[:20]!r}")
 
 
-def _canonical_geo_key(key):
-    """Return ``key`` as a hashable geomapping key, or raise ``ValueError``.
+#: The geocollection of locations given without one, e.g. ``"CH"``; stored without a
+#: geocollection. ``("world", "CH")`` is the same location as ``"CH"``.
+DEFAULT_GEOCOLLECTION = "world"
+#: Names of the global location (in ``DEFAULT_GEOCOLLECTION``), stored as ``"GLO"``. A location
+#: given as ``None`` is global as well. ``config.global_location`` is not one of them: a project
+#: can make any location its global one.
+GLOBAL_LOCATIONS = frozenset({"", "GLO", "Global"})
 
-    Valid keys are a non-empty string (a location without a geocollection, e.g. ``"CH"``), or a
-    pair of non-empty strings ``(geocollection, feature id)``, e.g. ``("world", "CH")``. A
-    list pair is accepted and returned as a tuple."""
+
+def _canonical_geo_key(key):
+    """Return ``key`` as it is stored in ``geomapping``, or raise ``ValueError``.
+
+    Locations are identified by their names: a location string (``"CH"``, in
+    ``DEFAULT_GEOCOLLECTION``), or a ``(geocollection, location)`` pair of strings
+    (``("ecoinvent", "RER w/o CH")``). ``(None, "CH")`` and ``("world", "CH")`` are the same as
+    ``"CH"``, and are returned as ``"CH"``; ``None``, ``""``, ``"Global"`` and ``"GLO"`` (also in
+    ``DEFAULT_GEOCOLLECTION``) are the global location, returned as ``"GLO"``. A list pair is
+    accepted and returned as a tuple. Strings are compared as they are: ``"RoW"`` is a location
+    like any other."""
+    if key is None:
+        return "GLO"
     if isinstance(key, str):
-        if key:
-            return key
-    elif isinstance(key, (tuple, list)) and len(key) == 2:
+        return "GLO" if key in GLOBAL_LOCATIONS else key
+    if isinstance(key, (tuple, list)) and len(key) == 2:
         collection, location = key
-        if isinstance(collection, str) and isinstance(location, str) and collection and location:
+        if collection is None or collection == DEFAULT_GEOCOLLECTION:
+            if location is None or isinstance(location, str):
+                return _canonical_geo_key(location)
+        elif isinstance(collection, str) and collection and isinstance(location, str) and location:
             return (collection, location)
     raise ValueError(
         f"Invalid geomapping key {key!r}: must be a location string, or a "
-        "`(geocollection, feature id)` tuple of two strings"
+        "`(geocollection, location)` tuple of two strings"
     )
+
+
+def location_id(key) -> int:
+    """The id of the location ``key`` in ``geomapping``, the same in every project and every
+    file: the first 63 bits of the SHA-256 hash of its geocollection and name. Processed
+    datapackages made in different projects, or stored in extension files, can therefore be
+    used together without translating their location ids."""
+    collection, location = _split_geo_key(_canonical_geo_key(key))
+    text = f"{collection or DEFAULT_GEOCOLLECTION}\0{location}"
+    value = int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big") >> 1
+    return value or 1
 
 
 def _split_geo_key(key):
@@ -106,12 +139,13 @@ class GeoMapping(Mapping):
 
     Stored in the ``Geocollection`` and ``GeoMappingRecord`` tables in the per-project
     ``lci/databases.db``. Previously stored in ``geomapping.pickle``; that file is migrated
-    automatically on first access, keeping existing ids, and left in place as a backup.
+    automatically on first access, and left in place as a backup.
 
-    Keys are either a location string (``"CH"``), or a ``(geocollection, feature id)`` tuple of
-    two strings (``("world", "CH")``). Use ``add`` to add keys; ids are assigned by SQLite, so
-    concurrent adds from several processes can't collide, and ids are never reused after a
-    key is deleted. ``"GLO"`` and ``config.global_location`` are always present.
+    Keys are a location string (``"CH"``) or a ``(geocollection, location)`` tuple of two strings
+    (``("ecoinvent", "RER w/o CH")``); see ``_canonical_geo_key`` for the forms which name the
+    same location (e.g. ``("world", "CH")`` and ``"CH"``, or ``"Global"`` and ``"GLO"``). Use
+    ``add`` to add keys. The id of a location is derived from its name (``location_id``), so it
+    is the same in every project. ``"GLO"`` and ``config.global_location`` are always present.
     """
 
     #: Legacy storage file, migrated on first access
@@ -212,29 +246,41 @@ class GeoMapping(Mapping):
             missing = [key for key in missing if key not in found]
             if not missing:
                 return
+            ids = {}
+            for key in missing:
+                id_ = location_id(key)
+                if id_ in ids:
+                    raise ValueError(
+                        f"Locations {ids[id_]!r} and {key!r} have the same id {id_}; one of "
+                        "them must be renamed"
+                    )
+                ids[id_] = key
+            for batch in _chunks(list(ids)):
+                taken = GeoMappingRecord.select(GeoMappingRecord.id).where(
+                    GeoMappingRecord.id.in_(batch)
+                )
+                for (id_,) in taken.tuples():
+                    raise ValueError(
+                        f"Location {ids[id_]!r} has the same id {id_} as a location which is "
+                        "already in `geomapping`; one of them must be renamed"
+                    )
             collection_ids = self._add_collections(
                 {key[0] for key in missing if isinstance(key, tuple)}
             )
-            names_by_id = {id_: name for name, id_ in collection_ids.items()}
-
-            def still_missing(rows):
-                keys = [
-                    _join_geo_key(names_by_id.get(row["geocollection"]), row["location"])
-                    for row in rows
-                ]
-                found = self._fetch(keys)
-                return [row for row, key in zip(rows, keys) if key not in found]
-
             rows = [
-                {"geocollection": collection_ids.get(collection), "location": location}
-                for collection, location in map(_split_geo_key, missing)
+                {
+                    "id": id_,
+                    "geocollection": collection_ids.get(_split_geo_key(key)[0]),
+                    "location": _split_geo_key(key)[1],
+                }
+                for id_, key in ids.items()
             ]
-            _insert_with_snowflake_ids(
-                GeoMappingRecord, rows, still_missing, "geomapping locations"
-            )
+            for batch in _chunks(rows):
+                GeoMappingRecord.insert_many(batch).execute()
 
     def delete(self, keys):
-        """Delete locations. Their ids are not reused. Keys not present are ignored.
+        """Delete locations. A location which is added again gets the same id (see
+        ``location_id``). Keys not present are ignored.
 
         Args:
             *keys* (iterable): The keys to delete.
@@ -259,8 +305,11 @@ class GeoMapping(Mapping):
         return sorted(row.name for row in Geocollection.select(Geocollection.name))
 
     def locations(self, collection=None):
-        """Keys and ids of the locations in ``collection``, or of the locations without a
-        geocollection if ``collection`` is ``None``."""
+        """Keys and ids of the locations in ``collection``, or of the locations in
+        ``DEFAULT_GEOCOLLECTION`` (stored without a geocollection) if ``collection`` is ``None``
+        or ``DEFAULT_GEOCOLLECTION``."""
+        if collection == DEFAULT_GEOCOLLECTION:
+            collection = None
         self._ensure_ready()
         from bw2data.backends.schema import GeoMappingRecord, Geocollection
 
@@ -365,19 +414,24 @@ class GeoMapping(Mapping):
     def _ensure_ready(self):
         if self._ready:
             return
-        self._migrate_from_pickle()
-        self._ready = True
         from bw2data.configuration import config
 
-        self.add(["GLO", config.global_location])
+        # Set first, as ``add`` calls this method; not ready if it fails, to try again
+        self._ready = True
+        try:
+            self._migrate_from_pickle()
+            self.add(["GLO", config.global_location])
+        except BaseException:
+            self._ready = False
+            raise
 
     def _migrate_from_pickle(self):
-        """One-time migration from ``geomapping.pickle``, keeping existing ids.
-
-        Integer feature ids in ``(geocollection, feature id)`` keys are converted to strings.
-        Raises ``ValueError`` without changing anything if the file has keys or ids which
-        can't be migrated."""
-        from bw2data.backends.schema import GeoMappingRecord, Geocollection
+        """One-time migration from ``geomapping.pickle``: its locations are added. Their ids are
+        derived from their names (``location_id``), as for every location; the ids in the file
+        are not kept, and schema migration 10 made the processed datapackages which use them be
+        processed again. Integer feature ids in ``(geocollection, feature id)`` keys are
+        converted to strings; keys which still aren't locations are skipped with a warning."""
+        from bw2data.backends.schema import GeoMappingRecord
         from bw2data.project import projects
 
         path = projects.dir / self.filename
@@ -386,18 +440,16 @@ class GeoMapping(Mapping):
 
         try:
             with open(path, "rb") as f:
-                legacy = pickle.load(f)
-            legacy = dict(legacy)
+                legacy = dict(pickle.load(f))
         except Exception as err:
             warnings.warn(
-                f"Can't read {path} ({err}); starting with an empty geomapping. Processed "
-                "datapackages which use the old location ids must be processed again.",
+                f"Can't read {path} ({err}); starting with an empty geomapping.",
                 stacklevel=3,
             )
             return
 
-        rows, converted, invalid = {}, 0, []
-        for key, id_ in legacy.items():
+        keys, invalid = [], []
+        for key in legacy:
             if (
                 isinstance(key, tuple)
                 and len(key) == 2
@@ -406,54 +458,18 @@ class GeoMapping(Mapping):
                 and not isinstance(key[1], bool)
             ):
                 key = (key[0], str(key[1]))
-                converted += 1
             try:
-                key = _canonical_geo_key(key)
+                keys.append(_canonical_geo_key(key))
             except ValueError:
                 invalid.append(key)
-                continue
-            if not isinstance(id_, int) or isinstance(id_, bool) or id_ < 1:
-                invalid.append(key)
-            elif key in rows:
-                raise ValueError(
-                    f"Can't migrate {path}: key {key!r} appears more than once after "
-                    "converting integer feature ids to strings. Fix the file and try again."
-                )
-            else:
-                rows[key] = id_
-        if invalid:
-            raise ValueError(
-                f"Can't migrate {path}: invalid keys or ids for {invalid[:20]!r}. Keys must "
-                "be a location string or a `(geocollection, feature id)` tuple of two strings, "
-                "and ids must be positive integers. Fix the file and try again."
-            )
-        if len(set(rows.values())) != len(rows):
-            raise ValueError(f"Can't migrate {path}: the same id is used for several keys.")
-
         message = (
-            f"Migrating {path} to SQLite (one-time operation). "
-            "The original file is kept as a backup."
+            f"Migrating {path} to SQLite (one-time operation). The original file is kept as a "
+            "backup."
         )
-        if converted:
-            message += f" Converted {converted} integer feature ids to strings."
+        if invalid:
+            message += f" Keys which are not locations are skipped: {invalid[:20]!r}"
         warnings.warn(message, stacklevel=3)
-
-        with _write_transaction(GeoMappingRecord):
-            collection_ids = self._add_collections(
-                {key[0] for key in rows if isinstance(key, tuple)}
-            )
-            records = []
-            for key, id_ in rows.items():
-                collection, location = _split_geo_key(key)
-                records.append(
-                    {
-                        "id": id_,
-                        "geocollection": collection_ids.get(collection),
-                        "location": location,
-                    }
-                )
-            for batch in _chunks(records):
-                GeoMappingRecord.insert_many(batch).execute()
+        self.add(keys)
 
 
 def _row_as_dict(row, known_fields=_KNOWN_FIELDS) -> dict:
@@ -1177,6 +1193,11 @@ class _CalculationSetups(MutableMapping):
         inv = value.pop("inv", None)
         ia = value.pop("ia", None)
         rows = None if inv is None else _setup_demand_rows(name, inv)
+        if rows and len(rows) > MAX_SETUP_NODES:
+            raise ValueError(
+                f"Calculation setup {name!r} has {len(rows)} nodes in its functional units; "
+                f"at most {MAX_SETUP_NODES} can be stored. Split it into several setups."
+            )
         record, demand = self._models()
         with _atomic(record._meta.database):
             row = self._record(name)

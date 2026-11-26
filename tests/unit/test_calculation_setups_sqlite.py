@@ -13,7 +13,7 @@ from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.migrations import migrate, schema_version
 from bw2data.backends.schema import CalculationSetupDemand, CalculationSetupRecord
 from bw2data.errors import UnknownObject
-from bw2data.meta import CalculationSetupProxy
+from bw2data.meta import MAX_SETUP_NODES, CalculationSetupProxy
 from bw2data.tests import bw2test
 
 from .test_extension_attach import files  # noqa: F401
@@ -133,7 +133,16 @@ def test_refused_setups_change_nothing():
         calculation_setups[("s",)] = {}
     with pytest.raises(TypeError, match="must be a dict"):
         calculation_setups["s"] = [1]
+    with pytest.raises(ValueError, match="has 5001 nodes .* at most 5000 can be stored"):
+        calculation_setups["s"] = {"inv": [{a.key: 1}] * (MAX_SETUP_NODES + 1)}
     assert calculation_setups["s"]["inv"] == [{a.key: 1}]
+
+
+@bw2test
+def test_largest_setup():
+    a, b, c = write_nodes()
+    calculation_setups["s"] = {"inv": [{a.key: 1}] * MAX_SETUP_NODES}
+    assert len(calculation_setups["s"]["inv"]) == MAX_SETUP_NODES
 
 
 @bw2test
@@ -236,6 +245,8 @@ def test_migration_moves_both_files():
             "none": {"inv": [{a.key: 1}, {b.id: None}]},
             "gone": {"inv": [{("db", "deleted"): 1}, {a.key: 2}], "ia": []},
             "odd": [1, 2],
+            # A name which can't be stored
+            ("a", "tuple"): {"inv": [{a.key: 1}]},
         },
     )
     legacy(
@@ -245,9 +256,9 @@ def test_migration_moves_both_files():
     calculation_setups["kept"] = {"inv": [{a.key: 5}]}
     sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 7")
     with pytest.warns(UserWarning) as caught:
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10]
     messages = " ".join(str(w.message) for w in caught)
-    assert "can't be stored are only kept in the file: ['nan', 'none', 'odd']" in messages
+    assert "can't be stored are only kept in the file: ['nan', 'none', 'odd', ('a', 'tuple')]" in messages
     assert "'gone': [('db', 'deleted')]" in messages
     assert calculation_setups["s"] == {
         "inv": [{a.key: 1, b.id: 2.0}, {c.key: 3}],
@@ -271,12 +282,12 @@ def test_migration_moves_both_files():
 @bw2test
 def test_migration_without_files_and_with_unreadable_files():
     sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 7")
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10]
     (projects.dir / "setups.pickle").write_bytes(b"not a pickle")
     sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 7")
     with pytest.warns(UserWarning, match="Can't read .*setups.pickle"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9]
-    assert schema_version(sqlite3_lci_db.db) == 9
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10]
+    assert schema_version(sqlite3_lci_db.db) == 10
     assert len(calculation_setups) == 0
 
 

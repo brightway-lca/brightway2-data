@@ -39,6 +39,7 @@ Rules for migration steps:
 """
 
 import datetime
+import hashlib
 import json
 import numbers
 import pickle
@@ -1050,10 +1051,14 @@ def _calculation_setups_to_sqlite(db: Database, project_dir: Path) -> None:
             continue
         migrated, skipped, missing = 0, [], {}
         for name, setup in legacy.items():
-            exists = db.execute_sql(
-                'SELECT 1 FROM main."calculationsetup" WHERE "kind" = ? AND "name" = ?',
-                (kind, name),
-            ).fetchone()
+            # A name which is not a string can't be bound; it is skipped below
+            exists = (
+                isinstance(name, str)
+                and db.execute_sql(
+                    'SELECT 1 FROM main."calculationsetup" WHERE "kind" = ? AND "name" = ?',
+                    (kind, name),
+                ).fetchone()
+            )
             if exists:
                 continue
             try:
@@ -1304,6 +1309,125 @@ def _parameters_db_to_sqlite(db: Database, project_dir: Path) -> None:
         )
 
 
+#: As ``bw2data.meta`` at schema version 10, kept here so that the step doesn't change with it
+_M10_DEFAULT_GEOCOLLECTION = "world"
+_M10_GLOBAL_LOCATIONS = frozenset({"", "GLO", "Global"})
+
+
+def _m10_key(collection, location):
+    """``(geocollection or None, location)`` as stored from schema version 10 on: locations in
+    the default geocollection are stored without one, and the global location as ``"GLO"``."""
+    if collection == _M10_DEFAULT_GEOCOLLECTION:
+        collection = None
+    if collection is None and (location is None or location in _M10_GLOBAL_LOCATIONS):
+        location = "GLO"
+    return collection, location
+
+
+def _m10_id(collection, location) -> int:
+    """``bw2data.meta.location_id`` at schema version 10."""
+    text = f"{collection or _M10_DEFAULT_GEOCOLLECTION}\0{location}"
+    value = int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big") >> 1
+    return value or 1
+
+
+def _m10_remove_processed(project_dir: Path, keep: set[str]) -> AfterCommit:
+    """After the commit: forget the location ids which ``geomapping`` has cached, and remove
+    the processed datapackages, except the files named in ``keep``."""
+
+    def remove(db: Database) -> None:
+        from bw2data.meta import geomapping
+
+        # ``geomapping`` may have been read before this step (a deferred migration): its
+        # cache would still give the old ids
+        geomapping.__init__()
+        directory = project_dir / "processed"
+        if not directory.is_dir():
+            return
+        failed = []
+        for path in directory.glob("*.zip"):
+            if path.name in keep:
+                continue
+            try:
+                path.unlink()
+            except OSError:
+                failed.append(path.name)
+        if failed:
+            warnings.warn(
+                f"Can't remove the processed datapackages {failed[:10]!r} in {directory}; "
+                "they still use the location ids from before schema migration 10. Delete them, "
+                "and they are processed again when they are needed.",
+                stacklevel=_user_stacklevel(),
+            )
+
+    return remove
+
+
+def _reproducible_location_ids(db: Database, project_dir: Path) -> Optional[AfterCommit]:
+    """Give every location in ``geomappingrecord`` the id derived from its name (see
+    ``bw2data.meta.location_id``), the same in every project, so that processed datapackages
+    from other projects and extension files can be used without translating location ids.
+
+    Locations in the ``"world"`` geocollection are stored without a geocollection, and the
+    names of the global location (``""``, ``"Global"``) become ``"GLO"``; rows which become
+    the same location are merged. The ``"world"`` geocollection itself is removed, as in a
+    new project, unless it has metadata (``extra``). Postponed if two different locations would get the same
+    id (practically impossible).
+
+    The processed datapackages which use the old ids are removed after the commit (all
+    ``*.zip`` files in ``processed``); databases, methods, weightings and normalizations are
+    processed again when their datapackage is needed. Not those of IO table databases, whose exchanges are only
+    stored there; their inventory geomapping keeps the old ids, which only regionalized
+    calculations read. Other packages (e.g. ``bw2regional``) must process their data again."""
+    from bw_processing import clean_datapackage_name, safe_filename
+
+    rows = db.execute_sql(
+        'SELECT r."id", c."name", r."location" FROM main."geomappingrecord" AS r '
+        'LEFT JOIN main."geocollection" AS c ON r."geocollection_id" = c."id"'
+    ).fetchall()
+    collection_ids = dict(
+        db.execute_sql('SELECT "name", "id" FROM main."geocollection"').fetchall()
+    )
+    locations = {}
+    for _, collection, location in rows:
+        key = _m10_key(collection, location)
+        locations.setdefault(_m10_id(*key), set()).add(key)
+    clashes = [keys for keys in locations.values() if len(keys) > 1]
+    if clashes:
+        raise MigrationPostponed(
+            f"Some locations would get the same id: {clashes[:5]!r}. Rename one of each, and the "
+            "location ids are changed the next time the project is opened."
+        )
+    db.execute_sql('DELETE FROM main."geomappingrecord"')
+    for id_, keys in locations.items():
+        ((collection, location),) = keys
+        db.execute_sql(
+            'INSERT INTO main."geomappingrecord" ("id", "geocollection_id", "location") '
+            "VALUES (?, ?, ?)",
+            (id_, collection_ids.get(collection) if collection else None, location),
+        )
+    db.execute_sql(
+        'DELETE FROM main."geocollection" WHERE "name" = ? AND "extra" IS NULL', ("world",)
+    )
+    io_tables = [
+        name
+        for (name,) in db.execute_sql(
+            'SELECT "name" FROM main."databaserecord" WHERE "backend" = \'iotable\''
+        ).fetchall()
+    ]
+    if io_tables:
+        warnings.warn(
+            "The processed data of IO table databases keeps the location ids from before "
+            "schema migration 10, as their exchanges are only stored there; regionalized "
+            f"calculations with them need the IO table to be written again: {io_tables[:10]!r}",
+            stacklevel=_user_stacklevel(),
+        )
+    return _m10_remove_processed(
+        project_dir,
+        {clean_datapackage_name(safe_filename(name) + ".zip") for name in io_tables},
+    )
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -1339,6 +1463,7 @@ MIGRATIONS: tuple[Migration, ...] = (
         _calculation_setups_to_sqlite,
     ),
     Migration(9, "Move parameters.db into the LCI database", _parameters_db_to_sqlite),
+    Migration(10, "Derive location ids from location names", _reproducible_location_ids),
 )
 
 #: Schema version of a fully migrated ``lci/databases.db``
@@ -1349,7 +1474,8 @@ SCHEMA_VERSION = len(MIGRATIONS)
 #: database records, zstd dictionaries) must be stored as this version of bw2data stores them.
 #: Raise this to the new version whenever a step changes how one of these tables is stored.
 #: 6: activity and exchange data as compressed tagged JSON, without pickles.
-MIN_EXTENSION_SCHEMA_VERSION = 6
+#: 10: location ids derived from location names, as in the stored processed datapackages.
+MIN_EXTENSION_SCHEMA_VERSION = 10
 
 
 def schema_version(db: Database) -> int:

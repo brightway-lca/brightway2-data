@@ -1222,8 +1222,8 @@ def check_name_free(database: str) -> None:
 # (``DATAPACKAGE_TABLE``), written by ``build_extension``. The technosphere and biosphere
 # arrays use activity ids, which the file keeps, so the datapackage is the same in every
 # project, and ``Database.datapackage()`` reads it from the file instead of processing the
-# database. The ids in its ``inv_geomapping_matrix`` are those of the project which built the
-# file; they are not translated (only regionalized calculations read that array).
+# database. The ids in its ``inv_geomapping_matrix`` are derived from the location names
+# (``bw2data.meta.location_id``), so they are the same in every project too.
 
 
 def _requirements_met_by_project(extension: AttachedExtension) -> bool:
