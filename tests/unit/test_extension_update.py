@@ -8,6 +8,7 @@ from bw2data import Database, Method, databases, projects
 from bw2data.backends.extensions import extension_id
 from bw2data.backends.schema import ExtensionDatabaseState
 from bw2data.errors import ExtensionError
+from bw2data.project import ProjectManager
 from bw2data.signals import on_extension_attached, on_extension_detached
 
 from .test_extension_attach import export, files  # noqa: F401
@@ -263,3 +264,121 @@ def test_failed_update_changes_nothing(files, tmp_path, monkeypatch):
     assert len(Database("bio")) == 3
     assert not databases["bio"].get("dirty")
     assert Database("bio").filepath_processed().is_file()
+
+
+def test_failed_reset_of_the_local_state_changes_nothing(files, tmp_path, monkeypatch):
+    bio, inv = files
+    projects.attach_extension(bio)
+    Database("bio").process()
+    v2 = new_version(tmp_path / "v2.db")
+
+    def failing(*args, **kwargs):
+        raise OSError("locked")
+
+    # Called after the databases of the new version were given a new local state
+    monkeypatch.setattr(ProjectManager, "_forget_extension_databases", staticmethod(failing))
+    with pytest.raises(OSError, match="locked"):
+        projects.update_extension("bio", path=v2)
+    assert statuses() == {"bio": "available"}
+    assert projects.extensions[0].id == "bio-id"
+    assert len(Database("bio")) == 3
+    assert not databases["bio"].get("dirty")
+    assert Database("bio").filepath_processed().is_file()
+
+
+# Extensions which are not available
+
+
+def test_returning_extension_which_no_longer_fits_stays_unavailable(files, tmp_path):
+    bio, inv = files
+    # An extension which stays attached, next to the one which is updated
+    other = tmp_path / "other.db"
+    projects.set_current("source")
+    Database("other").write({("other", "f"): {"name": "f", "type": "emission", "unit": "kg"}})
+    export(other, ["other"], extension_id="other-1")
+    projects.set_current("target")
+    projects.attach_extension([bio, inv, other])
+    away = tmp_path / "away.db"
+    projects.set_current("somewhere else")
+    os.replace(inv, away)
+    with pytest.warns(UserWarning, match="missing file"):
+        projects.set_current("target")
+    # The project uses the name of the extension's database by the time its file is back
+    Database("inv").register()
+    os.replace(away, inv)
+    moved = tmp_path / "moved-bio.db"
+    moved.write_bytes(bio.read_bytes())
+    with pytest.warns(UserWarning, match="'inv'.*not available \\(invalid\\)"):
+        entry = projects.update_extension("bio", path=moved)
+    assert entry.available
+    assert entry.path == moved.resolve()
+    assert statuses() == {"bio": "available", "inv": "invalid", "other": "available"}
+    assert sorted(databases) == ["bio", "inv", "other"]
+    assert not Database("inv").is_extension
+
+
+def test_names_used_by_the_project_by_now_are_not_forgotten(files, tmp_path):
+    bio, inv = files
+    both = tmp_path / "both.db"
+    only_bio = tmp_path / "only-bio.db"
+    projects.set_current("source")
+    export(both, ["bio", "inv"], extension_id="both-1")
+    export(only_bio, ["bio"], extension_id="both-2")
+    projects.set_current("target")
+    projects.attach_extension(both)
+    projects.set_current("somewhere else")
+    os.replace(both, tmp_path / "away.db")
+    with pytest.warns(UserWarning, match="missing file"):
+        projects.set_current("target")
+    # The project's own database, with a name which the extension had
+    Database("inv").write({("inv", "mine"): {"name": "my own thing", "unit": "kg"}})
+    Database("inv").process()
+    processed = Database("inv").filepath_processed()
+    assert processed.is_file()
+    received = []
+    with on_extension_detached.connected_to(
+        lambda sender, name, databases: received.append((name, databases))
+    ):
+        projects.update_extension("both", path=only_bio)
+    assert statuses() == {"both": "available"}
+    assert sorted(databases) == ["bio", "inv"]
+    assert processed.is_file()
+    assert len(Database("inv").search("thing")) == 1
+    # It was not available: no databases left the project
+    assert received == [("both", ())]
+
+
+def test_flows_of_other_unavailable_extensions_do_not_block(files, tmp_path):
+    bio, inv = files
+    other = tmp_path / "other.db"
+    projects.set_current("source")
+    Database("other").write({("other", "f"): {"name": "f", "type": "emission", "unit": "kg"}})
+    export(other, ["other"], extension_id="other-1")
+    projects.set_current("target")
+    projects.attach_extension([bio, other])
+    Method(("m",)).write([(("other", "f"), 1.0)])
+    # Both files are replaced by new builds while the project is closed
+    v2 = new_version(tmp_path / "v2.db")
+    projects.set_current("source")
+    export(tmp_path / "other-2.db", ["other"], extension_id="other-2")
+    projects.set_current("somewhere else")
+    os.replace(v2, bio)
+    os.replace(tmp_path / "other-2.db", other)
+    with pytest.warns(UserWarning, match="not available"):
+        projects.set_current("target")
+    assert statuses() == {"bio": "invalid", "other": "invalid"}
+    projects.update_extension("bio")
+    projects.update_extension("other")
+    assert statuses() == {"bio": "available", "other": "available"}
+
+
+def test_message_for_flows_which_are_gone_when_the_old_version_is_unknown(files, tmp_path):
+    bio, inv = files
+    projects.attach_extension(bio)
+    Method(("m",)).write([(("bio", "1"), 2.0)])
+    projects.set_current("somewhere else")
+    os.replace(new_version(tmp_path / "v2.db", remove=["1"]), bio)
+    with pytest.warns(UserWarning, match="not available"):
+        projects.set_current("target")
+    with pytest.raises(ExtensionError, match="in none of the project's files.*\\('m',\\)"):
+        projects.update_extension("bio")

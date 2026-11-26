@@ -869,14 +869,7 @@ class ProjectManager(Iterable):
             raise
         signal_databases = tuple(databases) if extension is not None else ()
         if databases and extension is None:
-            # Names which the project's own file or another extension uses by now are not
-            # this extension's any more
-            marks = ", ".join("?" * len(databases))
-            sql = f'SELECT "name" FROM main."databaserecord" WHERE "name" IN ({marks})'
-            with closing(lci_db.execute_sql(sql, databases)) as cursor:
-                used = {row[0] for row in cursor.fetchall()}
-            used.update(lci_db.extension_databases())
-            databases = tuple(database for database in databases if database not in used)
+            databases = self._unused_databases(lci_db, databases)
         if databases:
             self._forget_extension_databases(lci_db, databases, stacklevel=3)
         bw2signals.on_extension_detached.send(self, name=name, databases=signal_databases)
@@ -982,19 +975,37 @@ class ProjectManager(Iterable):
             old_databases = (
                 old.databases if old is not None else tuple(entry.get("databases") or ())
             )
+            flows = self._extension_flows(lci_db, old)
+            unavailable = []
+            if flows is None:
+                # The old version can't be read, so every flow with factors is looked for.
+                # Those in the files of the other extensions which are not available are not
+                # missing because of this update
+                unavailable = [
+                    ExtensionSpec(name=other["name"], path=other["path"])
+                    for other in stored
+                    if other["name"] != name and other["name"] not in attached
+                ]
             users, methods, normalizations = missing_link_targets(
-                main_path, others + [spec], old_databases, self._extension_flows(lci_db, old)
+                main_path, others + [spec], old_databases, flows, also=unavailable
             )
             if users:
                 broken.append(
                     "these databases of the project have exchanges with inputs which are not "
                     "in the new version: " + ", ".join(repr(user) for user in users)
                 )
+            if flows is None:
+                where = (
+                    "in none of the project's files (the old version can't be read, so they "
+                    "may not have been its flows)"
+                )
+            else:
+                where = "not in the new version"
             for label, records in (("methods", methods), ("normalizations", normalizations)):
                 if records:
                     broken.append(
-                        f"these {label} have factors for flows which are not in the new "
-                        "version: " + ", ".join(repr(record) for record in records)
+                        f"these {label} have factors for flows which are {where}: "
+                        + ", ".join(repr(record) for record in records)
                     )
             if broken:
                 message = f"extension {name!r} to {filepath} (id {new_id}): " + "; ".join(broken)
@@ -1012,6 +1023,7 @@ class ProjectManager(Iterable):
         new_stored.insert(max([position] + [i + 1 for i in after]), updated)
 
         previous = dict(self._extension_problems)
+        processed = []
         self._store_extensions(new_stored)
         try:
             usable, problems = self._usable_extensions(new_stored)
@@ -1021,31 +1033,36 @@ class ProjectManager(Iterable):
                 check_extensions(main_path, usable)
             except ExtensionError as err:
                 # Stored extensions which come back don't fit (any more); they stay unavailable
-                keep = {other.spec.name for other in others} | {name}
+                keep = {other.name for other in others} | {name}
                 problems.update({s.name: (INVALID, str(err)) for s in usable if s.name not in keep})
                 usable = [s for s in usable if s.name in keep]
             lci_db.change_path(main_path, extensions=usable)
             if not same:
-                # The databases start again, as in a newly attached extension; the processed
-                # data of the old version is removed, and the names which the new version
-                # doesn't have are forgotten
-                self._start_extension_databases(lci_db, new.databases)
-                self._remove_processed(
-                    [db for db in old_databases if db in new.databases], stacklevel=3
-                )
-                self._forget_extension_databases(
-                    lci_db, [db for db in old_databases if db not in new.databases], stacklevel=3
-                )
+                # The databases start again, as in a newly attached extension, and the names
+                # which the new version doesn't have are forgotten
+                forgotten = tuple(db for db in old_databases if db not in new.databases)
+                if old is None:
+                    # The names it had when it was last attached
+                    forgotten = self._unused_databases(lci_db, forgotten)
+                # In one transaction: if this fails, the local state is the old version's
+                with lci_db.atomic():
+                    self._start_extension_databases(lci_db, new.databases)
+                    self._forget_extension_databases(lci_db, forgotten, processed=False)
+                processed = [db for db in old_databases if db in new.databases] + list(forgotten)
         except BaseException:
             # The extension stays as it was: available, if its old file can still be read, or
             # with the problem which keeps it from being attached
             self._store_extensions(stored)
             self._attach_stored_extensions(previous=previous)
             raise
+        # The processed data of the old version; only now, as files don't come back
+        self._remove_processed(processed, stacklevel=3)
         self._extension_problems = problems
         self._warn_extension_problems(problems, previous)
         if not same:
-            bw2signals.on_extension_detached.send(self, name=name, databases=tuple(old_databases))
+            # As ``detach_extension``: an extension which was not available had no databases
+            detached = tuple(old_databases) if old is not None else ()
+            bw2signals.on_extension_detached.send(self, name=name, databases=detached)
             bw2signals.on_extension_attached.send(self, names=[name])
         elif old is None:
             bw2signals.on_extension_attached.send(self, names=[name])
@@ -1054,7 +1071,13 @@ class ProjectManager(Iterable):
     @staticmethod
     def _extension_flows(lci_db, extension) -> Optional[set]:
         """Ids of the flows of the attached ``extension`` with factors in the project's
-        methods or normalizations; ``None`` if it is not attached."""
+        methods or normalizations; ``None`` if it is not attached or can't be read."""
+        import sqlite3
+
+        from peewee import DatabaseError
+
+        from bw2data.errors import ExtensionError
+
         if extension is None:
             return None
         flows = (
@@ -1062,17 +1085,38 @@ class ProjectManager(Iterable):
             f'WHERE "database" IN ({", ".join("?" * len(extension.databases))})'
         )
         result = set()
-        for table in ("characterizationfactor", "normalizationfactor"):
-            sql = f'SELECT DISTINCT "flow" FROM main."{table}" WHERE "flow" IN ({flows})'
-            with closing(lci_db.execute_sql(sql, extension.databases)) as cursor:
-                result.update(row[0] for row in cursor.fetchall())
+        try:
+            for table in ("characterizationfactor", "normalizationfactor"):
+                sql = f'SELECT DISTINCT "flow" FROM main."{table}" WHERE "flow" IN ({flows})'
+                with closing(lci_db.execute_sql(sql, extension.databases)) as cursor:
+                    result.update(row[0] for row in cursor.fetchall())
+        except (DatabaseError, sqlite3.Error, ExtensionError):
+            # E.g. a new connection, to which the file of an extension can't be attached
+            return None
         return result
 
     @staticmethod
-    def _forget_extension_databases(lci_db, databases, stacklevel: int = 3) -> None:
+    def _unused_databases(lci_db, databases) -> tuple:
+        """Those of the names ``databases``, of an extension which was not available, which
+        neither the project's own file nor an attached extension uses by now."""
+        databases = tuple(databases)
+        if not databases:
+            return ()
+        marks = ", ".join("?" * len(databases))
+        sql = f'SELECT "name" FROM main."databaserecord" WHERE "name" IN ({marks})'
+        with closing(lci_db.execute_sql(sql, databases)) as cursor:
+            used = {row[0] for row in cursor.fetchall()}
+        used.update(lci_db.extension_databases())
+        return tuple(database for database in databases if database not in used)
+
+    @staticmethod
+    def _forget_extension_databases(
+        lci_db, databases, stacklevel: int = 3, processed: bool = True
+    ) -> None:
         """Remove the project's local state of the extension databases ``databases``: the
         ``ExtensionDatabaseState`` rows, search indexes built in the project, and processed
-        data. Geomapping entries stay, as other processed data may use them."""
+        data (unless ``processed`` is false). Geomapping entries stay, as other processed data
+        may use them."""
         from bw2data.backends.schema import ExtensionDatabaseState
         from bw2data.search.indices import index_table
 
@@ -1082,7 +1126,8 @@ class ProjectManager(Iterable):
         for database in databases:
             # Indexes built in the project for databases whose file had none
             lci_db.execute_sql(f'DROP TABLE IF EXISTS main."{index_table(database)}"')
-        ProjectManager._remove_processed(databases, stacklevel=stacklevel + 1)
+        if processed:
+            ProjectManager._remove_processed(databases, stacklevel=stacklevel + 1)
 
     @staticmethod
     def _remove_processed(databases, stacklevel: int = 3) -> None:

@@ -950,6 +950,7 @@ def missing_link_targets(
     specs: Sequence[ExtensionSpec],
     databases: Sequence[str],
     flows: Iterable[int] | None = None,
+    also: Sequence[ExtensionSpec] = (),
 ) -> tuple[list[str], list[tuple], list[tuple]]:
     """What in the project file ``main_path`` would point at nothing with the extension files
     ``specs`` attached, as sorted lists of names:
@@ -958,7 +959,9 @@ def missing_link_targets(
       is not an activity in any of the files;
     * the methods and the normalizations of the project with factors for one of the activity
       ids ``flows`` which is in none of the files. Without ``flows``, the flows of all their
-      factors are checked.
+      factors are checked. Flows in the files ``also`` are not missing either: files which
+      are not attached with ``specs`` but may be where such flows are, e.g. the files of
+      extensions which are not available. The ones which can't be read are skipped.
 
     Uses its own read-only connection. ``specs`` should have passed ``check_extensions``."""
     specs = tuple(specs)
@@ -1000,9 +1003,19 @@ def missing_link_targets(
                 connection.executemany(
                     "INSERT OR IGNORE INTO temp.bw_flows VALUES (?)", ((int(f),) for f in flows)
                 ).close()
+            flow_schemas = list(schemas)
+            for number, spec in enumerate(also, len(specs) + 1):
+                try:
+                    flow_schemas.append(_attach(connection, number, spec).schema)
+                except (ExtensionError, sqlite3.Error):
+                    try:
+                        connection.execute(f"DETACH DATABASE {_q(f'ext_{number}')}").close()
+                    except sqlite3.Error:
+                        # It was not attached
+                        pass
             known = " OR ".join(
                 f'EXISTS (SELECT 1 FROM {_q(schema)}.{activities} AS a WHERE a."id" = f."id")'
-                for schema in schemas
+                for schema in flow_schemas
             )
             sql = (
                 "CREATE TEMP TABLE bw_missing AS "
