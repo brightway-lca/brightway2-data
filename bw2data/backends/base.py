@@ -1,7 +1,9 @@
 import copy
 import datetime
 import heapq
+import io
 import itertools
+import os
 import pprint
 import random
 import uuid
@@ -12,7 +14,12 @@ from operator import itemgetter
 from typing import Callable, Iterable, List, Optional, Union
 
 import pandas
-from bw_processing import Datapackage, clean_datapackage_name, create_datapackage
+from bw_processing import (
+    Datapackage,
+    clean_datapackage_name,
+    create_datapackage,
+    load_datapackage,
+)
 from fsspec.implementations.zip import ZipFileSystem
 from peewee import JOIN, DoesNotExist, fn
 from tqdm import tqdm
@@ -24,6 +31,8 @@ from bw2data.backends.extensions import (
     check_name_free,
     check_writable,
     extension_of,
+    has_stored_datapackage,
+    stored_datapackage,
 )
 from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import (
@@ -507,9 +516,29 @@ class SQLiteBackend(ProcessedDataStore):
         raise NotImplementedError
 
     def filepath_processed(self):
+        if has_stored_datapackage(self.name):
+            # Stored in its extension's file; written out for code which wants a file
+            path = self.dirpath_processed() / self.filename_processed()
+            if not path.is_file():
+                content = stored_datapackage(self.name)
+                temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+                try:
+                    temporary.write_bytes(content)
+                    os.replace(temporary, path)
+                finally:
+                    temporary.unlink(missing_ok=True)
+            return path
         if self.metadata.get("dirty"):
             self.process()
         return self.dirpath_processed() / self.filename_processed()
+
+    def datapackage(self) -> Datapackage:
+        """The processed datapackage of this database. For a database in a read-only extension
+        whose file holds it, it is read from there, and nothing is processed."""
+        content = stored_datapackage(self.name)
+        if content is not None:
+            return load_datapackage(ZipFileSystem(fo=io.BytesIO(content)))
+        return super().datapackage()
 
     def find_dependents(self, data=None, ignore=None):
         """Get sorted list of direct dependent databases (databases linked from exchanges).

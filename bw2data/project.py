@@ -801,9 +801,11 @@ class ProjectManager(Iterable):
         refused as well.
 
         The file holds the databases' activities, with their ids, their exchanges, with new
-        ids, their metadata (``depends`` worked out from the exchanges) and their search
-        indexes; nothing else of the project. Only committed changes are exported. Raises
-        ``FileExistsError`` if ``filepath`` exists, unless ``overwrite``; see
+        ids, their metadata (``depends`` worked out from the exchanges), their search indexes,
+        and their processed datapackages, so that projects which attach the file don't have to
+        process them; nothing else of the project. Databases which are ``dirty``, or have no
+        processed datapackage, are processed first. Only committed changes are exported.
+        Raises ``FileExistsError`` if ``filepath`` exists, unless ``overwrite``; see
         ``bw2data.backends.extensions.build_extension``."""
         from bw2data.backends.extensions import build_extension
 
@@ -819,7 +821,35 @@ class ProjectManager(Iterable):
             version=version,
             attached=lci_db.extensions,
             overwrite=overwrite,
+            datapackages=self._processed_for_export(databases),
         )
+
+    @staticmethod
+    def _processed_for_export(databases) -> dict:
+        """``{database: path of its processed datapackage}`` for the databases ``databases``
+        which can be exported, processed first if they are ``dirty`` or have none. The others
+        are left out; ``build_extension`` refuses them."""
+        from bw2data import Database
+        from bw2data import databases as registry
+        from bw2data.backends.extensions import extension_of
+
+        names = [databases] if isinstance(databases, str) else list(databases)
+        result = {}
+        for name in names:
+            if (
+                not isinstance(name, str)
+                or name not in registry
+                or extension_of(name) is not None
+                or registry[name].get("backend", "sqlite") != "sqlite"
+            ):
+                continue
+            database = Database(name)
+            # Processes the database if it is dirty
+            path = database.filepath_processed()
+            if not path.is_file():
+                database.process()
+            result[name] = path
+        return result
 
     def detach_extension(self, name: str, force: bool = False) -> None:
         """Remove the read-only LCI extension ``name`` from the current project. The file itself
@@ -1149,10 +1179,12 @@ class ProjectManager(Iterable):
     @staticmethod
     def _start_extension_databases(lci_db, databases) -> None:
         """Give the newly attached extension databases ``databases`` a new local state: their
-        locations in ``geomapping``, ``dirty`` (to be processed), and no search index built in
-        the project, which would be for another version of the file."""
+        locations in ``geomapping``, ``dirty`` (to be processed) unless the extension's file
+        holds their processed datapackage, and no search index built in the project, which
+        would be for another version of the file."""
         from bw2data import geomapping
         from bw2data.backends import SQLiteBackend
+        from bw2data.backends.extensions import has_stored_datapackage
         from bw2data.backends.schema import ExtensionDatabaseState
         from bw2data.search.indices import index_table
 
@@ -1164,7 +1196,9 @@ class ProjectManager(Iterable):
         geomapping.add(locations)
         with lci_db.atomic():
             for database in databases:
-                ExtensionDatabaseState.replace(name=database, dirty=True).execute()
+                # Not dirty: the record in the extension says it isn't
+                dirty = None if has_stored_datapackage(database) else True
+                ExtensionDatabaseState.replace(name=database, dirty=dirty).execute()
                 lci_db.execute_sql(f'DROP TABLE IF EXISTS main."{index_table(database)}"')
 
     @staticmethod
