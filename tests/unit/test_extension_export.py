@@ -123,14 +123,16 @@ def test_file_contents(built):
         for row in file_rows(
             lci_path(),
             "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'searchindex%' "
-            "AND name NOT LIKE 'sqlite_%'",
+            # Triggers (of the parameter tables) only guard writes to project-local tables
+            "AND name NOT LIKE 'sqlite_%' AND type IN ('table', 'index')",
         )
     }
     exported = set(
         file_rows(
             inv,
             "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'searchindex%' "
-            "AND name NOT LIKE 'sqlite_%'",
+            # Triggers (of the parameter tables) only guard writes to project-local tables
+            "AND name NOT LIKE 'sqlite_%' AND type IN ('table', 'index')",
         )
     )
     assert exported == project | {

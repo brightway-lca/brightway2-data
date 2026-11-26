@@ -124,7 +124,7 @@ def test_converts_pickles_and_reads_the_same():
     _make_legacy()
     assert all(raw[:1] == b"\x80" for table in TABLES for raw in _rows(table).values())
 
-    assert _migrate_from(5) == [6, 7, 8]
+    assert _migrate_from(5) == [6, 7, 8, 9]
     assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
 
     for table in TABLES:
@@ -256,7 +256,7 @@ def test_postponed_step_keeps_the_earlier_ones():
 
     # Tried again, and applied once the row is fixed
     _set_pickle("activitydataset", node.id, {**node._data, "f": 1 / 3})
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [6, 7, 8]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [6, 7, 8, 9]
     assert get_node(id=node.id)["f"] == 1 / 3
 
 
@@ -300,7 +300,7 @@ def test_no_vacuum_if_disabled(monkeypatch):
         return execute_sql(sql, *args, **kwargs)
 
     monkeypatch.setattr(db, "execute_sql", spy)
-    assert _migrate_from(5) == [6, 7, 8]
+    assert _migrate_from(5) == [6, 7, 8, 9]
     assert any('"data"' in sql for sql in statements)
     assert not any("VACUUM" in sql.upper() for sql in statements)
 
@@ -310,7 +310,7 @@ def test_no_vacuum_without_pickled_rows(monkeypatch):
     calls = []
     monkeypatch.setattr(migrations, "_m6_vacuum", lambda db: calls.append(db))
     _small()
-    assert _migrate_from(5) == [6, 7, 8]
+    assert _migrate_from(5) == [6, 7, 8, 9]
     assert calls == []
 
 
@@ -366,7 +366,7 @@ def test_space_needed_depends_on_the_pickled_rows(monkeypatch):
     size = projects.dir.joinpath("lci", "databases.db").stat().st_size
     # Far less than the file, but enough for the one page which changes
     monkeypatch.setattr(migrations, "_free_space", lambda path: size // 10)
-    assert _migrate_from(5) == [6, 7, 8]
+    assert _migrate_from(5) == [6, 7, 8, 9]
     assert _rows("activitydataset")[node.id][:4] == ZSTD_MAGIC
 
 

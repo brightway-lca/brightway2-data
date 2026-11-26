@@ -1117,6 +1117,184 @@ def _calculation_setups_to_sqlite(db: Database, project_dir: Path) -> None:
         )
 
 
+#: The parameter tables at schema version 9, as ``parameters.db`` had them, in the order their
+#: rows are copied: parameters before the groups, whose ``updated`` the triggers would change
+_M9_TABLES = (
+    (
+        "projectparameter",
+        'CREATE TABLE IF NOT EXISTS main."projectparameter" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"name" TEXT NOT NULL, "formula" TEXT, "amount" REAL, "data" BLOB NOT NULL)',
+    ),
+    (
+        "databaseparameter",
+        'CREATE TABLE IF NOT EXISTS main."databaseparameter" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"database" TEXT NOT NULL, "name" TEXT NOT NULL, "formula" TEXT, "amount" REAL, '
+        "\"data\" BLOB NOT NULL, CHECK (database != 'project'))",
+    ),
+    (
+        "activityparameter",
+        'CREATE TABLE IF NOT EXISTS main."activityparameter" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"group" TEXT NOT NULL, "database" TEXT NOT NULL, "code" TEXT NOT NULL, '
+        '"name" TEXT NOT NULL, "formula" TEXT, "amount" REAL, "data" BLOB NOT NULL, '
+        'CHECK (("group" != \'project\') AND ("group" != database)))',
+    ),
+    (
+        "parameterizedexchange",
+        'CREATE TABLE IF NOT EXISTS main."parameterizedexchange" ("id" INTEGER NOT NULL '
+        'PRIMARY KEY, "group" TEXT NOT NULL, "exchange" INTEGER NOT NULL, "formula" TEXT NOT NULL)',
+    ),
+    (
+        "groupdependency",
+        'CREATE TABLE IF NOT EXISTS main."groupdependency" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"group" TEXT NOT NULL, "depends" TEXT NOT NULL, CHECK ("group" != depends))',
+    ),
+    (
+        "group_table",
+        'CREATE TABLE IF NOT EXISTS main."group_table" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"name" TEXT NOT NULL, "fresh" INTEGER NOT NULL, "updated" DATETIME NOT NULL, '
+        '"order" BLOB NOT NULL)',
+    ),
+)
+_M9_INDEXES = (
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."projectparameter_name" ON "projectparameter" ("name")',
+    'CREATE INDEX IF NOT EXISTS main."databaseparameter_database" '
+    'ON "databaseparameter" ("database")',
+    'CREATE INDEX IF NOT EXISTS main."databaseparameter_name" ON "databaseparameter" ("name")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."databaseparameter_database_name" '
+    'ON "databaseparameter" ("database", "name")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."activityparameter_group_name" '
+    'ON "activityparameter" ("group", "name")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."parameterizedexchange_exchange" '
+    'ON "parameterizedexchange" ("exchange")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."groupdependency_group_depends" '
+    'ON "groupdependency" ("group", "depends")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."group_name" ON "group_table" ("name")',
+)
+
+
+def _m9_triggers() -> list[str]:
+    """The triggers of the parameter tables at schema version 9, as ``parameters.db`` had
+    them: ``group_table.updated`` follows changes to parameters, and some combinations are
+    refused."""
+    statements = []
+    for table, old, new in (
+        ("projectparameter", "'project'", "'project'"),
+        ("databaseparameter", "OLD.database", "NEW.database"),
+        ("activityparameter", 'OLD."group"', 'NEW."group"'),
+    ):
+        for action in ("INSERT", "UPDATE", "DELETE"):
+            name = new if action == "INSERT" else old
+            statements.append(
+                f"CREATE TRIGGER IF NOT EXISTS main.{table}_{action}_trigger AFTER {action} "
+                f"ON {table} BEGIN\n"
+                f"    UPDATE group_table SET updated = datetime('now') WHERE name = {name};\nEND;"
+            )
+    for action in ("UPDATE", "INSERT"):
+        statements += [
+            f"CREATE TRIGGER IF NOT EXISTS main.ap_crossdatabase_{action} BEFORE {action} ON "
+            "activityparameter BEGIN\n    SELECT CASE WHEN\n"
+            '        ((SELECT COUNT(*) FROM activityparameter WHERE "group" = NEW."group") > 0)\n'
+            '    AND (NEW.database NOT IN (SELECT DISTINCT "database" FROM activityparameter '
+            'where "group" = NEW."group"))\n'
+            "    THEN RAISE(ABORT,'Cross database group')\n    END;\nEND;",
+            f"CREATE TRIGGER IF NOT EXISTS main.ap_crossgroup_{action} BEFORE {action} ON "
+            "activityparameter BEGIN\n"
+            "    SELECT CASE WHEN EXISTS (SELECT * FROM activityparameter AS a WHERE\n"
+            "            a.database = NEW.database AND\n"
+            "            a.code = NEW.code AND\n"
+            '            a."group" != NEW."group")\n'
+            "    THEN RAISE(ABORT,'Cross group activity')\n    END;\nEND;",
+            f"CREATE TRIGGER IF NOT EXISTS main.gd_circular_{action} BEFORE {action} ON "
+            "groupdependency BEGIN\n"
+            '    SELECT CASE WHEN EXISTS (SELECT * FROM groupdependency AS g WHERE g."group" = '
+            'NEW.depends AND g.depends = NEW."group")\n'
+            "    THEN RAISE(ABORT,'Circular dependency')\n    END;\nEND;",
+            f"CREATE TRIGGER IF NOT EXISTS main.pe_group_{action} BEFORE {action} ON "
+            "parameterizedexchange BEGIN\n    SELECT CASE WHEN\n"
+            '        ((SELECT COUNT(*) FROM activityparameter WHERE "group" = NEW."group") < 1)\n'
+            "    THEN RAISE(ABORT,'Missing activity parameter group')\n    END;\nEND;",
+        ]
+    return statements
+
+
+def _parameters_db_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move the parameters from the project's ``parameters.db`` into ``lci/databases.db``.
+
+    Creates the parameter tables, their indexes and their triggers (as ``parameters.db`` had
+    them; ``bw2data.parameters`` uses them from now on), and copies the rows of each table,
+    keeping their ids. The triggers are created after the rows are copied, so the groups keep
+    their ``updated`` times. Rows which are already in the tables are kept as they are. The
+    file is kept as a backup.
+
+    Postponed if ``parameters.db`` is locked by another process (e.g. an older bw2data
+    which has the project open). A file which can't be read otherwise is skipped with a
+    warning: its parameters are only kept in the file."""
+    import sqlite3
+
+    from bw2data.sqlite import _sqlite_uri
+
+    for _, sql in _M9_TABLES:
+        db.execute_sql(sql)
+    for sql in _M9_INDEXES:
+        db.execute_sql(sql)
+
+    path = project_dir / "parameters.db"
+    copied = {}
+    if path.is_file():
+        try:
+            source = sqlite3.connect(_sqlite_uri(path, mode="ro"), uri=True, timeout=1)
+            with closing(source):
+                existing = {
+                    row[0]
+                    for row in source.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    ).fetchall()
+                }
+                for table, _ in _M9_TABLES:
+                    if table not in existing:
+                        continue
+                    theirs = [row[1] for row in source.execute(f'PRAGMA table_info("{table}")')]
+                    ours = {
+                        row[1]
+                        for row in db.execute_sql(f'PRAGMA main.table_info("{table}")').fetchall()
+                    }
+                    columns = [column for column in theirs if column in ours]
+                    names = ", ".join(f'"{column}"' for column in columns)
+                    rows = source.execute(f'SELECT {names} FROM "{table}"').fetchall()
+                    if rows:
+                        insert = (
+                            f'INSERT OR IGNORE INTO main."{table}" ({names}) '
+                            f"VALUES ({', '.join('?' * len(columns))})"
+                        )
+                        with closing(db.cursor()) as cursor:
+                            cursor.executemany(insert, rows)
+                    copied[table] = len(rows)
+        except sqlite3.OperationalError as err:
+            if "locked" in str(err):
+                raise MigrationPostponed(
+                    f"{path} is locked by another process ({err}); its parameters are moved "
+                    "into the project's LCI database the next time the project is opened."
+                ) from err
+            warnings.warn(
+                f"Can't read {path} ({err}); its parameters are only kept in the file.",
+                stacklevel=2,
+            )
+        except sqlite3.DatabaseError as err:
+            warnings.warn(
+                f"Can't read {path} ({err}); its parameters are only kept in the file.",
+                stacklevel=2,
+            )
+    for sql in _m9_triggers():
+        db.execute_sql(sql)
+    if copied:
+        stdout_feedback_logger.info(
+            "Moved the parameters from %s into the LCI database (%s); the file is kept as a "
+            "backup",
+            path,
+            ", ".join(f"{count} {table}" for table, count in copied.items()),
+        )
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -1151,6 +1329,7 @@ MIGRATIONS: tuple[Migration, ...] = (
         "Move setups.pickle and dynamicsetups.pickle into SQLite",
         _calculation_setups_to_sqlite,
     ),
+    Migration(9, "Move parameters.db into the LCI database", _parameters_db_to_sqlite),
 )
 
 #: Schema version of a fully migrated ``lci/databases.db``

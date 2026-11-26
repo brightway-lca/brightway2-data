@@ -784,6 +784,20 @@ class SubstitutableDatabase:
         for model in self._tables:
             model.bind(db, bind_refs=False, bind_backrefs=False)
 
+    def add_tables(self, models) -> None:
+        """Bind ``models`` to this file, now and after every ``change_path``, and create their
+        tables if they are missing, as for the models given to the constructor. For models
+        defined in modules which are imported after the file is opened (``bw2data.parameters``
+        for ``lci/databases.db``)."""
+        new = [model for model in models if model not in self._tables]
+        if not new:
+            return
+        self._tables = list(self._tables) + new
+        for model in new:
+            model.bind(self._database, bind_refs=False, bind_backrefs=False)
+        if self._create_tables(self._database) == "locked":
+            self._database.defer_setup(self._finish_setup)
+
     @property
     def db(self):
         return self._database
