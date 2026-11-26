@@ -4,7 +4,7 @@ import multiprocessing
 import pickle
 
 import pytest
-from peewee import IntegrityError
+from peewee import IntegrityError, OperationalError
 
 from bw2data import config, geomapping, preferences
 from bw2data.backends.schema import GeoMappingRecord, Geocollection
@@ -260,6 +260,24 @@ def test_migration_skips_invalid_keys():
 
     with pytest.warns(UserWarning, match="Keys which are not locations are skipped"):
         assert set(geomapping) == {"GLO", "CH"}
+
+
+@bw2test
+def test_failed_pickle_migration_is_tried_again(monkeypatch):
+    geomapping.__init__()
+    GeoMappingRecord.delete().execute()
+    _write_legacy_pickle({"GLO": 1, "CH": 5})
+
+    def fail(keys):
+        raise OperationalError("database is locked")
+
+    with monkeypatch.context() as m:
+        m.setattr(geomapping, "add", fail)
+        with pytest.warns(UserWarning, match="Migrating"), pytest.raises(OperationalError):
+            geomapping["CH"]
+    with pytest.warns(UserWarning, match="Migrating"):
+        assert geomapping["CH"] == location_id("CH")
+    assert "GLO" in geomapping
 
 
 @bw2test

@@ -83,6 +83,26 @@ def test_migration_gives_ids_derived_from_names_and_merges_locations():
         "CH": location_id("CH"),
         ("places", "X"): location_id(("places", "X")),
     }
+    # As in a new project, where "world" locations have no geocollection
+    assert geomapping.collections() == ["places"]
+
+
+@bw2test
+def test_migration_keeps_a_world_geocollection_with_metadata():
+    as_version_9([(1, None, "GLO"), (3, 50, "CH")], [(50, "world")])
+    Geocollection.update(extra={"file": "world.gpkg"}).where(Geocollection.id == 50).execute()
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [10]
+    assert Geocollection.get(Geocollection.name == "world").extra == {"file": "world.gpkg"}
+    assert geomapping["CH"] == location_id("CH")
+
+
+@bw2test
+def test_migration_resets_the_ids_which_geomapping_has_cached():
+    as_version_9([(1, None, "GLO"), (2, None, "CH")])
+    # Read before the migration, as when it is deferred
+    assert geomapping["CH"] == 2
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [10]
+    assert geomapping["CH"] == location_id("CH")
 
 
 @bw2test
@@ -133,7 +153,9 @@ def test_processed_data_of_io_tables_is_kept():
     path = Database("io").filepath_processed()
     assert path.is_file()
     as_version_9([(1, None, "GLO"), (2, None, "CH")])
-    with pytest.warns(UserWarning, match="IO table databases keeps the location ids"):
+    with pytest.warns(
+        UserWarning, match=r"IO table databases keeps the location ids.*: \['io'\]"
+    ):
         assert migrate(sqlite3_lci_db.db, projects.dir) == [10]
     assert path.is_file()
 

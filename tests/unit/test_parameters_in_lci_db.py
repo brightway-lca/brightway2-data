@@ -179,7 +179,7 @@ def test_migration_when_the_project_is_opened(exchange_group):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         projects.set_current(name)
-    assert schema_version(sqlite3_lci_db.db) == 9
+    assert schema_version(sqlite3_lci_db.db) == 10
 
     assert ProjectParameter.get(name="p").id == 11
     assert ActivityParameter.get(name="x").code == "a"
@@ -210,7 +210,7 @@ def test_failed_copy_leaves_no_rows():
     conn.close()
     as_version_8()
     with pytest.warns(UserWarning, match="Can't copy the parameters .* only kept in the file"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [9]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
     for model in PARAMETER_MODELS:
         assert not model.select().exists()
     # The tables can be used

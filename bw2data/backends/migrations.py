@@ -1051,10 +1051,14 @@ def _calculation_setups_to_sqlite(db: Database, project_dir: Path) -> None:
             continue
         migrated, skipped, missing = 0, [], {}
         for name, setup in legacy.items():
-            exists = db.execute_sql(
-                'SELECT 1 FROM main."calculationsetup" WHERE "kind" = ? AND "name" = ?',
-                (kind, name),
-            ).fetchone()
+            # A name which is not a string can't be bound; it is skipped below
+            exists = (
+                isinstance(name, str)
+                and db.execute_sql(
+                    'SELECT 1 FROM main."calculationsetup" WHERE "kind" = ? AND "name" = ?',
+                    (kind, name),
+                ).fetchone()
+            )
             if exists:
                 continue
             try:
@@ -1328,7 +1332,15 @@ def _m10_id(collection, location) -> int:
 
 
 def _m10_remove_processed(project_dir: Path, keep: set[str]) -> AfterCommit:
+    """After the commit: forget the location ids which ``geomapping`` has cached, and remove
+    the processed datapackages, except the files named in ``keep``."""
+
     def remove(db: Database) -> None:
+        from bw2data.meta import geomapping
+
+        # ``geomapping`` may have been read before this step (a deferred migration): its
+        # cache would still give the old ids
+        geomapping.__init__()
         directory = project_dir / "processed"
         if not directory.is_dir():
             return
@@ -1358,7 +1370,8 @@ def _reproducible_location_ids(db: Database, project_dir: Path) -> Optional[Afte
 
     Locations in the ``"world"`` geocollection are stored without a geocollection, and the
     names of the global location (``""``, ``"Global"``) become ``"GLO"``; rows which become
-    the same location are merged. Postponed if two different locations would get the same
+    the same location are merged. The ``"world"`` geocollection itself is removed, as in a
+    new project, unless it has metadata (``extra``). Postponed if two different locations would get the same
     id (practically impossible).
 
     The processed datapackages which use the old ids are removed after the commit (all
@@ -1393,8 +1406,11 @@ def _reproducible_location_ids(db: Database, project_dir: Path) -> Optional[Afte
             "VALUES (?, ?, ?)",
             (id_, collection_ids.get(collection) if collection else None, location),
         )
+    db.execute_sql(
+        'DELETE FROM main."geocollection" WHERE "name" = ? AND "extra" IS NULL', ("world",)
+    )
     io_tables = [
-        clean_datapackage_name(safe_filename(name) + ".zip")
+        name
         for (name,) in db.execute_sql(
             'SELECT "name" FROM main."databaserecord" WHERE "backend" = \'iotable\''
         ).fetchall()
@@ -1406,7 +1422,10 @@ def _reproducible_location_ids(db: Database, project_dir: Path) -> Optional[Afte
             f"calculations with them need the IO table to be written again: {io_tables[:10]!r}",
             stacklevel=_user_stacklevel(),
         )
-    return _m10_remove_processed(project_dir, set(io_tables))
+    return _m10_remove_processed(
+        project_dir,
+        {clean_datapackage_name(safe_filename(name) + ".zip") for name in io_tables},
+    )
 
 
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.

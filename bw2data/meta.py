@@ -36,6 +36,10 @@ _KNOWN_FIELDS = frozenset(
 #: Rows per query, to stay well under SQLite's limit on bound variables
 _CHUNK = 300
 
+#: Most nodes in the functional units of one calculation setup. Their rows are inserted with
+#: one query, of six bound variables per row; SQLite allows 32,766 (since version 3.32).
+MAX_SETUP_NODES = 5000
+
 #: Attempts to insert new geomapping rows when snowflake ids collide (see ``GeoMapping.add``)
 _SNOWFLAKE_ATTEMPTS = 5
 
@@ -275,7 +279,8 @@ class GeoMapping(Mapping):
                 GeoMappingRecord.insert_many(batch).execute()
 
     def delete(self, keys):
-        """Delete locations. Their ids are not reused. Keys not present are ignored.
+        """Delete locations. A location which is added again gets the same id (see
+        ``location_id``). Keys not present are ignored.
 
         Args:
             *keys* (iterable): The keys to delete.
@@ -409,11 +414,16 @@ class GeoMapping(Mapping):
     def _ensure_ready(self):
         if self._ready:
             return
-        self._migrate_from_pickle()
-        self._ready = True
         from bw2data.configuration import config
 
-        self.add(["GLO", config.global_location])
+        # Set first, as ``add`` calls this method; not ready if it fails, to try again
+        self._ready = True
+        try:
+            self._migrate_from_pickle()
+            self.add(["GLO", config.global_location])
+        except BaseException:
+            self._ready = False
+            raise
 
     def _migrate_from_pickle(self):
         """One-time migration from ``geomapping.pickle``: its locations are added. Their ids are
@@ -459,7 +469,6 @@ class GeoMapping(Mapping):
         if invalid:
             message += f" Keys which are not locations are skipped: {invalid[:20]!r}"
         warnings.warn(message, stacklevel=3)
-        self._ready = True
         self.add(keys)
 
 
@@ -1184,6 +1193,11 @@ class _CalculationSetups(MutableMapping):
         inv = value.pop("inv", None)
         ia = value.pop("ia", None)
         rows = None if inv is None else _setup_demand_rows(name, inv)
+        if rows and len(rows) > MAX_SETUP_NODES:
+            raise ValueError(
+                f"Calculation setup {name!r} has {len(rows)} nodes in its functional units; "
+                f"at most {MAX_SETUP_NODES} can be stored. Split it into several setups."
+            )
         record, demand = self._models()
         with _atomic(record._meta.database):
             row = self._record(name)
