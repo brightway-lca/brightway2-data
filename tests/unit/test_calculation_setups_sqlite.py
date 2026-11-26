@@ -245,7 +245,7 @@ def test_migration_moves_both_files():
     calculation_setups["kept"] = {"inv": [{a.key: 5}]}
     sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 7")
     with pytest.warns(UserWarning) as caught:
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10]
     messages = " ".join(str(w.message) for w in caught)
     assert "can't be stored are only kept in the file: ['nan', 'none', 'odd']" in messages
     assert "'gone': [('db', 'deleted')]" in messages
@@ -271,12 +271,12 @@ def test_migration_moves_both_files():
 @bw2test
 def test_migration_without_files_and_with_unreadable_files():
     sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 7")
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10]
     (projects.dir / "setups.pickle").write_bytes(b"not a pickle")
     sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 7")
     with pytest.warns(UserWarning, match="Can't read .*setups.pickle"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9]
-    assert schema_version(sqlite3_lci_db.db) == 9
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10]
+    assert schema_version(sqlite3_lci_db.db) == 10
     assert len(calculation_setups) == 0
 
 

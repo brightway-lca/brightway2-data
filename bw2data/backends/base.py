@@ -522,7 +522,8 @@ class SQLiteBackend(ProcessedDataStore):
     def filepath_processed(self):
         path = self.dirpath_processed() / self.filename_processed()
         if not self.is_extension:
-            if self.metadata.get("dirty"):
+            if self.metadata.get("dirty") or not path.is_file():
+                # Not processed yet, or the file was removed (e.g. by schema migration 10)
                 self.process()
             return path
         # The project's file for a database in an extension is checked on each call, not

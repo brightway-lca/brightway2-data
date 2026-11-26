@@ -140,8 +140,8 @@ def test_migration_moves_the_rows():
     exchange = ExchangeDataset.get(ExchangeDataset.output_code == "a")
     legacy_file(projects.dir / "parameters.db", exchange.id)
     as_version_8()
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [9]
-    assert schema_version(sqlite3_lci_db.db) == 9
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
+    assert schema_version(sqlite3_lci_db.db) == 10
 
     assert ProjectParameter.get(name="p").id == 11
     assert ProjectParameter.get(name="p").data == {"uncertainty type": 2, "loc": 1.0}
@@ -229,14 +229,14 @@ def test_rows_which_are_already_there_are_kept():
     sqlite3_lci_db.execute_sql(
         "INSERT INTO main.projectparameter VALUES (11, 'p', NULL, 5.0, ?)", (pickle.dumps({}),)
     )
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [9]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
     assert ProjectParameter.get(id=11).amount == 5
 
 
 @bw2test
 def test_migration_without_a_file():
     as_version_8()
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [9]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
     assert set(TABLES) <= objects("table")
     assert not ProjectParameter.select().exists()
 
@@ -246,7 +246,7 @@ def test_unreadable_file():
     (projects.dir / "parameters.db").write_bytes(b"not a database " * 100)
     as_version_8()
     with pytest.warns(UserWarning, match="Can't copy the parameters .* only kept in the file"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [9]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
     assert set(TABLES) <= objects("table")
 
 
@@ -266,5 +266,5 @@ def test_locked_file_postpones_the_step():
     finally:
         lock.execute("ROLLBACK")
         lock.close()
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [9]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [9, 10]
     assert ProjectParameter.get(name="p").amount == 2

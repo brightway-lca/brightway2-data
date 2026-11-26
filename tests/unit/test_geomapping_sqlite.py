@@ -8,6 +8,7 @@ from peewee import IntegrityError
 
 from bw2data import config, geomapping, preferences
 from bw2data.backends.schema import GeoMappingRecord, Geocollection
+from bw2data.meta import location_id
 from bw2data.project import projects
 from bw2data.tests import bw2test
 
@@ -44,13 +45,32 @@ def test_custom_global_location_present():
 def test_add_bare_and_collection_keys():
     geomapping.add(["CH", ("world", "CH"), ("places", "L")])
 
-    assert geomapping["CH"] != geomapping[("world", "CH")]
+    # Locations in the default geocollection are stored as bare strings
+    assert geomapping["CH"] == geomapping[("world", "CH")] == geomapping[(None, "CH")]
     assert ("places", "L") in geomapping
     assert ["places", "L"] in geomapping
-    assert geomapping.collections() == ["places", "world"]
-    assert set(geomapping) == {"GLO", "CH", ("world", "CH"), ("places", "L")}
+    assert geomapping.collections() == ["places"]
+    assert set(geomapping) == {"GLO", "CH", ("places", "L")}
     assert geomapping.locations("places") == {("places", "L"): geomapping[("places", "L")]}
     assert set(geomapping.locations()) == {"GLO", "CH"}
+    assert geomapping.locations("world") == geomapping.locations()
+
+
+@bw2test
+def test_names_of_the_global_location():
+    ids = {geomapping[key] for key in ("GLO", "Global", "", None, ("world", "GLO"), (None, None))}
+    assert ids == {geomapping["GLO"]}
+    assert set(geomapping) == {"GLO"}
+    # Strings are compared as they are; other geocollections have no global location
+    geomapping.add(["glo", "RoW", ("places", "GLO")])
+    assert len({geomapping[key] for key in ("GLO", "glo", "RoW", ("places", "GLO"))}) == 4
+
+
+@bw2test
+def test_custom_global_location_is_a_location_of_its_own():
+    preferences["global_location"] = "RER"
+    geomapping.__init__()
+    assert geomapping["RER"] != geomapping["GLO"]
 
 
 @bw2test
@@ -63,7 +83,7 @@ def test_add_is_idempotent():
 
     assert dict(geomapping.items()) == ids
     assert GeoMappingRecord.select().count() == 3
-    assert Geocollection.select().count() == 1
+    assert Geocollection.select().count() == 0
 
 
 @bw2test
@@ -82,14 +102,22 @@ def test_add_accepts_dict_keys():
 
 
 @bw2test
-def test_add_assigns_ids_in_order():
-    geomapping.add(["a", "b", "c"])
-    assert geomapping["a"] < geomapping["b"] < geomapping["c"]
+def test_ids_are_derived_from_the_names():
+    geomapping.add(["a", ("places", "b")])
+    assert geomapping["a"] == location_id("a") == location_id(("world", "a"))
+    assert geomapping[("places", "b")] == location_id(("places", "b"))
+    assert location_id("a") != location_id(("places", "a"))
+    # The same in every project
+    first = dict(geomapping.items())
+    projects.set_current("other")
+    geomapping.add(["a", ("places", "b")])
+    assert dict(geomapping.items()) == first
+    assert all(0 < id_ < 2**63 for id_ in first.values())
 
 
 @pytest.mark.parametrize(
     "key",
-    [("world", 5), ("world", ""), ("", "CH"), "", None, 5, ("a", "b", "c"), (("a",), "b")],
+    [("world", 5), ("", "CH"), ("places", ""), ("places", None), 5, ("a", "b", "c"), (("a",), "b")],
 )
 @bw2test
 def test_invalid_keys_rejected(key):
@@ -132,7 +160,7 @@ def test_flush_is_deprecated():
 @bw2test
 def test_data_property():
     geomapping.add([("world", "CH")])
-    assert geomapping.data == {"GLO": geomapping["GLO"], ("world", "CH"): geomapping[("world", "CH")]}
+    assert geomapping.data == {"GLO": location_id("GLO"), "CH": location_id("CH")}
 
 
 # ----------------------------------------------------------------------
@@ -153,26 +181,26 @@ def test_delete():
 
 
 @bw2test
-def test_ids_not_reused_after_delete():
+def test_a_location_added_again_gets_its_id_again():
     geomapping.add(["a", "b"])
-    highest = geomapping["b"]
+    id_ = geomapping["b"]
     geomapping.delete(["b"])
-    geomapping.add(["c"])
-    assert geomapping["c"] > highest
+    geomapping.add(["b"])
+    assert geomapping["b"] == id_
 
 
 @bw2test
 def test_geocollection_with_locations_cant_be_deleted():
-    geomapping.add([("world", "CH")])
+    geomapping.add([("places", "CH")])
     with pytest.raises(IntegrityError):
-        Geocollection.delete().where(Geocollection.name == "world").execute()
+        Geocollection.delete().where(Geocollection.name == "places").execute()
 
 
 @bw2test
 def test_geocollection_extra():
-    geomapping.add([("world", "CH")])
-    Geocollection.update(extra={"field": "iso2"}).where(Geocollection.name == "world").execute()
-    assert Geocollection.get(Geocollection.name == "world").extra == {"field": "iso2"}
+    geomapping.add([("places", "CH")])
+    Geocollection.update(extra={"field": "iso2"}).where(Geocollection.name == "places").execute()
+    assert Geocollection.get(Geocollection.name == "places").extra == {"field": "iso2"}
 
 
 # ----------------------------------------------------------------------
@@ -202,48 +230,36 @@ def test_project_switch():
 
 
 @bw2test
-def test_migrates_pickle_keeping_ids():
+def test_migrates_pickle():
     GeoMappingRecord.delete().execute()
     legacy = {"GLO": 1, "CH": 5, ("world", "DE"): 9, ("places", "L"): 12}
     _write_legacy_pickle(legacy)
 
     with pytest.warns(UserWarning, match="Migrating"):
-        assert dict(geomapping.items()) == legacy
-
-    assert geomapping.collections() == ["places", "world"]
+        # The ids are derived from the names, not taken from the file
+        assert dict(geomapping.items()) == {
+            key: location_id(key) for key in ("GLO", "CH", "DE", ("places", "L"))
+        }
+    assert geomapping.collections() == ["places"]
     assert (projects.dir / "geomapping.pickle").exists()
-    geomapping.add(["new"])
-    assert geomapping["new"] > 12
 
 
 @bw2test
-def test_migration_converts_integer_feature_ids():
+def test_migration_converts_integer_feature_ids_and_merges_keys():
     GeoMappingRecord.delete().execute()
-    _write_legacy_pickle({"GLO": 1, ("world", 5): 7})
+    _write_legacy_pickle({"GLO": 1, "Global": 2, ("places", 5): 7, ("places", "5"): 8})
 
-    with pytest.warns(UserWarning, match="Converted 1 integer feature ids"):
-        assert geomapping[("world", "5")] == 7
+    with pytest.warns(UserWarning, match="Migrating"):
+        assert set(geomapping) == {"GLO", ("places", "5")}
 
 
 @bw2test
-def test_migration_fails_on_conflicting_keys():
+def test_migration_skips_invalid_keys():
     GeoMappingRecord.delete().execute()
-    _write_legacy_pickle({"GLO": 1, ("world", 5): 7, ("world", "5"): 8})
+    _write_legacy_pickle({"GLO": 1, "CH": 2, ("a", "b", "c"): 3})
 
-    with pytest.raises(ValueError, match="more than once"):
-        "GLO" in geomapping
-    assert GeoMappingRecord.select().count() == 0
-    assert Geocollection.select().count() == 0
-
-
-@bw2test
-def test_migration_fails_on_invalid_keys():
-    GeoMappingRecord.delete().execute()
-    _write_legacy_pickle({"GLO": 1, None: 2, ("a", "b", "c"): 3})
-
-    with pytest.raises(ValueError, match="invalid keys"):
-        len(geomapping)
-    assert GeoMappingRecord.select().count() == 0
+    with pytest.warns(UserWarning, match="Keys which are not locations are skipped"):
+        assert set(geomapping) == {"GLO", "CH"}
 
 
 @bw2test
@@ -289,7 +305,7 @@ def _add_in_other_process(base_dir, project_name, keys, barrier):
 @bw2test
 def test_concurrent_adds_get_unique_ids():
     base_dir = str(projects._base_data_dir)
-    keys = [f"loc-{i}" for i in range(100)] + [("world", f"f-{i}") for i in range(100)]
+    keys = [f"loc-{i}" for i in range(100)] + [("places", f"f-{i}") for i in range(100)]
     "GLO" in geomapping  # create the tables before the workers start
 
     ctx = multiprocessing.get_context("spawn")
@@ -378,31 +394,24 @@ def _make_old_tables(collections, locations):
 
 
 @bw2test
-def test_new_ids_are_snowflake_ids():
-    geomapping.add(["a", ("world", "CH")])
-    assert geomapping["a"] > _SNOWFLAKE_MIN
-    assert Geocollection.get(Geocollection.name == "world").id > _SNOWFLAKE_MIN
+def test_new_geocollection_ids_are_snowflake_ids():
+    geomapping.add(["a", ("places", "CH")])
+    assert geomapping["a"] == location_id("a")
+    assert Geocollection.get(Geocollection.name == "places").id > _SNOWFLAKE_MIN
     assert not _has_autoincrement()
 
 
 @bw2test
-def test_add_retries_location_ids_already_in_use(monkeypatch):
-    import itertools
-
+def test_locations_with_the_same_id_are_refused(monkeypatch):
     from bw2data import meta
 
     geomapping.add(["taken"])
-    taken = geomapping["taken"]
-    fresh = taken + 1000
-    # The first id handed out collides with an existing row, as can happen when two
-    # processes on one machine generate ids in the same millisecond
-    monkeypatch.setattr(
-        meta, "snowflake_id_generator", itertools.chain([taken], itertools.count(fresh))
-    )
-
-    geomapping.add(["new"])
-    assert geomapping["new"] == fresh
-    assert geomapping["taken"] == taken
+    monkeypatch.setattr(meta, "location_id", lambda key: geomapping["taken"])
+    with pytest.raises(ValueError, match="same id .* already in `geomapping`"):
+        geomapping.add(["new"])
+    with pytest.raises(ValueError, match="have the same id"):
+        geomapping.add(["one", "two"])
+    assert "new" not in geomapping and "one" not in geomapping
 
 
 @bw2test
@@ -425,32 +434,22 @@ def test_add_retries_geocollection_ids_already_in_use(monkeypatch):
 
 
 @bw2test
-def test_add_gives_up_after_repeated_collisions(monkeypatch):
-    import itertools
-
-    from bw2data import meta
-
-    geomapping.add(["taken"])
-    monkeypatch.setattr(meta, "snowflake_id_generator", itertools.repeat(geomapping["taken"]))
-    with pytest.raises(RuntimeError, match="unique ids to geomapping locations"):
-        geomapping.add(["new"])
-    assert "new" not in geomapping
-
-
-@bw2test
 def test_migration_removes_autoincrement_keeping_ids():
     from bw2data.backends import sqlite3_lci_db
     from bw2data.backends.migrations import SCHEMA_VERSION, migrate, schema_version
 
-    _make_old_tables([(3, "world")], [(1, None, "GLO"), (5, None, "CH"), (9, 3, "DE")])
+    _make_old_tables([(3, "places")], [(1, None, "GLO"), (5, None, "CH"), (9, 3, "DE")])
     assert _has_autoincrement()
 
     migrate(sqlite3_lci_db.db, projects.dir)
 
     assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
     assert not _has_autoincrement()
-    assert dict(geomapping.items()) == {"GLO": 1, "CH": 5, ("world", "DE"): 9}
-    assert Geocollection.get(Geocollection.name == "world").id == 3
+    # Schema migration 10 gives them the ids derived from their names
+    assert dict(geomapping.items()) == {
+        key: location_id(key) for key in ("GLO", "CH", ("places", "DE"))
+    }
+    assert Geocollection.get(Geocollection.name == "places").id == 3
     assert not sqlite3_lci_db.execute_sql(
         "SELECT 1 FROM main.sqlite_master WHERE name LIKE '%_old'"
     ).fetchone()
@@ -458,9 +457,10 @@ def test_migration_removes_autoincrement_keeping_ids():
         "SELECT 1 FROM main.sqlite_sequence WHERE name IN ('geocollection', 'geomappingrecord')"
     ).fetchone()
     # The foreign key points at the new parent table, not the renamed old one
-    assert sqlite3_lci_db.execute_sql(
-        "PRAGMA main.foreign_key_list(geomappingrecord)"
-    ).fetchone()[2] == "geocollection"
+    assert (
+        sqlite3_lci_db.execute_sql("PRAGMA main.foreign_key_list(geomappingrecord)").fetchone()[2]
+        == "geocollection"
+    )
 
     # Constraints still hold on the rebuilt tables
     with pytest.raises(IntegrityError):
@@ -468,12 +468,12 @@ def test_migration_removes_autoincrement_keeping_ids():
     with pytest.raises(IntegrityError):
         GeoMappingRecord.insert(id=101, geocollection=12345, location="nowhere").execute()
     with pytest.raises(IntegrityError):
-        Geocollection.insert(id=102, name="world").execute()
+        Geocollection.insert(id=102, name="places").execute()
     with pytest.raises(IntegrityError):
-        Geocollection.delete().where(Geocollection.name == "world").execute()
+        Geocollection.delete().where(Geocollection.name == "places").execute()
 
     geomapping.add(["new", ("other", "x")])
-    assert geomapping["new"] > _SNOWFLAKE_MIN
+    assert geomapping["new"] == location_id("new")
     assert Geocollection.get(Geocollection.name == "other").id > _SNOWFLAKE_MIN
 
 
@@ -489,7 +489,7 @@ def test_migration_on_project_switch():
 
     assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
     assert not _has_autoincrement()
-    assert geomapping["CH"] == 2
+    assert geomapping["CH"] == location_id("CH")
 
 
 @bw2test
