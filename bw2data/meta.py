@@ -1,13 +1,14 @@
 import copy
 import datetime
 import json
+import math
+import numbers
 import pickle
 import warnings
 from collections.abc import Mapping, MutableMapping
 
-from peewee import JOIN, Value
+from peewee import JOIN, SQL, Value
 
-from bw2data.serialization import PickledDict
 from bw2data.signals import (
     on_database_delete,
     on_database_metadata_change,
@@ -967,28 +968,426 @@ Metadata state is unchanged, but database state is unknown.
         self._proxies.clear()
 
 
-class CalculationSetups(PickledDict):
-    """A dictionary for calculation setups.
+def _atomic(database):
+    """``database.atomic()``, or nothing if a transaction is open already: one started with
+    ``begin()`` (as ``Database.write`` does) is not known to peewee's ``atomic()``, which would
+    try to start another."""
+    from contextlib import nullcontext
 
-    Keys:
-    * `inv`: List of functional units, e.g. ``[{(key): amount}, {(key): amount}]``
-    * `ia`: List of LCIA methods, e.g. ``[(method), (method)]``.
-
-    """
-
-    filename = "setups.pickle"
+    if database.in_transaction() or getattr(database, "transaction_token", lambda: None)():
+        return nullcontext()
+    return database.atomic()
 
 
-class DynamicCalculationSetups(PickledDict):
-    """A dictionary for Dynamic calculation setups.
+class CalculationSetupProxy(MutableMapping):
+    """Dict-like view of one calculation setup, as returned by ``calculation_setups[name]``.
 
-    Keys:
-    * `inv`: List of functional units, e.g. ``[{(key): amount}, {(key): amount}]``
-    * `ia`: Dictionary of orst case LCIA method and the relative dynamic LCIA method, e.g. `` [{dLCIA_method_1_worstcase:dLCIA_method_1 , dLCIA_method_2_worstcase:dLCIA_method_2}]``.
+    Changes, also in place (``setup["inv"].append(...)``), are kept in memory until
+    :meth:`save` is called. The registry hands out one proxy per name, so pending changes
+    survive between accesses."""
 
-    """
+    def __init__(self, registry, name: str, value: dict):
+        self._registry = registry
+        self._name = name
+        self._load(value)
 
-    filename = "dynamicsetups.pickle"
+    def _load(self, value: dict) -> None:
+        self._value = value
+        self._saved = copy.deepcopy(value)
+
+    def _has_changes(self) -> bool:
+        return self._value != self._saved
+
+    def __getitem__(self, key):
+        return self._value[key]
+
+    def __setitem__(self, key, value):
+        self._value[key] = value
+
+    def __delitem__(self, key):
+        del self._value[key]
+
+    def __iter__(self):
+        return iter(self._value)
+
+    def __len__(self):
+        return len(self._value)
+
+    def save(self) -> None:
+        """Write the setup to SQLite, if it changed."""
+        if self._has_changes():
+            self._registry._write(self._name, self._value)
+            self._load(self._registry._read(self._name))
+
+    def __copy__(self):
+        return dict(self._value)
+
+    def __deepcopy__(self, memo):
+        return copy.deepcopy(self._value, memo)
+
+    def __eq__(self, other):
+        if isinstance(other, CalculationSetupProxy):
+            other = other._value
+        return self._value == other
+
+    def __repr__(self):
+        return repr(self._value)
+
+
+class _CalculationSetups(MutableMapping):
+    """Dict-like registry of calculation setups, stored in the ``calculationsetup`` and
+    ``calculationsetupdemand`` tables of ``lci/databases.db`` (see
+    ``bw2data.backends.schema.CalculationSetupRecord``). Before, they were pickled to a file
+    in the project directory, which schema migration 8 moves into SQLite.
+
+    A setup is a dict, usually with:
+
+    * ``inv``: a list of functional units, each a dict ``{node: amount}``. A node is given by
+      its key ``(database, code)`` or by its id, and is read back the same way. Nodes are
+      stored by id: renaming a node or its database changes the key which is read back, and
+      deleting a node or a database removes it from every setup (and functional units which
+      are then empty). A key must be the key of an existing node.
+    * ``ia``: stored as it is given.
+
+    Other keys are stored as they are, as tagged JSON (see ``bw2data.codec``).
+
+    ``registry[name] = setup`` and ``del registry[name]`` are saved right away;
+    ``registry[name]`` returns a :class:`CalculationSetupProxy`, whose changes are saved with
+    its ``save()``. Names are strings."""
+
+    _kind = ""
+    _registry_name = "calculation_setups"
+
+    def __init__(self):
+        self._proxies = {}
+
+    @staticmethod
+    def _models():
+        from bw2data.backends.schema import CalculationSetupDemand, CalculationSetupRecord
+
+        return CalculationSetupRecord, CalculationSetupDemand
+
+    def _record(self, name):
+        record, _ = self._models()
+        if not isinstance(name, str):
+            return None
+        return record.get_or_none((record.kind == self._kind) & (record.name == name))
+
+    # Reading
+
+    def _read(self, name: str) -> dict:
+        row = self._record(name)
+        if row is None:
+            raise KeyError(name)
+        return self._as_dict(row)
+
+    def _as_dict(self, row) -> dict:
+        from bw2data.backends.schema import ActivityDataset
+
+        _, demand = self._models()
+        value = dict(row.extra or {})
+        if row.ia is not None:
+            value["ia"] = row.ia
+        if row.units is not None:
+            rows = list(
+                demand.select(
+                    demand.unit, demand.node, demand.amount, demand.key_database, demand.key_code
+                )
+                .where(demand.setup == row.id)
+                # In the order they were written
+                .order_by(SQL("rowid"))
+                .tuples()
+            )
+            by_key = [node for _, node, _, database, _ in rows if database is not None]
+            keys = {}
+            for start in range(0, len(by_key), _CHUNK):
+                query = ActivityDataset.select(
+                    ActivityDataset.id, ActivityDataset.database, ActivityDataset.code
+                ).where(ActivityDataset.id.in_(by_key[start : start + _CHUNK]))
+                keys.update((id_, (database, code)) for id_, database, code in query.tuples())
+            units = [{} for _ in range(row.units)]
+            for unit, node, amount, database, code in rows:
+                if database is None:
+                    units[unit][node] = amount
+                else:
+                    # The key as it is now; the one it was written with if the node is not
+                    # there (e.g. in an extension which is not attached)
+                    units[unit][keys.get(node, (database, code))] = amount
+            value["inv"] = units
+        return value
+
+    def __getitem__(self, name):
+        proxy = self._proxies.get(name)
+        if proxy is not None and proxy._has_changes():
+            return proxy
+        try:
+            value = self._read(name)
+        except KeyError:
+            self._proxies.pop(name, None)
+            raise
+        # No pending changes, so read again in case it was changed elsewhere
+        if proxy is None:
+            proxy = self._proxies[name] = CalculationSetupProxy(self, name, value)
+        else:
+            proxy._load(value)
+        return proxy
+
+    def __iter__(self):
+        record, _ = self._models()
+        # Read completely first, so that setups can be deleted while iterating
+        query = record.select(record.name).where(record.kind == self._kind).order_by(record.name)
+        return iter([name for (name,) in query.tuples()])
+
+    def __len__(self):
+        record, _ = self._models()
+        return record.select().where(record.kind == self._kind).count()
+
+    def __contains__(self, name):
+        return self._record(name) is not None
+
+    # Writing
+
+    def __setitem__(self, name, value):
+        self._write(name, value)
+        self._proxies.pop(name, None)
+
+    def __delitem__(self, name):
+        row = self._record(name)
+        if row is None:
+            raise KeyError(name)
+        record, demand = self._models()
+        with _atomic(record._meta.database):
+            demand.delete().where(demand.setup == row.id).execute()
+            record.delete().where(record.id == row.id).execute()
+        self._proxies.pop(name, None)
+
+    def _write(self, name, value) -> None:
+        """Store ``value`` as the setup ``name``, replacing it if it exists. Raises
+        ``TypeError`` or ``ValueError`` for a setup which can't be stored, and
+        ``UnknownObject`` for a key of a node which doesn't exist; nothing is changed then."""
+        from bw2data.snowflake_ids import new_snowflake_id
+
+        if not isinstance(name, str):
+            raise TypeError(f"Calculation setup names must be strings, not {name!r}")
+        if isinstance(value, CalculationSetupProxy):
+            value = value._value
+        if not isinstance(value, Mapping):
+            raise TypeError(f"A calculation setup must be a dict, not {type(value).__name__}")
+        value = dict(value)
+        inv = value.pop("inv", None)
+        ia = value.pop("ia", None)
+        rows = None if inv is None else _setup_demand_rows(name, inv)
+        record, demand = self._models()
+        with _atomic(record._meta.database):
+            row = self._record(name)
+            setup_id = row.id if row is not None else new_snowflake_id()
+            fields = {
+                "units": None if inv is None else len(inv),
+                "ia": ia,
+                "extra": value or None,
+            }
+            if row is None:
+                record.insert(id=setup_id, kind=self._kind, name=name, **fields).execute()
+            else:
+                record.update(**fields).where(record.id == setup_id).execute()
+                demand.delete().where(demand.setup == setup_id).execute()
+            if rows:
+                demand.insert_many([dict(row, setup=setup_id) for row in rows]).execute()
+
+    # Compatibility
+
+    def flush(self, signal: bool = True):
+        """Deprecated. Saves the pending changes of all setups; save one with
+        ``registry[name].save()`` instead."""
+        warnings.warn(
+            f"`{self._registry_name}.flush()` is deprecated; save changes to a setup with "
+            f"`{self._registry_name}[name].save()` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        for proxy in list(self._proxies.values()):
+            proxy.save()
+
+    @property
+    def data(self) -> dict:
+        """All saved setups, as plain dicts."""
+        record, _ = self._models()
+        query = record.select().where(record.kind == self._kind).order_by(record.name)
+        return {row.name: self._as_dict(row) for row in query}
+
+    @property
+    def list(self):
+        """Sorted list of names."""
+        return sorted(self)
+
+    def random(self):
+        """Return a random name, or ``None`` if empty."""
+        import random as _random
+
+        names = list(self)
+        return _random.choice(names) if names else None
+
+    def __repr__(self):
+        return f"{type(self).__name__} with {len(self)} setup(s): {self.list}"
+
+
+def _setup_demand_rows(name: str, inv) -> list[dict]:
+    """``CalculationSetupDemand`` rows (without ``setup``) for the functional units ``inv``.
+    Keys are looked up as node ids; raises ``UnknownObject`` for a key of no node."""
+    from bw2data.backends.schema import ActivityDataset
+    from bw2data.errors import UnknownObject
+
+    if not isinstance(inv, (list, tuple)):
+        raise TypeError(f"`inv` of calculation setup {name!r} must be a list of dicts")
+    keys = set()
+    for unit in inv:
+        if not isinstance(unit, Mapping):
+            raise TypeError(f"`inv` of calculation setup {name!r} must be a list of dicts")
+        for node in unit:
+            if isinstance(node, (tuple, list)):
+                if len(node) != 2 or not all(isinstance(part, str) for part in node):
+                    raise ValueError(f"Not a node key in calculation setup {name!r}: {node!r}")
+                keys.add(tuple(node))
+            elif not isinstance(node, numbers.Integral) or isinstance(node, bool):
+                raise TypeError(
+                    f"Nodes in calculation setup {name!r} must be given by key or id, not "
+                    f"{node!r}"
+                )
+    ids = {}
+    for database in {database for database, _ in keys}:
+        codes = [code for db, code in keys if db == database]
+        for start in range(0, len(codes), _CHUNK):
+            query = ActivityDataset.select(ActivityDataset.code, ActivityDataset.id).where(
+                (ActivityDataset.database == database)
+                & ActivityDataset.code.in_(codes[start : start + _CHUNK])
+            )
+            ids.update(((database, code), id_) for code, id_ in query.tuples())
+    missing = sorted(keys.difference(ids))
+    if missing:
+        raise UnknownObject(
+            f"Calculation setup {name!r} refers to nodes which don't exist: "
+            + ", ".join(map(repr, missing[:5]))
+        )
+    rows = []
+    for position, unit in enumerate(inv):
+        seen = set()
+        for node, amount in unit.items():
+            key = tuple(node) if isinstance(node, (tuple, list)) else None
+            # ``int``: also numpy integers
+            node_id = ids[key] if key is not None else int(node)
+            if node_id in seen:
+                raise ValueError(
+                    f"Functional unit {position} of calculation setup {name!r} has node "
+                    f"{node_id} twice (by key and by id)"
+                )
+            seen.add(node_id)
+            if hasattr(amount, "item") and not isinstance(amount, (int, float)):
+                # E.g. a numpy scalar, which SQLite can't store
+                amount = amount.item()
+            if amount is None or (isinstance(amount, float) and math.isnan(amount)):
+                # SQLite stores NaN as ``NULL``
+                raise ValueError(
+                    f"Functional unit {position} of calculation setup {name!r} has no "
+                    f"amount for node {node!r}: {amount!r}"
+                )
+            rows.append(
+                {
+                    "unit": position,
+                    "node": node_id,
+                    "amount": amount,
+                    "key_database": key[0] if key else None,
+                    "key_code": key[1] if key else None,
+                }
+            )
+    return rows
+
+
+def remove_nodes_from_calculation_setups(nodes, message: str) -> None:
+    """Remove the nodes ``nodes`` (activity ids, or a query selecting them) from every
+    calculation setup, static and dynamic, and functional units which are then empty.
+    ``message`` is logged as a warning for each setup which changes, with ``%s`` for its
+    name."""
+    from bw2data.backends.schema import CalculationSetupDemand as demand
+    from bw2data.backends.schema import CalculationSetupRecord as record
+    from bw2data.logs import stdout_feedback_logger
+
+    if not isinstance(nodes, (list, tuple, set, frozenset)) and not hasattr(nodes, "sql"):
+        nodes = list(nodes)
+    with _atomic(record._meta.database):
+        affected = list(
+            record.select(record.id, record.kind, record.name)
+            .where(
+                record.id.in_(demand.select(demand.setup).where(demand.node.in_(nodes)).distinct())
+            )
+            .tuples()
+        )
+        if not affected:
+            return
+        demand.delete().where(demand.node.in_(nodes)).execute()
+        for setup_id, kind, name in affected:
+            stdout_feedback_logger.warning(message, name)
+            units = [
+                unit
+                for (unit,) in demand.select(demand.unit)
+                .where(demand.setup == setup_id)
+                .distinct()
+                .order_by(demand.unit)
+                .tuples()
+            ]
+            # In increasing order, so a unit never moves onto one which is still there
+            for position, unit in enumerate(units):
+                if position != unit:
+                    demand.update(unit=position).where(
+                        (demand.setup == setup_id) & (demand.unit == unit)
+                    ).execute()
+            record.update(units=len(units)).where(record.id == setup_id).execute()
+            registry = calculation_setups if kind == "static" else dynamic_calculation_setups
+            registry._proxies.pop(name, None)
+
+
+def move_database_in_calculation_setups(old: str, new: str) -> None:
+    """Point the nodes of database ``old`` in calculation setups at the nodes with the same
+    code in database ``new``, and their keys at ``new``. For ``Database.rename``, which
+    writes the database again under the new name (with new ids) before it deletes the old
+    one. Nodes without such a node are left as they are. Both databases are in the project's
+    own file."""
+    from bw2data.backends.schema import CalculationSetupDemand as demand
+    from bw2data.backends.schema import CalculationSetupRecord as record
+
+    database = record._meta.database
+    with _atomic(database):
+        database.execute_sql(
+            'UPDATE main."calculationsetupdemand" SET '
+            '"node" = (SELECT n."id" FROM main."activitydataset" AS n '
+            'JOIN main."activitydataset" AS o ON n."code" = o."code" '
+            'WHERE o."id" = "calculationsetupdemand"."node" AND n."database" = ?), '
+            '"key_database" = CASE WHEN "key_database" IS NULL THEN NULL ELSE ? END '
+            'WHERE "node" IN (SELECT o."id" FROM main."activitydataset" AS o '
+            'JOIN main."activitydataset" AS n ON n."code" = o."code" '
+            'WHERE o."database" = ? AND n."database" = ?)',
+            (new, new, old, new),
+        )
+    for registry in (calculation_setups, dynamic_calculation_setups):
+        registry._proxies.clear()
+
+
+class CalculationSetups(_CalculationSetups):
+    """Calculation setups: ``inv`` is a list of functional units, e.g.
+    ``[{(key): amount}, {(key): amount}]``, and ``ia`` a list of LCIA methods, e.g.
+    ``[(method), (method)]``. See ``_CalculationSetups``."""
+
+    _kind = "static"
+    _registry_name = "calculation_setups"
+
+
+class DynamicCalculationSetups(_CalculationSetups):
+    """Dynamic calculation setups: ``inv`` as for ``CalculationSetups``; ``ia`` is a list of
+    dicts from worst-case LCIA methods to the dynamic LCIA methods, e.g.
+    ``[{dLCIA_method_1_worstcase: dLCIA_method_1, dLCIA_method_2_worstcase: dLCIA_method_2}]``.
+    See ``_CalculationSetups``."""
+
+    _kind = "dynamic"
+    _registry_name = "dynamic_calculation_setups"
 
 
 class _LCIARegistry(_RecordRegistry):

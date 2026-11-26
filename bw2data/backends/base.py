@@ -24,7 +24,11 @@ from fsspec.implementations.zip import ZipFileSystem
 from peewee import JOIN, DoesNotExist, fn
 from tqdm import tqdm
 
-from bw2data import calculation_setups, config, databases, geomapping
+from bw2data import config, databases, geomapping
+from bw2data.meta import (
+    move_database_in_calculation_setups,
+    remove_nodes_from_calculation_setups,
+)
 from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.extensions import (
     AttachedExtension,
@@ -702,6 +706,8 @@ class SQLiteBackend(ProcessedDataStore):
             databases[name] = databases[old_name]
         new_data = self.relabel_data(self.load(), old_name, name)
         new_db.write(new_data, searchable=is_searchable(name))
+        # Before the old nodes are deleted, which would remove them from the setups
+        move_database_in_calculation_setups(old_name, name)
         del databases[old_name]
         self.name = name
         return new_db
@@ -1206,34 +1212,11 @@ Here are the type values usually used for nodes:
         check_writable(self.name, "can't be deleted")
 
         # Ignore ``self.filters``: ``delete()`` removes the whole database, so every node
-        # must be purged from the calculation setups.
-        database_ids, database_keys = set(), set()
-        for node_id, code in (
-            ActivityDataset.select(ActivityDataset.id, ActivityDataset.code)
-            .where(ActivityDataset.database == self.name)
-            .tuples()
-        ):
-            database_ids.add(node_id)
-            database_keys.add((self.name, code))
-
-        def purge(dct: dict) -> dict:
-            return {
-                key: value
-                for key, value in dct.items()
-                if key not in database_ids and key not in database_keys
-            }
-
-        for name, setup in calculation_setups.items():
-            if any(
-                (key in database_ids or key in database_keys)
-                for func_unit in setup["inv"]
-                for key in func_unit
-            ):
-                stdout_feedback_logger.warning(
-                    "Removing database node(s) from calculation setup %s", name
-                )
-                setup["inv"] = [purge(dct) for dct in setup["inv"] if purge(dct)]
-        calculation_setups.flush()
+        # must be removed from the calculation setups.
+        remove_nodes_from_calculation_setups(
+            ActivityDataset.select(ActivityDataset.id).where(ActivityDataset.database == self.name),
+            "Removing database node(s) from calculation setup %s",
+        )
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
         ExchangeDataset.delete().where(ExchangeDataset.output_database == self.name).execute()

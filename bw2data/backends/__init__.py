@@ -6,6 +6,8 @@ from bw2data.sqlite import SubstitutableDatabase, zstd_dictionaries
 from bw2data.backends.migrations import migrate
 from bw2data.backends.schema import (
     COMPRESSED_COLUMNS,
+    CalculationSetupDemand,
+    CalculationSetupRecord,
     ActivityDataset,
     CharacterizationFactor,
     DatabaseRecord,
@@ -50,6 +52,8 @@ sqlite3_lci_db = SubstitutableDatabase(
         CharacterizationFactor,
         WeightingFactor,
         NormalizationFactor,
+        CalculationSetupRecord,
+        CalculationSetupDemand,
     ],
     # ``page_size`` has no effect in WAL journal mode, so keep the default rollback journal
     pragmas={"foreign_keys": 1, "page_size": LCI_PAGE_SIZE},
