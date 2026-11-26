@@ -839,9 +839,16 @@ class SQLiteBackend(ProcessedDataStore):
     ) -> None:
         self._train_dictionary(data)
         be_complicated = len(data) >= 100 and indices
+        # The pages of the dropped indexes are on the freelist until the indexes are created
+        # again, but they are not space to reclaim: counted as free, they made every bulk
+        # write next to a large database rewrite the whole file.
+        index_pages = 0
         if be_complicated:
+            free_before = sqlite3_lci_db.freelist_count()
             self._drop_indices()
+            index_pages = max(sqlite3_lci_db.freelist_count() - free_before, 0)
         sqlite3_lci_db.db.autocommit = False
+        written = False
         try:
             sqlite3_lci_db.db.begin()
             # The search index is kept: ``write`` builds it again, or leaves it as it is
@@ -856,26 +863,40 @@ class SQLiteBackend(ProcessedDataStore):
             _insert_many(ActivityDataset, activities)
             _insert_many(ExchangeDataset, exchanges)
             sqlite3_lci_db.db.commit()
+            written = True
         except:
             sqlite3_lci_db.db.rollback()
             raise
-        else:
-            # Honours ``config.vacuum``; by default only runs when the delete above
-            # freed a meaningful share of the (shared) LCI file. The data is already
-            # committed, so a failure here (file locked by another process, no room for
-            # the temporary copy) must not make the write look like it failed.
-            try:
-                sqlite3_lci_db.vacuum()
-            except Exception as err:
-                warnings.warn(
-                    f"Database '{self.name}' was written, but the LCI database file could "
-                    f"not be compacted afterwards ({type(err).__name__}: {err}). This will "
-                    "be tried again the next time the file is vacuumed."
-                )
         finally:
             sqlite3_lci_db.db.autocommit = True
+            if written:
+                # Honours ``config.vacuum``; by default only runs when the delete above freed
+                # a meaningful share of the (shared) LCI file, not counting the pages which
+                # the indexes take again. Decided, and done, before the indexes are created
+                # again: ``VACUUM`` would build them a second time. The data is already
+                # committed, so a failure here (file locked by another process, no room for
+                # the temporary copy) must not make the write look like it failed.
+                try:
+                    sqlite3_lci_db.vacuum(reserved_pages=index_pages)
+                except Exception as err:
+                    warnings.warn(
+                        f"Database '{self.name}' was written, but the LCI database file could "
+                        f"not be compacted afterwards ({type(err).__name__}: {err}). This will "
+                        "be tried again the next time the file is vacuumed."
+                    )
             if be_complicated:
-                self._add_indices()
+                # A failure must neither hide the error of a failed write, nor make a
+                # committed write look like it failed (``write`` would delete the data).
+                try:
+                    self._add_indices()
+                except Exception as err:
+                    warnings.warn(
+                        f"The indexes of the LCI database file could not be created again "
+                        f"after writing database '{self.name}' ({type(err).__name__}: {err}). "
+                        "Queries are slower, and activity keys are not checked for "
+                        "duplicates, until the next `Database.write()` of 100 or more "
+                        "datasets, which tries again."
+                    )
 
     # Public API
 

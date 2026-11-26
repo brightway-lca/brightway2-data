@@ -723,7 +723,7 @@ class SubstitutableDatabase:
         return them to the filesystem."""
         return self.execute_sql("PRAGMA freelist_count;").fetchone()[0]
 
-    def vacuum(self) -> bool:
+    def vacuum(self, reserved_pages: int = 0) -> bool:
         """Run ``VACUUM`` on the database file according to ``config.vacuum``.
 
         ``VACUUM`` rewrites the whole file, which for a large LCI database can take tens of
@@ -735,10 +735,15 @@ class SubstitutableDatabase:
         * ``config.vacuum is True``: always run.
         * ``config.vacuum is False``: never run.
 
+        ``reserved_pages`` is the number of free pages which are not space to reclaim, because
+        the caller is about to fill them again (the indexes dropped for a bulk write). The
+        default policy doesn't count them as free.
+
         Must not be called inside a transaction. Returns whether ``VACUUM`` ran."""
         if config.vacuum is None:
             pages = self.page_count()
-            needed = pages > 0 and self.freelist_count() / pages > self.VACUUM_FREE_FRACTION
+            free = self.freelist_count() - reserved_pages
+            needed = pages > 0 and free / pages > self.VACUUM_FREE_FRACTION
         else:
             needed = bool(config.vacuum)
         if needed:

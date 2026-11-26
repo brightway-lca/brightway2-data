@@ -1,3 +1,4 @@
+import sqlite3
 from unittest.mock import patch
 
 import pytest
@@ -5,6 +6,7 @@ import pytest
 from bw2data import config
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import DatabaseChooser
+from bw2data.errors import InvalidExchange
 from bw2data.tests import bw2test
 
 SMALL = {
@@ -108,3 +110,91 @@ def test_failed_write_honours_vacuum_policy(vacuum_spy):
             with pytest.raises(ValueError):
                 database.write(SMALL)
     assert vacuum_spy.vacuums() == 0
+
+
+def linked_data(name, n, per_activity=10):
+    """``n`` activities with ``per_activity`` exchanges each, between activities of ``name``:
+    many exchange rows, so that the indexes are a large share of the file."""
+    return {
+        (name, str(i)): {
+            "name": f"node {i}",
+            "exchanges": [
+                {"input": (name, str((i + j) % n)), "amount": 1, "type": "technosphere"}
+                for j in range(per_activity)
+            ],
+        }
+        for i in range(n)
+    }
+
+
+@bw2test
+def test_bulk_write_next_to_a_large_database_skips_vacuum(vacuum_spy):
+    # A write of at least 100 datasets drops the LCI indexes and creates them again. Their
+    # pages are not free space to reclaim: the indexes take them again.
+    DatabaseChooser("background").write(linked_data("background", 2_000))
+    with patch.object(config, "vacuum", None):
+        DatabaseChooser("foreground").write(linked_data("foreground", 100))
+    assert vacuum_spy.vacuums() == 0
+    # The pages of the dropped indexes were taken again
+    assert (
+        sqlite3_lci_db.freelist_count() / sqlite3_lci_db.page_count()
+        < sqlite3_lci_db.VACUUM_FREE_FRACTION
+    )
+
+
+LCI_INDEXES = {"activitydataset_key", "exchangedataset_input", "exchangedataset_output"}
+
+
+def lci_indexes():
+    return {
+        row[0]
+        for row in sqlite3_lci_db.execute_sql(
+            "SELECT name FROM sqlite_master WHERE type = 'index'"
+        ).fetchall()
+    } & LCI_INDEXES
+
+
+@bw2test
+def test_bulk_write_vacuums_before_creating_indexes(vacuum_spy):
+    # ``VACUUM`` builds every index of the file again, so the indexes are created after it
+    with patch.object(config, "vacuum", True):
+        DatabaseChooser("foreground").write(linked_data("foreground", 100))
+    statements = [str(call.args[0]).upper() for call in vacuum_spy.call_args_list]
+    vacuums = [i for i, sql in enumerate(statements) if "VACUUM" in sql]
+    creates = [
+        i
+        for i, sql in enumerate(statements)
+        if "CREATE" in sql and any(name.upper() in sql for name in LCI_INDEXES)
+    ]
+    assert len(vacuums) == 1
+    assert len(creates) == 3
+    assert vacuums[0] < min(creates)
+    assert lci_indexes() == LCI_INDEXES
+
+
+@bw2test
+def test_failure_to_create_indexes_keeps_written_data():
+    database = DatabaseChooser("foreground")
+    with patch.object(
+        type(database), "_add_indices", side_effect=sqlite3.OperationalError("database is locked")
+    ):
+        with pytest.warns(UserWarning, match="could not be created again"):
+            database.write(linked_data("foreground", 100))
+    assert len(database) == 100
+    assert lci_indexes() == set()
+    # The next bulk write creates them
+    DatabaseChooser("other").write(linked_data("other", 100))
+    assert lci_indexes() == LCI_INDEXES
+
+
+@bw2test
+def test_failure_to_create_indexes_keeps_error_of_failed_write():
+    database = DatabaseChooser("foreground")
+    data = linked_data("foreground", 100)
+    del data[("foreground", "99")]["exchanges"][0]["amount"]
+    with patch.object(
+        type(database), "_add_indices", side_effect=sqlite3.OperationalError("database is locked")
+    ):
+        with pytest.warns(UserWarning, match="could not be created again"):
+            with pytest.raises(InvalidExchange):
+                database.write(data)
