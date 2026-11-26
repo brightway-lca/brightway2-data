@@ -1066,6 +1066,35 @@ def _create_lci_indexes(db: Database, project_dir: Path) -> None:
             db.execute_sql(sql)
 
 
+def ensure_lci_indexes(db: Database) -> bool:
+    """Create the LCI indexes (``LCI_INDEXES``) which a file past schema migration 8 lacks,
+    as ``_create_lci_indexes`` does, and return whether it did. Such a file was opened with a
+    development version whose later steps had the numbers 8 to 10 before step 8 was added
+    (``feature/lci-extensions`` before it was merged into ``main``): it counts step 8 as done,
+    and writes no longer create the indexes. Called each time the file is opened, which costs
+    one read of ``sqlite_master`` when the indexes exist.
+
+    Nothing happens if the file can't be written right now."""
+    if not 8 <= schema_version(db) <= SCHEMA_VERSION:
+        return False
+    names = [name for name, _ in LCI_INDEXES]
+    existing = db.execute_sql(
+        "SELECT count(*) FROM main.sqlite_master WHERE type = 'index' AND name IN "
+        f"({', '.join('?' * len(names))})",
+        names,
+    ).fetchone()[0]
+    if existing == len(names):
+        return False
+    try:
+        with db.atomic("IMMEDIATE"):
+            _create_lci_indexes(db, None)
+    except OperationalError as err:
+        if not _cannot_write(err):
+            raise
+        return False
+    return True
+
+
 def make_activity_keys_unique(db: Database) -> bool:
     """Replace an ``activitydataset_key`` index which schema migration 8 had to create
     without ``UNIQUE`` (see ``_create_lci_indexes``) with the unique one, if no activities
@@ -1589,7 +1618,7 @@ SCHEMA_VERSION = len(MIGRATIONS)
 #: database records, zstd dictionaries) must be stored as this version of bw2data stores them.
 #: Raise this to the new version whenever a step changes how one of these tables is stored.
 #: 6: activity and exchange data as compressed tagged JSON, without pickles.
-#: 10: location ids derived from location names, as in the stored processed datapackages.
+#: 11: location ids derived from location names, as in the stored processed datapackages.
 MIN_EXTENSION_SCHEMA_VERSION = 11
 
 

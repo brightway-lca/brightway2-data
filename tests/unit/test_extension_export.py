@@ -287,6 +287,32 @@ def test_unknown_and_iotable_databases_are_refused(built, tmp_path):
         projects.export_extension(tmp_path / "x.db", ["io", "io"])
 
 
+def test_lci_indexes_are_unique(built):
+    bio, inv = built
+    for path in (bio, inv):
+        unique = {
+            name: bool(flag)
+            for _, name, flag, *_ in file_rows(path, 'PRAGMA index_list("activitydataset")')
+        }
+        assert unique["activitydataset_key"]
+
+
+def test_duplicate_keys_are_refused(built, tmp_path):
+    Database("mine").write({("mine", "a"): {"name": "a"}})
+    # As in a project where schema migration 8 found duplicate keys
+    sqlite3_lci_db.execute_sql('DROP INDEX main."activitydataset_key"')
+    sqlite3_lci_db.execute_sql(
+        'CREATE INDEX main."activitydataset_key" ON "activitydataset" ("database", "code")'
+    )
+    sqlite3_lci_db.execute_sql(
+        'INSERT INTO main."activitydataset" (id, data, code, database) '
+        "SELECT id + 1, data, code, database FROM main.activitydataset WHERE database = 'mine'"
+    )
+    with pytest.raises(ExtensionError, match=r"\('mine', 'a'\) 2 times"):
+        projects.export_extension(tmp_path / "x.db", ["mine"])
+    assert not (tmp_path / "x.db").exists()
+
+
 def test_existing_file(built):
     bio, inv = built
     projects.set_current("bio-builder")

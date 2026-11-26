@@ -59,7 +59,6 @@ from peewee import Model, sqlite3
 from bw2data.backends.schema import (
     ACTIVITY_TABLE,
     EXCHANGE_TABLE,
-    LCI_INDEX_SQL,
     ActivityDataset,
     CharacterizationFactor,
     DatabaseRecord,
@@ -1288,10 +1287,13 @@ _DICTIONARY_SAMPLES = 5_000
 _DICTIONARY_MIN_VALUES = 500
 
 
-def _schema_sql(connection, schema: str) -> tuple[list[str], list[str]]:
+def _schema_sql(
+    connection, schema: str, skip_indexes: Iterable[str] = ()
+) -> tuple[list[str], list[str]]:
     """The ``CREATE`` statements of the tables and of the indexes of ``schema``, without
-    SQLite's own tables, and without virtual tables (search indexes) and their shadow
-    tables."""
+    SQLite's own tables, without virtual tables (search indexes) and their shadow tables, and
+    without the indexes named in ``skip_indexes``."""
+    skip_indexes = set(skip_indexes)
     rows = _rows(
         connection,
         f"SELECT type, name, tbl_name, sql FROM {_q(schema)}.sqlite_master "
@@ -1311,7 +1313,11 @@ def _schema_sql(connection, schema: str) -> tuple[list[str], list[str]]:
         )
 
     tables = [sql for type_, name, _, sql in rows if type_ == "table" and not skipped(name)]
-    indexes = [sql for type_, _, table, sql in rows if type_ == "index" and not skipped(table)]
+    indexes = [
+        sql
+        for type_, name, table, sql in rows
+        if type_ == "index" and not skipped(table) and name not in skip_indexes
+    ]
     return tables, indexes
 
 
@@ -1416,6 +1422,21 @@ def _export_plan(
             )
     if problems:
         raise ExtensionError("Can't export: " + "; ".join(problems))
+
+    # An extension file can never be fixed, so it must not have two activities with one key
+    duplicates = _rows(
+        connection,
+        f'SELECT "database", "code", count(*) FROM {source}.{_q(ACTIVITY_TABLE)} '
+        f'WHERE "database" IN ({marks}) GROUP BY "database", "code" HAVING count(*) > 1 '
+        "ORDER BY 1, 2 LIMIT 5",
+        names,
+    )
+    if duplicates:
+        raise ExtensionError(
+            "Can't export: activity keys are used more than once, e.g. "
+            + ", ".join(f"({d!r}, {c!r}) {n} times" for d, c, n in duplicates)
+            + ". Delete all but one of each, or give them another code, and export again."
+        )
 
     # What the exported databases link to
     sql = (
@@ -1531,6 +1552,7 @@ def _build_extension(
 ) -> str:
     from bw2data import __version__
     from bw2data.backends import LCI_PAGE_SIZE
+    from bw2data.backends.migrations import LCI_INDEXES
     from bw2data.search.indices import _table_definition, create_table_sql, index_table
     from bw2data.snowflake_ids import new_snowflake_id
 
@@ -1551,7 +1573,11 @@ def _build_extension(
             connection, "source", main_path, names, attached, schema_version
         )
 
-        tables, indexes = _schema_sql(connection, "source")
+        # The LCI indexes are created as schema migration 8 creates them, not copied: the
+        # project's key index isn't unique if migration 8 found duplicate keys in it
+        tables, indexes = _schema_sql(
+            connection, "source", skip_indexes=[name for name, _ in LCI_INDEXES]
+        )
         for statement in tables:
             connection.execute(statement)
 
@@ -1586,8 +1612,7 @@ def _build_extension(
         dictionaries = _recompress(connection, (activities, exchanges))
         for statement in indexes:
             connection.execute(statement)
-        # A project's file gets them from schema migration 8, which doesn't run here
-        for statement in LCI_INDEX_SQL:
+        for _, statement in LCI_INDEXES:
             connection.execute(statement)
 
         # Search indexes

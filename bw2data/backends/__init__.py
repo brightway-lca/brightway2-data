@@ -3,7 +3,7 @@ import os
 from bw2data import config
 from bw2data.project import projects
 from bw2data.sqlite import AUTO_VACUUM_INCREMENTAL, SubstitutableDatabase, zstd_dictionaries
-from bw2data.backends.migrations import make_activity_keys_unique, migrate
+from bw2data.backends.migrations import ensure_lci_indexes, make_activity_keys_unique, migrate
 from bw2data.backends.schema import (
     COMPRESSED_COLUMNS,
     CalculationSetupDemand,
@@ -39,8 +39,9 @@ LCI_PAGE_SIZE = 16384
 def _on_open(db):
     # ``projects.dir`` already points at the new project when the file is switched
     applied = migrate(db, projects.dir)
-    if 8 not in applied:
-        # Migration 8 has just looked for duplicate keys itself
+    # Migration 8, or creating the indexes it would have created, has just looked for
+    # duplicate keys itself
+    if 8 not in applied and not ensure_lci_indexes(db):
         make_activity_keys_unique(db)
 
 
