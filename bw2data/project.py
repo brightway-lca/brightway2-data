@@ -807,15 +807,21 @@ class ProjectManager(Iterable):
         processed datapackage, are processed first. Only committed changes are exported.
         Raises ``FileExistsError`` if ``filepath`` exists, unless ``overwrite``; see
         ``bw2data.backends.extensions.build_extension``."""
-        from bw2data.backends.extensions import build_extension
+        from bw2data.backends.extensions import build_extension, check_export
 
         lci_db = self._lci_db()
         if lci_db is None:
             raise RuntimeError("No project is open")
         if lci_db.db.in_transaction():
             raise RuntimeError("Can't export inside a transaction: only committed data is read")
+        databases = [databases] if isinstance(databases, str) else list(databases)
+        main_path = self.dir / self._LCI_DATABASE
+        # Before anything is processed: an export which is refused changes nothing
+        check_export(
+            main_path, filepath, databases, version, attached=lci_db.extensions, overwrite=overwrite
+        )
         return build_extension(
-            self.dir / self._LCI_DATABASE,
+            main_path,
             filepath,
             databases,
             version=version,
@@ -826,23 +832,13 @@ class ProjectManager(Iterable):
 
     @staticmethod
     def _processed_for_export(databases) -> dict:
-        """``{database: path of its processed datapackage}`` for the databases ``databases``
-        which can be exported, processed first if they are ``dirty`` or have none. The others
-        are left out; ``build_extension`` refuses them."""
+        """``{database: path of its processed datapackage}`` for the databases ``databases``,
+        which ``check_export`` accepted. They are processed first if they are ``dirty`` or
+        have none."""
         from bw2data import Database
-        from bw2data import databases as registry
-        from bw2data.backends.extensions import extension_of
 
-        names = [databases] if isinstance(databases, str) else list(databases)
         result = {}
-        for name in names:
-            if (
-                not isinstance(name, str)
-                or name not in registry
-                or extension_of(name) is not None
-                or registry[name].get("backend", "sqlite") != "sqlite"
-            ):
-                continue
+        for name in databases:
             database = Database(name)
             # Processes the database if it is dirty
             path = database.filepath_processed()

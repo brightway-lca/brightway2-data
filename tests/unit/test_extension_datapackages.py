@@ -3,6 +3,7 @@
 database in the project."""
 
 import threading
+import warnings
 
 import numpy as np
 import pytest
@@ -192,6 +193,18 @@ def test_filepath_processed_writes_the_stored_datapackage(built, monkeypatch):
     assert not path.exists()
 
 
+def test_filepath_processed_replaces_a_file_which_is_not_the_stored_one(built, monkeypatch):
+    # E.g. left by a database of the project which had this name: deleting one keeps the file
+    bio, inv = built
+    backend = SQLiteBackend("bio")
+    path = backend.dirpath_processed() / backend.filename_processed()
+    path.write_bytes(b"left over")
+    projects.attach_extension(bio)
+    no_processing(monkeypatch)
+    assert Database("bio").filepath_processed() == path
+    assert path.read_bytes() == stored_datapackage("bio")
+
+
 # Processed in the project instead
 
 
@@ -241,3 +254,66 @@ def test_reading_needs_the_extension_attached(built):
     assert stored_datapackage("bio")[:4] == b"PK\x03\x04"
     sqlite3_lci_db.change_path(lci_path())
     assert stored_datapackage("bio") is None
+
+
+def test_stored_datapackage_which_can_no_longer_be_used(built):
+    # ``inv`` comes back with its requirement met by the project's own ``bio``: its stored
+    # datapackage, and the copy of it in the project, have the ids of the extension's ``bio``
+    bio, inv = built
+    projects.attach_extension([bio, inv], allow_main_requirements=True)
+    assert has_stored_datapackage("inv")
+    path = Database("inv").filepath_processed()
+    stored = stored_datapackage("inv")
+    assert path.read_bytes() == stored
+    with pytest.warns(UserWarning):
+        projects.detach_extension("bio", force=True)
+    Database("bio").write(BIO)
+    projects.set_current("elsewhere")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        projects.set_current("user")
+    assert "inv" in databases
+    assert not has_stored_datapackage("inv")
+    assert stored_datapackage("inv") is None
+    assert stored_datapackage("inv", usable_only=False) == stored
+    assert lca_score() == pytest.approx(13)
+    assert path.read_bytes() != stored
+
+
+def test_extension_database_without_processed_file_is_processed(built):
+    bio, inv = built
+    edit(bio, f"DROP TABLE {DATAPACKAGE_TABLE}")
+    projects.attach_extension(bio)
+    databases.clean()
+    path = Database("bio").filepath_processed()
+    path.unlink()
+    assert not databases["bio"].get("dirty")
+    assert Database("bio").datapackage().resources
+    assert path.is_file()
+
+
+def test_refused_export_processes_nothing(built, tmp_path, monkeypatch):
+    bio, inv = built
+    projects.set_current("inv-builder")
+    databases["inv"]["dirty"] = True
+    databases["inv"].save()
+    Database("other").write({("other", "a"): {"name": "a"}})
+    Database("linked").write(
+        {
+            ("linked", "a"): {
+                "name": "a",
+                "exchanges": [{"input": ("other", "a"), "amount": 1, "type": "technosphere"}],
+            }
+        }
+    )
+    databases["linked"]["dirty"] = True
+    databases["linked"].save()
+    no_processing(monkeypatch)
+    with pytest.raises(FileExistsError):
+        projects.export_extension(inv, "inv")
+    with pytest.raises(ExtensionError, match="neither exported nor in an attached extension"):
+        projects.export_extension(tmp_path / "new.db", ["inv", "linked"])
+    with pytest.raises(ExtensionError, match="no database 'nothing'"):
+        projects.export_extension(tmp_path / "new.db", ["inv", "nothing"])
+    assert not (tmp_path / "new.db").exists()
+    assert databases["inv"]["dirty"] and databases["linked"]["dirty"]

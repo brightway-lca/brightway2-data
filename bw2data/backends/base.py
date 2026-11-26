@@ -516,21 +516,33 @@ class SQLiteBackend(ProcessedDataStore):
         raise NotImplementedError
 
     def filepath_processed(self):
+        path = self.dirpath_processed() / self.filename_processed()
+        if not self.is_extension:
+            if self.metadata.get("dirty"):
+                self.process()
+            return path
+        # The project's file for a database in an extension is checked on each call, not
+        # trusted: which of the two cases below applies changes with what is attached, and a
+        # file may be left from the other case or from a database which had this name before
+        stored = stored_datapackage(self.name, usable_only=False)
+        current = path.read_bytes() if stored is not None and path.is_file() else None
         if has_stored_datapackage(self.name):
             # Stored in its extension's file; written out for code which wants a file
-            path = self.dirpath_processed() / self.filename_processed()
-            if not path.is_file():
-                content = stored_datapackage(self.name)
+            if current != stored:
                 temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
                 try:
-                    temporary.write_bytes(content)
+                    temporary.write_bytes(stored)
                     os.replace(temporary, path)
                 finally:
                     temporary.unlink(missing_ok=True)
-            return path
-        if self.metadata.get("dirty"):
+        elif (
+            self.metadata.get("dirty")
+            or not path.is_file()
+            # The stored datapackage can't be used (any more), and this is a copy of it
+            or (stored is not None and current == stored)
+        ):
             self.process()
-        return self.dirpath_processed() / self.filename_processed()
+        return path
 
     def datapackage(self) -> Datapackage:
         """The processed datapackage of this database. For a database in a read-only extension
