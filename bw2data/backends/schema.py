@@ -165,6 +165,17 @@ class ExchangeDataset(_SavedInTransaction, SnowflakeIDBaseClass):
 #: The tables with a ``CompressedJSONField``, and the name of its column
 COMPRESSED_COLUMNS = {ACTIVITY_TABLE: "data", EXCHANGE_TABLE: "data"}
 
+#: Indexes on the natural keys of activities and exchanges. Not created with the tables: a bulk
+#: ``Database.write`` drops and adds them (``SQLiteBackend._add_indices``)
+LCI_INDEX_SQL = (
+    f'CREATE UNIQUE INDEX IF NOT EXISTS main."activitydataset_key" ON "{ACTIVITY_TABLE}" '
+    '("database", "code")',
+    f'CREATE INDEX IF NOT EXISTS main."exchangedataset_input" ON "{EXCHANGE_TABLE}" '
+    '("input_database", "input_code")',
+    f'CREATE INDEX IF NOT EXISTS main."exchangedataset_output" ON "{EXCHANGE_TABLE}" '
+    '("output_database", "output_code")',
+)
+
 
 class ZstdDictionary(Model):
     """A zstd dictionary used to compress the ``data`` of activities and exchanges.

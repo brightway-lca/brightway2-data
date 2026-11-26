@@ -3,7 +3,8 @@
 of ``bw2data.backends.extensions.check_extensions``.
 
 Extension files are made here by copying a project's file and keeping some databases, with the
-two extension tables added by hand; building them properly is ``export_extension`` (PR 6)."""
+two extension tables added by hand, so that broken files can be made as well; files are built
+properly by ``projects.export_extension`` (tests/unit/test_extension_export.py)."""
 
 import json
 import sqlite3

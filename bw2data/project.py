@@ -768,15 +768,61 @@ class ProjectManager(Iterable):
         # another version of the file: start from a new local state, to be processed
         from bw2data.search.indices import index_table
 
+        from bw2data import geomapping
+        from bw2data.backends import SQLiteBackend
+
         before = {spec.name for spec in attached_now}
+        locations = set()
         for extension in lci_db.extensions:
             if extension.name not in before:
                 for database in extension.databases:
                     ExtensionDatabaseState.replace(name=database, dirty=True).execute()
                     # A search index built in the project is for another version of the file
                     lci_db.execute_sql(f'DROP TABLE IF EXISTS main."{index_table(database)}"')
+                    # Extensions have no geomapping: their location names get ids here
+                    locations.update(SQLiteBackend(database).inventory_locations())
+        geomapping.add(locations)
         bw2signals.on_extension_attached.send(self, names=[entry["name"] for entry in entries])
         return tuple(e for e in self.extensions if e.name in new_names)
+
+    def export_extension(
+        self,
+        filepath: Union[str, Path],
+        databases: Union[str, Sequence[str]],
+        version: Optional[str] = None,
+        overwrite: bool = False,
+    ) -> str:
+        """Write databases of the current project into a new read-only LCI extension file
+        ``filepath``, which any project can attach with ``attach_extension``. Returns the id of
+        the new extension. ``version`` is a label for people, e.g. ``"3.11"``.
+
+        The databases must be in the project's own file. They may link to each other, and to
+        databases in the extensions attached to the project: the new file then requires those
+        extensions, in exactly the versions attached now, and can only be attached together
+        with them. Links to any other database are refused (``bw2data.errors.ExtensionError``),
+        as an extension can't depend on data which can still change. IO table databases are
+        refused as well.
+
+        The file holds the databases' activities, with their ids, their exchanges, with new
+        ids, their metadata (``depends`` worked out from the exchanges) and their search
+        indexes; nothing else of the project. Only committed changes are exported. Raises
+        ``FileExistsError`` if ``filepath`` exists, unless ``overwrite``; see
+        ``bw2data.backends.extensions.build_extension``."""
+        from bw2data.backends.extensions import build_extension
+
+        lci_db = self._lci_db()
+        if lci_db is None:
+            raise RuntimeError("No project is open")
+        if lci_db.db.in_transaction():
+            raise RuntimeError("Can't export inside a transaction: only committed data is read")
+        return build_extension(
+            self.dir / self._LCI_DATABASE,
+            filepath,
+            databases,
+            version=version,
+            attached=lci_db.extensions,
+            overwrite=overwrite,
+        )
 
     def detach_extension(self, name: str, force: bool = False) -> None:
         """Remove the read-only LCI extension ``name`` from the current project. The file itself
@@ -836,14 +882,20 @@ class ProjectManager(Iterable):
             used.update(lci_db.extension_databases())
             databases = tuple(database for database in databases if database not in used)
         if databases:
+            from bw2data.backends import SQLiteBackend
             from bw2data.search.indices import index_table
 
             ExtensionDatabaseState.delete().where(
                 ExtensionDatabaseState.name.in_(list(databases))
             ).execute()
-            # Indexes built in the project for databases whose file had none
             for database in databases:
+                # Indexes built in the project for databases whose file had none
                 lci_db.execute_sql(f'DROP TABLE IF EXISTS main."{index_table(database)}"')
+                # Processed data; geomapping entries stay, as other processed data may use them
+                backend = SQLiteBackend(database)
+                (backend.dirpath_processed() / backend.filename_processed()).unlink(
+                    missing_ok=True
+                )
         bw2signals.on_extension_detached.send(self, name=name, databases=signal_databases)
 
     @staticmethod
