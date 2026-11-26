@@ -41,10 +41,13 @@ The SQL builders are pure functions. ``check_extensions`` and ``attach_hook`` ar
 
 import hashlib
 import json
+import os
 import re
+import uuid
 from collections.abc import Mapping, Sequence
 from contextlib import closing
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from os import PathLike
 from pathlib import Path
 from types import MappingProxyType
@@ -54,6 +57,7 @@ from peewee import Model, sqlite3
 from bw2data.backends.schema import (
     ACTIVITY_TABLE,
     EXCHANGE_TABLE,
+    LCI_INDEX_SQL,
     ActivityDataset,
     DatabaseRecord,
     ExchangeDataset,
@@ -65,7 +69,15 @@ from bw2data.errors import (
     ExtensionError,
     ReadOnlyExtensionError,
 )
-from bw2data.sqlite import ZSTD_DICTIONARY_TABLE, ConnectionHook, _sqlite_uri
+from bw2data.sqlite import (
+    ZSTD_DICTIONARY_SIZE,
+    ZSTD_DICTIONARY_TABLE,
+    ZSTD_LEVEL,
+    ZSTD_MAGIC,
+    ConnectionHook,
+    _sqlite_uri,
+    zstd,
+)
 
 #: TEMP table with one row per database name stored in an attached extension
 REGISTRY_TABLE = "lci_extension_databases"
@@ -1068,3 +1080,505 @@ def check_name_free(database: str) -> None:
     """Raise ``ReadOnlyExtensionError`` if the database name ``database`` is used by an
     attached extension, so that it can't be given to a database of the project."""
     check_writable(database, "its name can't be used for a database of the project")
+
+
+# Building extensions
+#
+# ``build_extension`` writes databases of a project's own file into a new extension file. The
+# file is a copy of the project file's schema (tables and indexes) holding only the rows of the
+# exported databases; the project-local tables are left empty. It carries the search index
+# tables of the exported databases with their rows, so that nothing has to be built when it is
+# attached. The zstd dictionaries of the project stay behind: they hold pieces of all its data.
+
+#: Key of ``INFO_TABLE``: the version of bw2data which built the file
+INFO_BW2DATA_VERSION = "bw2data_version"
+#: Key of ``INFO_TABLE``: when the file was built, as an ISO timestamp (UTC)
+INFO_CREATED = "created"
+
+#: Rows written in one ``executemany``
+_COPY_CHUNK = 10_000
+#: Most values a new zstd dictionary is trained on, and fewest values to train one for
+_DICTIONARY_SAMPLES = 5_000
+_DICTIONARY_MIN_VALUES = 500
+
+
+def _schema_sql(connection, schema: str) -> tuple[list[str], list[str]]:
+    """The ``CREATE`` statements of the tables and of the indexes of ``schema``, without
+    SQLite's own tables, and without virtual tables (search indexes) and their shadow
+    tables."""
+    rows = _rows(
+        connection,
+        f"SELECT type, name, tbl_name, sql FROM {_q(schema)}.sqlite_master "
+        "WHERE sql IS NOT NULL ORDER BY rowid",
+    )
+    virtual = {
+        name
+        for type_, name, _, sql in rows
+        if type_ == "table" and sql.upper().startswith("CREATE VIRTUAL TABLE")
+    }
+
+    def skipped(table: str) -> bool:
+        return (
+            table.startswith("sqlite_")
+            or table in virtual
+            or any(table.startswith(f"{name}_") for name in virtual)
+        )
+
+    tables = [sql for type_, name, _, sql in rows if type_ == "table" and not skipped(name)]
+    indexes = [sql for type_, _, table, sql in rows if type_ == "index" and not skipped(table)]
+    return tables, indexes
+
+
+def _json_value(value):
+    if value is None or isinstance(value, (dict, list)):
+        return value
+    return json.loads(value)
+
+
+def build_extension(
+    main_path,
+    path,
+    databases: Sequence[str],
+    version: str | None = None,
+    attached: Sequence[AttachedExtension] = (),
+    overwrite: bool = False,
+) -> str:
+    """Write the databases ``databases`` of the project file ``main_path`` into a new extension
+    file ``path``, and return the id of the new extension. Use ``projects.export_extension``,
+    which calls this for the current project.
+
+    ``attached`` are the extensions attached to the project. An exported database may link to
+    databases in them: the new file then requires each of those databases, with the extension's
+    id and the database's fingerprint. Raises ``ExtensionError`` if an exported database links
+    to a database which is neither exported nor in an attached extension, as a read-only file
+    must not depend on data which can still change; or if a database is not in the project's
+    own file, or is an IO table database, whose exchanges are not stored in SQLite.
+
+    The file gets:
+
+    * the schema of the project file and ``user_version = SCHEMA_VERSION``;
+    * the activities of the databases, with their ids, and their exchanges, with new ids;
+    * their database records, with ``depends`` worked out from the exchanges, ``processed``
+      removed from ``extra``, ``dirty`` cleared and ``searchable`` set to whether the file has
+      an index;
+    * the search index tables of the searchable databases, copied with their rows, or built if
+      the project has no index for one;
+    * no zstd dictionary of the project: if the values use one, they are compressed again
+      with a new dictionary trained on them alone (``_recompress``);
+    * ``INFO_TABLE`` (a new id, ``version``, the fingerprints, the bw2data version and the time
+      it was built) and ``REQUIRES_TABLE``.
+
+    Only committed data is read. The file is built next to ``path``, and only moved there once
+    it is complete and passes the checks made when an extension is attached. Raises
+    ``FileExistsError`` if ``path`` exists, unless ``overwrite``."""
+    from bw2data.backends.migrations import SCHEMA_VERSION
+
+    path = Path(path)
+    names = [databases] if isinstance(databases, str) else list(databases)
+    if not names:
+        raise ValueError("No database to export")
+    if not all(isinstance(name, str) for name in names) or len(set(names)) != len(names):
+        raise ValueError(f"Databases must be given as distinct names: {names!r}")
+    if version is not None and not isinstance(version, str):
+        raise TypeError(f"The version label must be a string, not {version!r}")
+    # Never to be replaced, also with ``overwrite``
+    resolved = path.resolve()
+    if resolved == Path(main_path).resolve():
+        raise ExtensionError(f"Can't export to {path}: it is the project's own file")
+    for extension in attached:
+        if resolved == extension.path.resolve():
+            raise ExtensionError(
+                f"Can't export to {path}: it is the file of the attached {extension}; detach "
+                "it first"
+            )
+    if path.exists() and not overwrite:
+        raise FileExistsError(f"{path} exists; pass `overwrite=True` to replace it")
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        try:
+            extension_id = _build_extension(
+                main_path, temporary, names, version, tuple(attached), SCHEMA_VERSION
+            )
+        except sqlite3.Error as err:
+            raise ExtensionError(f"Can't export to {path}: {err}") from err
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return extension_id
+
+
+def _build_extension(
+    main_path,
+    target: Path,
+    names: list[str],
+    version: str | None,
+    attached: tuple[AttachedExtension, ...],
+    schema_version: int,
+) -> str:
+    from bw2data import __version__
+    from bw2data.backends import LCI_PAGE_SIZE
+    from bw2data.search.indices import _table_definition, create_table_sql, index_table
+    from bw2data.snowflake_ids import new_snowflake_id
+
+    marks = ", ".join("?" * len(names))
+    activities = _q(_table(ActivityDataset))
+    exchanges = _q(_table(ExchangeDataset))
+    records = _q(_table(DatabaseRecord))
+
+    # ``uri=True``: the project's file is attached by URI, which SQLite otherwise only accepts
+    # if it was compiled to
+    connection = sqlite3.connect(_sqlite_uri(target), uri=True, isolation_level=None)
+    with closing(connection):
+        connection.execute(f"PRAGMA main.page_size = {int(LCI_PAGE_SIZE)}")
+        connection.execute("ATTACH DATABASE ? AS source", (_sqlite_uri(main_path, mode="ro"),))
+        # All reads see one state of the project file
+        connection.execute("BEGIN")
+        ((source_version,),) = _rows(connection, "PRAGMA source.user_version")
+        if source_version != schema_version:
+            raise ExtensionError(
+                f"Can't export from {main_path}: it has schema version {source_version}, not "
+                f"{schema_version}; open the project to finish its migrations first"
+            )
+
+        # Which databases can be exported
+        record_columns = [r[1] for r in _rows(connection, f"PRAGMA source.table_info({records})")]
+        sql = f"SELECT * FROM source.{records} WHERE name IN ({marks})"
+        found = {
+            row["name"]: row
+            for row in (dict(zip(record_columns, r)) for r in _rows(connection, sql, names))
+        }
+        stored_in = {database: e for e in attached for database in e.databases}
+        problems = []
+        for name in names:
+            if name in stored_in:
+                problems.append(
+                    f"database {name!r} is stored in the read-only {stored_in[name]}; copy it "
+                    "into the project to export it"
+                )
+            elif name not in found:
+                problems.append(f"the project has no database {name!r}")
+            elif found[name]["backend"] == "iotable":
+                problems.append(
+                    f"database {name!r} is an IO table database, whose exchanges are not "
+                    "stored in the project's file"
+                )
+        if problems:
+            raise ExtensionError("Can't export: " + "; ".join(problems))
+
+        # What the exported databases link to
+        sql = (
+            f"SELECT DISTINCT output_database, input_database FROM source.{exchanges} "
+            f"WHERE output_database IN ({marks}) AND input_database != output_database "
+            "ORDER BY 1, 2"
+        )
+        depends = {name: set() for name in names}
+        requirements = {}
+        for output, input_ in _rows(connection, sql, names):
+            depends[output].add(input_)
+            if input_ in depends:
+                continue
+            provider = stored_in.get(input_)
+            if provider is None:
+                problems.append(
+                    f"database {output!r} links to database {input_!r}, which is neither "
+                    "exported nor in an attached extension"
+                )
+            elif input_ not in provider.fingerprints:
+                problems.append(
+                    f"database {output!r} links to database {input_!r} in {provider}, which "
+                    "has no fingerprint for it"
+                )
+            else:
+                requirements[input_] = (input_, provider.id, provider.fingerprints[input_])
+        if problems:
+            raise ExtensionError(
+                "Can't export: "
+                + "; ".join(problems)
+                + ". An extension can only link to databases in other extensions: export the "
+                "databases it links to as well, or attach them as an extension."
+            )
+
+        tables, indexes = _schema_sql(connection, "source")
+        for statement in tables:
+            connection.execute(statement)
+
+        # Activities keep their ids: search indexes and characterization factors use them
+        connection.execute(
+            f"INSERT INTO main.{activities} SELECT * FROM source.{activities} "
+            f"WHERE database IN ({marks})",
+            names,
+        )
+        # Exchanges get new ids, as ids which aren't snowflake ids (written by older versions)
+        # are the same in many files. Nothing refers to the id of an exchange in an extension.
+        columns = [r[1] for r in _rows(connection, f"PRAGMA source.table_info({exchanges})")]
+        position = columns.index("id")
+        insert = (
+            f"INSERT INTO main.{exchanges} ({', '.join(map(_q, columns))}) "
+            f"VALUES ({', '.join('?' * len(columns))})"
+        )
+        cursor = connection.execute(
+            f"SELECT {', '.join(map(_q, columns))} FROM source.{exchanges} "
+            f"WHERE output_database IN ({marks})",
+            names,
+        )
+        with closing(cursor):
+            while rows := cursor.fetchmany(_COPY_CHUNK):
+                connection.executemany(
+                    insert,
+                    [
+                        row[:position] + (new_snowflake_id(),) + row[position + 1 :]
+                        for row in rows
+                    ],
+                )
+        dictionaries = _recompress(connection, (activities, exchanges))
+        for statement in indexes:
+            connection.execute(statement)
+        # A project's file has them only after a bulk write
+        for statement in LCI_INDEX_SQL:
+            connection.execute(statement)
+
+        # Search indexes
+        searchable = {}
+        for name in names:
+            flag = found[name]["searchable"]
+            if flag is not None and not flag:
+                searchable[name] = False
+                continue
+            table = index_table(name)
+            rows = _rows(
+                connection,
+                "SELECT sql FROM source.sqlite_master WHERE type = 'table' AND name = ?",
+                (table,),
+            )
+            connection.execute(create_table_sql(table))
+            definition = (rows[0][0] or "") if rows else ""
+            if definition.startswith("CREATE VIRTUAL TABLE") and definition.endswith(
+                _table_definition()
+            ):
+                _copy_index(connection, table)
+            else:
+                _build_index(connection, name, table, dictionaries)
+            searchable[name] = True
+
+        # Database records
+        for name in names:
+            record = dict(found[name])
+            extra = _json_value(record.get("extra"))
+            if isinstance(extra, dict):
+                extra.pop(LOCAL_STATE_EXTRA_KEY, None)
+            record.update(
+                depends=DatabaseRecord.depends.db_value(sorted(depends[name])),
+                dirty=False,
+                searchable=searchable[name],
+                extra=DatabaseRecord.extra.db_value(extra or None),
+            )
+            connection.execute(
+                f"INSERT INTO main.{records} ({', '.join(map(_q, record))}) "
+                f"VALUES ({', '.join('?' * len(record))})",
+                list(record.values()),
+            )
+
+        # Identity and requirements
+        fingerprints = {name: database_fingerprint(connection, "main", name) for name in names}
+        extension_id = str(uuid.uuid4())
+        info = {
+            INFO_ID: extension_id,
+            INFO_VERSION: version,
+            INFO_FINGERPRINTS: json.dumps(fingerprints, ensure_ascii=False, sort_keys=True),
+            INFO_BW2DATA_VERSION: __version__,
+            INFO_CREATED: datetime.now(timezone.utc).isoformat(),
+        }
+        connection.execute(f"CREATE TABLE main.{_q(INFO_TABLE)} (key TEXT PRIMARY KEY, value TEXT)")
+        connection.executemany(
+            f"INSERT INTO main.{_q(INFO_TABLE)} VALUES (?, ?)",
+            [(key, value) for key, value in info.items() if value is not None],
+        )
+        connection.execute(
+            f"CREATE TABLE main.{_q(REQUIRES_TABLE)} "
+            "(database TEXT PRIMARY KEY, extension_id TEXT NOT NULL, fingerprint TEXT NOT NULL)"
+        )
+        connection.executemany(
+            f"INSERT INTO main.{_q(REQUIRES_TABLE)} VALUES (?, ?, ?)",
+            [requirements[key] for key in sorted(requirements)],
+        )
+        connection.execute(f"PRAGMA main.user_version = {int(schema_version)}")
+        connection.execute("COMMIT")
+        connection.execute("DETACH DATABASE source")
+
+    # The file must attach on its own: the checks of ``check_extensions`` which look at one file,
+    # with an empty project file
+    check = sqlite3.connect(":memory:", uri=True, isolation_level=None)
+    with closing(check):
+        for statement in tables:
+            check.execute(statement)
+        extension = _attach(check, 1, ExtensionSpec("export", target))
+        problems = [
+            f"database {problem[1]!r}: {problem[0]}"
+            for problem in _rows(check, ownership_check_sql([extension.schema]))
+        ]
+        if sorted(extension.databases) != sorted(names):
+            problems.append(f"it has the databases {list(extension.databases)}")
+        # As they are in the finished file, not as they were written into ``INFO_TABLE``
+        for name in names:
+            found_fingerprint = database_fingerprint(check, extension.schema, name)
+            if extension.fingerprints.get(name) != found_fingerprint:
+                problems.append(
+                    f"database {name!r} has the fingerprint {found_fingerprint}, but "
+                    f"{extension.fingerprints.get(name)} is stored"
+                )
+    if problems:
+        raise ExtensionError(
+            "The exported file doesn't pass the checks for extensions: " + "; ".join(problems)
+        )
+    return extension_id
+
+
+def _dictionary_ids(connection, table: str) -> set[int]:
+    """Ids of the zstd dictionaries which the ``data`` values of the quoted ``table`` in
+    ``main`` were compressed with, read from the frame headers."""
+    # A frame header is at most 18 bytes
+    sql = f"SELECT substr(data, 1, 18) FROM main.{table}"
+    ids = set()
+    with closing(connection.execute(sql)) as cursor:
+        for (header,) in cursor:
+            header = bytes(header)
+            if header[:4] == ZSTD_MAGIC:
+                ids.add(zstd.get_frame_info(header).dictionary_id)
+    ids.discard(0)
+    return ids
+
+
+def _recompress(connection, tables: Sequence[str]) -> dict[int, bytes]:
+    """Free the copied ``data`` values of the quoted ``tables`` in ``main`` from the zstd
+    dictionaries of the project, and return the content of the dictionaries of the new file
+    by id: at most one.
+
+    A dictionary holds pieces of the data it was trained on, also of databases which are not
+    exported, and values written later are compressed with it too. So no dictionary of the
+    project goes into the file. If any copied value uses one, a new dictionary is trained on
+    the copied values alone, and all of them are compressed again with it; or without a
+    dictionary, if zstd can't train one from them. Does nothing if no value uses a
+    dictionary."""
+    used = set().union(*(_dictionary_ids(connection, table) for table in tables))
+    if not used:
+        return {}
+    old = {}
+    for dict_id in used:
+        rows = _rows(
+            connection,
+            f"SELECT content FROM source.{_q(ZSTD_DICTIONARY_TABLE)} WHERE id = ?",
+            (dict_id,),
+        )
+        if not rows:
+            raise ExtensionError(
+                f"Can't export: values of the databases were compressed with zstd dictionary "
+                f"{dict_id}, which is not in the project's file"
+            )
+        old[dict_id] = zstd.ZstdDict(bytes(rows[0][0]))
+
+    def content(frame: bytes) -> bytes:
+        dict_id = zstd.get_frame_info(frame).dictionary_id
+        return zstd.decompress(frame, zstd_dict=old[dict_id] if dict_id else None)
+
+    counts = {
+        table: _rows(connection, f"SELECT count(*) FROM main.{table}")[0][0] for table in tables
+    }
+    total = sum(counts.values())
+    samples = []
+    for table in tables:
+        limit = max(1, round(_DICTIONARY_SAMPLES * counts[table] / total))
+        sql = f"SELECT data FROM main.{table} ORDER BY random() LIMIT ?"
+        for (value,) in _rows(connection, sql, (limit,)):
+            value = bytes(value)
+            if value[:4] == ZSTD_MAGIC:
+                samples.append(content(value))
+    new = None
+    if total >= _DICTIONARY_MIN_VALUES:
+        try:
+            new = zstd.train_dict(samples, ZSTD_DICTIONARY_SIZE)
+        except (zstd.ZstdError, ValueError):
+            # Too few or too small samples
+            new = None
+    compressor = zstd.ZstdCompressor(level=ZSTD_LEVEL, zstd_dict=new)
+    for table in tables:
+        last = None
+        while True:
+            where, params = ("WHERE id > ?", (last,)) if last is not None else ("", ())
+            rows = _rows(
+                connection,
+                f"SELECT id, data FROM main.{table} {where} ORDER BY id LIMIT {_COPY_CHUNK}",
+                params,
+            )
+            if not rows:
+                break
+            last = rows[-1][0]
+            connection.executemany(
+                f"UPDATE main.{table} SET data = ? WHERE id = ?",
+                [
+                    (
+                        compressor.compress(content(value), mode=zstd.ZstdCompressor.FLUSH_FRAME),
+                        id_,
+                    )
+                    for id_, value in ((id_, bytes(value)) for id_, value in rows)
+                    if value[:4] == ZSTD_MAGIC
+                ],
+            )
+    if new is None:
+        return {}
+    connection.execute(
+        f"INSERT INTO main.{_q(ZSTD_DICTIONARY_TABLE)} (id, content, created, active) "
+        "VALUES (?, ?, ?, 0)",
+        (new.dict_id, new.dict_content, datetime.now(timezone.utc).isoformat()),
+    )
+    return {new.dict_id: new.dict_content}
+
+
+def _decode(value, dictionaries: Mapping[int, bytes], cache: dict):
+    """A stored ``CompressedJSONField`` value of the exported file, as Python data.
+    ``dictionaries`` has the content of the file's zstd dictionaries."""
+    from bw2data import codec
+
+    value = bytes(value)
+    if value[:4] != ZSTD_MAGIC:
+        return codec.safe_pickle_loads(value)
+    dict_id = zstd.get_frame_info(value).dictionary_id
+    if dict_id and dict_id not in cache:
+        cache[dict_id] = zstd.ZstdDict(dictionaries[dict_id])
+    return codec.loads(zstd.decompress(value, zstd_dict=cache[dict_id] if dict_id else None))
+
+
+def _copy_index(connection, table: str) -> None:
+    """Copy the rows of the search index ``table`` from ``source`` into the same, empty table
+    in ``main``. The rows of an FTS5 table are stored in its shadow tables."""
+    sql = "SELECT name FROM source.sqlite_master WHERE type = 'table' AND name LIKE ? ESCAPE '\\'"
+    pattern = table.replace("\\", "\\\\").replace("_", "\\_").replace("%", "\\%") + "\\_%"
+    for (shadow,) in _rows(connection, sql, (pattern,)):
+        connection.execute(f"DELETE FROM main.{_q(shadow)}")
+        connection.execute(f"INSERT INTO main.{_q(shadow)} SELECT * FROM source.{_q(shadow)}")
+
+
+def _build_index(
+    connection, database: str, table: str, dictionaries: Mapping[int, bytes]
+) -> None:
+    """Index the activities of ``database`` in the new table ``table`` in ``main``, from the
+    rows which were copied into the file."""
+    from bw2data.search.indices import FIELDS, format_dataset
+
+    columns = ", ".join(_q(field) for field in FIELDS)
+    sql = (
+        f"INSERT INTO main.{_q(table)} (rowid, {columns}) "
+        f"VALUES (?, {', '.join('?' * len(FIELDS))})"
+    )
+    stored = _rows(
+        connection,
+        f"SELECT id, code, data FROM main.{_q(_table(ActivityDataset))} WHERE database = ?",
+        (database,),
+    )
+    rows, cache = [], {}
+    for id_, code, data in stored:
+        data = _decode(data, dictionaries, cache) if data is not None else {}
+        values = format_dataset({**(data or {}), "code": code})
+        rows.append((id_, *(values[field] for field in FIELDS)))
+    connection.executemany(sql, rows)
+    # One segment: smaller, and faster to search
+    connection.execute(f"INSERT INTO main.{_q(table)} ({_q(table)}) VALUES ('optimize')")

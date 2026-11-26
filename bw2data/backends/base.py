@@ -26,7 +26,13 @@ from bw2data.backends.extensions import (
     extension_of,
 )
 from bw2data.backends.proxies import Activity
-from bw2data.backends.schema import ActivityDataset, ExchangeDataset, _insert_many, get_id
+from bw2data.backends.schema import (
+    LCI_INDEX_SQL,
+    ActivityDataset,
+    ExchangeDataset,
+    _insert_many,
+    get_id,
+)
 from bw2data.backends.typos import (
     check_activity_keys,
     check_activity_type,
@@ -760,15 +766,8 @@ class SQLiteBackend(ProcessedDataStore):
 
     def _add_indices(self):
         with sqlite3_lci_db.transaction():
-            sqlite3_lci_db.execute_sql(
-                'CREATE UNIQUE INDEX IF NOT EXISTS main."activitydataset_key" ON "activitydataset" ("database", "code")'
-            )
-            sqlite3_lci_db.execute_sql(
-                'CREATE INDEX IF NOT EXISTS main."exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")'
-            )
-            sqlite3_lci_db.execute_sql(
-                'CREATE INDEX IF NOT EXISTS main."exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")'
-            )
+            for statement in LCI_INDEX_SQL:
+                sqlite3_lci_db.execute_sql(statement)
 
     def _efficient_write_dataset(
         self,
@@ -1269,15 +1268,12 @@ Here are the type values usually used for nodes:
 
         Separated out to allow for easier use in subclasses."""
         # Create geomapping array, from dataset interger ids to locations
-        inv_mapping_qs = ActivityDataset.select(ActivityDataset.id, ActivityDataset.location).where(
-            ActivityDataset.database == self.name,
-            ActivityDataset.type << labels.process_node_types,
-        )
-
-        if self.metadata.get("location_normalization"):
-            location_mapper = lambda x: self.metadata["location_normalization"].get(x, x)
-        else:
-            location_mapper = lambda x: x
+        inv_mapping_qs = self._inventory_location_query()
+        location_mapper = self._location_mapper()
+        if self.is_extension:
+            # Its locations were added when it was attached, but the project may have been
+            # copied, or the extension attached by an older version, since
+            geomapping.add(self.inventory_locations())
 
         dp.add_persistent_vector_from_iterator(
             matrix="inv_geomapping_matrix",
@@ -1294,6 +1290,27 @@ Here are the type values usually used for nodes:
             ),
             nrows=inv_mapping_qs.count(),
         )
+
+    def _inventory_location_query(self):
+        return ActivityDataset.select(ActivityDataset.id, ActivityDataset.location).where(
+            ActivityDataset.database == self.name,
+            ActivityDataset.type << labels.process_node_types,
+        )
+
+    def _location_mapper(self):
+        if self.metadata.get("location_normalization"):
+            return lambda x: self.metadata["location_normalization"].get(x, x)
+        return lambda x: x
+
+    def inventory_locations(self) -> set:
+        """The ``geomapping`` keys which processing this database uses: the locations of its
+        processes, after ``location_normalization``."""
+        location_mapper = self._location_mapper()
+        query = self._inventory_location_query().select(ActivityDataset.location).distinct()
+        return {
+            location_mapper(retupleize_geo_strings(location) or config.global_location)
+            for (location,) in query.tuples()
+        }
 
     def process(self, csv=False):
         """Create structured arrays for the technosphere and biosphere matrices.
