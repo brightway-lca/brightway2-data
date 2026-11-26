@@ -766,6 +766,11 @@ class SubstitutableDatabase:
                 # One page per step of the statement: read it to the end, or only one page
                 # is released
                 self.execute_sql("PRAGMA main.incremental_vacuum;").fetchall()
+                if self.freelist_count():
+                    # Before Python 3.12, ``sqlite3`` takes only one step of a statement
+                    # without result columns, whatever is read from the cursor.
+                    # ``executescript`` runs it to the end in all versions.
+                    self.db.connection().executescript("PRAGMA main.incremental_vacuum;")
                 return True
             pages = self.page_count()
             if not (pages > 0 and free / pages > self.VACUUM_FREE_FRACTION):
