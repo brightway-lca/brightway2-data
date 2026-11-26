@@ -976,6 +976,120 @@ def _search_indexes_to_sqlite(db: Database, project_dir: Path) -> Optional[After
     return _m7_remove_search_files(project_dir)
 
 
+#: The indexes of the LCI tables, as ``(name, SQL)``. ``activitydataset_key`` is unique: it
+#: also keeps two activities from having the same key.
+LCI_INDEXES = (
+    (
+        "activitydataset_key",
+        'CREATE UNIQUE INDEX IF NOT EXISTS main."activitydataset_key" '
+        'ON "activitydataset" ("database", "code")',
+    ),
+    (
+        "exchangedataset_input",
+        'CREATE INDEX IF NOT EXISTS main."exchangedataset_input" '
+        'ON "exchangedataset" ("input_database", "input_code")',
+    ),
+    (
+        "exchangedataset_output",
+        'CREATE INDEX IF NOT EXISTS main."exchangedataset_output" '
+        'ON "exchangedataset" ("output_database", "output_code")',
+    ),
+)
+_M8_MAX_EXAMPLES = 5
+#: Used instead of the unique index while activities share a key; see ``_create_lci_indexes``
+_ACTIVITY_KEY_NOT_UNIQUE = (
+    'CREATE INDEX IF NOT EXISTS main."activitydataset_key" '
+    'ON "activitydataset" ("database", "code")'
+)
+
+
+def _duplicate_activity_keys(db: Database) -> list[tuple]:
+    """``(database, code, count)`` of the activity keys which are used more than once."""
+    return db.execute_sql(
+        'SELECT "database", "code", count(*) FROM main."activitydataset" '
+        'GROUP BY "database", "code" HAVING count(*) > 1 ORDER BY 1, 2'
+    ).fetchall()
+
+
+def _warn_duplicate_activity_keys(db: Database, duplicates: list[tuple]) -> None:
+    examples = ", ".join(
+        f"({database!r}, {code!r}) {count} times"
+        for database, code, count in duplicates[:_M8_MAX_EXAMPLES]
+    )
+    warnings.warn(
+        f"{len(duplicates)} activity key(s) in the project database {db.database} are used "
+        f"more than once, e.g. {examples}. Each activity needs a unique `(database, code)`, "
+        "and activities which share one can't be told apart. Delete all but one of each, or "
+        "give them another code, with the `ActivityDataset` model in `bw2data.backends`: "
+        "`ActivityDataset.select().where(ActivityDataset.database == ..., "
+        "ActivityDataset.code == ...)` lists them, and `.delete_instance()` deletes one. "
+        "The index which keeps keys unique is created the next time the project is opened "
+        "after that; until then, more duplicates can be written.",
+        stacklevel=_user_stacklevel(),
+    )
+
+
+def _create_lci_indexes(db: Database, project_dir: Path) -> None:
+    """Create the indexes of the activity and exchange tables (``LCI_INDEXES``) where they
+    are missing. Before, only a write of at least 100 datasets created them (after dropping
+    them for the write), so a file which only had smaller writes had none: every lookup of a
+    node by its key scanned the table, and nothing kept keys unique. From now on they always
+    exist, and writes keep them.
+
+    If activities share a key, the unique index can't be created. The step is not postponed
+    for this, which would leave the file without the exchange indexes too, and hold back
+    every later step: ``activitydataset_key`` is created without ``UNIQUE``, with a warning
+    which names the duplicates. ``make_activity_keys_unique`` replaces it once they are
+    gone."""
+    existing = {
+        row[0]
+        for row in db.execute_sql(
+            "SELECT name FROM main.sqlite_master WHERE type = 'index'"
+        ).fetchall()
+    }
+    statements = dict(LCI_INDEXES)
+    if "activitydataset_key" not in existing:
+        duplicates = _duplicate_activity_keys(db)
+        if duplicates:
+            _warn_duplicate_activity_keys(db, duplicates)
+            statements["activitydataset_key"] = _ACTIVITY_KEY_NOT_UNIQUE
+    for name, sql in statements.items():
+        if name not in existing:
+            stdout_feedback_logger.info("Creating index %s", name)
+            db.execute_sql(sql)
+
+
+def make_activity_keys_unique(db: Database) -> bool:
+    """Replace an ``activitydataset_key`` index which schema migration 8 had to create
+    without ``UNIQUE`` (see ``_create_lci_indexes``) with the unique one, if no activities
+    share a key any more; otherwise warn again. Called each time the file is opened, which
+    costs one ``PRAGMA`` for a file whose index is unique. Returns whether the index is
+    unique now (also if there is none yet, as migration 8 is still to run).
+
+    Nothing happens if the file can't be written right now."""
+    try:
+        unique = [
+            row[2]
+            for row in db.execute_sql('PRAGMA main.index_list("activitydataset")').fetchall()
+            if row[1] == "activitydataset_key"
+        ]
+        if not unique or unique[0]:
+            return True
+        with db.atomic("IMMEDIATE"):
+            duplicates = _duplicate_activity_keys(db)
+            if not duplicates:
+                stdout_feedback_logger.info("Making the index activitydataset_key unique")
+                db.execute_sql('DROP INDEX main."activitydataset_key"')
+                db.execute_sql(dict(LCI_INDEXES)["activitydataset_key"])
+                return True
+    except OperationalError as err:
+        if not _cannot_write(err):
+            raise
+        return False
+    _warn_duplicate_activity_keys(db, duplicates)
+    return False
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -1005,6 +1119,7 @@ MIGRATIONS: tuple[Migration, ...] = (
         "Move the search indexes into SQLite",
         _search_indexes_to_sqlite,
     ),
+    Migration(8, "Create the indexes of the activity and exchange tables", _create_lci_indexes),
 )
 
 #: Schema version of a fully migrated ``lci/databases.db``

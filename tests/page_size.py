@@ -25,8 +25,10 @@ def data(n=200):
 
 def make_old_file():
     """Turn the current project's LCI file into one with SQLite's default 4 KB pages, as
-    written by earlier bw2data versions, and open it again as bw2data would."""
+    written by earlier bw2data versions (also without ``auto_vacuum``), and open it again as
+    bw2data would."""
     sqlite3_lci_db.execute_sql("PRAGMA main.page_size = 4096")
+    sqlite3_lci_db.execute_sql("PRAGMA main.auto_vacuum = 0")
     sqlite3_lci_db.execute_sql("VACUUM")
     # Reopen the file, which applies the connection pragmas again
     sqlite3_lci_db.change_path(sqlite3_lci_db._filepath)
@@ -70,16 +72,16 @@ def test_vacuum_converts_old_lci_file_to_lci_page_size():
 
 
 @bw2test
-def test_database_write_vacuum_converts_old_lci_file():
-    # ``Database.write()`` vacuums under the default policy when the previous contents
-    # leave enough free pages, which converts the file as a side effect
+def test_database_delete_vacuum_converts_old_lci_file():
+    # ``Database.delete()`` vacuums an older file under the default policy when it frees
+    # enough pages, which converts the file as a side effect
     database = DatabaseChooser("testy")
     database.write(data())
     make_old_file()
     with patch.object(config, "vacuum", None):
-        database.write(data(10))
+        database.delete(warn=False)
     assert page_size() == LCI_PAGE_SIZE
-    assert len(database) == 10
+    assert len(database) == 0
 
 
 @bw2test
@@ -108,7 +110,11 @@ def test_database_write_succeeds_when_vacuum_fails():
     database = DatabaseChooser("testy")
     database.write(data())
     error = OperationalError("database is locked")
-    with patch.object(sqlite3_lci_db, "vacuum", side_effect=error) as vacuum:
+    # Writes only vacuum with ``config.vacuum = True``
+    with (
+        patch.object(config, "vacuum", True),
+        patch.object(sqlite3_lci_db, "vacuum", side_effect=error) as vacuum,
+    ):
         with pytest.warns(UserWarning, match="was written, but .* database is locked"):
             database.write(data(10))
     vacuum.assert_called_once()
