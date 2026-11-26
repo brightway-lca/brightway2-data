@@ -859,23 +859,26 @@ class SQLiteBackend(ProcessedDataStore):
         except:
             sqlite3_lci_db.db.rollback()
             raise
-        else:
-            # Honours ``config.vacuum``; by default only runs when the delete above
-            # freed a meaningful share of the (shared) LCI file. The data is already
-            # committed, so a failure here (file locked by another process, no room for
-            # the temporary copy) must not make the write look like it failed.
-            try:
-                sqlite3_lci_db.vacuum()
-            except Exception as err:
-                warnings.warn(
-                    f"Database '{self.name}' was written, but the LCI database file could "
-                    f"not be compacted afterwards ({type(err).__name__}: {err}). This will "
-                    "be tried again the next time the file is vacuumed."
-                )
         finally:
             sqlite3_lci_db.db.autocommit = True
+            # Before ``vacuum()`` decides: the pages of the dropped indexes are on the
+            # freelist until the indexes are created again, but they are not space to
+            # reclaim. Counted as free, they made every bulk write next to a large database
+            # rewrite the whole file.
             if be_complicated:
                 self._add_indices()
+        # Honours ``config.vacuum``; by default only runs when the delete above freed a
+        # meaningful share of the (shared) LCI file. The data is already committed, so a
+        # failure here (file locked by another process, no room for the temporary copy) must
+        # not make the write look like it failed.
+        try:
+            sqlite3_lci_db.vacuum()
+        except Exception as err:
+            warnings.warn(
+                f"Database '{self.name}' was written, but the LCI database file could "
+                f"not be compacted afterwards ({type(err).__name__}: {err}). This will "
+                "be tried again the next time the file is vacuumed."
+            )
 
     # Public API
 

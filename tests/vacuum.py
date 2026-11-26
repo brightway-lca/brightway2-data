@@ -108,3 +108,35 @@ def test_failed_write_honours_vacuum_policy(vacuum_spy):
             with pytest.raises(ValueError):
                 database.write(SMALL)
     assert vacuum_spy.vacuums() == 0
+
+
+def linked_data(name, n, per_activity=10):
+    """``n`` activities with ``per_activity`` exchanges each, between activities of ``name``:
+    many exchange rows, so that the indexes are a large share of the file."""
+    return {
+        (name, str(i)): {
+            "name": f"node {i}",
+            "exchanges": [
+                {"input": (name, str((i + j) % n)), "amount": 1, "type": "technosphere"}
+                for j in range(per_activity)
+            ],
+        }
+        for i in range(n)
+    }
+
+
+@bw2test
+def test_bulk_write_next_to_a_large_database_skips_vacuum(vacuum_spy):
+    # A write of at least 100 datasets drops the LCI indexes and creates them again. Their
+    # pages are not free space to reclaim: the indexes take them again.
+    DatabaseChooser("background").write(linked_data("background", 2_000))
+    with patch.object(config, "vacuum", None):
+        DatabaseChooser("foreground").write(linked_data("foreground", 100))
+    assert vacuum_spy.vacuums() == 0
+    indexes = {
+        row[0]
+        for row in sqlite3_lci_db.execute_sql(
+            "SELECT name FROM sqlite_master WHERE type = 'index'"
+        ).fetchall()
+    }
+    assert {"activitydataset_key", "exchangedataset_input", "exchangedataset_output"} <= indexes
