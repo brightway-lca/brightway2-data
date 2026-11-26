@@ -49,7 +49,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-from peewee import Database, InterfaceError, OperationalError, ProgrammingError
+from peewee import (
+    Database,
+    IntegrityError,
+    InterfaceError,
+    OperationalError,
+    ProgrammingError,
+)
 
 from bw2data import codec
 from bw2data.configuration import config
@@ -1001,8 +1007,9 @@ def _m8_demand_rows(db: Database, inv) -> tuple[list[tuple], list]:
                     missing.append(tuple(node))
                     continue
                 node_id, key = found[0], (node[0], node[1])
-            elif isinstance(node, int) and not isinstance(node, bool):
-                node_id, key = node, (None, None)
+            elif isinstance(node, numbers.Integral) and not isinstance(node, bool):
+                # Also numpy integers
+                node_id, key = int(node), (None, None)
             else:
                 raise ValueError(f"{node!r} is not a node key or id")
             if node_id in seen:
@@ -1020,7 +1027,9 @@ def _calculation_setups_to_sqlite(db: Database, project_dir: Path) -> None:
     ``calculationsetupdemand`` tables (see ``bw2data.backends.schema.CalculationSetupRecord``).
 
     The pickles are read with ``codec.safe_pickle_loads``. Nodes given by key are stored by
-    id, with the key; keys of nodes which don't exist are left out, with a warning. Setups
+    id, with the key; keys of nodes which don't exist are left out, with a warning. Only the
+    project's own file is searched (extensions are attached after the migrations), so this
+    includes the nodes of read-only extensions. Setups
     which are already in the table are kept as they are. An unreadable file, and setups which
     can't be stored, are skipped with a warning; the files are kept as backups either way."""
     from bw2data.snowflake_ids import new_snowflake_id
@@ -1074,7 +1083,15 @@ def _calculation_setups_to_sqlite(db: Database, project_dir: Path) -> None:
                             "VALUES (?, ?, ?, ?, ?, ?)",
                             (values[0], *row),
                         )
-            except (TypeError, ValueError, OverflowError, InterfaceError, ProgrammingError):
+            except (
+                TypeError,
+                ValueError,
+                OverflowError,
+                # E.g. an amount which is ``None`` or NaN (``NULL`` in SQLite)
+                IntegrityError,
+                InterfaceError,
+                ProgrammingError,
+            ):
                 skipped.append(name)
                 continue
             if gone:

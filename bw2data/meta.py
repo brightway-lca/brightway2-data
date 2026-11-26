@@ -1,6 +1,8 @@
 import copy
 import datetime
 import json
+import math
+import numbers
 import pickle
 import warnings
 from collections.abc import Mapping, MutableMapping
@@ -1246,7 +1248,7 @@ def _setup_demand_rows(name: str, inv) -> list[dict]:
                 if len(node) != 2 or not all(isinstance(part, str) for part in node):
                     raise ValueError(f"Not a node key in calculation setup {name!r}: {node!r}")
                 keys.add(tuple(node))
-            elif not isinstance(node, int) or isinstance(node, bool):
+            elif not isinstance(node, numbers.Integral) or isinstance(node, bool):
                 raise TypeError(
                     f"Nodes in calculation setup {name!r} must be given by key or id, not "
                     f"{node!r}"
@@ -1271,7 +1273,8 @@ def _setup_demand_rows(name: str, inv) -> list[dict]:
         seen = set()
         for node, amount in unit.items():
             key = tuple(node) if isinstance(node, (tuple, list)) else None
-            node_id = ids[key] if key is not None else node
+            # ``int``: also numpy integers
+            node_id = ids[key] if key is not None else int(node)
             if node_id in seen:
                 raise ValueError(
                     f"Functional unit {position} of calculation setup {name!r} has node "
@@ -1281,6 +1284,12 @@ def _setup_demand_rows(name: str, inv) -> list[dict]:
             if hasattr(amount, "item") and not isinstance(amount, (int, float)):
                 # E.g. a numpy scalar, which SQLite can't store
                 amount = amount.item()
+            if amount is None or (isinstance(amount, float) and math.isnan(amount)):
+                # SQLite stores NaN as ``NULL``
+                raise ValueError(
+                    f"Functional unit {position} of calculation setup {name!r} has no "
+                    f"amount for node {node!r}: {amount!r}"
+                )
             rows.append(
                 {
                     "unit": position,

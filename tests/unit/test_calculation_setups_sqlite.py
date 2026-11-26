@@ -126,6 +126,9 @@ def test_refused_setups_change_nothing():
         calculation_setups["s"] = {"inv": [{"a": 1}]}
     with pytest.raises(ValueError, match="Not a node key"):
         calculation_setups["s"] = {"inv": [{("db", "a", "x"): 1}]}
+    for amount in (None, float("nan"), np.float64("nan")):
+        with pytest.raises(ValueError, match="has no amount for node"):
+            calculation_setups["s"] = {"inv": [{a.key: amount}]}
     with pytest.raises(TypeError, match="must be strings"):
         calculation_setups[("s",)] = {}
     with pytest.raises(TypeError, match="must be a dict"):
@@ -139,6 +142,18 @@ def test_numpy_amounts():
     calculation_setups["s"] = {"inv": [{a.key: np.float64(1.5), b.id: np.int64(2)}]}
     assert calculation_setups["s"]["inv"] == [{a.key: 1.5, b.id: 2}]
     assert type(calculation_setups["s"]["inv"][0][b.id]) is int
+
+
+@bw2test
+def test_numpy_node_ids():
+    a, b, c = write_nodes()
+    calculation_setups["s"] = {"inv": [{np.int64(a.id): 1, b.key: 2}]}
+    assert calculation_setups["s"]["inv"] == [{a.id: 1, b.key: 2}]
+    assert type(next(iter(calculation_setups["s"]["inv"][0]))) is int
+    with pytest.raises(ValueError, match="node .* twice"):
+        calculation_setups["s"] = {"inv": [{np.int64(a.id): 1, a.key: 2}]}
+    a.delete()
+    assert calculation_setups["s"]["inv"] == [{b.key: 2}]
 
 
 @bw2test
@@ -215,6 +230,10 @@ def test_migration_moves_both_files():
         projects.dir / "setups.pickle",
         {
             "s": {"inv": [{a.key: 1, b.id: np.float64(2.0)}, {c.key: 3}], "ia": [("m", "1")]},
+            "numpy id": {"inv": [{np.int64(a.id): 1}]},
+            # Amounts SQLite can't store: skipped, and the other setups are still moved
+            "nan": {"inv": [{a.key: float("nan")}]},
+            "none": {"inv": [{a.key: 1}, {b.id: None}]},
             "gone": {"inv": [{("db", "deleted"): 1}, {a.key: 2}], "ia": []},
             "odd": [1, 2],
         },
@@ -228,7 +247,7 @@ def test_migration_moves_both_files():
     with pytest.warns(UserWarning) as caught:
         assert migrate(sqlite3_lci_db.db, projects.dir) == [8]
     messages = " ".join(str(w.message) for w in caught)
-    assert "can't be stored are only kept in the file: ['odd']" in messages
+    assert "can't be stored are only kept in the file: ['nan', 'none', 'odd']" in messages
     assert "'gone': [('db', 'deleted')]" in messages
     assert calculation_setups["s"] == {
         "inv": [{a.key: 1, b.id: 2.0}, {c.key: 3}],
@@ -242,7 +261,8 @@ def test_migration_moves_both_files():
         "colour": "red",
     }
     assert calculation_setups["kept"]["inv"] == [{a.key: 5}]
-    assert "odd" not in calculation_setups
+    assert calculation_setups["numpy id"]["inv"] == [{a.id: 1}]
+    assert not {"odd", "nan", "none"} & set(calculation_setups)
     # The files are kept as backups
     assert (projects.dir / "setups.pickle").is_file()
     assert (projects.dir / "dynamicsetups.pickle").is_file()
