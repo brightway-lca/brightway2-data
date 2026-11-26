@@ -264,6 +264,8 @@ on_extension_attached = signal(
     doc="""
 Emitted *after* read-only LCI extensions were attached to the current project with
 `projects.attach_extension`: they are stored with the project, and their databases can be read.
+Also sent by `projects.update_extension` for the new version of an extension (after
+`on_extension_detached` for the old one), and for an extension which it makes available again.
 
 Not sent when a project which already has extensions is opened; use `project_changed` for that.
 
@@ -278,7 +280,8 @@ on_extension_detached = signal(
     "bw2data.on_extension_detached",
     doc="""
 Emitted *after* a read-only LCI extension was detached from the current project with
-`projects.detach_extension`: its databases are no longer in the project.
+`projects.detach_extension`: its databases are no longer in the project. Also sent by
+`projects.update_extension` for the old version of an extension, before `on_extension_attached`.
 
 Expected inputs:
     * `name`: str - the name the extension had in `projects.extensions`
