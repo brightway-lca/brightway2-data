@@ -1,4 +1,3 @@
-import sqlite3
 from unittest.mock import patch
 
 import pytest
@@ -6,7 +5,7 @@ import pytest
 from bw2data import config
 from bw2data.backends import sqlite3_lci_db
 from bw2data.database import DatabaseChooser
-from bw2data.errors import InvalidExchange
+from bw2data.sqlite import AUTO_VACUUM_INCREMENTAL
 from bw2data.tests import bw2test
 
 SMALL = {
@@ -23,11 +22,25 @@ def big_data(n=400):
 
 @pytest.fixture
 def vacuum_spy():
+    """``vacuums()``: the number of full ``VACUUM`` statements; ``incremental()``: the number
+    of ``PRAGMA incremental_vacuum`` statements."""
+
+    def statements():
+        return [str(call.args[0]).strip().upper() for call in spy.call_args_list]
+
     with patch.object(sqlite3_lci_db, "execute_sql", wraps=sqlite3_lci_db.execute_sql) as spy:
-        spy.vacuums = lambda: sum(
-            "VACUUM" in str(call.args[0]).upper() for call in spy.call_args_list
-        )
+        spy.vacuums = lambda: sum(sql.startswith("VACUUM") for sql in statements())
+        spy.incremental = lambda: sum("INCREMENTAL_VACUUM" in sql for sql in statements())
         yield spy
+
+
+def make_file_without_auto_vacuum():
+    """As LCI files written by earlier versions: ``auto_vacuum`` off. Reopening applies the
+    connection pragmas again, which only take effect at the next ``VACUUM``."""
+    sqlite3_lci_db.execute_sql("PRAGMA main.auto_vacuum = 0")
+    sqlite3_lci_db.execute_sql("VACUUM")
+    sqlite3_lci_db.change_path(sqlite3_lci_db._filepath)
+    assert sqlite3_lci_db.auto_vacuum() == 0
 
 
 @bw2test
@@ -38,13 +51,19 @@ def test_write_into_empty_database_skips_vacuum(vacuum_spy):
 
 
 @bw2test
-def test_write_vacuums_when_previous_contents_freed_pages(vacuum_spy):
+def test_new_lci_file_releases_free_pages_incrementally():
+    assert sqlite3_lci_db.auto_vacuum() == AUTO_VACUUM_INCREMENTAL
+
+
+@bw2test
+def test_rewrite_doesnt_vacuum(vacuum_spy):
+    # The new rows use the pages which the old ones freed
     database = DatabaseChooser("testy")
     database.write(big_data())
     with patch.object(config, "vacuum", None):
         database.write(SMALL)
-    assert vacuum_spy.vacuums() == 1
-    assert sqlite3_lci_db.freelist_count() == 0
+    assert vacuum_spy.vacuums() == 0
+    assert vacuum_spy.incremental() == 0
 
 
 @bw2test
@@ -83,13 +102,43 @@ def test_config_vacuum_true_always_vacuums(vacuum_spy):
 
 
 @bw2test
-def test_delete_vacuums_when_pages_freed(vacuum_spy):
+def test_delete_releases_free_pages_incrementally(vacuum_spy):
     database = DatabaseChooser("testy")
     database.write(big_data())
     with patch.object(config, "vacuum", None):
         database.delete(warn=False)
-    assert vacuum_spy.vacuums() == 1
+    assert vacuum_spy.vacuums() == 0
+    assert vacuum_spy.incremental() == 1
     assert sqlite3_lci_db.freelist_count() == 0
+
+
+@bw2test
+def test_delete_vacuums_an_older_file_and_converts_it(vacuum_spy):
+    database = DatabaseChooser("testy")
+    database.write(big_data())
+    make_file_without_auto_vacuum()
+    vacuum_spy.reset_mock()
+    with patch.object(config, "vacuum", None):
+        database.delete(warn=False)
+    assert vacuum_spy.vacuums() == 1
+    assert vacuum_spy.incremental() == 0
+    assert sqlite3_lci_db.freelist_count() == 0
+    # From now on, free pages are released incrementally
+    assert sqlite3_lci_db.auto_vacuum() == AUTO_VACUUM_INCREMENTAL
+
+
+@bw2test
+def test_small_delete_in_an_older_file_skips_vacuum(vacuum_spy):
+    # Deleting two nodes frees less than 10% of a file which holds 400 others
+    other = {("other", str(i)): {"name": "node " + ("x" * 500)} for i in range(400)}
+    DatabaseChooser("other").write(other)
+    database = DatabaseChooser("testy")
+    database.write(SMALL)
+    make_file_without_auto_vacuum()
+    vacuum_spy.reset_mock()
+    with patch.object(config, "vacuum", None):
+        database.delete(warn=False)
+    assert vacuum_spy.vacuums() == 0
 
 
 @bw2test
@@ -135,66 +184,10 @@ def test_bulk_write_next_to_a_large_database_skips_vacuum(vacuum_spy):
     with patch.object(config, "vacuum", None):
         DatabaseChooser("foreground").write(linked_data("foreground", 100))
     assert vacuum_spy.vacuums() == 0
-    # The pages of the dropped indexes were taken again
-    assert (
-        sqlite3_lci_db.freelist_count() / sqlite3_lci_db.page_count()
-        < sqlite3_lci_db.VACUUM_FREE_FRACTION
-    )
-
-
-LCI_INDEXES = {"activitydataset_key", "exchangedataset_input", "exchangedataset_output"}
-
-
-def lci_indexes():
-    return {
+    indexes = {
         row[0]
         for row in sqlite3_lci_db.execute_sql(
             "SELECT name FROM sqlite_master WHERE type = 'index'"
         ).fetchall()
-    } & LCI_INDEXES
-
-
-@bw2test
-def test_bulk_write_vacuums_before_creating_indexes(vacuum_spy):
-    # ``VACUUM`` builds every index of the file again, so the indexes are created after it
-    with patch.object(config, "vacuum", True):
-        DatabaseChooser("foreground").write(linked_data("foreground", 100))
-    statements = [str(call.args[0]).upper() for call in vacuum_spy.call_args_list]
-    vacuums = [i for i, sql in enumerate(statements) if "VACUUM" in sql]
-    creates = [
-        i
-        for i, sql in enumerate(statements)
-        if "CREATE" in sql and any(name.upper() in sql for name in LCI_INDEXES)
-    ]
-    assert len(vacuums) == 1
-    assert len(creates) == 3
-    assert vacuums[0] < min(creates)
-    assert lci_indexes() == LCI_INDEXES
-
-
-@bw2test
-def test_failure_to_create_indexes_keeps_written_data():
-    database = DatabaseChooser("foreground")
-    with patch.object(
-        type(database), "_add_indices", side_effect=sqlite3.OperationalError("database is locked")
-    ):
-        with pytest.warns(UserWarning, match="could not be created again"):
-            database.write(linked_data("foreground", 100))
-    assert len(database) == 100
-    assert lci_indexes() == set()
-    # The next bulk write creates them
-    DatabaseChooser("other").write(linked_data("other", 100))
-    assert lci_indexes() == LCI_INDEXES
-
-
-@bw2test
-def test_failure_to_create_indexes_keeps_error_of_failed_write():
-    database = DatabaseChooser("foreground")
-    data = linked_data("foreground", 100)
-    del data[("foreground", "99")]["exchanges"][0]["amount"]
-    with patch.object(
-        type(database), "_add_indices", side_effect=sqlite3.OperationalError("database is locked")
-    ):
-        with pytest.warns(UserWarning, match="could not be created again"):
-            with pytest.raises(InvalidExchange):
-                database.write(data)
+    }
+    assert {"activitydataset_key", "exchangedataset_input", "exchangedataset_output"} <= indexes

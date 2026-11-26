@@ -976,6 +976,65 @@ def _search_indexes_to_sqlite(db: Database, project_dir: Path) -> Optional[After
     return _m7_remove_search_files(project_dir)
 
 
+#: The indexes of the LCI tables, as ``(name, SQL)``. ``activitydataset_key`` is unique: it
+#: also keeps two activities from having the same key.
+LCI_INDEXES = (
+    (
+        "activitydataset_key",
+        'CREATE UNIQUE INDEX IF NOT EXISTS main."activitydataset_key" '
+        'ON "activitydataset" ("database", "code")',
+    ),
+    (
+        "exchangedataset_input",
+        'CREATE INDEX IF NOT EXISTS main."exchangedataset_input" '
+        'ON "exchangedataset" ("input_database", "input_code")',
+    ),
+    (
+        "exchangedataset_output",
+        'CREATE INDEX IF NOT EXISTS main."exchangedataset_output" '
+        'ON "exchangedataset" ("output_database", "output_code")',
+    ),
+)
+_M8_MAX_EXAMPLES = 5
+
+
+def _create_lci_indexes(db: Database, project_dir: Path) -> None:
+    """Create the indexes of the activity and exchange tables (``LCI_INDEXES``) where they
+    are missing. Before, only a write of at least 100 datasets created them (after dropping
+    them for the write), so a file which only had smaller writes had none: every lookup of a
+    node by its key scanned the table, and nothing kept keys unique. From now on they always
+    exist, and writes keep them.
+
+    Postponed if activities share a key, as the unique index can't be created then; the
+    message names them."""
+    existing = {
+        row[0]
+        for row in db.execute_sql(
+            "SELECT name FROM main.sqlite_master WHERE type = 'index'"
+        ).fetchall()
+    }
+    if "activitydataset_key" not in existing:
+        duplicates = db.execute_sql(
+            'SELECT "database", "code", count(*) FROM main."activitydataset" '
+            'GROUP BY "database", "code" HAVING count(*) > 1 ORDER BY 1, 2'
+        ).fetchall()
+        if duplicates:
+            examples = ", ".join(
+                f"({database!r}, {code!r}) {count} times"
+                for database, code, count in duplicates[:_M8_MAX_EXAMPLES]
+            )
+            raise MigrationPostponed(
+                f"{len(duplicates)} activity key(s) are used more than once, e.g. {examples}. "
+                "Each activity needs a unique `(database, code)`: delete or change the "
+                "duplicates, and the index which keeps keys unique is created the next time "
+                "the project is opened. Until then, looking up nodes is slower."
+            )
+    for name, sql in LCI_INDEXES:
+        if name not in existing:
+            stdout_feedback_logger.info("Creating index %s", name)
+            db.execute_sql(sql)
+
+
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "Move preferences.pickle into SQLite", _preferences_to_sqlite),
@@ -1005,6 +1064,7 @@ MIGRATIONS: tuple[Migration, ...] = (
         "Move the search indexes into SQLite",
         _search_indexes_to_sqlite,
     ),
+    Migration(8, "Create the indexes of the activity and exchange tables", _create_lci_indexes),
 )
 
 #: Schema version of a fully migrated ``lci/databases.db``

@@ -125,8 +125,10 @@ def test_get_id_cache_activity_database_change():
     get_id(("bar", "a"))
     assert ("foo", "a") in _get_id_cache
 
+    # ``bar`` already has an activity with code ``a``: keys are unique
+    Database("baz").register()
     act = Database("foo").get("a")
-    act["database"] = "bar"
+    act["database"] = "baz"
 
     assert ("foo", "a") not in _get_id_cache
     assert ("foo", "b") in _get_id_cache

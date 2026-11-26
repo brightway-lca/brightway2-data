@@ -2,7 +2,7 @@ import os
 
 from bw2data import config
 from bw2data.project import projects
-from bw2data.sqlite import SubstitutableDatabase, zstd_dictionaries
+from bw2data.sqlite import AUTO_VACUUM_INCREMENTAL, SubstitutableDatabase, zstd_dictionaries
 from bw2data.backends.migrations import migrate
 from bw2data.backends.schema import (
     COMPRESSED_COLUMNS,
@@ -49,8 +49,15 @@ sqlite3_lci_db = SubstitutableDatabase(
         WeightingFactor,
         NormalizationFactor,
     ],
-    # ``page_size`` has no effect in WAL journal mode, so keep the default rollback journal
-    pragmas={"foreign_keys": 1, "page_size": LCI_PAGE_SIZE},
+    # ``page_size`` has no effect in WAL journal mode, so keep the default rollback journal.
+    # Like ``page_size``, ``auto_vacuum`` applies to a new file before its first table is
+    # created, and to an existing file at its next ``VACUUM``; see
+    # ``SubstitutableDatabase.vacuum``.
+    pragmas={
+        "foreign_keys": 1,
+        "page_size": LCI_PAGE_SIZE,
+        "auto_vacuum": AUTO_VACUUM_INCREMENTAL,
+    },
     # ``projects.dir`` already points at the new project when the file is switched
     on_open=lambda db: migrate(db, projects.dir),
     # A project which is read-only, or in use by another process, can still be opened after

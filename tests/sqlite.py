@@ -465,10 +465,12 @@ def test_schema_change_20_sql_migrates_old_schema(tmp_path):
 
 @bw2test
 def test_index_sql_targets_main_schema_only(tmp_path):
-    # With a file attached that has the same index names, unqualified ``DROP INDEX`` would
-    # fall through to the attached (read-only) file when ``main`` lacks the index.
+    # With a file attached that has the same index names, unqualified SQL could fall through
+    # to the attached (read-only) file when ``main`` lacks the index. Schema migration 8
+    # creates the missing LCI indexes in ``main`` only.
     import sqlite3
 
+    from bw2data.backends.migrations import _create_lci_indexes
     from bw2data.sqlite import _sqlite_uri
 
     other = tmp_path / "other.db"
@@ -480,13 +482,11 @@ def test_index_sql_targets_main_schema_only(tmp_path):
         conn.execute('CREATE INDEX "exchangedataset_output" ON exchangedataset (output_database, output_code)')
     conn.close()
 
-    database = DatabaseChooser("testy")
+    for name in ("activitydataset_key", "exchangedataset_input", "exchangedataset_output"):
+        db.execute_sql(f'DROP INDEX main."{name}"')
     db.execute_sql("ATTACH ? AS other", (_sqlite_uri(other, mode="ro"),))
     try:
-        database._drop_indices()
-        # Second drop: ``main`` has no indices any more, must not touch ``other``
-        database._drop_indices()
-        database._add_indices()
+        _create_lci_indexes(db, None)
         names = {
             row[0]
             for row in db.execute_sql("SELECT name FROM main.sqlite_master WHERE type='index'")

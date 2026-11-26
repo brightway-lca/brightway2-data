@@ -536,6 +536,11 @@ class BWSqliteDatabase(SqliteDatabase):
             hook(conn)
 
 
+#: ``PRAGMA auto_vacuum`` value of files whose free pages are released with
+#: ``PRAGMA incremental_vacuum`` (see ``SubstitutableDatabase.vacuum``)
+AUTO_VACUUM_INCREMENTAL = 2
+
+
 class SubstitutableDatabase:
     def __init__(
         self,
@@ -723,35 +728,49 @@ class SubstitutableDatabase:
         return them to the filesystem."""
         return self.execute_sql("PRAGMA freelist_count;").fetchone()[0]
 
-    def vacuum(self, reserved_pages: int = 0) -> bool:
-        """Run ``VACUUM`` on the database file according to ``config.vacuum``.
+    def vacuum(self) -> bool:
+        """Release free pages of the database file according to ``config.vacuum``.
 
-        ``VACUUM`` rewrites the whole file, which for a large LCI database can take tens of
-        seconds, so it should only run when there is space worth reclaiming. The policy is:
+        A file in ``auto_vacuum = INCREMENTAL`` mode (new LCI files) releases them with
+        ``PRAGMA incremental_vacuum``, which moves pages from the end of the file into free
+        ones: its cost depends on the number of free pages, not on the size of the file.
 
-        * ``config.vacuum is None`` (default): run only when more than
-          ``VACUUM_FREE_FRACTION`` of the file's pages are on the freelist, as reported by
-          ``PRAGMA freelist_count``.
-        * ``config.vacuum is True``: always run.
-        * ``config.vacuum is False``: never run.
+        Other files need ``VACUUM``, which rewrites the whole file and for a large LCI database
+        can take tens of seconds, so it should only run when there is space worth reclaiming.
+        It also switches the file to the ``auto_vacuum`` mode and page size set by the pragmas.
 
-        ``reserved_pages`` is the number of free pages which are not space to reclaim, because
-        the caller is about to fill them again (the indexes dropped for a bulk write). The
-        default policy doesn't count them as free.
+        * ``config.vacuum is None`` (default): ``incremental_vacuum`` if there are free pages;
+          otherwise ``VACUUM`` only when more than ``VACUUM_FREE_FRACTION`` of the file's
+          pages are free (``PRAGMA freelist_count``).
+        * ``config.vacuum is True``: always ``VACUUM``.
+        * ``config.vacuum is False``: never anything.
 
-        Must not be called inside a transaction. Returns whether ``VACUUM`` ran."""
+        ``before_vacuum`` runs before a ``VACUUM`` only. Must not be called inside a
+        transaction. Returns whether pages were released or the file was vacuumed."""
+        if config.vacuum is False:
+            return False
         if config.vacuum is None:
+            free = self.freelist_count()
+            if not free:
+                return False
+            if self.auto_vacuum() == AUTO_VACUUM_INCREMENTAL:
+                stdout_feedback_logger.info("Releasing %s free pages", free)
+                # One page per step of the statement: read it to the end, or only one page
+                # is released
+                self.execute_sql("PRAGMA main.incremental_vacuum;").fetchall()
+                return True
             pages = self.page_count()
-            free = self.freelist_count() - reserved_pages
-            needed = pages > 0 and free / pages > self.VACUUM_FREE_FRACTION
-        else:
-            needed = bool(config.vacuum)
-        if needed:
-            if self._before_vacuum is not None:
-                self._before_vacuum(self.db)
-            stdout_feedback_logger.info("Vacuuming database ")
-            self.execute_sql("VACUUM;")
-        return needed
+            if not (pages > 0 and free / pages > self.VACUUM_FREE_FRACTION):
+                return False
+        if self._before_vacuum is not None:
+            self._before_vacuum(self.db)
+        stdout_feedback_logger.info("Vacuuming database ")
+        self.execute_sql("VACUUM;")
+        return True
+
+    def auto_vacuum(self) -> int:
+        """``PRAGMA auto_vacuum`` of the file: 0 (none), 1 (full) or 2 (incremental)."""
+        return self.execute_sql("PRAGMA main.auto_vacuum;").fetchone()[0]
 
 
 class JSONField(TextField):

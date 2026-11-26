@@ -197,6 +197,12 @@ def get_biosphere_qs(database_name: str) -> Iterable:
     )
 
 
+#: ``PRAGMA cache_size`` during a bulk write: negative values are in KiB, so this is 256 MiB.
+#: SQLite only takes the memory as pages are cached, and gives it back when the cache size
+#: is set back after the write.
+WRITE_CACHE_SIZE = -262144
+
+
 class SQLiteBackend(ProcessedDataStore):
     """
     A base class for SQLite backends.
@@ -732,24 +738,6 @@ class SQLiteBackend(ProcessedDataStore):
 
     # Private methods
 
-    def _drop_indices(self):
-        with sqlite3_lci_db.transaction():
-            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS main."activitydataset_key"')
-            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS main."exchangedataset_input"')
-            sqlite3_lci_db.execute_sql('DROP INDEX IF EXISTS main."exchangedataset_output"')
-
-    def _add_indices(self):
-        with sqlite3_lci_db.transaction():
-            sqlite3_lci_db.execute_sql(
-                'CREATE UNIQUE INDEX IF NOT EXISTS main."activitydataset_key" ON "activitydataset" ("database", "code")'
-            )
-            sqlite3_lci_db.execute_sql(
-                'CREATE INDEX IF NOT EXISTS main."exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")'
-            )
-            sqlite3_lci_db.execute_sql(
-                'CREATE INDEX IF NOT EXISTS main."exchangedataset_output" ON "exchangedataset" ("output_database", "output_code")'
-            )
-
     def _efficient_write_dataset(
         self,
         ds: dict,
@@ -837,18 +825,20 @@ class SQLiteBackend(ProcessedDataStore):
     def _efficient_write_many_data(
         self, data: list, indices: bool = True, check_typos: bool = True
     ) -> None:
+        """Replace the activities and exchanges of this database with ``data``, in one
+        transaction.
+
+        The LCI indexes stay in place (schema migration 8 makes sure they exist): dropping
+        them and creating them again over the whole tables cost more than it saved, above all
+        next to a large database. ``indices`` is ignored, and only kept for callers which pass
+        it. Index maintenance needs a larger page cache, which is raised for the write.
+
+        There is no ``VACUUM`` afterwards, unless ``config.vacuum`` is ``True``: the rows
+        which the write replaces free pages which the new rows use again."""
         self._train_dictionary(data)
-        be_complicated = len(data) >= 100 and indices
-        # The pages of the dropped indexes are on the freelist until the indexes are created
-        # again, but they are not space to reclaim: counted as free, they made every bulk
-        # write next to a large database rewrite the whole file.
-        index_pages = 0
-        if be_complicated:
-            free_before = sqlite3_lci_db.freelist_count()
-            self._drop_indices()
-            index_pages = max(sqlite3_lci_db.freelist_count() - free_before, 0)
+        cache_size = sqlite3_lci_db.execute_sql("PRAGMA main.cache_size").fetchone()[0]
+        sqlite3_lci_db.execute_sql(f"PRAGMA main.cache_size = {int(WRITE_CACHE_SIZE)}")
         sqlite3_lci_db.db.autocommit = False
-        written = False
         try:
             sqlite3_lci_db.db.begin()
             # The search index is kept: ``write`` builds it again, or leaves it as it is
@@ -863,40 +853,25 @@ class SQLiteBackend(ProcessedDataStore):
             _insert_many(ActivityDataset, activities)
             _insert_many(ExchangeDataset, exchanges)
             sqlite3_lci_db.db.commit()
-            written = True
         except:
             sqlite3_lci_db.db.rollback()
             raise
         finally:
             sqlite3_lci_db.db.autocommit = True
-            if written:
-                # Honours ``config.vacuum``; by default only runs when the delete above freed
-                # a meaningful share of the (shared) LCI file, not counting the pages which
-                # the indexes take again. Decided, and done, before the indexes are created
-                # again: ``VACUUM`` would build them a second time. The data is already
-                # committed, so a failure here (file locked by another process, no room for
-                # the temporary copy) must not make the write look like it failed.
-                try:
-                    sqlite3_lci_db.vacuum(reserved_pages=index_pages)
-                except Exception as err:
-                    warnings.warn(
-                        f"Database '{self.name}' was written, but the LCI database file could "
-                        f"not be compacted afterwards ({type(err).__name__}: {err}). This will "
-                        "be tried again the next time the file is vacuumed."
-                    )
-            if be_complicated:
-                # A failure must neither hide the error of a failed write, nor make a
-                # committed write look like it failed (``write`` would delete the data).
-                try:
-                    self._add_indices()
-                except Exception as err:
-                    warnings.warn(
-                        f"The indexes of the LCI database file could not be created again "
-                        f"after writing database '{self.name}' ({type(err).__name__}: {err}). "
-                        "Queries are slower, and activity keys are not checked for "
-                        "duplicates, until the next `Database.write()` of 100 or more "
-                        "datasets, which tries again."
-                    )
+            # Gives the memory back
+            sqlite3_lci_db.execute_sql(f"PRAGMA main.cache_size = {int(cache_size)}")
+        if config.vacuum is not True:
+            return
+        # The data is already committed, so a failure here (file locked by another process,
+        # no room for the temporary copy) must not make the write look like it failed.
+        try:
+            sqlite3_lci_db.vacuum()
+        except Exception as err:
+            warnings.warn(
+                f"Database '{self.name}' was written, but the LCI database file could "
+                f"not be compacted afterwards ({type(err).__name__}: {err}). This will "
+                "be tried again the next time the file is vacuumed."
+            )
 
     # Public API
 

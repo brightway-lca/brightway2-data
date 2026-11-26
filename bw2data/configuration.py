@@ -158,9 +158,12 @@ class Config(BaseSettings):
     cache: dict = {}
     metadata: list = []
     sqlite3_databases: list = []
-    # VACUUM policy for the LCI SQLite file, applied by ``Database.write()`` and
-    # ``Database.delete()``: None = only when a meaningful share of the file is free
-    # pages (``PRAGMA freelist_count``), True = always, False = never.
+    # When the LCI SQLite file releases free pages; see ``SubstitutableDatabase.vacuum``.
+    # None (default): ``Database.delete()`` releases them, with ``PRAGMA incremental_vacuum``
+    # in files with ``auto_vacuum = INCREMENTAL`` (new files, and older ones after their next
+    # ``VACUUM``), otherwise with ``VACUUM`` when a meaningful share of the file is free
+    # pages. ``Database.write()`` doesn't: its new rows use the pages of the rows it replaces.
+    # True: always ``VACUUM``, also after writes. False: never.
     vacuum: Optional[bool] = None
     # Passed to ``asteval.Interpreter`` as ``max_statement_length``; asteval caps it at 1e8
     max_formula_length: int = 50_000
