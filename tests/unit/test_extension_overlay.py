@@ -15,6 +15,7 @@ from bw2data.backends.extensions import (
     DUPLICATE_NAME,
     EXTENSION_DATABASE_NAME,
     EXTENSION_ERROR_PREFIX,
+    LCIA_KINDS,
     MISSING_ID,
     NO_RECORD,
     NOT_LOCAL_STATE,
@@ -34,7 +35,9 @@ from bw2data.backends.schema import (
 from bw2data.sqlite import _sqlite_uri
 from bw2data.tests import bw2test
 
-MODELS = [ActivityDataset, ExchangeDataset, DatabaseRecord, ExtensionDatabaseState]
+MODELS = [ActivityDataset, ExchangeDataset, DatabaseRecord, ExtensionDatabaseState] + [
+    model for kind in LCIA_KINDS for model in (kind.record, kind.factor)
+]
 INDICES = [
     'CREATE UNIQUE INDEX "activitydataset_key" ON "activitydataset" ("database", "code")',
     'CREATE INDEX "exchangedataset_input" ON "exchangedataset" ("input_database", "input_code")',
@@ -713,6 +716,24 @@ def plan(conn, sql):
 def test_lookups_use_indices_in_every_file(conn, sql, index):
     text = plan(conn, sql)
     assert text.count(f"USING INDEX {index}") == 3, text
+
+
+@pytest.mark.parametrize(
+    "sql, index",
+    [
+        (
+            "SELECT * FROM lci_characterizationfactor WHERE method_id = 5 ORDER BY position",
+            "sqlite_autoindex_characterizationfactor_1",
+        ),
+        ("SELECT * FROM lci_normalizationfactor WHERE normalization_id = 5", "sqlite_autoindex"),
+        ("SELECT * FROM lci_weightingfactor WHERE weighting_id = 5", "sqlite_autoindex"),
+        ("SELECT * FROM lci_method WHERE name = '[\"m\"]'", "methodrecord_name"),
+        ("SELECT * FROM lci_method WHERE id = 5", "INTEGER PRIMARY KEY"),
+    ],
+)
+def test_lcia_lookups_use_indices_in_every_file(conn, sql, index):
+    text = plan(conn, sql)
+    assert text.count(index) == 3, text
 
 
 def test_id_lookup_uses_primary_keys(conn):

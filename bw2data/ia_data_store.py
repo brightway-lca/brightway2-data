@@ -225,10 +225,14 @@ class SQLiteFactorStore:
         """Replace the data of this object, registering it first if needed.
 
         ``metadata`` is merged into the object's metadata, saved in the same transaction as
-        the data. Raises ``ValueError`` (writing nothing) if the data can't be stored."""
+        the data. Raises ``ValueError`` (writing nothing) if the data can't be stored, and
+        ``bw2data.errors.ReadOnlyExtensionError`` if the object is stored in a read-only
+        extension."""
         from bw2data.backends.schema import _insert_many
         from bw2data.meta import _write_transaction
 
+        # Before anything is registered or added to ``geomapping``
+        self._metadata._check_writable(self._metadata._key(self.name) or self.name)
         rows = self._factor_rows(data)
         self.register()
         self.add_geomappings(data)

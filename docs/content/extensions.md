@@ -50,6 +50,25 @@ bd.projects.export_extension("inventory-1.0.db", "inventory-1.0", version="1.0")
 
 IO table databases can't be exported yet.
 
+### LCIA methods, normalizations and weightings
+
+`export_extension` also takes `methods`, `normalizations` and `weightings`: lists of names of LCIA objects of the project, which go into the file with their metadata and factors. A method or normalization can only be exported together with the databases of all the flows it has factors for. So the methods which characterize a flow list belong in the flow list's extension:
+
+```python
+bd.projects.set_current("build flows")
+# ... import "flows-1.0" and the methods which characterize its flows
+bd.projects.export_extension(
+    "flows-1.0.db",
+    "flows-1.0",
+    version="1.0",
+    methods=[m for m in bd.methods if m[0].startswith("EF v3.1")],
+)
+```
+
+The methods and their flows are then always attached and detached together, and an inventory extension which requires the flow list gets its methods too. Weightings have no flows, and can go into any file.
+
+As with databases, each name of a method, normalization or weighting can be stored in only one file. The file holds a fingerprint of each object, a hash of its name and its factors (flow codes, amounts, uncertainty and locations). `AttachedExtension.lcia_fingerprints` lists them; they don't take part in requirements.
+
 ## Attaching
 
 ```python
@@ -65,7 +84,7 @@ bd.projects.attach_extension(["inventory-1.0.db", "flows-1.0.db"])
 
 The extensions are stored with the project and attached again every time it is opened. `projects.copy_project` copies them, and `projects.delete_project` never deletes the files.
 
-If an extension can't be attached when a project is opened (its file is missing, was replaced, or needs an extension which isn't available), the project opens without it and gives a warning. Its databases are then not in the project. `projects.extensions` lists each extension with its `status` (`"available"`, `"missing file"`, `"missing requirement"` or `"invalid"`), the `problem`, its `path`, `id` and `databases`.
+If an extension can't be attached when a project is opened (its file is missing, was replaced, or needs an extension which isn't available), the project opens without it and gives a warning. Its databases are then not in the project. `projects.extensions` lists each extension with its `status` (`"available"`, `"missing file"`, `"missing requirement"` or `"invalid"`), the `problem`, its `path`, `id`, `databases`, `methods`, `normalizations` and `weightings`.
 
 ## Using extension databases
 
@@ -89,6 +108,12 @@ Changing an extension database, its nodes or its edges raises `bw2data.errors.Re
 
 Calculations read the processed datapackages stored in the extension file, so attaching needs no processing. For ecoinvent 3.13, the first score after attaching took 1.6 s in a benchmark, against 20.5 s when the project processes the database itself. The project still processes an extension database in two cases: if the file was built before bw2data stored datapackages, or if a requirement is met by a database in the project's own file (`allow_main_requirements`).
 
+## Using extension methods
+
+The methods, normalizations and weightings of an attached extension are listed in `bd.methods`, `bd.normalizations` and `bd.weightings`, and read and used in calculations like the project's own. The project processes them when they are first used; the processed data is removed when the extension is detached or updated.
+
+They can't be changed: writing their factors, saving their metadata, replacing or deleting them raises `ReadOnlyExtensionError`, and a method of the project can't take the name of one in an extension. To change one, copy it into the project: `bd.Method(name).copy(("my", "method"))`. `replace_cfs` leaves the methods of extensions alone.
+
 ## New versions
 
 `projects.update_extension(name, path=None, force=False)` takes up a new version of an extension: the file which is at its path now, or the file `path`. The extension keeps its name, its options and the project's links into it. For the same version at another path (a moved file), only the path changes.
@@ -107,7 +132,7 @@ Replace the file of an extension only while no project uses it, or build the new
 
 ## Limits
 
-- **Methods:** LCIA methods can't be stored in extensions yet. Methods in the project can use extension flows.
+- **Methods:** a method in an extension can only have factors for flows in its own file. Methods in the project can use extension flows. The processed data of an extension's methods is not stored in the file.
 - **Regionalization:** location ids are derived from location names, so the ids in a stored datapackage are those of every project. bw2regional doesn't use this yet.
 - **Event-sourced projects:** attaching and detaching are not recorded as revisions.
 - **Parameters:** parameters can't be stored in extensions.

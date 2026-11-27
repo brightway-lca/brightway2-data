@@ -6,8 +6,10 @@ build the SQL that makes the attached files look like one inventory together wit
 
 * a TEMP table ``lci_extension_databases``, listing the database names stored in each
   extension;
-* one TEMP view per overlaid table (``lci_activitydataset``, ``lci_exchangedataset`` and
-  ``lci_databaserecord``), each a ``UNION ALL`` of ``main`` and every extension;
+* one TEMP view per overlaid table (``lci_activitydataset``, ``lci_exchangedataset``,
+  ``lci_databaserecord``, and the tables of the LCIA methods, normalizations and weightings,
+  e.g. ``lci_method`` and ``lci_characterizationfactor``), each a ``UNION ALL`` of ``main`` and
+  every extension;
 * ``INSTEAD OF`` triggers on each view, which send writes to ``main`` and refuse writes to rows
   stored in an extension, or that would put rows under an extension's database name.
 
@@ -29,6 +31,12 @@ to one of these fields of an extension database is stored in the project-local t
 stored in the extension. Only the fields which were changed are stored. ``NULL`` means "not set
 locally": setting a local field of an extension database to ``NULL`` shows the extension's
 value again. Everything else in an extension's record, including ``extra``, is read-only.
+
+LCIA objects (methods, normalizations and weightings) are overlaid the same way: each name of a
+kind belongs to one file, the rows of an extension's object and its factors can't be changed,
+and an object of the project can't take the name of one in an extension. Their factors refer to
+flows by activity id, which an extension keeps; an extension's objects only have factors for
+the activities in its own file (see ``build_extension``).
 
 Refusals raise ``sqlite3.IntegrityError`` with a message starting with ``EXTENSION_ERROR_PREFIX``.
 Writes through a view report ``rowcount == 0``, also when rows were changed: SQLite doesn't
@@ -67,6 +75,8 @@ from bw2data.backends.schema import (
     MethodRecord,
     NormalizationFactor,
     NormalizationRecord,
+    WeightingFactor,
+    WeightingRecord,
 )
 from bw2data.errors import (
     EXTENSION_ERROR_PREFIX,
@@ -109,6 +119,11 @@ EXTENSION_DATABASE_NAME = (
     f"{EXTENSION_ERROR_PREFIX} this database name is used by a read-only extension"
 )
 DUPLICATE_ID = f"{EXTENSION_ERROR_PREFIX} this id is already used in a read-only extension"
+READ_ONLY_LCIA = (
+    f"{EXTENSION_ERROR_PREFIX} this LCIA object is stored in a read-only extension and can't be "
+    "changed"
+)
+LCIA_NAME = f"{EXTENSION_ERROR_PREFIX} this name is used by an LCIA object in a read-only extension"
 MISSING_ID = f"{EXTENSION_ERROR_PREFIX} a row needs an id when read-only extensions are attached"
 NOT_LOCAL_STATE = (
     f"{EXTENSION_ERROR_PREFIX} only the project-local fields ("
@@ -128,9 +143,52 @@ TABLE_NAMES: Mapping[type[Model], str] = MappingProxyType(
         ActivityDataset: ACTIVITY_TABLE,
         ExchangeDataset: EXCHANGE_TABLE,
         DatabaseRecord: "databaserecord",
+        MethodRecord: "method",
+        CharacterizationFactor: "characterizationfactor",
+        NormalizationRecord: "normalization",
+        NormalizationFactor: "normalizationfactor",
+        WeightingRecord: "weighting",
+        WeightingFactor: "weightingfactor",
     }
 )
 OVERLAID_MODELS = tuple(TABLE_NAMES)
+
+
+@dataclass(frozen=True)
+class LCIAKind:
+    """One kind of LCIA object, whose tables are overlaid: a record table with one row per
+    object (natural key ``name``, a tuple stored as a JSON list) and a factor table."""
+
+    #: ``"method"``, ``"normalization"`` or ``"weighting"``; also the name of the record table
+    name: str
+    record: type[Model]
+    factor: type[Model]
+    #: Column of the factor table with the id of the object's record
+    owner: str
+    #: Whether the factors have a ``flow`` column (an activity id)
+    flows: bool
+    #: Plural, for messages
+    label: str
+
+    @property
+    def what(self) -> str:
+        """Singular, capitalized, for messages."""
+        return self.name.capitalize()
+
+
+LCIA_KINDS = (
+    LCIAKind("method", MethodRecord, CharacterizationFactor, "method_id", True, "methods"),
+    LCIAKind(
+        "normalization",
+        NormalizationRecord,
+        NormalizationFactor,
+        "normalization_id",
+        True,
+        "normalizations",
+    ),
+    LCIAKind("weighting", WeightingRecord, WeightingFactor, "weighting_id", False, "weightings"),
+)
+LCIA_KIND = MappingProxyType({kind.name: kind for kind in LCIA_KINDS})
 
 
 def _table(model: type[Model]) -> str:
@@ -469,6 +527,93 @@ def _record_triggers_sql() -> list[str]:
     return [insert, update, delete]
 
 
+def _lcia_record_triggers_sql(kind: LCIAKind, schemas: Sequence[str]) -> list[str]:
+    """Triggers for the view of the record table of an LCIA kind. A row is in an extension
+    if its id is; an object of the project can't take a name used in an extension."""
+    model = kind.record
+    view = _q(view_name(model))
+    table = _q(_table(model))
+    cols = _columns(model)
+    column_list = ", ".join(_q(c) for c in cols)
+    new_values = ", ".join(f"NEW.{_q(c)}" for c in cols)
+    assignments = ", ".join(f"{_q(c)} = NEW.{_q(c)}" for c in cols)
+    trigger = view_name(model)
+    name_in_extensions = (
+        "("
+        + " OR ".join(
+            f"EXISTS (SELECT 1 FROM {_q(s)}.{table} WHERE name = NEW.name)" for s in schemas
+        )
+        + ")"
+    )
+
+    insert = (
+        f"CREATE TEMP TRIGGER {_q(trigger + '_insert')} INSTEAD OF INSERT ON {view} BEGIN "
+        + _raise_if(name_in_extensions, LCIA_NAME)
+        + " "
+        + _raise_if("NEW.id IS NULL", MISSING_ID)
+        + " "
+        + _raise_if(_id_in_extensions(model, schemas, "NEW.id"), DUPLICATE_ID)
+        + f" INSERT INTO {table} ({column_list}) VALUES ({new_values}); END;"
+    )
+    update = (
+        f"CREATE TEMP TRIGGER {_q(trigger + '_update')} INSTEAD OF UPDATE ON {view} BEGIN "
+        + _raise_if(_id_in_extensions(model, schemas, "OLD.id"), READ_ONLY_LCIA)
+        + " "
+        + _raise_if(f"NEW.name IS NOT OLD.name AND {name_in_extensions}", LCIA_NAME)
+        + " "
+        + _raise_if("NEW.id IS NULL", MISSING_ID)
+        + " "
+        + _raise_if(
+            f"NEW.id IS NOT OLD.id AND {_id_in_extensions(model, schemas, 'NEW.id')}",
+            DUPLICATE_ID,
+        )
+        + f" UPDATE {table} SET {assignments} WHERE id = OLD.id; END;"
+    )
+    delete = (
+        f"CREATE TEMP TRIGGER {_q(trigger + '_delete')} INSTEAD OF DELETE ON {view} BEGIN "
+        + _raise_if(_id_in_extensions(model, schemas, "OLD.id"), READ_ONLY_LCIA)
+        + f" DELETE FROM {table} WHERE id = OLD.id; END;"
+    )
+    return [insert, update, delete]
+
+
+def _lcia_factor_triggers_sql(kind: LCIAKind, schemas: Sequence[str]) -> list[str]:
+    """Triggers for the view of the factor table of an LCIA kind. A factor belongs to the
+    object in its ``owner`` column; its primary key is ``(owner, position)``."""
+    model = kind.factor
+    view = _q(view_name(model))
+    table = _q(_table(model))
+    cols = _columns(model)
+    column_list = ", ".join(_q(c) for c in cols)
+    new_values = ", ".join(f"NEW.{_q(c)}" for c in cols)
+    assignments = ", ".join(f"{_q(c)} = NEW.{_q(c)}" for c in cols)
+    owner = _q(kind.owner)
+    trigger = view_name(model)
+
+    def in_extension(expression: str) -> str:
+        return _id_in_extensions(kind.record, schemas, expression)
+
+    where_old = f"{owner} = OLD.{owner} AND position = OLD.position"
+    insert = (
+        f"CREATE TEMP TRIGGER {_q(trigger + '_insert')} INSTEAD OF INSERT ON {view} BEGIN "
+        + _raise_if(in_extension(f"NEW.{owner}"), READ_ONLY_LCIA)
+        + f" INSERT INTO {table} ({column_list}) VALUES ({new_values}); END;"
+    )
+    update = (
+        f"CREATE TEMP TRIGGER {_q(trigger + '_update')} INSTEAD OF UPDATE ON {view} BEGIN "
+        + _raise_if(
+            f"{in_extension(f'OLD.{owner}')} OR {in_extension(f'NEW.{owner}')}", READ_ONLY_LCIA
+        )
+        + f" UPDATE {table} SET {assignments} WHERE {where_old}; END;"
+    )
+    delete = (
+        f"CREATE TEMP TRIGGER {_q(trigger + '_delete')} INSTEAD OF DELETE ON {view} BEGIN "
+        + _raise_if(in_extension(f"OLD.{owner}"), READ_ONLY_LCIA)
+        + f" DELETE FROM {table} WHERE {where_old}; END;"
+    )
+    return [insert, update, delete]
+
+
 def overlay_sql(schemas: Sequence[str]) -> list[str]:
     """SQL statements which create the overlay of the extensions attached as ``schemas``.
 
@@ -489,6 +634,11 @@ def overlay_sql(schemas: Sequence[str]) -> list[str]:
     statements += _node_edge_triggers_sql(ActivityDataset, "database", schemas)
     statements += _node_edge_triggers_sql(ExchangeDataset, "output_database", schemas)
     statements += _record_triggers_sql()
+    for kind in LCIA_KINDS:
+        statements.append(_union_view_sql(kind.record, schemas))
+        statements.append(_union_view_sql(kind.factor, schemas))
+        statements += _lcia_record_triggers_sql(kind, schemas)
+        statements += _lcia_factor_triggers_sql(kind, schemas)
     return statements
 
 
@@ -515,6 +665,10 @@ INFO_ID = "id"
 INFO_VERSION = "version"
 #: Key of ``INFO_TABLE``: a JSON object with the fingerprint of each database in the file
 INFO_FINGERPRINTS = "fingerprints"
+#: Key of ``INFO_TABLE``: the fingerprints of the LCIA objects in the file, as a JSON object
+#: with a list of ``[name, fingerprint]`` pairs per kind (``"method"``, ``"normalization"``,
+#: ``"weighting"``); ``name`` is the object's name as a list. Missing if the file has none.
+INFO_LCIA_FINGERPRINTS = "lcia_fingerprints"
 #: Start of every fingerprint, naming the hash function
 FINGERPRINT_PREFIX = "sha256:"
 
@@ -562,10 +716,33 @@ class AttachedExtension:
     requirements: tuple[tuple[str, str, str], ...] = ()
     #: Names of the databases whose processed datapackage is stored in the file
     datapackages: tuple[str, ...] = ()
+    #: Names of the LCIA objects stored in the file, by kind (``"method"``,
+    #: ``"normalization"``, ``"weighting"``)
+    lcia: Mapping[str, frozenset] = field(default=MappingProxyType({}), compare=False)
+    #: Fingerprint of each LCIA object in the file, by kind and name, as written when it was
+    #: built (``INFO_LCIA_FINGERPRINTS``)
+    lcia_fingerprints: Mapping[str, Mapping[tuple, str]] = field(
+        default=MappingProxyType({}), compare=False
+    )
 
     @property
     def name(self) -> str:
         return self.spec.name
+
+    @property
+    def methods(self) -> tuple[tuple, ...]:
+        """Names of the LCIA methods stored in the file, sorted."""
+        return _sorted_names(self.lcia.get("method", ()))
+
+    @property
+    def normalizations(self) -> tuple[tuple, ...]:
+        """Names of the normalizations stored in the file, sorted."""
+        return _sorted_names(self.lcia.get("normalization", ()))
+
+    @property
+    def weightings(self) -> tuple[tuple, ...]:
+        """Names of the weightings stored in the file, sorted."""
+        return _sorted_names(self.lcia.get("weighting", ()))
 
     @property
     def path(self) -> Path:
@@ -573,6 +750,10 @@ class AttachedExtension:
 
     def __str__(self) -> str:
         return f"extension {self.name!r} ({self.path})"
+
+
+def _sorted_names(names) -> tuple[tuple, ...]:
+    return tuple(sorted(names, key=lambda name: json.dumps(list(name), ensure_ascii=False)))
 
 
 def database_fingerprint(connection, schema: str, database: str) -> str:
@@ -588,6 +769,48 @@ def database_fingerprint(connection, schema: str, database: str) -> str:
     digest = hashlib.sha256()
     for code, type_ in rows:
         digest.update(json.dumps([code, type_], ensure_ascii=False).encode("utf8") + b"\n")
+    return FINGERPRINT_PREFIX + digest.hexdigest()
+
+
+def lcia_fingerprint(connection, schema: str, kind: str, name: Sequence) -> str:
+    """Fingerprint of the LCIA object ``name`` of the kind ``kind`` (``"method"``,
+    ``"normalization"`` or ``"weighting"``) in the file attached as ``schema`` on
+    ``connection``. Raises ``KeyError`` if the file has no such object.
+
+    A SHA-256 hash of the name and the sorted factors: for each one its flow as ``(database,
+    code)`` (looked up in the same file; ``NULL`` if it is not there), its amount, its
+    uncertainty and, for a method, its location. The metadata and the order of the factors are
+    not part of it."""
+    lcia_kind = LCIA_KIND[kind]
+    record = _q(_table(lcia_kind.record))
+    factor = _q(_table(lcia_kind.factor))
+    source = _q(schema)
+    key = lcia_kind.record.name.db_value(name)
+    rows = _rows(connection, f"SELECT id FROM {source}.{record} WHERE name = ?", (key,))
+    if not rows:
+        raise KeyError(f"No {kind} {tuple(name)!r} in {schema}")
+    columns = ["f.amount", "f.uncertainty"]
+    join = ""
+    if lcia_kind.flows:
+        columns = ["a.database", "a.code"] + columns
+        join = f"LEFT JOIN {source}.{_q(_table(ActivityDataset))} AS a ON a.id = f.flow"
+    if kind == "method":
+        columns += ["f.geocollection", "f.location"]
+    sql = (
+        f"SELECT {', '.join(columns)} FROM {source}.{factor} AS f {join} "
+        f"WHERE f.{_q(lcia_kind.owner)} = ?"
+    )
+    lines = []
+    uncertainty = columns.index("f.uncertainty")
+    for row in _rows(connection, sql, (rows[0][0],)):
+        row = list(row)
+        if row[uncertainty] is not None:
+            row[uncertainty] = json.loads(row[uncertainty])
+        lines.append(json.dumps(row, ensure_ascii=False, sort_keys=True))
+    digest = hashlib.sha256()
+    digest.update(json.dumps(list(name), ensure_ascii=False).encode("utf8") + b"\n")
+    for line in sorted(lines):
+        digest.update(line.encode("utf8") + b"\n")
     return FINGERPRINT_PREFIX + digest.hexdigest()
 
 
@@ -731,6 +954,13 @@ def _read_extension(connection, number: int, spec: ExtensionSpec) -> AttachedExt
     if DATAPACKAGE_TABLE in tables:
         sql = f"SELECT database FROM {_q(schema)}.{_q(DATAPACKAGE_TABLE)} ORDER BY database"
         datapackages = tuple(row[0] for row in _rows(connection, sql))
+    lcia = {}
+    for kind in LCIA_KINDS:
+        sql = f"SELECT name FROM {_q(schema)}.{_q(_table(kind.record))}"
+        names = frozenset(kind.record.name.python_value(row[0]) for row in _rows(connection, sql))
+        if names:
+            lcia[kind.name] = names
+    lcia_fingerprints = _read_lcia_fingerprints(info.get(INFO_LCIA_FINGERPRINTS), label)
     return AttachedExtension(
         spec=spec,
         schema=schema,
@@ -741,7 +971,46 @@ def _read_extension(connection, number: int, spec: ExtensionSpec) -> AttachedExt
         fingerprints=MappingProxyType(fingerprints),
         requirements=requirements,
         datapackages=datapackages,
+        lcia=MappingProxyType(lcia),
+        lcia_fingerprints=lcia_fingerprints,
     )
+
+
+def _read_lcia_fingerprints(value: str | None, label: str) -> Mapping[str, Mapping[tuple, str]]:
+    """The value of ``INFO_LCIA_FINGERPRINTS``, as ``{kind: {name: fingerprint}}``."""
+    if value is None:
+        return MappingProxyType({})
+    problem = ExtensionError(
+        f"Can't attach {label}: {INFO_LCIA_FINGERPRINTS!r} in {INFO_TABLE} is not a JSON object "
+        "with lists of [name, fingerprint] pairs"
+    )
+    try:
+        data = json.loads(value)
+    except (TypeError, ValueError):
+        raise problem from None
+    if not isinstance(data, dict):
+        raise problem
+    result = {}
+    for kind, pairs in data.items():
+        if not isinstance(pairs, list):
+            raise problem
+        fingerprints = {}
+        for pair in pairs:
+            if (
+                not isinstance(pair, list)
+                or len(pair) != 2
+                or not isinstance(pair[0], list)
+                or not pair[0]
+                or not isinstance(pair[1], str)
+            ):
+                raise problem
+            try:
+                fingerprints[tuple(pair[0])] = pair[1]
+            except TypeError:
+                # A name with a list or an object in it
+                raise problem from None
+        result[kind] = MappingProxyType(fingerprints)
+    return MappingProxyType(result)
 
 
 def _check_unique_ids(attached: Sequence[AttachedExtension]) -> None:
@@ -833,11 +1102,14 @@ def _check_ownership(connection, attached: Sequence[AttachedExtension]) -> None:
 
 
 def _check_ids(connection, attached: Sequence[AttachedExtension]) -> None:
-    """No activity or exchange id may be in two files: the views would show both rows."""
+    """No activity, exchange or LCIA object id may be in two files: the views would show both
+    rows."""
     labels = _labels(attached)
     schemas = ["main"] + [extension.schema for extension in attached]
     problems = []
-    for model, what in ((ActivityDataset, "activity"), (ExchangeDataset, "exchange")):
+    models = [(ActivityDataset, "activity"), (ExchangeDataset, "exchange")]
+    models += [(kind.record, kind.name) for kind in LCIA_KINDS]
+    for model, what in models:
         table = _q(_table(model))
         for position, first in enumerate(schemas):
             for second in schemas[position + 1 :]:
@@ -850,6 +1122,30 @@ def _check_ids(connection, attached: Sequence[AttachedExtension]) -> None:
                     problems.append(
                         f"{count} {what} ids are used in both {labels[first]} and "
                         f"{labels[second]} (for example {example})"
+                    )
+    if problems:
+        raise ExtensionError("\n".join(problems))
+
+
+def _check_lcia_names(connection, attached: Sequence[AttachedExtension]) -> None:
+    """Each name of an LCIA kind belongs to one file, as each database name does."""
+    labels = _labels(attached)
+    schemas = ["main"] + [extension.schema for extension in attached]
+    problems = []
+    for kind in LCIA_KINDS:
+        table = _q(_table(kind.record))
+        for position, first in enumerate(schemas):
+            for second in schemas[position + 1 :]:
+                rows = _rows(
+                    connection,
+                    f"SELECT a.name FROM {_q(first)}.{table} AS a "
+                    f"JOIN {_q(second)}.{table} AS b ON a.name = b.name ORDER BY a.name",
+                )
+                for (name,) in rows:
+                    problems.append(
+                        f"{kind.what} {kind.record.name.python_value(name)!r} is in "
+                        f"{labels[second]} and also in {labels[first]}; each {kind.name} can only "
+                        "be stored in one file"
                     )
     if problems:
         raise ExtensionError("\n".join(problems))
@@ -890,8 +1186,9 @@ def check_extensions(main_path, specs: Sequence[ExtensionSpec]) -> tuple[Attache
     * every requirement is met: by an extension in ``specs`` with the required id which has the
       database with exactly the required fingerprint or, if the requiring extension allows it,
       by a database in the project's file with that fingerprint;
-    * each database name belongs to one file (``ownership_check_sql``);
-    * no activity or exchange id is in two files;
+    * each database name belongs to one file (``ownership_check_sql``), and so does each name
+      of an LCIA method, normalization or weighting;
+    * no activity, exchange or LCIA object id is in two files;
     * no two files have different zstd dictionaries with the same id.
 
     Uses its own read-only connection, which is closed again. An SQLite error while checking,
@@ -917,6 +1214,7 @@ def _check_extensions(main_path, specs: tuple[ExtensionSpec, ...]) -> tuple[Atta
         _check_unique_ids(attached)
         _check_requirements(connection, attached)
         _check_ownership(connection, attached)
+        _check_lcia_names(connection, attached)
         _check_ids(connection, attached)
         _check_dictionaries(connection, attached)
     return tuple(attached)
@@ -1088,6 +1386,11 @@ class ProjectExtension:
     problem: str | None = None
     #: Names of the databases stored in the file; empty if the extension is not available
     databases: tuple[str, ...] = ()
+    #: Names of the LCIA methods, normalizations and weightings stored in the file; empty if
+    #: the extension is not available
+    methods: tuple[tuple, ...] = ()
+    normalizations: tuple[tuple, ...] = ()
+    weightings: tuple[tuple, ...] = ()
 
     @property
     def available(self) -> bool:
@@ -1218,6 +1521,33 @@ def check_name_free(database: str) -> None:
     check_writable(database, "its name can't be used for a database of the project")
 
 
+def lcia_extension_of(kind: str, name) -> AttachedExtension | None:
+    """The attached extension which stores the LCIA object ``name`` of the kind ``kind``
+    (``"method"``, ``"normalization"`` or ``"weighting"``), or ``None``. ``name`` is a tuple;
+    a list is treated as the equal tuple."""
+    from bw2data.backends import sqlite3_lci_db
+
+    if isinstance(name, list):
+        name = tuple(name)
+    for extension in sqlite3_lci_db.extensions:
+        if name in extension.lcia.get(kind, ()):
+            return extension
+    return None
+
+
+def check_lcia_writable(kind: str, name, what: str = "can't be changed") -> None:
+    """Raise ``ReadOnlyExtensionError`` if the LCIA object ``name`` of the kind ``kind`` is
+    stored in an attached extension. ``what`` ends the message. Also refuses to create an
+    object of the project with that name."""
+    extension = lcia_extension_of(kind, name)
+    if extension is not None:
+        if isinstance(name, list):
+            name = tuple(name)
+        raise ReadOnlyExtensionError(
+            f"{LCIA_KIND[kind].what} {name!r} is stored in the read-only {extension} and {what}"
+        )
+
+
 # Stored datapackages
 #
 # An extension file can hold the processed datapackage of each of its databases
@@ -1282,6 +1612,8 @@ INFO_CREATED = "created"
 
 #: Rows written in one ``executemany``
 _COPY_CHUNK = 10_000
+#: Ids in one ``IN (...)`` list
+_ID_CHUNK = 500
 #: Most values a new zstd dictionary is trained on, and fewest values to train one for
 _DICTIONARY_SAMPLES = 5_000
 _DICTIONARY_MIN_VALUES = 500
@@ -1327,10 +1659,37 @@ def _json_value(value):
     return json.loads(value)
 
 
-def _check_export_arguments(main_path, path: Path, databases, version, attached, overwrite):
-    """The checks of ``build_extension`` which need no data; returns the database names."""
+def _lcia_export_names(lcia) -> dict[str, list[tuple]]:
+    """``{kind: names}`` of the LCIA objects to export, with the names as tuples."""
+    result = {}
+    for kind, names in (lcia or {}).items():
+        if kind not in LCIA_KIND:
+            raise ValueError(f"Unknown kind of LCIA object: {kind!r}")
+        if isinstance(names, (str, tuple)):
+            raise ValueError(
+                f"The {LCIA_KIND[kind].label} to export must be given as a list of names, "
+                f"not {names!r}"
+            )
+        names = [tuple(name) if isinstance(name, list) else name for name in names]
+        if not all(isinstance(name, tuple) and name for name in names):
+            raise ValueError(
+                f"Names of {LCIA_KIND[kind].label} must be non-empty tuples: {names!r}"
+            )
+        if len(set(names)) != len(names):
+            raise ValueError(f"The {LCIA_KIND[kind].label} to export must be distinct: {names!r}")
+        if names:
+            result[kind] = names
+    return result
+
+
+def _check_export_arguments(
+    main_path, path: Path, databases, version, attached, overwrite, lcia=None
+):
+    """The checks of ``build_extension`` which need no data; returns the database names and
+    the names of the LCIA objects (``_lcia_export_names``)."""
     names = [databases] if isinstance(databases, str) else list(databases)
-    if not names:
+    lcia_names = _lcia_export_names(lcia)
+    if not names and not lcia_names:
         raise ValueError("No database to export")
     if not all(isinstance(name, str) for name in names) or len(set(names)) != len(names):
         raise ValueError(f"Databases must be given as distinct names: {names!r}")
@@ -1348,7 +1707,7 @@ def _check_export_arguments(main_path, path: Path, databases, version, attached,
             )
     if path.exists() and not overwrite:
         raise FileExistsError(f"{path} exists; pass `overwrite=True` to replace it")
-    return names
+    return names, lcia_names
 
 
 def check_export(
@@ -1358,19 +1717,24 @@ def check_export(
     version: str | None = None,
     attached: Sequence[AttachedExtension] = (),
     overwrite: bool = False,
+    lcia: Mapping[str, Sequence] | None = None,
 ) -> None:
     """Raise what ``build_extension`` would raise for these arguments before it writes
     anything, and do nothing else: for callers which have work to do before the export, such
     as processing the databases. Uses its own read-only connection."""
     from bw2data.backends.migrations import SCHEMA_VERSION
 
-    names = _check_export_arguments(main_path, Path(path), databases, version, attached, overwrite)
+    names, lcia_names = _check_export_arguments(
+        main_path, Path(path), databases, version, attached, overwrite, lcia
+    )
     try:
         connection = sqlite3.connect(
             _sqlite_uri(main_path, mode="ro"), uri=True, isolation_level=None
         )
         with closing(connection):
-            _export_plan(connection, "main", main_path, names, tuple(attached), SCHEMA_VERSION)
+            _export_plan(
+                connection, "main", main_path, names, tuple(attached), SCHEMA_VERSION, lcia_names
+            )
     except sqlite3.Error as err:
         raise ExtensionError(f"Can't export to {path}: {err}") from err
 
@@ -1382,10 +1746,12 @@ def _export_plan(
     names: list[str],
     attached: tuple[AttachedExtension, ...],
     schema_version: int,
-) -> tuple[dict, dict, dict]:
-    """Check that the databases ``names`` of the project file, which ``connection`` has as
-    ``schema``, can be exported (``ExtensionError`` if not), and return their records, the
-    databases each one links to, and the requirements of the new file."""
+    lcia_names: Mapping[str, Sequence[tuple]] = MappingProxyType({}),
+) -> tuple[dict, dict, dict, dict]:
+    """Check that the databases ``names`` and the LCIA objects ``lcia_names`` (``{kind:
+    names}``) of the project file, which ``connection`` has as ``schema``, can be exported
+    (``ExtensionError`` if not), and return the databases' records, the databases each one
+    links to, the requirements of the new file, and ``{kind: ids}`` of the LCIA objects."""
     marks = ", ".join("?" * len(names))
     exchanges = _q(_table(ExchangeDataset))
     records = _q(_table(DatabaseRecord))
@@ -1470,7 +1836,84 @@ def _export_plan(
             + ". An extension can only link to databases in other extensions: export the "
             "databases it links to as well, or attach them as an extension."
         )
-    return found, depends, requirements
+    return (
+        found,
+        depends,
+        requirements,
+        _lcia_export_plan(connection, schema, names, attached, lcia_names),
+    )
+
+
+def _lcia_export_plan(
+    connection,
+    schema: str,
+    names: list[str],
+    attached: tuple[AttachedExtension, ...],
+    lcia_names: Mapping[str, Sequence[tuple]],
+) -> dict[str, list[int]]:
+    """Check that the LCIA objects ``lcia_names`` can be exported with the databases ``names``
+    (``ExtensionError`` if not), and return their ids by kind. Each must be in the project's
+    file, have data, and have factors only for flows in the exported databases: in an
+    extension, an object and its flows are always attached and detached together."""
+    source = _q(schema)
+    activities = _q(_table(ActivityDataset))
+    marks = ", ".join("?" * len(names))
+    result, problems = {}, []
+    for kind_name, objects in lcia_names.items():
+        kind = LCIA_KIND[kind_name]
+        record = _q(_table(kind.record))
+        factor = _q(_table(kind.factor))
+        ids = []
+        for name in objects:
+            extension = next((e for e in attached if name in e.lcia.get(kind_name, ())), None)
+            if extension is not None:
+                problems.append(
+                    f"{kind.name} {name!r} is stored in the read-only {extension}; copy it "
+                    "into the project to export it"
+                )
+                continue
+            rows = _rows(
+                connection,
+                f"SELECT id, has_data FROM {source}.{record} WHERE name = ?",
+                (kind.record.name.db_value(name),),
+            )
+            if not rows:
+                problems.append(f"the project has no {kind.name} {name!r}")
+                continue
+            id_, has_data = rows[0]
+            if not has_data:
+                problems.append(f"{kind.name} {name!r} has no data")
+                continue
+            if kind.flows:
+                outside = _rows(
+                    connection,
+                    f"SELECT DISTINCT f.flow, a.database, a.code FROM {source}.{factor} AS f "
+                    f"LEFT JOIN {source}.{activities} AS a ON a.id = f.flow "
+                    f"WHERE f.{_q(kind.owner)} = ? "
+                    f"AND (a.database IS NULL OR a.database NOT IN ({marks})) "
+                    "ORDER BY f.flow LIMIT 5",
+                    [id_, *names],
+                )
+                if outside:
+                    examples = ", ".join(
+                        f"({database!r}, {code!r})" if database is not None else f"id {flow}"
+                        for flow, database, code in outside
+                    )
+                    problems.append(
+                        f"{kind.name} {name!r} has factors for flows which are not in the "
+                        f"exported databases, e.g. {examples}"
+                    )
+                    continue
+            ids.append(id_)
+        result[kind_name] = ids
+    if problems:
+        raise ExtensionError(
+            "Can't export: "
+            + "; ".join(problems)
+            + ". An LCIA object can only be exported together with the databases of all the "
+            "flows it has factors for."
+        )
+    return result
 
 
 def build_extension(
@@ -1481,10 +1924,16 @@ def build_extension(
     attached: Sequence[AttachedExtension] = (),
     overwrite: bool = False,
     datapackages: Mapping[str, str | PathLike] | None = None,
+    lcia: Mapping[str, Sequence] | None = None,
 ) -> str:
     """Write the databases ``databases`` of the project file ``main_path`` into a new extension
     file ``path``, and return the id of the new extension. Use ``projects.export_extension``,
     which calls this for the current project.
+
+    ``lcia`` adds LCIA objects of the project: ``{kind: names}``, with the kinds ``"method"``,
+    ``"normalization"`` and ``"weighting"``. They are copied with their ids, metadata and
+    factors. Raises ``ExtensionError`` if one is not in the project's own file, has no data,
+    or has factors for flows which are not in ``databases``.
 
     ``attached`` are the extensions attached to the project. An exported database may link to
     databases in them: the new file then requires each of those databases, with the extension's
@@ -1504,8 +1953,9 @@ def build_extension(
       the project has no index for one;
     * no zstd dictionary of the project: if the values use one, they are compressed again
       with a new dictionary trained on them alone (``_recompress``);
-    * ``INFO_TABLE`` (a new id, ``version``, the fingerprints, the bw2data version and the time
-      it was built) and ``REQUIRES_TABLE``;
+    * the LCIA objects ``lcia``, with their factors;
+    * ``INFO_TABLE`` (a new id, ``version``, the fingerprints of the databases and of the LCIA
+      objects, the bw2data version and the time it was built) and ``REQUIRES_TABLE``;
     * with ``datapackages`` (``{database: path of its processed datapackage}``, for some or
       all of the databases), ``DATAPACKAGE_TABLE`` with the content of these files. They must
       be up to date: they are stored as they are.
@@ -1516,7 +1966,9 @@ def build_extension(
     from bw2data.backends.migrations import SCHEMA_VERSION
 
     path = Path(path)
-    names = _check_export_arguments(main_path, path, databases, version, attached, overwrite)
+    names, lcia_names = _check_export_arguments(
+        main_path, path, databases, version, attached, overwrite, lcia
+    )
     datapackages = dict(datapackages or {})
     unknown = sorted(set(datapackages).difference(names))
     if unknown:
@@ -1532,6 +1984,7 @@ def build_extension(
                 tuple(attached),
                 SCHEMA_VERSION,
                 datapackages,
+                lcia_names,
             )
         except sqlite3.Error as err:
             raise ExtensionError(f"Can't export to {path}: {err}") from err
@@ -1549,6 +2002,7 @@ def _build_extension(
     attached: tuple[AttachedExtension, ...],
     schema_version: int,
     datapackages: Mapping[str, str | PathLike],
+    lcia_names: Mapping[str, Sequence[tuple]],
 ) -> str:
     from bw2data import __version__
     from bw2data.backends import LCI_PAGE_SIZE
@@ -1569,8 +2023,8 @@ def _build_extension(
         connection.execute("ATTACH DATABASE ? AS source", (_sqlite_uri(main_path, mode="ro"),))
         # All reads see one state of the project file
         connection.execute("BEGIN")
-        found, depends, requirements = _export_plan(
-            connection, "source", main_path, names, attached, schema_version
+        found, depends, requirements, lcia_ids = _export_plan(
+            connection, "source", main_path, names, attached, schema_version, lcia_names
         )
 
         # The LCI indexes are created as schema migration 8 creates them, not copied: the
@@ -1608,6 +2062,24 @@ def _build_extension(
                         row[:position] + (new_snowflake_id(),) + row[position + 1 :]
                         for row in rows
                     ],
+                )
+        # LCIA objects keep their ids, which their factors refer to
+        for kind_name, ids in lcia_ids.items():
+            kind = LCIA_KIND[kind_name]
+            record = _q(_table(kind.record))
+            factor = _q(_table(kind.factor))
+            for start in range(0, len(ids), _ID_CHUNK):
+                chunk = ids[start : start + _ID_CHUNK]
+                id_marks = ", ".join("?" * len(chunk))
+                connection.execute(
+                    f"INSERT INTO main.{record} SELECT * FROM source.{record} "
+                    f"WHERE id IN ({id_marks})",
+                    chunk,
+                )
+                connection.execute(
+                    f"INSERT INTO main.{factor} SELECT * FROM source.{factor} "
+                    f"WHERE {_q(kind.owner)} IN ({id_marks})",
+                    chunk,
                 )
         dictionaries = _recompress(connection, (activities, exchanges))
         for statement in indexes:
@@ -1677,11 +2149,23 @@ def _build_extension(
 
         # Identity and requirements
         fingerprints = {name: database_fingerprint(connection, "main", name) for name in names}
+        lcia_fingerprints = {
+            kind: [
+                [list(name), lcia_fingerprint(connection, "main", kind, name)]
+                for name in _sorted_names(objects)
+            ]
+            for kind, objects in lcia_names.items()
+        }
         extension_id = str(uuid.uuid4())
         info = {
             INFO_ID: extension_id,
             INFO_VERSION: version,
             INFO_FINGERPRINTS: json.dumps(fingerprints, ensure_ascii=False, sort_keys=True),
+            INFO_LCIA_FINGERPRINTS: (
+                json.dumps(lcia_fingerprints, ensure_ascii=False, sort_keys=True)
+                if lcia_fingerprints
+                else None
+            ),
             INFO_BW2DATA_VERSION: __version__,
             INFO_CREATED: datetime.now(timezone.utc).isoformat(),
         }
@@ -1723,6 +2207,20 @@ def _build_extension(
                     f"database {name!r} has the fingerprint {found_fingerprint}, but "
                     f"{extension.fingerprints.get(name)} is stored"
                 )
+        for kind, objects in lcia_names.items():
+            if extension.lcia.get(kind, frozenset()) != frozenset(objects):
+                problems.append(
+                    f"it has the {LCIA_KIND[kind].label} {sorted(extension.lcia.get(kind, ()))}"
+                )
+                continue
+            for name in objects:
+                found_fingerprint = lcia_fingerprint(check, extension.schema, kind, name)
+                stored = extension.lcia_fingerprints.get(kind, {}).get(name)
+                if stored != found_fingerprint:
+                    problems.append(
+                        f"{kind} {name!r} has the fingerprint {found_fingerprint}, but "
+                        f"{stored} is stored"
+                    )
     if problems:
         raise ExtensionError(
             "The exported file doesn't pass the checks for extensions: " + "; ".join(problems)
