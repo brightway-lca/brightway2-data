@@ -232,3 +232,88 @@ def test_load_revisions_divergent():
     project._write_head(head1)
     with pytest.raises(errors.PossibleInconsistentData):
         project.load_revisions()
+
+
+def _head_file(project):
+    return (project.dir / "revisions" / "head").read_text()
+
+
+def _temporary_files(project):
+    return [p for p in (project.dir / "revisions").iterdir() if p.suffix == ".tmp"]
+
+
+def _fail(*args, **kwargs):
+    raise OSError("crash")
+
+
+@bw2test
+def test_write_head_failure_keeps_previous_head(monkeypatch):
+    # #316: a write which fails part way doesn't leave a partly written head file
+    project = create_project("test_write_head_atomic", 2, ((0, 1, 2),))
+    monkeypatch.setattr("bw2data.project.os.replace", _fail)
+    with pytest.raises(OSError):
+        project._write_head(1234567)
+    assert _head_file(project) == "2"
+    assert not _temporary_files(project)
+
+
+@bw2test
+def test_write_revision_failure_keeps_previous_file(monkeypatch):
+    project = create_project("test_write_revision_atomic", 1, ((0, 1),))
+    path = project.dir / "revisions" / "1.rev"
+    before = path.read_text()
+    monkeypatch.setattr("bw2data.project.os.replace", _fail)
+    with pytest.raises(OSError):
+        project._write_revision({"metadata": {"revision": 1, "parent_revision": 7}, "data": []})
+    assert path.read_text() == before
+    assert not _temporary_files(project)
+
+
+@bw2test
+def test_add_revision_crash_before_head_file(monkeypatch):
+    # #316: the column is saved but the head file isn't written; `load_revisions` applies
+    # nothing and brings the head file up to date
+    project = create_project("test_crash_before_head", 1, ((0, 1),))
+    project.load_revisions()
+    assert project.revision == 1
+    with monkeypatch.context() as m:
+        m.setattr(project, "_write_head", _fail)
+        with pytest.raises(OSError):
+            project.add_revision([])
+    new = project.revision
+    assert new != 1
+    assert _head_file(project) == "1"
+
+    applied = []
+    with monkeypatch.context() as m:
+        m.setattr(project, "apply_revision", applied.append)
+        project.load_revisions()
+    assert applied == []
+    assert project.revision == new
+    assert _head_file(project) == str(new)
+    assert revision_list(project) == [0, 1, new]
+
+
+@bw2test
+def test_add_revision_crash_before_column(monkeypatch):
+    # #316: the revision file is written but nothing points to it; it is ignored
+    from bw2data.project import ProjectDataset
+
+    project = create_project("test_crash_before_column", 1, ((0, 1),))
+    project.load_revisions()
+    with monkeypatch.context() as m:
+        m.setattr(project, "save", _fail)
+        with pytest.raises(OSError):
+            project.add_revision([])
+    # What a new session reads
+    project = ProjectDataset.get(ProjectDataset.name == project.name)
+    assert project.revision == 1
+    assert _head_file(project) == "1"
+
+    applied = []
+    with monkeypatch.context() as m:
+        m.setattr(project, "apply_revision", applied.append)
+        project.load_revisions()
+    assert applied == []
+    assert project.revision == 1
+    assert _head_file(project) == "1"
