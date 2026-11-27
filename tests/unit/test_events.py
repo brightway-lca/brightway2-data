@@ -317,3 +317,64 @@ def test_add_revision_crash_before_column(monkeypatch):
     assert applied == []
     assert project.revision == 1
     assert _head_file(project) == "1"
+
+
+@bw2test
+def test_load_revisions_saves_column_before_head_file(monkeypatch):
+    # The column was only changed in memory, as its save failed; the head file must not get
+    # ahead of what is stored
+    from bw2data.project import ProjectDataset
+
+    project = create_project("test_column_before_head", 1, ((0, 1),))
+    project.load_revisions()
+    with monkeypatch.context() as m:
+        m.setattr(project, "save", _fail)
+        with pytest.raises(OSError):
+            project.add_revision([])
+    new = project.revision
+    project.load_revisions()
+    assert _head_file(project) == str(new)
+    assert ProjectDataset.get(ProjectDataset.name == project.name).revision == new
+
+
+@bw2test
+@pytest.mark.parametrize("content", ["", "12", "None", "1\x00"])
+def test_unreadable_head_file_replaced_by_column(content, monkeypatch):
+    # #316: e.g. truncated by a crash of a version which wrote it in place
+    project = create_project("test_unreadable_head", 2, ((0, 1, 2),))
+    project.load_revisions()
+    path = project.dir / "revisions" / "head"
+    if content == "12":
+        # A valid id is not touched
+        path.write_text(content)
+        assert project._read_head() == 12
+        return
+    path.write_text(content)
+    applied = []
+    monkeypatch.setattr(project, "apply_revision", applied.append)
+    with pytest.warns(UserWarning, match="doesn't hold a revision id"):
+        project.load_revisions()
+    assert applied == []
+    assert project.revision == 2
+    assert _head_file(project) == "2"
+
+
+@bw2test
+def test_unreadable_head_file_without_revision():
+    project = create_project("test_unreadable_head_no_revision", 1, ((0, 1),))
+    path = project.dir / "revisions" / "head"
+    path.write_text("")
+    with pytest.warns(UserWarning, match="no revision to replace it with"):
+        project.load_revisions()
+    assert project.revision is None
+    assert path.read_text() == ""
+
+
+@bw2test
+def test_write_head_without_revision_writes_nothing():
+    projects.set_current("test_write_head_none")
+    project = projects.dataset
+    project.set_sourced()
+    assert project.revision is None
+    project._write_head()
+    assert not (project.dir / "revisions" / "head").exists()

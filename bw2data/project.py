@@ -92,7 +92,9 @@ class ProjectDataset(Model):
     # the head file, so the head file is written last and a crash leaves either a revision file
     # which nothing points to (ignored) or a column which is ahead of the head file (repaired
     # by ``load_revisions``). Files are written to a temporary file and moved into place, so a
-    # crash never leaves a partly written revision or head.
+    # crash of the process never leaves a partly written revision or head. They are not
+    # fsynced (a revision is written on every change), so a power cut still can; a head file
+    # which can't be read is replaced by the column, see ``_read_head``.
 
     @staticmethod
     def _write_atomically(path: Path, text: str) -> None:
@@ -118,6 +120,9 @@ class ProjectDataset(Model):
     def _write_head(self, head: Optional["revisions.ID"] = None):
         """Write the tip of the revision log to disk; default is ``self.revision``."""
         head = head if head is not None else self.revision
+        if head is None:
+            # Nothing applied yet; `None` is not a head which can be read back
+            return
         self._write_atomically(self.dir / "revisions" / "head", str(head))
 
     def add_revision(
@@ -208,6 +213,30 @@ class ProjectDataset(Model):
         elif local and remote and local != remote:
             raise InconsistentData
 
+    def _read_head(self) -> Optional["revisions.ID"]:
+        """Read the head file. A head file which can't be read, e.g. one left empty by a crash
+        of a version which didn't write it atomically (#316), is replaced by the project's
+        revision, with a warning; ``None`` if the project has none."""
+        path = self.dir / "revisions" / "head"
+        content = path.read_text(encoding="utf-8")
+        try:
+            return int(content)
+        except ValueError:
+            pass
+        if self.revision is None:
+            warnings.warn(
+                f"Ignoring {path}, which doesn't hold a revision id ({content[:40]!r}); "
+                "this project has no revision to replace it with"
+            )
+            return None
+        warnings.warn(
+            f"{path} doesn't hold a revision id ({content[:40]!r}); replacing it with the "
+            f"project's revision, {self.revision}. Revisions received from collaborators "
+            "since it was damaged are only loaded with `load_revisions(head)`."
+        )
+        self._write_head()
+        return self.revision
+
     def _load_revisions(
         self,
         head: Optional["revisions.ID"] = None,
@@ -218,8 +247,9 @@ class ProjectDataset(Model):
             if not (self.dir / "revisions" / "head").is_file():
                 # No revisions recorded yet
                 return None
-            with open(self.dir / "revisions" / "head", "r") as f:
-                head = int(f.read())
+            head = self._read_head()
+            if head is None:
+                return None
         for filename in os.listdir(self.dir / "revisions"):
             if not filename.endswith(".rev"):
                 continue
@@ -281,10 +311,13 @@ class ProjectDataset(Model):
             self.revision is not None
             and self.revision != g.head
             and self.revision in g.id_map
-            and g.is_ancestor(g.head, self.revision)
+            # Stops at the head; doesn't walk the history below it
+            and g.merge_base(self.revision, g.head) == g.head
         ):
             # The data is ahead of the log: `add_revision` stopped after saving the column but
             # before writing the head file. Nothing to apply, only the head file to catch up.
+            # The column is saved first, as everywhere, in case it only changed in memory.
+            self.save()
             self._write_head()
             return
         for rev in self._rebase(g):
