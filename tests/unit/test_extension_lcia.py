@@ -588,14 +588,16 @@ def test_failed_update_keeps_the_local_state(built, tmp_path, monkeypatch):
     new = tmp_path / "bio-2.db"
     export_bio(new)
     projects.set_current("user")
-    add = type(geomapping).add
+    add = geomapping.add
 
-    def fail(self, keys):
+    def fail(keys):
         if "Atlantis" in keys:
             raise ValueError("no such place")
-        return add(self, keys)
+        return add(keys)
 
-    monkeypatch.setattr(type(geomapping), "add", fail)
+    # On the instance, as the other tests do: undoing such a patch leaves an instance
+    # attribute, which a patch of the class would not replace
+    monkeypatch.setattr(geomapping, "add", fail)
     with pytest.raises(ValueError, match="no such place"):
         projects.update_extension("bio", new)
     assert projects.extensions[0].id == old_id
