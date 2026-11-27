@@ -19,7 +19,7 @@ from bw2parameters import Interpreter, ParameterSet
 from bw2parameters.errors import MissingName
 from peewee import BooleanField, Check, DateTimeField, FloatField, IntegerField, Model, TextField
 
-from bw2data import config, databases, get_activity, projects
+from bw2data import config, databases, get_activity
 from bw2data.backends.schema import ExchangeDataset
 from bw2data.signals import (
     on_activity_parameter_recalculate,
@@ -34,7 +34,7 @@ from bw2data.signals import (
     on_project_parameter_update_formula_parameter_name,
 )
 from bw2data.snowflake_ids import SnowflakeIDBaseClass
-from bw2data.sqlite import PickleField, SubstitutableDatabase
+from bw2data.sqlite import PickleField
 
 # https://stackoverflow.com/questions/34544784/arbitrary-string-to-valid-python-name
 clean = lambda x: re.sub(r"\W|^(?=\d)", "_", x)
@@ -140,6 +140,9 @@ class ProjectParameter(ParameterBase):
     _old_name = "'project'"
     _new_name = "'project'"
     _db_table = "projectparameter"
+
+    class Meta:
+        table_name = "projectparameter"
 
     def __str__(self):
         return "Project parameter: {}".format(self.name)
@@ -312,6 +315,7 @@ class DatabaseParameter(ParameterBase):
     _db_table = "databaseparameter"
 
     class Meta:
+        table_name = "databaseparameter"
         indexes = ((("database", "name"), True),)
         constraints = [Check("database != 'project'")]
 
@@ -619,6 +623,7 @@ class ActivityParameter(ParameterBase):
     _db_table = "activityparameter"
 
     class Meta:
+        table_name = "activityparameter"
         indexes = [(("group", "name"), True)]
         constraints = [Check("""("group" != 'project') AND ("group" != database)""")]
 
@@ -1076,6 +1081,9 @@ class ParameterizedExchange(SnowflakeIDBaseClass):
     exchange = IntegerField(unique=True)
     formula = TextField()
 
+    class Meta:
+        table_name = "parameterizedexchange"
+
     @classmethod
     def create_table(cls):
         super(ParameterizedExchange, cls).create_table()
@@ -1139,6 +1147,7 @@ class GroupDependency(Model):
     depends = TextField()
 
     class Meta:
+        table_name = "groupdependency"
         indexes = ((("group", "depends"), True),)
         constraints = [Check('"group" != depends')]
 
@@ -1156,20 +1165,26 @@ class GroupDependency(Model):
         cls._meta.database.execute_sql(GD_INSERT_TRIGGER)
 
 
+#: The parameter models, stored in the project's ``lci/databases.db``
+PARAMETER_MODELS = (
+    DatabaseParameter,
+    ProjectParameter,
+    ActivityParameter,
+    ParameterizedExchange,
+    Group,
+    GroupDependency,
+)
+
+
 class ParameterManager:
     def __init__(self):
-        self.db = SubstitutableDatabase(
-            projects.dir / "parameters.db",
-            [
-                DatabaseParameter,
-                ProjectParameter,
-                ActivityParameter,
-                ParameterizedExchange,
-                Group,
-                GroupDependency,
-            ],
-        )
-        config.sqlite3_databases.append(("parameters.db", self.db))
+        from bw2data.backends import sqlite3_lci_db
+
+        # In the LCI file: parameters, and the exchange formulas they change, are written in
+        # one transaction. Before, in a file of their own, ``parameters.db``, which schema
+        # migration 10 moves into the LCI file.
+        sqlite3_lci_db.add_tables(PARAMETER_MODELS)
+        self.db = sqlite3_lci_db
 
     def add_to_group(self, group, activity):
         """Add `activity` to group.

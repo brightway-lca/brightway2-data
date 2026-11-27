@@ -10,10 +10,11 @@ from contextlib import closing, contextmanager
 from pathlib import Path, PurePath
 from urllib.parse import quote, urlencode
 
-from peewee import BlobField, OperationalError, SqliteDatabase, TextField, sqlite3
+from peewee import BlobField, IntegrityError, OperationalError, SqliteDatabase, TextField, sqlite3
 
 from bw2data import codec
 from bw2data.configuration import config
+from bw2data.errors import EXTENSION_ERROR_PREFIX, ReadOnlyExtensionError
 from bw2data.logs import stdout_feedback_logger
 
 if sys.version_info >= (3, 14):
@@ -85,16 +86,48 @@ class ZstdDictionaries:
         with closing(self._database.execute_sql(sql, params)) as cursor:
             return cursor.fetchall()
 
-    def _load(self, dict_id: int) -> zstd.ZstdDict:
+    def _attached_schemas(self) -> list[str]:
+        """Names of the attached files which have a dictionary table: the read-only extensions
+        (see ``bw2data.backends.extensions``). Other files, e.g. attached by a connection hook
+        of the user, are left alone."""
+        schemas = [
+            row[1]
+            for row in self._execute("PRAGMA database_list")
+            if row[1] not in ("main", "temp")
+        ]
+        return [
+            schema
+            for schema in schemas
+            if self._execute(
+                f'SELECT 1 FROM "{schema}".sqlite_master WHERE type = \'table\' AND name = ?',
+                (ZSTD_DICTIONARY_TABLE,),
+            )
+        ]
+
+    def _stored(self, dict_id: int, schema: str = "main") -> bytes | None:
+        """Content of dictionary ``dict_id`` in the file attached as ``schema``, if it has it."""
         rows = self._execute(
-            f'SELECT "content" FROM main."{ZSTD_DICTIONARY_TABLE}" WHERE "id" = ?', (dict_id,)
+            f'SELECT "content" FROM "{schema}"."{ZSTD_DICTIONARY_TABLE}" WHERE "id" = ?',
+            (dict_id,),
         )
-        if not rows:
+        return bytes(rows[0][0]) if rows else None
+
+    def _load(self, dict_id: int) -> zstd.ZstdDict:
+        # Values read through the views of read-only extensions were compressed with the
+        # dictionaries of their own file. Attaching checks that no two files have different
+        # dictionaries with the same id.
+        content = self._stored(dict_id)
+        if content is None:
+            for schema in self._attached_schemas():
+                content = self._stored(dict_id, schema)
+                if content is not None:
+                    break
+        if content is None:
             raise UnknownDictionaryError(
                 f"A stored value was compressed with zstd dictionary {dict_id}, which isn't in "
                 f"the {ZSTD_DICTIONARY_TABLE} table of {self._database.database}"
             )
-        dictionary = zstd.ZstdDict(bytes(rows[0][0]))
+        dictionary = zstd.ZstdDict(content)
         with self._lock:
             self._dictionaries[dict_id] = dictionary
         return dictionary
@@ -190,6 +223,13 @@ class ZstdDictionaries:
             raise ValueError("Can't store a zstd dictionary without an id")
         content = dictionary.dict_content
         table = f'main."{ZSTD_DICTIONARY_TABLE}"'
+        for schema in self._attached_schemas():
+            stored = self._stored(dict_id, schema)
+            if stored is not None and stored != content:
+                raise ValueError(
+                    f"A different zstd dictionary with id {dict_id} is stored in the attached "
+                    f"file {schema}"
+                )
         with self._database.atomic():
             rows = self._execute(f'SELECT "content" FROM {table} WHERE "id" = ?', (dict_id,))
             if not rows:
@@ -447,7 +487,14 @@ class BWSqliteDatabase(SqliteDatabase):
             and self.transaction_token() is None
         ):
             self._run_deferred_setup()
-        return super().execute_sql(sql, params)
+        try:
+            return super().execute_sql(sql, params)
+        except IntegrityError as err:
+            # Refused by a trigger of the read-only extensions; see
+            # ``bw2data.backends.extensions``
+            if EXTENSION_ERROR_PREFIX in str(err):
+                raise ReadOnlyExtensionError(str(err)) from err
+            raise
 
     def _run_deferred_setup(self) -> None:
         # Another thread is already at it; its result is not waited for
@@ -551,6 +598,7 @@ class SubstitutableDatabase:
         on_open=None,
         postpone_tables=False,
         before_vacuum=None,
+        extensions=(),
     ):
         """``on_open``, if given, is called with the peewee database each time a file is opened
         (on creation and after every ``change_path``), after the tables have been created. It is
@@ -573,22 +621,43 @@ class SubstitutableDatabase:
 
         ``before_vacuum``, if given, is called with the peewee database before ``vacuum``
         releases a large share of the file (see there), for example to delete rows which are
-        no longer needed."""
+        no longer needed.
+
+        ``extensions`` is a list of ``bw2data.backends.extensions.ExtensionSpec``: read-only
+        files attached to every connection, whose activities, exchanges and database records
+        are shown together with those of the file itself (only for the LCI file, whose
+        ``tables`` include the overlaid models). They are checked and attached when the file is
+        opened, after the tables are created and ``on_open`` has run. Only if the file was
+        locked (see ``postpone_tables``) do both run later, with the extensions already
+        attached; ``on_open`` must therefore only touch the ``main`` schema, as the schema
+        migrations do. While at least one is attached, the overlaid
+        models point at TEMP views instead of their tables; see
+        ``bw2data.backends.extensions``. ``change_path`` takes the extensions of the new file."""
         self._filepath = filepath
         self._tables = tables
         self._pragmas = pragmas or {}
         self._on_open = on_open
         self._postpone_tables = postpone_tables
         self._before_vacuum = before_vacuum
-        self._database = self._create_database(connection_hooks)
+        #: Checked extensions of the open file, and the hook which attaches them
+        self._extensions = ()
+        self._extension_hook = None
+        #: Whether the overlaid models point at the views of the extensions
+        self._views = False
+        self._database = self._create_database(connection_hooks, extensions)
 
-    def _create_database(self, connection_hooks=()):
+    def _create_database(self, connection_hooks=(), extensions=()):
+        extensions = tuple(extensions)
+        # The tables of the new file must be created under their own names, never as a table
+        # named like a view of the previous file
+        self._use_views(False)
         # Hooks are given to the constructor so that they also run on the connection opened
         # below
         db = BWSqliteDatabase(
             self._filepath, pragmas=self._pragmas, connection_hooks=connection_hooks
         )
         self._bind(db)
+        attached, hook = (), None
         try:
             db.connect()
             if self._create_tables(db) == "locked":
@@ -597,10 +666,53 @@ class SubstitutableDatabase:
                 db.defer_setup(self._finish_setup)
             elif self._on_open is not None:
                 self._on_open(db)
+            if extensions:
+                from bw2data.backends.extensions import attach_hook, check_extensions
+
+                attached = check_extensions(self._filepath, extensions)
+                hook = attach_hook(attached)
+                # Also runs the hook on the connection which is already open
+                db.add_connection_hook(hook)
+                self._use_views(True)
         except BaseException:
+            self._use_views(False)
             db.close()
             raise
+        if attached or self._extensions:
+            # The same ``(database, code)`` can have another id in another build of an
+            # extension. A project switch clears this cache itself, but the same file can be
+            # opened again with other extensions.
+            from bw2data.backends.schema import _get_id_cache
+
+            _get_id_cache.clear()
+        self._extensions, self._extension_hook = attached, hook
         return db
+
+    def _use_views(self, on: bool) -> None:
+        """Point the overlaid models at the views of the extensions, or at their tables."""
+        if on == self._views:
+            return
+        # Imported here: this module is imported before ``bw2data.backends``
+        from bw2data.backends.extensions import OVERLAID_MODELS, use_views
+
+        if on and not all(model in self._tables for model in OVERLAID_MODELS):
+            raise ValueError("Extensions can only be attached to the LCI database file")
+        use_views(on)
+        self._views = on
+
+    @property
+    def extensions(self) -> tuple:
+        """The extensions attached to the open file, as
+        ``bw2data.backends.extensions.AttachedExtension``, in the order they were given."""
+        return self._extensions
+
+    def extension_databases(self) -> dict:
+        """The attached extension (``AttachedExtension``) of each database stored in one."""
+        return {
+            database: extension
+            for extension in self._extensions
+            for database in extension.databases
+        }
 
     def _create_tables(self, db, warn=True) -> str | None:
         """Create the tables which ``db`` doesn't have yet.
@@ -611,6 +723,16 @@ class SubstitutableDatabase:
 
         Tables which already exist need no write, so an up to date file can be opened while
         another connection is writing to it, or when it is read-only."""
+        # Under their own names, also when this runs late (``_finish_setup``), while the models
+        # point at the views of extensions
+        views = self._views
+        self._use_views(False)
+        try:
+            return self._create_missing_tables(db, warn)
+        finally:
+            self._use_views(views)
+
+    def _create_missing_tables(self, db, warn: bool) -> str | None:
         try:
             # In one transaction: otherwise every table, index and trigger of a new file is
             # committed, and synced to disk, on its own, which is slow on Windows. It also
@@ -668,28 +790,49 @@ class SubstitutableDatabase:
         for model in self._tables:
             model.bind(db, bind_refs=False, bind_backrefs=False)
 
+    def add_tables(self, models) -> None:
+        """Bind ``models`` to this file, now and after every ``change_path``, and create their
+        tables if they are missing, as for the models given to the constructor. For models
+        defined in modules which are imported after the file is opened (``bw2data.parameters``
+        for ``lci/databases.db``)."""
+        new = [model for model in models if model not in self._tables]
+        if not new:
+            return
+        self._tables = list(self._tables) + new
+        for model in new:
+            model.bind(self._database, bind_refs=False, bind_backrefs=False)
+        if self._create_tables(self._database) == "locked":
+            self._database.defer_setup(self._finish_setup)
+
     @property
     def db(self):
         return self._database
 
-    def change_path(self, filepath):
-        """Close the current file and open ``filepath`` instead.
+    def change_path(self, filepath, extensions=()):
+        """Close the current file and open ``filepath`` instead, with the read-only
+        ``extensions`` (see ``__init__``) attached.
 
-        If the new file can't be opened, the previous file is opened again and the exception is
-        passed on, so that this object and the models never point at different files."""
+        If the new file can't be opened, or an extension can't be attached, the previous file
+        is opened again, with its extensions, and the exception is passed on, so that this
+        object and the models never point at different files."""
         old_db = self._database
         old_filepath = self._filepath
-        # The database object is replaced, but its connection hooks must survive the switch
-        connection_hooks = old_db.connection_hooks
+        # The database object is replaced, but its connection hooks must survive the switch.
+        # Not the one attaching the extensions: they belong to the file.
+        connection_hooks = tuple(
+            hook for hook in old_db.connection_hooks if hook is not self._extension_hook
+        )
         # ``close`` releases the file handle, as every cursor is closed after use (#308). No
         # ``gc.collect()`` here: it took most of the time of a project switch.
         old_db.close()
         self._filepath = filepath
         try:
-            self._database = self._create_database(connection_hooks)
+            self._database = self._create_database(connection_hooks, extensions)
         except BaseException:
             self._filepath = old_filepath
             self._bind(old_db)
+            # ``_create_database`` only replaces these on success
+            self._use_views(bool(self._extensions))
             old_db.connect(reuse_if_open=True)
             raise
 

@@ -12,6 +12,7 @@ from bw2data import config, databases, geomapping, methods
 from bw2data.parameters import parameters
 from bw2data.project import projects
 
+
 def _close_sqlite_handles():
     """Close all known substitutable SQLite handles to avoid descriptor leaks."""
     try:
@@ -26,6 +27,17 @@ def _close_sqlite_handles():
                 substitutable_db.db.close()
         except Exception:
             pass
+
+
+def _detach_extensions():
+    """Open the LCI file again without the read-only extensions a test attached.
+
+    While extensions are attached, the activity, exchange and database record models point at
+    views; code which runs after the test without opening a project must find them pointing at
+    their tables again. The project keeps its stored extensions."""
+    lci_db = projects._lci_db()
+    if lci_db is not None and lci_db.extensions:
+        lci_db.change_path(lci_db._filepath)
 
 
 class BW2DataTest(unittest.TestCase):
@@ -51,6 +63,7 @@ class BW2DataTest(unittest.TestCase):
         pass
 
     def tearDown(self):
+        _detach_extensions()
         _close_sqlite_handles()
         shutil.rmtree(self._tempdir, ignore_errors=True)
 
@@ -79,4 +92,5 @@ def bw2test(wrapped, instance, args, kwargs):
     try:
         return wrapped(*args, **kwargs)
     finally:
+        _detach_extensions()
         _close_sqlite_handles()

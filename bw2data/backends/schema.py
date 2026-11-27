@@ -1,6 +1,7 @@
 from contextlib import closing
 
 from peewee import (
+    BareField,
     BlobField,
     BooleanField,
     CompositeKey,
@@ -23,7 +24,7 @@ from peewee import (
 )
 
 from bw2data import codec
-from bw2data.errors import UnknownObject
+from bw2data.errors import EXTENSION_ERROR_PREFIX, ReadOnlyExtensionError, UnknownObject
 from bw2data.signals import (
     on_activity_code_change,
     on_activity_database_change,
@@ -171,7 +172,6 @@ class ExchangeDataset(_SavedInTransaction, SnowflakeIDBaseClass):
 
 #: The tables with a ``CompressedJSONField``, and the name of its column
 COMPRESSED_COLUMNS = {ACTIVITY_TABLE: "data", EXCHANGE_TABLE: "data"}
-
 
 class ZstdDictionary(Model):
     """A zstd dictionary used to compress the ``data`` of activities and exchanges.
@@ -328,6 +328,93 @@ class WeightingFactor(_Factor):
         primary_key = CompositeKey("weighting", "position")
 
 
+class TaggedJSONField(TextField):
+    """JSON text written by ``bw2data.codec``, which keeps tuples, non-string keys and the
+    other types of ``codec.dumps``."""
+
+    def db_value(self, value):
+        if value is None:
+            return None
+        return codec.dumps(value).decode("utf-8")
+
+    def python_value(self, value):
+        if value is None:
+            return None
+        return codec.loads(value)
+
+
+#: Values of ``CalculationSetupRecord.kind``
+SETUP_KINDS = ("static", "dynamic")
+
+
+class CalculationSetupRecord(Model):
+    """A calculation setup of ``calculation_setups`` (``kind = "static"``) or
+    ``dynamic_calculation_setups`` (``kind = "dynamic"``); the name is unique per kind.
+
+    ``units`` is the number of functional units in ``inv`` (``NULL`` if the setup has no
+    ``inv``); their nodes and amounts are rows of ``CalculationSetupDemand``. ``ia`` is
+    stored as it is given, and ``extra`` holds the setup's other keys. Project-local: never
+    in an extension file."""
+
+    id = IntegerField(primary_key=True)
+    kind = TextField()
+    name = TextField()
+    units = IntegerField(null=True)
+    ia = TaggedJSONField(null=True)
+    extra = TaggedJSONField(null=True)
+
+    class Meta:
+        table_name = "calculationsetup"
+        indexes = ((("kind", "name"), True),)
+
+
+class CalculationSetupDemand(Model):
+    """One node of a functional unit of a calculation setup: ``unit`` is the position of the
+    functional unit in ``inv``, ``node`` the activity id (not a foreign key: the node can be
+    in an attached extension), ``amount`` the number as given.
+
+    A node given by its key has the key it had then in ``key_database`` and ``key_code``,
+    and is read back as its current key, so that renaming a node or a database doesn't
+    change the setup; a node given by its id has ``NULL`` there and is read back as its id.
+    Deleting a node or a database removes its rows."""
+
+    setup = ForeignKeyField(
+        CalculationSetupRecord, on_delete="CASCADE", column_name="setup_id", index=False
+    )
+    unit = IntegerField()
+    node = IntegerField(index=True)
+    amount = BareField()
+    key_database = TextField(null=True)
+    key_code = TextField(null=True)
+
+    class Meta:
+        table_name = "calculationsetupdemand"
+        primary_key = CompositeKey("setup", "unit", "node")
+
+
+class ExtensionDatabaseState(Model):
+    """Project-local state of a database stored in a read-only extension.
+
+    A database record in an extension can't be changed, but some of its fields change when the
+    project uses the database: ``dirty``, ``searchable`` and ``modified``. Changes to these are
+    stored here, in the project's own file, and shown in place of the extension's values (see
+    ``bw2data.backends.extensions``). ``NULL`` means not set locally.
+
+    ``processed`` is the time when the project last processed the database, as an ISO
+    timestamp. For a database in the project's own file this is the ``processed`` key of
+    ``DatabaseRecord.extra``; the ``extra`` of an extension's record is read-only.
+    """
+
+    name = TextField(primary_key=True)
+    dirty = BooleanField(null=True)
+    searchable = BooleanField(null=True)
+    modified = TextField(null=True)
+    processed = TextField(null=True)
+
+    class Meta:
+        table_name = "extensiondatabasestate"
+
+
 class Preference(Model):
     """One project preference. Read and written through ``bw2data.preferences``.
 
@@ -364,12 +451,10 @@ class Geocollection(Model):
 class GeoMappingRecord(Model):
     """Integer id for a location, used in processed datapackages. Read through ``geomapping``.
 
-    A location is either a bare string (``geocollection`` is ``NULL``), or a feature id in a
-    ``Geocollection``. New ids are snowflake ids (see ``bw2data.snowflake_ids``), like the ids
-    of activities and exchanges: they are never reused after a location is deleted, and don't
-    collide with the ids in another project's file. Ids assigned before snowflake ids were
-    used (small integers from an SQLite sequence) are kept, as processed datapackages refer
-    to them.
+    A location is either a bare string (``geocollection`` is ``NULL``: the default
+    geocollection, ``"world"``), or a location in another ``Geocollection``. Its id is derived
+    from its geocollection and name (``bw2data.meta.location_id``), so it is the same in every
+    project; schema migration 11 gave existing locations these ids.
     """
 
     id = IntegerField(primary_key=True)
@@ -472,7 +557,12 @@ def _as_peewee_error(exc: Exception) -> Exception:
     """
     for cls in type(exc).__mro__:
         if cls.__name__ in _PEEWEE_ERRORS:
-            return _PEEWEE_ERRORS[cls.__name__](exc, *exc.args)
+            error = _PEEWEE_ERRORS[cls.__name__](exc, *exc.args)
+            if isinstance(error, IntegrityError) and EXTENSION_ERROR_PREFIX in str(exc):
+                # Refused by a trigger of the read-only extensions, as in
+                # ``BWSqliteDatabase.execute_sql``
+                return ReadOnlyExtensionError(str(exc))
+            return error
     return exc
 
 

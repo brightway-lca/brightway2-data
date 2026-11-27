@@ -1,7 +1,9 @@
 import copy
 import datetime
 import heapq
+import io
 import itertools
+import os
 import pprint
 import random
 import uuid
@@ -12,13 +14,30 @@ from operator import itemgetter
 from typing import Callable, Iterable, List, Optional, Union
 
 import pandas
-from bw_processing import Datapackage, clean_datapackage_name, create_datapackage
+from bw_processing import (
+    Datapackage,
+    clean_datapackage_name,
+    create_datapackage,
+    load_datapackage,
+)
 from fsspec.implementations.zip import ZipFileSystem
 from peewee import JOIN, DoesNotExist, fn
 from tqdm import tqdm
 
-from bw2data import calculation_setups, config, databases, geomapping
+from bw2data import config, databases, geomapping
+from bw2data.meta import (
+    move_database_in_calculation_setups,
+    remove_nodes_from_calculation_setups,
+)
 from bw2data.backends import sqlite3_lci_db
+from bw2data.backends.extensions import (
+    AttachedExtension,
+    check_name_free,
+    check_writable,
+    extension_of,
+    has_stored_datapackage,
+    stored_datapackage,
+)
 from bw2data.backends.proxies import Activity
 from bw2data.backends.schema import (
     COMPRESSED_COLUMNS,
@@ -269,6 +288,17 @@ class SQLiteBackend(ProcessedDataStore):
         self._filters = {}
         self._order_by = None
 
+    @property
+    def extension(self) -> Optional[AttachedExtension]:
+        """The attached read-only extension which stores this database, or ``None``."""
+        return extension_of(self.name)
+
+    @property
+    def is_extension(self) -> bool:
+        """Whether this database is stored in an attached read-only extension, so that its
+        nodes and edges can be read and processed, but not changed."""
+        return self.extension is not None
+
     ### Generic LCI backend methods
     ###############################
 
@@ -281,6 +311,7 @@ class SQLiteBackend(ProcessedDataStore):
             * *name* (str): Name of the new database. Must not already exist.
 
         """
+        check_name_free(name)
         assert name not in databases, ValueError("This database exists")
         data = self.relabel_data(copy.deepcopy(self.load()), self.name, name)
         with warnings.catch_warnings():
@@ -489,9 +520,42 @@ class SQLiteBackend(ProcessedDataStore):
         raise NotImplementedError
 
     def filepath_processed(self):
-        if self.metadata.get("dirty"):
+        path = self.dirpath_processed() / self.filename_processed()
+        if not self.is_extension:
+            if self.metadata.get("dirty") or not path.is_file():
+                # Not processed yet, or the file was removed (e.g. by schema migration 11)
+                self.process()
+            return path
+        # The project's file for a database in an extension is checked on each call, not
+        # trusted: which of the two cases below applies changes with what is attached, and a
+        # file may be left from the other case or from a database which had this name before
+        stored = stored_datapackage(self.name, usable_only=False)
+        current = path.read_bytes() if stored is not None and path.is_file() else None
+        if has_stored_datapackage(self.name):
+            # Stored in its extension's file; written out for code which wants a file
+            if current != stored:
+                temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+                try:
+                    temporary.write_bytes(stored)
+                    os.replace(temporary, path)
+                finally:
+                    temporary.unlink(missing_ok=True)
+        elif (
+            self.metadata.get("dirty")
+            or not path.is_file()
+            # The stored datapackage can't be used (any more), and this is a copy of it
+            or (stored is not None and current == stored)
+        ):
             self.process()
-        return self.dirpath_processed() / self.filename_processed()
+        return path
+
+    def datapackage(self) -> Datapackage:
+        """The processed datapackage of this database. For a database in a read-only extension
+        whose file holds it, it is read from there, and nothing is processed."""
+        content = stored_datapackage(self.name)
+        if content is not None:
+            return load_datapackage(ZipFileSystem(fo=io.BytesIO(content)))
+        return super().datapackage()
 
     def find_dependents(self, data=None, ignore=None):
         """Get sorted list of direct dependent databases (databases linked from exchanges).
@@ -634,6 +698,8 @@ class SQLiteBackend(ProcessedDataStore):
             New ``Database`` object.
 
         """
+        check_writable(self.name, "can't be renamed")
+        check_name_free(name)
         old_name = self.name
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -641,6 +707,8 @@ class SQLiteBackend(ProcessedDataStore):
             databases[name] = databases[old_name]
         new_data = self.relabel_data(self.load(), old_name, name)
         new_db.write(new_data, searchable=is_searchable(name))
+        # Before the old nodes are deleted, which would remove them from the setups
+        move_database_in_calculation_setups(old_name, name)
         del databases[old_name]
         self.name = name
         return new_db
@@ -796,7 +864,7 @@ class SQLiteBackend(ProcessedDataStore):
                 exchange["output"] = (ds["database"], ds["code"])
             if "temporal_distribution" in exchange:
                 check_temporal_distribution_sum(exchange)
-            exchanges.append(dict_as_exchangedataset(exchange))
+            exchanges.append(dict_as_exchangedataset(exchange, add_snowflake_id=True))
 
             # Flushed in batches only to bound memory use
             if len(exchanges) >= WRITE_BATCH_SIZE:
@@ -992,6 +1060,7 @@ class SQLiteBackend(ProcessedDataStore):
         the pages only warns."""
         from bw2data import projects
 
+        check_writable(self.name, "can't be written")
         if signal is None:
             signal = projects.dataset.is_sourced
 
@@ -1140,6 +1209,7 @@ class SQLiteBackend(ProcessedDataStore):
             ...                      unit="kg", location="GLO")
             >>> product.save()
         """
+        check_writable(self.name, "can't get new nodes")
         obj = self.node_class()
         if "database" in kwargs:
             if kwargs["database"] != self.name:
@@ -1187,12 +1257,20 @@ Here are the type values usually used for nodes:
     def make_searchable(self, reset: bool = False, signal: bool = True):
         if self.name not in databases:
             raise UnknownObject("This database is not yet registered")
-        if self._searchable and not reset:
+        index = IndexManager(self.name)
+        # The record of a database in an extension can say ``searchable`` while there is no
+        # index: the file has none, or one which can't be used
+        if self._searchable and not reset and (not self.is_extension or index.exists()):
             stdout_feedback_logger.info("This database is already searchable")
             return
         databases[self.name]["searchable"] = True
         databases[self.name].save(signal=signal)
-        IndexManager(self.name).add_all()
+        if index.read_only and not reset:
+            # A database in an extension whose file has its index: nothing to build
+            return
+        # In the project's own file, also for a database in an extension: ``reset`` replaces
+        # an index in the extension's file which is out of date
+        index.add_all()
 
     def make_unsearchable(self, signal: bool = True):
         databases[self.name]["searchable"] = False
@@ -1222,36 +1300,14 @@ Here are the type values usually used for nodes:
             Call `.delete(warn=False)` to skip this message in the future.
             """
             warnings.warn(MESSAGE.format(self.name), UserWarning)
+        check_writable(self.name, "can't be deleted")
 
         # Ignore ``self.filters``: ``delete()`` removes the whole database, so every node
-        # must be purged from the calculation setups.
-        database_ids, database_keys = set(), set()
-        for node_id, code in (
-            ActivityDataset.select(ActivityDataset.id, ActivityDataset.code)
-            .where(ActivityDataset.database == self.name)
-            .tuples()
-        ):
-            database_ids.add(node_id)
-            database_keys.add((self.name, code))
-
-        def purge(dct: dict) -> dict:
-            return {
-                key: value
-                for key, value in dct.items()
-                if key not in database_ids and key not in database_keys
-            }
-
-        for name, setup in calculation_setups.items():
-            if any(
-                (key in database_ids or key in database_keys)
-                for func_unit in setup["inv"]
-                for key in func_unit
-            ):
-                stdout_feedback_logger.warning(
-                    "Removing database node(s) from calculation setup %s", name
-                )
-                setup["inv"] = [purge(dct) for dct in setup["inv"] if purge(dct)]
-        calculation_setups.flush()
+        # must be removed from the calculation setups.
+        remove_nodes_from_calculation_setups(
+            ActivityDataset.select(ActivityDataset.id).where(ActivityDataset.database == self.name),
+            "Removing database node(s) from calculation setup %s",
+        )
 
         ActivityDataset.delete().where(ActivityDataset.database == self.name).execute()
         ExchangeDataset.delete().where(ExchangeDataset.output_database == self.name).execute()
@@ -1327,15 +1383,12 @@ Here are the type values usually used for nodes:
 
         Separated out to allow for easier use in subclasses."""
         # Create geomapping array, from dataset interger ids to locations
-        inv_mapping_qs = ActivityDataset.select(ActivityDataset.id, ActivityDataset.location).where(
-            ActivityDataset.database == self.name,
-            ActivityDataset.type << labels.process_node_types,
-        )
-
-        if self.metadata.get("location_normalization"):
-            location_mapper = lambda x: self.metadata["location_normalization"].get(x, x)
-        else:
-            location_mapper = lambda x: x
+        inv_mapping_qs = self._inventory_location_query()
+        location_mapper = self._location_mapper()
+        if self.is_extension:
+            # Its locations were added when it was attached, but the project may have been
+            # copied, or the extension attached by an older version, since
+            geomapping.add(self.inventory_locations())
 
         dp.add_persistent_vector_from_iterator(
             matrix="inv_geomapping_matrix",
@@ -1352,6 +1405,27 @@ Here are the type values usually used for nodes:
             ),
             nrows=inv_mapping_qs.count(),
         )
+
+    def _inventory_location_query(self):
+        return ActivityDataset.select(ActivityDataset.id, ActivityDataset.location).where(
+            ActivityDataset.database == self.name,
+            ActivityDataset.type << labels.process_node_types,
+        )
+
+    def _location_mapper(self):
+        if self.metadata.get("location_normalization"):
+            return lambda x: self.metadata["location_normalization"].get(x, x)
+        return lambda x: x
+
+    def inventory_locations(self) -> set:
+        """The ``geomapping`` keys which processing this database uses: the locations of its
+        processes, after ``location_normalization``."""
+        location_mapper = self._location_mapper()
+        query = self._inventory_location_query().select(ActivityDataset.location).distinct()
+        return {
+            location_mapper(retupleize_geo_strings(location) or config.global_location)
+            for (location,) in query.tuples()
+        }
 
     def process(self, csv=False):
         """Create structured arrays for the technosphere and biosphere matrices.
@@ -1470,7 +1544,10 @@ Here are the type values usually used for nodes:
         dp.metadata["database_dependencies"] = sorted(dependents)
         dp.finalize_serialization()
 
-        self.metadata["depends"] = sorted(dependents)
+        # ``depends`` of a database in a read-only extension was set when it was built; only
+        # ``processed`` and ``dirty`` are the project's
+        if not self.is_extension:
+            self.metadata["depends"] = sorted(dependents)
         self.metadata["dirty"] = False
         self.metadata.save()
 
@@ -1548,6 +1625,8 @@ Here are the type values usually used for nodes:
             for field in fields:
                 lst.append(exchange.get(field))
             return tuple(lst)
+
+        check_writable(self.name)
 
         exchange_mapping = defaultdict(list)
 

@@ -7,6 +7,7 @@ import pandas as pd
 
 from bw2data import databases, geomapping, get_node, projects
 from bw2data.backends import sqlite3_lci_db
+from bw2data.backends.extensions import check_writable
 from bw2data.backends.schema import ActivityDataset, ExchangeDataset
 from bw2data.backends.typos import (
     check_activity_keys,
@@ -56,6 +57,7 @@ class Exchanges(Iterable):
 
     def __init__(self, key, kinds=None, reverse=False):
         self._key = key
+        self._reverse = reverse
         if reverse:
             self._args = [
                 ExchangeDataset.input_database == self._key[0],
@@ -81,7 +83,22 @@ class Exchanges(Iterable):
     def delete(self, allow_in_sourced_project: bool = False):
         if projects.dataset.is_sourced and not allow_in_sourced_project:
             raise NotImplementedError("Mass exchange deletion not supported in sourced projects")
-        databases.set_dirty(self._key[0])
+        if self._reverse:
+            # The edges are stored with their outputs, which can be in other databases than
+            # the node
+            outputs = [
+                row[0]
+                for row in ExchangeDataset.select(ExchangeDataset.output_database)
+                .where(*self._args)
+                .distinct()
+                .tuples()
+            ]
+        else:
+            outputs = [self._key[0]]
+        for database in outputs:
+            check_writable(database, "its edges can't be deleted")
+        for database in outputs:
+            databases.set_dirty(database)
         ExchangeDataset.delete().where(*self._args).execute()
 
     def _get_queryset(self):
@@ -269,15 +286,10 @@ class Activity(ActivityProxyBase):
         return (self.get("database"), self.get("code"))
 
     def delete(self, signal: bool = True):
-        from bw2data import calculation_setups
+        from bw2data.meta import remove_nodes_from_calculation_setups
         from bw2data.parameters import ActivityParameter, ParameterizedExchange
 
-        def purge(obj: Activity, dct: dict) -> dict:
-            return {
-                key: value
-                for key, value in dct.items()
-                if key != obj.id and key != obj.key
-            }
+        check_writable(self["database"], "its nodes can't be deleted")
 
         try:
             ap = ActivityParameter.get(database=self[0], code=self[1])
@@ -290,15 +302,9 @@ class Activity(ActivityProxyBase):
         self.exchanges().delete(allow_in_sourced_project=True)
         self.upstream().delete(allow_in_sourced_project=True)
 
-        for name, setup in calculation_setups.items():
-            if any(
-                (key == self.id or key == self.key)
-                for func_unit in setup["inv"]
-                for key in func_unit
-            ):
-                stdout_feedback_logger.warning("Removing this node from calculation setup %s", name)
-                setup["inv"] = [purge(self, dct) for dct in setup["inv"] if purge(self, dct)]
-        calculation_setups.flush()
+        remove_nodes_from_calculation_setups(
+            [self.id], "Removing this node from calculation setup %s"
+        )
 
         with sqlite3_lci_db.atomic():
             # Before the row is deleted: the indexed text is read from it
@@ -335,6 +341,8 @@ class Activity(ActivityProxyBase):
 
         Saves the activity if it's valid, otherwise raises ValidityError.
         """
+        check_writable(self.get("database"), "its nodes can't be saved")
+
         if not data_already_set and not self.valid():
             raise ValidityError(
                 "This activity can't be saved for the "
@@ -385,6 +393,7 @@ class Activity(ActivityProxyBase):
     def _change_code(self, new_code: str, signal: bool = True):
         if self["code"] == new_code:
             return
+        check_writable(self["database"], "its nodes can't be changed")
 
         previous = self["code"]
 
@@ -428,6 +437,8 @@ class Activity(ActivityProxyBase):
     def _change_database(self, new_database: str, signal: bool = True):
         if self["database"] == new_database:
             return
+        check_writable(self["database"], "its nodes can't be moved to another database")
+        check_writable(new_database, "can't get new nodes")
 
         previous = self["database"]
 
@@ -740,6 +751,13 @@ class Exchange(ExchangeProxyBase):
         return self._document.id
 
     def save(self, signal: bool = True, data_already_set: bool = False, force_insert: bool = False):
+        output = self._data.get("output")
+        if isinstance(output, (tuple, list)) and output:
+            check_writable(output[0], "its edges can't be saved")
+        # Where the edge is now, if its output was changed
+        stored = getattr(self._document, "output_database", None)
+        if stored is not None:
+            check_writable(stored, "its edges can't be saved")
         if not data_already_set and not self.valid():
             raise ValidityError(
                 "This exchange can't be saved for the "
@@ -762,6 +780,7 @@ class Exchange(ExchangeProxyBase):
     def delete(self, signal: bool = True):
         from bw2data.parameters import ParameterizedExchange
 
+        check_writable(self["output"][0], "its edges can't be deleted")
         ParameterizedExchange.delete().where(
             ParameterizedExchange.exchange == self._document.id
         ).execute()

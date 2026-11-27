@@ -39,6 +39,7 @@ Rules for migration steps:
 """
 
 import datetime
+import hashlib
 import json
 import numbers
 import pickle
@@ -49,7 +50,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
-from peewee import Database, InterfaceError, OperationalError, ProgrammingError
+from peewee import (
+    Database,
+    IntegrityError,
+    InterfaceError,
+    OperationalError,
+    ProgrammingError,
+)
 
 from bw2data import codec
 from bw2data.configuration import config
@@ -1059,6 +1066,35 @@ def _create_lci_indexes(db: Database, project_dir: Path) -> None:
             db.execute_sql(sql)
 
 
+def ensure_lci_indexes(db: Database) -> bool:
+    """Create the LCI indexes (``LCI_INDEXES``) which a file past schema migration 8 lacks,
+    as ``_create_lci_indexes`` does, and return whether it did. Such a file was opened with a
+    development version whose later steps had the numbers 8 to 10 before step 8 was added
+    (``feature/lci-extensions`` before it was merged into ``main``): it counts step 8 as done,
+    and writes no longer create the indexes. Called each time the file is opened, which costs
+    one read of ``sqlite_master`` when the indexes exist.
+
+    Nothing happens if the file can't be written right now."""
+    if not 8 <= schema_version(db) <= SCHEMA_VERSION:
+        return False
+    names = [name for name, _ in LCI_INDEXES]
+    existing = db.execute_sql(
+        "SELECT count(*) FROM main.sqlite_master WHERE type = 'index' AND name IN "
+        f"({', '.join('?' * len(names))})",
+        names,
+    ).fetchone()[0]
+    if existing == len(names):
+        return False
+    try:
+        with db.atomic("IMMEDIATE"):
+            _create_lci_indexes(db, None)
+    except OperationalError as err:
+        if not _cannot_write(err):
+            raise
+        return False
+    return True
+
+
 def make_activity_keys_unique(db: Database) -> bool:
     """Replace an ``activitydataset_key`` index which schema migration 8 had to create
     without ``UNIQUE`` (see ``_create_lci_indexes``) with the unique one, if no activities
@@ -1088,6 +1124,451 @@ def make_activity_keys_unique(db: Database) -> bool:
         return False
     _warn_duplicate_activity_keys(db, duplicates)
     return False
+
+
+#: Legacy calculation setup files and the ``kind`` of their setups
+_SETUP_FILES = (("setups.pickle", "static"), ("dynamicsetups.pickle", "dynamic"))
+
+
+def _m9_demand_rows(db: Database, inv) -> tuple[list[tuple], list]:
+    """``(unit, node id, amount, key database, key code)`` rows for the functional units
+    ``inv``, and the keys of nodes which don't exist (left out). Raises ``ValueError`` for
+    ``inv`` which isn't a list of dicts of keys or ids."""
+    if not isinstance(inv, (list, tuple)):
+        raise ValueError("`inv` is not a list")
+    rows, missing = [], []
+    for position, unit in enumerate(inv):
+        if not isinstance(unit, dict):
+            raise ValueError("a functional unit is not a dict")
+        seen = set()
+        for node, amount in unit.items():
+            if isinstance(node, (tuple, list)) and len(node) == 2:
+                found = db.execute_sql(
+                    'SELECT "id" FROM main."activitydataset" WHERE "database" = ? AND "code" = ?',
+                    (node[0], node[1]),
+                ).fetchone()
+                if found is None:
+                    missing.append(tuple(node))
+                    continue
+                node_id, key = found[0], (node[0], node[1])
+            elif isinstance(node, numbers.Integral) and not isinstance(node, bool):
+                # Also numpy integers
+                node_id, key = int(node), (None, None)
+            else:
+                raise ValueError(f"{node!r} is not a node key or id")
+            if node_id in seen:
+                continue
+            seen.add(node_id)
+            if isinstance(amount, numbers.Number) and hasattr(amount, "item"):
+                # E.g. a numpy scalar, which SQLite can't store
+                amount = amount.item()
+            rows.append((position, node_id, amount, *key))
+    return rows, missing
+
+
+def _calculation_setups_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move ``setups.pickle`` and ``dynamicsetups.pickle`` into the ``calculationsetup`` and
+    ``calculationsetupdemand`` tables (see ``bw2data.backends.schema.CalculationSetupRecord``).
+
+    The pickles are read with ``codec.safe_pickle_loads``. Nodes given by key are stored by
+    id, with the key; keys of nodes which don't exist are left out, with a warning. Only the
+    project's own file is searched (extensions are attached after the migrations), so this
+    includes the nodes of read-only extensions. Setups
+    which are already in the table are kept as they are. An unreadable file, and setups which
+    can't be stored, are skipped with a warning; the files are kept as backups either way."""
+    from bw2data.snowflake_ids import new_snowflake_id
+
+    for filename, kind in _SETUP_FILES:
+        path = project_dir / filename
+        if not path.is_file():
+            continue
+        try:
+            legacy = codec.safe_pickle_loads(path.read_bytes())
+            if not isinstance(legacy, dict):
+                raise ValueError("not a dictionary")
+        except Exception as err:
+            warnings.warn(
+                f"Can't read {path} ({err}); its calculation setups are only kept in the file.",
+                stacklevel=2,
+            )
+            continue
+        migrated, skipped, missing = 0, [], {}
+        for name, setup in legacy.items():
+            # A name which is not a string can't be bound; it is skipped below
+            exists = (
+                isinstance(name, str)
+                and db.execute_sql(
+                    'SELECT 1 FROM main."calculationsetup" WHERE "kind" = ? AND "name" = ?',
+                    (kind, name),
+                ).fetchone()
+            )
+            if exists:
+                continue
+            try:
+                if not isinstance(name, str) or not isinstance(setup, dict):
+                    raise ValueError("not a named dictionary")
+                setup = dict(setup)
+                inv, ia = setup.pop("inv", None), setup.pop("ia", None)
+                rows, gone = ([], []) if inv is None else _m9_demand_rows(db, inv)
+                values = (
+                    new_snowflake_id(),
+                    kind,
+                    name,
+                    None if inv is None else len(inv),
+                    None if ia is None else codec.dumps(ia).decode("utf-8"),
+                    codec.dumps(setup).decode("utf-8") if setup else None,
+                )
+                with db.atomic():
+                    db.execute_sql(
+                        'INSERT INTO main."calculationsetup" '
+                        '("id", "kind", "name", "units", "ia", "extra") VALUES (?, ?, ?, ?, ?, ?)',
+                        values,
+                    )
+                    for row in rows:
+                        db.execute_sql(
+                            'INSERT INTO main."calculationsetupdemand" ("setup_id", "unit", '
+                            '"node", "amount", "key_database", "key_code") '
+                            "VALUES (?, ?, ?, ?, ?, ?)",
+                            (values[0], *row),
+                        )
+            except (
+                TypeError,
+                ValueError,
+                OverflowError,
+                # E.g. an amount which is ``None`` or NaN (``NULL`` in SQLite)
+                IntegrityError,
+                InterfaceError,
+                ProgrammingError,
+            ):
+                skipped.append(name)
+                continue
+            if gone:
+                missing[name] = gone
+            migrated += 1
+        if skipped:
+            warnings.warn(
+                f"Calculation setups in {path} which can't be stored are only kept in the "
+                f"file: {skipped[:20]!r}",
+                stacklevel=2,
+            )
+        if missing:
+            warnings.warn(
+                f"Calculation setups in {path} refer to nodes which don't exist; these are left "
+                "out: "
+                + "; ".join(f"{name!r}: {keys[:5]!r}" for name, keys in list(missing.items())[:5]),
+                stacklevel=2,
+            )
+        stdout_feedback_logger.info(
+            "Migrated %s calculation setup(s) from %s to SQLite; the file is kept as a backup",
+            migrated,
+            path,
+        )
+
+
+#: The parameter tables at schema version 10, as ``parameters.db`` had them, in the order their
+#: rows are copied: parameters before the groups, whose ``updated`` the triggers would change
+_M10_TABLES = (
+    (
+        "projectparameter",
+        'CREATE TABLE IF NOT EXISTS main."projectparameter" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"name" TEXT NOT NULL, "formula" TEXT, "amount" REAL, "data" BLOB NOT NULL)',
+    ),
+    (
+        "databaseparameter",
+        'CREATE TABLE IF NOT EXISTS main."databaseparameter" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"database" TEXT NOT NULL, "name" TEXT NOT NULL, "formula" TEXT, "amount" REAL, '
+        "\"data\" BLOB NOT NULL, CHECK (database != 'project'))",
+    ),
+    (
+        "activityparameter",
+        'CREATE TABLE IF NOT EXISTS main."activityparameter" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"group" TEXT NOT NULL, "database" TEXT NOT NULL, "code" TEXT NOT NULL, '
+        '"name" TEXT NOT NULL, "formula" TEXT, "amount" REAL, "data" BLOB NOT NULL, '
+        'CHECK (("group" != \'project\') AND ("group" != database)))',
+    ),
+    (
+        "parameterizedexchange",
+        'CREATE TABLE IF NOT EXISTS main."parameterizedexchange" ("id" INTEGER NOT NULL '
+        'PRIMARY KEY, "group" TEXT NOT NULL, "exchange" INTEGER NOT NULL, "formula" TEXT NOT NULL)',
+    ),
+    (
+        "groupdependency",
+        'CREATE TABLE IF NOT EXISTS main."groupdependency" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"group" TEXT NOT NULL, "depends" TEXT NOT NULL, CHECK ("group" != depends))',
+    ),
+    (
+        "group_table",
+        'CREATE TABLE IF NOT EXISTS main."group_table" ("id" INTEGER NOT NULL PRIMARY KEY, '
+        '"name" TEXT NOT NULL, "fresh" INTEGER NOT NULL, "updated" DATETIME NOT NULL, '
+        '"order" BLOB NOT NULL)',
+    ),
+)
+_M10_INDEXES = (
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."projectparameter_name" ON "projectparameter" ("name")',
+    'CREATE INDEX IF NOT EXISTS main."databaseparameter_database" '
+    'ON "databaseparameter" ("database")',
+    'CREATE INDEX IF NOT EXISTS main."databaseparameter_name" ON "databaseparameter" ("name")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."databaseparameter_database_name" '
+    'ON "databaseparameter" ("database", "name")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."activityparameter_group_name" '
+    'ON "activityparameter" ("group", "name")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."parameterizedexchange_exchange" '
+    'ON "parameterizedexchange" ("exchange")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."groupdependency_group_depends" '
+    'ON "groupdependency" ("group", "depends")',
+    'CREATE UNIQUE INDEX IF NOT EXISTS main."group_name" ON "group_table" ("name")',
+)
+
+
+def _m10_triggers() -> list[str]:
+    """The triggers of the parameter tables at schema version 10, as ``parameters.db`` had
+    them: ``group_table.updated`` follows changes to parameters, and some combinations are
+    refused."""
+    statements = []
+    for table, old, new in (
+        ("projectparameter", "'project'", "'project'"),
+        ("databaseparameter", "OLD.database", "NEW.database"),
+        ("activityparameter", 'OLD."group"', 'NEW."group"'),
+    ):
+        for action in ("INSERT", "UPDATE", "DELETE"):
+            name = new if action == "INSERT" else old
+            statements.append(
+                f"CREATE TRIGGER IF NOT EXISTS main.{table}_{action}_trigger AFTER {action} "
+                f"ON {table} BEGIN\n"
+                f"    UPDATE group_table SET updated = datetime('now') WHERE name = {name};\nEND;"
+            )
+    for action in ("UPDATE", "INSERT"):
+        statements += [
+            f"CREATE TRIGGER IF NOT EXISTS main.ap_crossdatabase_{action} BEFORE {action} ON "
+            "activityparameter BEGIN\n    SELECT CASE WHEN\n"
+            '        ((SELECT COUNT(*) FROM activityparameter WHERE "group" = NEW."group") > 0)\n'
+            '    AND (NEW.database NOT IN (SELECT DISTINCT "database" FROM activityparameter '
+            'where "group" = NEW."group"))\n'
+            "    THEN RAISE(ABORT,'Cross database group')\n    END;\nEND;",
+            f"CREATE TRIGGER IF NOT EXISTS main.ap_crossgroup_{action} BEFORE {action} ON "
+            "activityparameter BEGIN\n"
+            "    SELECT CASE WHEN EXISTS (SELECT * FROM activityparameter AS a WHERE\n"
+            "            a.database = NEW.database AND\n"
+            "            a.code = NEW.code AND\n"
+            '            a."group" != NEW."group")\n'
+            "    THEN RAISE(ABORT,'Cross group activity')\n    END;\nEND;",
+            f"CREATE TRIGGER IF NOT EXISTS main.gd_circular_{action} BEFORE {action} ON "
+            "groupdependency BEGIN\n"
+            '    SELECT CASE WHEN EXISTS (SELECT * FROM groupdependency AS g WHERE g."group" = '
+            'NEW.depends AND g.depends = NEW."group")\n'
+            "    THEN RAISE(ABORT,'Circular dependency')\n    END;\nEND;",
+            f"CREATE TRIGGER IF NOT EXISTS main.pe_group_{action} BEFORE {action} ON "
+            "parameterizedexchange BEGIN\n    SELECT CASE WHEN\n"
+            '        ((SELECT COUNT(*) FROM activityparameter WHERE "group" = NEW."group") < 1)\n'
+            "    THEN RAISE(ABORT,'Missing activity parameter group')\n    END;\nEND;",
+        ]
+    return statements
+
+
+def _parameters_db_to_sqlite(db: Database, project_dir: Path) -> None:
+    """Move the parameters from the project's ``parameters.db`` into ``lci/databases.db``.
+
+    Creates the parameter tables, their indexes and their triggers (as ``parameters.db`` had
+    them; ``bw2data.parameters`` uses them from now on), and copies the rows of each table,
+    keeping their ids. The rows are copied without the triggers, so the groups keep their
+    ``updated`` times, and rows which the triggers would refuse now (e.g. a parameterized
+    exchange whose group has no activity parameter left) are copied as they are. Triggers
+    which exist already (the tables are created with them when a project is opened after
+    ``bw2data.parameters`` is imported) are dropped first, and created again afterwards.
+    Rows which are already in the tables are kept as they are. The file is kept as a backup.
+
+    Postponed if ``parameters.db`` is locked by another process (e.g. an older bw2data
+    which has the project open). If the rows can't be copied otherwise (e.g. the file can't
+    be read), none of them are, with a warning: the parameters are only kept in the file."""
+    import sqlite3
+
+    from bw2data.sqlite import _sqlite_uri
+
+    for _, sql in _M10_TABLES:
+        db.execute_sql(sql)
+    for sql in _M10_INDEXES:
+        db.execute_sql(sql)
+    tables = [table for table, _ in _M10_TABLES]
+    triggers = db.execute_sql(
+        "SELECT name FROM main.sqlite_master WHERE type = 'trigger' AND tbl_name IN "
+        f"({', '.join('?' * len(tables))})",
+        tables,
+    ).fetchall()
+    for (trigger,) in triggers:
+        db.execute_sql(f'DROP TRIGGER main."{trigger}"')
+
+    path = project_dir / "parameters.db"
+    copied = {}
+    if path.is_file():
+        try:
+            source = sqlite3.connect(_sqlite_uri(path, mode="ro"), uri=True, timeout=1)
+            # A savepoint: all rows are copied, or none
+            with closing(source), db.atomic():
+                existing = {
+                    row[0]
+                    for row in source.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    ).fetchall()
+                }
+                for table in tables:
+                    if table not in existing:
+                        continue
+                    theirs = [row[1] for row in source.execute(f'PRAGMA table_info("{table}")')]
+                    ours = {
+                        row[1]
+                        for row in db.execute_sql(f'PRAGMA main.table_info("{table}")').fetchall()
+                    }
+                    columns = [column for column in theirs if column in ours]
+                    names = ", ".join(f'"{column}"' for column in columns)
+                    rows = source.execute(f'SELECT {names} FROM "{table}"').fetchall()
+                    if rows:
+                        insert = (
+                            f'INSERT OR IGNORE INTO main."{table}" ({names}) '
+                            f"VALUES ({', '.join('?' * len(columns))})"
+                        )
+                        with closing(db.cursor()) as cursor:
+                            cursor.executemany(insert, rows)
+                    copied[table] = len(rows)
+        except sqlite3.DatabaseError as err:
+            if isinstance(err, sqlite3.OperationalError) and "locked" in str(err):
+                raise MigrationPostponed(
+                    f"{path} is locked by another process ({err}); its parameters are moved "
+                    "into the project's LCI database the next time the project is opened."
+                ) from err
+            # The savepoint is rolled back: no rows were copied
+            copied = {}
+            warnings.warn(
+                f"Can't copy the parameters of {path} ({err}); they are only kept in the file.",
+                stacklevel=2,
+            )
+    for sql in _m10_triggers():
+        db.execute_sql(sql)
+    if copied:
+        stdout_feedback_logger.info(
+            "Moved the parameters from %s into the LCI database (%s); the file is kept as a "
+            "backup",
+            path,
+            ", ".join(f"{count} {table}" for table, count in copied.items()),
+        )
+
+
+#: As ``bw2data.meta`` at schema version 11, kept here so that the step doesn't change with it
+_M11_DEFAULT_GEOCOLLECTION = "world"
+_M11_GLOBAL_LOCATIONS = frozenset({"", "GLO", "Global"})
+
+
+def _m11_key(collection, location):
+    """``(geocollection or None, location)`` as stored from schema version 11 on: locations in
+    the default geocollection are stored without one, and the global location as ``"GLO"``."""
+    if collection == _M11_DEFAULT_GEOCOLLECTION:
+        collection = None
+    if collection is None and (location is None or location in _M11_GLOBAL_LOCATIONS):
+        location = "GLO"
+    return collection, location
+
+
+def _m11_id(collection, location) -> int:
+    """``bw2data.meta.location_id`` at schema version 11."""
+    text = f"{collection or _M11_DEFAULT_GEOCOLLECTION}\0{location}"
+    value = int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big") >> 1
+    return value or 1
+
+
+def _m11_remove_processed(project_dir: Path, keep: set[str]) -> AfterCommit:
+    """After the commit: forget the location ids which ``geomapping`` has cached, and remove
+    the processed datapackages, except the files named in ``keep``."""
+
+    def remove(db: Database) -> None:
+        from bw2data.meta import geomapping
+
+        # ``geomapping`` may have been read before this step (a deferred migration): its
+        # cache would still give the old ids
+        geomapping.__init__()
+        directory = project_dir / "processed"
+        if not directory.is_dir():
+            return
+        failed = []
+        for path in directory.glob("*.zip"):
+            if path.name in keep:
+                continue
+            try:
+                path.unlink()
+            except OSError:
+                failed.append(path.name)
+        if failed:
+            warnings.warn(
+                f"Can't remove the processed datapackages {failed[:10]!r} in {directory}; "
+                "they still use the location ids from before schema migration 11. Delete them, "
+                "and they are processed again when they are needed.",
+                stacklevel=_user_stacklevel(),
+            )
+
+    return remove
+
+
+def _reproducible_location_ids(db: Database, project_dir: Path) -> Optional[AfterCommit]:
+    """Give every location in ``geomappingrecord`` the id derived from its name (see
+    ``bw2data.meta.location_id``), the same in every project, so that processed datapackages
+    from other projects and extension files can be used without translating location ids.
+
+    Locations in the ``"world"`` geocollection are stored without a geocollection, and the
+    names of the global location (``""``, ``"Global"``) become ``"GLO"``; rows which become
+    the same location are merged. The ``"world"`` geocollection itself is removed, as in a
+    new project, unless it has metadata (``extra``). Postponed if two different locations would get the same
+    id (practically impossible).
+
+    The processed datapackages which use the old ids are removed after the commit (all
+    ``*.zip`` files in ``processed``); databases, methods, weightings and normalizations are
+    processed again when their datapackage is needed. Not those of IO table databases, whose exchanges are only
+    stored there; their inventory geomapping keeps the old ids, which only regionalized
+    calculations read. Other packages (e.g. ``bw2regional``) must process their data again."""
+    from bw_processing import clean_datapackage_name, safe_filename
+
+    rows = db.execute_sql(
+        'SELECT r."id", c."name", r."location" FROM main."geomappingrecord" AS r '
+        'LEFT JOIN main."geocollection" AS c ON r."geocollection_id" = c."id"'
+    ).fetchall()
+    collection_ids = dict(
+        db.execute_sql('SELECT "name", "id" FROM main."geocollection"').fetchall()
+    )
+    locations = {}
+    for _, collection, location in rows:
+        key = _m11_key(collection, location)
+        locations.setdefault(_m11_id(*key), set()).add(key)
+    clashes = [keys for keys in locations.values() if len(keys) > 1]
+    if clashes:
+        raise MigrationPostponed(
+            f"Some locations would get the same id: {clashes[:5]!r}. Rename one of each, and the "
+            "location ids are changed the next time the project is opened."
+        )
+    db.execute_sql('DELETE FROM main."geomappingrecord"')
+    for id_, keys in locations.items():
+        ((collection, location),) = keys
+        db.execute_sql(
+            'INSERT INTO main."geomappingrecord" ("id", "geocollection_id", "location") '
+            "VALUES (?, ?, ?)",
+            (id_, collection_ids.get(collection) if collection else None, location),
+        )
+    db.execute_sql(
+        'DELETE FROM main."geocollection" WHERE "name" = ? AND "extra" IS NULL', ("world",)
+    )
+    io_tables = [
+        name
+        for (name,) in db.execute_sql(
+            'SELECT "name" FROM main."databaserecord" WHERE "backend" = \'iotable\''
+        ).fetchall()
+    ]
+    if io_tables:
+        warnings.warn(
+            "The processed data of IO table databases keeps the location ids from before "
+            "schema migration 11, as their exchanges are only stored there; regionalized "
+            f"calculations with them need the IO table to be written again: {io_tables[:10]!r}",
+            stacklevel=_user_stacklevel(),
+        )
+    return _m11_remove_processed(
+        project_dir,
+        {clean_datapackage_name(safe_filename(name) + ".zip") for name in io_tables},
+    )
 
 
 #: Ordered migration steps. ``MIGRATIONS[i].version`` must be ``i + 1``.
@@ -1120,10 +1601,25 @@ MIGRATIONS: tuple[Migration, ...] = (
         _search_indexes_to_sqlite,
     ),
     Migration(8, "Create the indexes of the activity and exchange tables", _create_lci_indexes),
+    Migration(
+        9,
+        "Move setups.pickle and dynamicsetups.pickle into SQLite",
+        _calculation_setups_to_sqlite,
+    ),
+    Migration(10, "Move parameters.db into the LCI database", _parameters_db_to_sqlite),
+    Migration(11, "Derive location ids from location names", _reproducible_location_ids),
 )
 
 #: Schema version of a fully migrated ``lci/databases.db``
 SCHEMA_VERSION = len(MIGRATIONS)
+
+#: Oldest schema version of a read-only extension file which can be attached. An extension
+#: can never be migrated, so it is read as it is: its overlaid tables (activities, exchanges,
+#: database records, zstd dictionaries) must be stored as this version of bw2data stores them.
+#: Raise this to the new version whenever a step changes how one of these tables is stored.
+#: 6: activity and exchange data as compressed tagged JSON, without pickles.
+#: 11: location ids derived from location names, as in the stored processed datapackages.
+MIN_EXTENSION_SCHEMA_VERSION = 11
 
 
 def schema_version(db: Database) -> int:

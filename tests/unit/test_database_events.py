@@ -1540,3 +1540,32 @@ def test_database_rename_revision_expected_format():
     for x in range(2, 5):
         assert revisions[-2][1]["data"][x] in expected[-2]["data"][2:]
     assert projects.dataset.revision == revisions[3][0]
+
+
+@bw2test
+def test_database_metadata_revision_apply_unsearchable():
+    projects.set_current("activity-event")
+    DatabaseChooser("db").write({("db", "a"): {"name": "lollipop"}})
+    assert DatabaseChooser("db").search("lollipop")
+
+    revision_id = next(snowflake_id_generator)
+    revision = {
+        "metadata": {
+            "parent_revision": None,
+            "revision": revision_id,
+            "authors": "Anonymous",
+            "title": "Untitled revision",
+            "description": "No description",
+        },
+        "data": [
+            {
+                "type": "lci_database",
+                "id": None,
+                "change_type": "database_metadata_change",
+                "delta": {"values_changed": {"root['db']['searchable']": {"new_value": False}}},
+            }
+        ],
+    }
+    projects.dataset.apply_revision(revision)
+    assert databases["db"]["searchable"] is False
+    assert DatabaseChooser("db").search("lollipop") == []

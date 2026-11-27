@@ -243,9 +243,9 @@ def test_deletes_from_calculation_setups():
     d = Database("biosphere")
     d.write(biosphere)
 
-    calculation_setups["foo"] = {
-        "inv": [{d.random().key: 1, d.random().id: 2}, {d.random().key: 4}, {d.random().id: 8}]
-    }
+    # A node can't be in one functional unit twice, by key and by id
+    a, b = sorted(d, key=lambda node: node["code"])
+    calculation_setups["foo"] = {"inv": [{a.key: 1, b.id: 2}, {b.key: 4}, {a.id: 8}]}
     del databases["biosphere"]
     assert calculation_setups["foo"]["inv"] == []
 

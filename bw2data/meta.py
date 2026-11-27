@@ -1,14 +1,21 @@
 import copy
+import hashlib
 import datetime
 import json
+import math
+import numbers
 import pickle
 import warnings
 from collections.abc import Mapping, MutableMapping
 
-from peewee import JOIN, Value
+from peewee import JOIN, SQL, Value
 
-from bw2data.serialization import PickledDict
-from bw2data.signals import on_database_delete, on_database_metadata_change
+from bw2data.signals import (
+    on_database_delete,
+    on_database_metadata_change,
+    on_extension_attached,
+    on_extension_detached,
+)
 from bw2data.snowflake_ids import snowflake_id_generator
 
 
@@ -28,6 +35,10 @@ _KNOWN_FIELDS = frozenset(
 
 #: Rows per query, to stay well under SQLite's limit on bound variables
 _CHUNK = 300
+
+#: Most nodes in the functional units of one calculation setup. Their rows are inserted with
+#: one query, of six bound variables per row; SQLite allows 32,766 (since version 3.32).
+MAX_SETUP_NODES = 5000
 
 #: Attempts to insert new geomapping rows when snowflake ids collide (see ``GeoMapping.add``)
 _SNOWFLAKE_ATTEMPTS = 5
@@ -66,23 +77,51 @@ def _insert_with_snowflake_ids(model, rows, still_missing, what):
     raise RuntimeError(f"Could not assign unique ids to {what} {rows[:20]!r}")
 
 
-def _canonical_geo_key(key):
-    """Return ``key`` as a hashable geomapping key, or raise ``ValueError``.
+#: The geocollection of locations given without one, e.g. ``"CH"``; stored without a
+#: geocollection. ``("world", "CH")`` is the same location as ``"CH"``.
+DEFAULT_GEOCOLLECTION = "world"
+#: Names of the global location (in ``DEFAULT_GEOCOLLECTION``), stored as ``"GLO"``. A location
+#: given as ``None`` is global as well. ``config.global_location`` is not one of them: a project
+#: can make any location its global one.
+GLOBAL_LOCATIONS = frozenset({"", "GLO", "Global"})
 
-    Valid keys are a non-empty string (a location without a geocollection, e.g. ``"CH"``), or a
-    pair of non-empty strings ``(geocollection, feature id)``, e.g. ``("world", "CH")``. A
-    list pair is accepted and returned as a tuple."""
+
+def _canonical_geo_key(key):
+    """Return ``key`` as it is stored in ``geomapping``, or raise ``ValueError``.
+
+    Locations are identified by their names: a location string (``"CH"``, in
+    ``DEFAULT_GEOCOLLECTION``), or a ``(geocollection, location)`` pair of strings
+    (``("ecoinvent", "RER w/o CH")``). ``(None, "CH")`` and ``("world", "CH")`` are the same as
+    ``"CH"``, and are returned as ``"CH"``; ``None``, ``""``, ``"Global"`` and ``"GLO"`` (also in
+    ``DEFAULT_GEOCOLLECTION``) are the global location, returned as ``"GLO"``. A list pair is
+    accepted and returned as a tuple. Strings are compared as they are: ``"RoW"`` is a location
+    like any other."""
+    if key is None:
+        return "GLO"
     if isinstance(key, str):
-        if key:
-            return key
-    elif isinstance(key, (tuple, list)) and len(key) == 2:
+        return "GLO" if key in GLOBAL_LOCATIONS else key
+    if isinstance(key, (tuple, list)) and len(key) == 2:
         collection, location = key
-        if isinstance(collection, str) and isinstance(location, str) and collection and location:
+        if collection is None or collection == DEFAULT_GEOCOLLECTION:
+            if location is None or isinstance(location, str):
+                return _canonical_geo_key(location)
+        elif isinstance(collection, str) and collection and isinstance(location, str) and location:
             return (collection, location)
     raise ValueError(
         f"Invalid geomapping key {key!r}: must be a location string, or a "
-        "`(geocollection, feature id)` tuple of two strings"
+        "`(geocollection, location)` tuple of two strings"
     )
+
+
+def location_id(key) -> int:
+    """The id of the location ``key`` in ``geomapping``, the same in every project and every
+    file: the first 63 bits of the SHA-256 hash of its geocollection and name. Processed
+    datapackages made in different projects, or stored in extension files, can therefore be
+    used together without translating their location ids."""
+    collection, location = _split_geo_key(_canonical_geo_key(key))
+    text = f"{collection or DEFAULT_GEOCOLLECTION}\0{location}"
+    value = int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big") >> 1
+    return value or 1
 
 
 def _split_geo_key(key):
@@ -100,12 +139,13 @@ class GeoMapping(Mapping):
 
     Stored in the ``Geocollection`` and ``GeoMappingRecord`` tables in the per-project
     ``lci/databases.db``. Previously stored in ``geomapping.pickle``; that file is migrated
-    automatically on first access, keeping existing ids, and left in place as a backup.
+    automatically on first access, and left in place as a backup.
 
-    Keys are either a location string (``"CH"``), or a ``(geocollection, feature id)`` tuple of
-    two strings (``("world", "CH")``). Use ``add`` to add keys; ids are assigned by SQLite, so
-    concurrent adds from several processes can't collide, and ids are never reused after a
-    key is deleted. ``"GLO"`` and ``config.global_location`` are always present.
+    Keys are a location string (``"CH"``) or a ``(geocollection, location)`` tuple of two strings
+    (``("ecoinvent", "RER w/o CH")``); see ``_canonical_geo_key`` for the forms which name the
+    same location (e.g. ``("world", "CH")`` and ``"CH"``, or ``"Global"`` and ``"GLO"``). Use
+    ``add`` to add keys. The id of a location is derived from its name (``location_id``), so it
+    is the same in every project. ``"GLO"`` and ``config.global_location`` are always present.
     """
 
     #: Legacy storage file, migrated on first access
@@ -206,29 +246,41 @@ class GeoMapping(Mapping):
             missing = [key for key in missing if key not in found]
             if not missing:
                 return
+            ids = {}
+            for key in missing:
+                id_ = location_id(key)
+                if id_ in ids:
+                    raise ValueError(
+                        f"Locations {ids[id_]!r} and {key!r} have the same id {id_}; one of "
+                        "them must be renamed"
+                    )
+                ids[id_] = key
+            for batch in _chunks(list(ids)):
+                taken = GeoMappingRecord.select(GeoMappingRecord.id).where(
+                    GeoMappingRecord.id.in_(batch)
+                )
+                for (id_,) in taken.tuples():
+                    raise ValueError(
+                        f"Location {ids[id_]!r} has the same id {id_} as a location which is "
+                        "already in `geomapping`; one of them must be renamed"
+                    )
             collection_ids = self._add_collections(
                 {key[0] for key in missing if isinstance(key, tuple)}
             )
-            names_by_id = {id_: name for name, id_ in collection_ids.items()}
-
-            def still_missing(rows):
-                keys = [
-                    _join_geo_key(names_by_id.get(row["geocollection"]), row["location"])
-                    for row in rows
-                ]
-                found = self._fetch(keys)
-                return [row for row, key in zip(rows, keys) if key not in found]
-
             rows = [
-                {"geocollection": collection_ids.get(collection), "location": location}
-                for collection, location in map(_split_geo_key, missing)
+                {
+                    "id": id_,
+                    "geocollection": collection_ids.get(_split_geo_key(key)[0]),
+                    "location": _split_geo_key(key)[1],
+                }
+                for id_, key in ids.items()
             ]
-            _insert_with_snowflake_ids(
-                GeoMappingRecord, rows, still_missing, "geomapping locations"
-            )
+            for batch in _chunks(rows):
+                GeoMappingRecord.insert_many(batch).execute()
 
     def delete(self, keys):
-        """Delete locations. Their ids are not reused. Keys not present are ignored.
+        """Delete locations. A location which is added again gets the same id (see
+        ``location_id``). Keys not present are ignored.
 
         Args:
             *keys* (iterable): The keys to delete.
@@ -253,8 +305,11 @@ class GeoMapping(Mapping):
         return sorted(row.name for row in Geocollection.select(Geocollection.name))
 
     def locations(self, collection=None):
-        """Keys and ids of the locations in ``collection``, or of the locations without a
-        geocollection if ``collection`` is ``None``."""
+        """Keys and ids of the locations in ``collection``, or of the locations in
+        ``DEFAULT_GEOCOLLECTION`` (stored without a geocollection) if ``collection`` is ``None``
+        or ``DEFAULT_GEOCOLLECTION``."""
+        if collection == DEFAULT_GEOCOLLECTION:
+            collection = None
         self._ensure_ready()
         from bw2data.backends.schema import GeoMappingRecord, Geocollection
 
@@ -359,19 +414,24 @@ class GeoMapping(Mapping):
     def _ensure_ready(self):
         if self._ready:
             return
-        self._migrate_from_pickle()
-        self._ready = True
         from bw2data.configuration import config
 
-        self.add(["GLO", config.global_location])
+        # Set first, as ``add`` calls this method; not ready if it fails, to try again
+        self._ready = True
+        try:
+            self._migrate_from_pickle()
+            self.add(["GLO", config.global_location])
+        except BaseException:
+            self._ready = False
+            raise
 
     def _migrate_from_pickle(self):
-        """One-time migration from ``geomapping.pickle``, keeping existing ids.
-
-        Integer feature ids in ``(geocollection, feature id)`` keys are converted to strings.
-        Raises ``ValueError`` without changing anything if the file has keys or ids which
-        can't be migrated."""
-        from bw2data.backends.schema import GeoMappingRecord, Geocollection
+        """One-time migration from ``geomapping.pickle``: its locations are added. Their ids are
+        derived from their names (``location_id``), as for every location; the ids in the file
+        are not kept, and schema migration 11 made the processed datapackages which use them be
+        processed again. Integer feature ids in ``(geocollection, feature id)`` keys are
+        converted to strings; keys which still aren't locations are skipped with a warning."""
+        from bw2data.backends.schema import GeoMappingRecord
         from bw2data.project import projects
 
         path = projects.dir / self.filename
@@ -380,18 +440,16 @@ class GeoMapping(Mapping):
 
         try:
             with open(path, "rb") as f:
-                legacy = pickle.load(f)
-            legacy = dict(legacy)
+                legacy = dict(pickle.load(f))
         except Exception as err:
             warnings.warn(
-                f"Can't read {path} ({err}); starting with an empty geomapping. Processed "
-                "datapackages which use the old location ids must be processed again.",
+                f"Can't read {path} ({err}); starting with an empty geomapping.",
                 stacklevel=3,
             )
             return
 
-        rows, converted, invalid = {}, 0, []
-        for key, id_ in legacy.items():
+        keys, invalid = [], []
+        for key in legacy:
             if (
                 isinstance(key, tuple)
                 and len(key) == 2
@@ -400,54 +458,18 @@ class GeoMapping(Mapping):
                 and not isinstance(key[1], bool)
             ):
                 key = (key[0], str(key[1]))
-                converted += 1
             try:
-                key = _canonical_geo_key(key)
+                keys.append(_canonical_geo_key(key))
             except ValueError:
                 invalid.append(key)
-                continue
-            if not isinstance(id_, int) or isinstance(id_, bool) or id_ < 1:
-                invalid.append(key)
-            elif key in rows:
-                raise ValueError(
-                    f"Can't migrate {path}: key {key!r} appears more than once after "
-                    "converting integer feature ids to strings. Fix the file and try again."
-                )
-            else:
-                rows[key] = id_
-        if invalid:
-            raise ValueError(
-                f"Can't migrate {path}: invalid keys or ids for {invalid[:20]!r}. Keys must "
-                "be a location string or a `(geocollection, feature id)` tuple of two strings, "
-                "and ids must be positive integers. Fix the file and try again."
-            )
-        if len(set(rows.values())) != len(rows):
-            raise ValueError(f"Can't migrate {path}: the same id is used for several keys.")
-
         message = (
-            f"Migrating {path} to SQLite (one-time operation). "
-            "The original file is kept as a backup."
+            f"Migrating {path} to SQLite (one-time operation). The original file is kept as a "
+            "backup."
         )
-        if converted:
-            message += f" Converted {converted} integer feature ids to strings."
+        if invalid:
+            message += f" Keys which are not locations are skipped: {invalid[:20]!r}"
         warnings.warn(message, stacklevel=3)
-
-        with _write_transaction(GeoMappingRecord):
-            collection_ids = self._add_collections(
-                {key[0] for key in rows if isinstance(key, tuple)}
-            )
-            records = []
-            for key, id_ in rows.items():
-                collection, location = _split_geo_key(key)
-                records.append(
-                    {
-                        "id": id_,
-                        "geocollection": collection_ids.get(collection),
-                        "location": location,
-                    }
-                )
-            for batch in _chunks(records):
-                GeoMappingRecord.insert_many(batch).execute()
+        self.add(keys)
 
 
 def _row_as_dict(row, known_fields=_KNOWN_FIELDS) -> dict:
@@ -737,7 +759,11 @@ class _RecordRegistry(MutableMapping):
                     else:
                         stored.pop(key, None)
                 updates[model.extra] = stored or None
-            if not model.update(updates).where(where).execute():
+            # The row count can't tell: an update through the view of a read-only extension
+            # (``bw2data.backends.extensions``) always reports 0 rows, as SQLite doesn't count
+            # changes made by triggers
+            model.update(updates).where(where).execute()
+            if not model.select().where(where).exists():
                 raise UnknownObject(f"{self._what} {row.name!r} is not registered")
             proxy._load(model.get(where))
 
@@ -793,8 +819,10 @@ class Databases(_RecordRegistry):
     # ------------------------------------------------------------------
 
     def __setitem__(self, name, value):
+        from bw2data.backends.extensions import check_writable
         from bw2data.backends.schema import DatabaseRecord
 
+        check_writable(name, "its metadata can't be replaced")
         send = self._should_signal()
         old = self._as_dict() if send else None
         value = dict(value)  # copy to avoid mutating caller's dict
@@ -807,9 +835,12 @@ class Databases(_RecordRegistry):
 
     def __delitem__(self, name: str, signal: bool = True):
         from bw2data import Database
+        from bw2data.backends.extensions import check_writable
 
         if name not in self:
             raise KeyError(name)
+        # Before anything is changed, e.g. calculation setups
+        check_writable(name, "can't be deleted; `projects.detach_extension` removes the extension")
 
         try:
             Database(name).delete(warn=False, signal=False)
@@ -896,6 +927,26 @@ Metadata state is unchanged, but database state is unknown.
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _write_changes(self, proxy, changed):
+        """As ``_RecordRegistry._write_changes``, but a database stored in a read-only extension
+        only takes changes to its project-local keys; other changes are discarded."""
+        from bw2data.backends.extensions import LOCAL_METADATA_KEYS, extension_of
+        from bw2data.backends.schema import DatabaseRecord
+        from bw2data.errors import ReadOnlyExtensionError
+
+        name = proxy._row.name
+        extension = extension_of(name)
+        if extension is not None:
+            other = sorted(set(changed) - LOCAL_METADATA_KEYS)
+            if other:
+                proxy._load(DatabaseRecord.get(DatabaseRecord.name == name))
+                raise ReadOnlyExtensionError(
+                    f"Database {name!r} is stored in the read-only {extension}, and only its "
+                    f"keys {', '.join(sorted(LOCAL_METADATA_KEYS))} can be changed, not "
+                    f"{', '.join(other)}. The unsaved changes of its metadata were discarded."
+                )
+        super()._write_changes(proxy, changed)
+
     def _should_signal(self) -> bool:
         """Whether a save should build ``old``/``new`` snapshots and emit
         ``on_database_metadata_change``.
@@ -912,39 +963,452 @@ Metadata state is unchanged, but database state is unknown.
 
     @_RecordRegistry.data.setter
     def data(self, new_data):
-        """Replace all metadata rows. Used by the revision system to replay patches."""
+        """Replace all metadata rows. Used by the revision system to replay patches.
+
+        The records of databases stored in read-only extensions are left as they are, with
+        their project-local state."""
+        from bw2data.backends import sqlite3_lci_db
         from bw2data.backends.schema import DatabaseRecord
 
-        DatabaseRecord.delete().execute()
+        in_extensions = set(sqlite3_lci_db.extension_databases())
+        query = DatabaseRecord.delete()
+        if in_extensions:
+            query = query.where(DatabaseRecord.name.not_in(in_extensions))
+        query.execute()
         for name, meta in new_data.items():
+            if name in in_extensions:
+                continue
             meta = dict(meta)
             known = {k: meta.pop(k) for k in list(meta) if k in _KNOWN_FIELDS}
             DatabaseRecord.replace(name=name, extra=meta or None, **known).execute()
         self._proxies.clear()
 
 
-class CalculationSetups(PickledDict):
-    """A dictionary for calculation setups.
+def _atomic(database):
+    """``database.atomic()``, or nothing if a transaction is open already: one started with
+    ``begin()`` (as ``Database.write`` does) is not known to peewee's ``atomic()``, which would
+    try to start another."""
+    from contextlib import nullcontext
 
-    Keys:
-    * `inv`: List of functional units, e.g. ``[{(key): amount}, {(key): amount}]``
-    * `ia`: List of LCIA methods, e.g. ``[(method), (method)]``.
-
-    """
-
-    filename = "setups.pickle"
+    if database.in_transaction() or getattr(database, "transaction_token", lambda: None)():
+        return nullcontext()
+    return database.atomic()
 
 
-class DynamicCalculationSetups(PickledDict):
-    """A dictionary for Dynamic calculation setups.
+class CalculationSetupProxy(MutableMapping):
+    """Dict-like view of one calculation setup, as returned by ``calculation_setups[name]``.
 
-    Keys:
-    * `inv`: List of functional units, e.g. ``[{(key): amount}, {(key): amount}]``
-    * `ia`: Dictionary of orst case LCIA method and the relative dynamic LCIA method, e.g. `` [{dLCIA_method_1_worstcase:dLCIA_method_1 , dLCIA_method_2_worstcase:dLCIA_method_2}]``.
+    Changes, also in place (``setup["inv"].append(...)``), are kept in memory until
+    :meth:`save` is called. The registry hands out one proxy per name, so pending changes
+    survive between accesses."""
 
-    """
+    def __init__(self, registry, name: str, value: dict):
+        self._registry = registry
+        self._name = name
+        self._load(value)
 
-    filename = "dynamicsetups.pickle"
+    def _load(self, value: dict) -> None:
+        self._value = value
+        self._saved = copy.deepcopy(value)
+
+    def _has_changes(self) -> bool:
+        return self._value != self._saved
+
+    def __getitem__(self, key):
+        return self._value[key]
+
+    def __setitem__(self, key, value):
+        self._value[key] = value
+
+    def __delitem__(self, key):
+        del self._value[key]
+
+    def __iter__(self):
+        return iter(self._value)
+
+    def __len__(self):
+        return len(self._value)
+
+    def save(self) -> None:
+        """Write the setup to SQLite, if it changed."""
+        if self._has_changes():
+            self._registry._write(self._name, self._value)
+            self._load(self._registry._read(self._name))
+
+    def __copy__(self):
+        return dict(self._value)
+
+    def __deepcopy__(self, memo):
+        return copy.deepcopy(self._value, memo)
+
+    def __eq__(self, other):
+        if isinstance(other, CalculationSetupProxy):
+            other = other._value
+        return self._value == other
+
+    def __repr__(self):
+        return repr(self._value)
+
+
+class _CalculationSetups(MutableMapping):
+    """Dict-like registry of calculation setups, stored in the ``calculationsetup`` and
+    ``calculationsetupdemand`` tables of ``lci/databases.db`` (see
+    ``bw2data.backends.schema.CalculationSetupRecord``). Before, they were pickled to a file
+    in the project directory, which schema migration 9 moves into SQLite.
+
+    A setup is a dict, usually with:
+
+    * ``inv``: a list of functional units, each a dict ``{node: amount}``. A node is given by
+      its key ``(database, code)`` or by its id, and is read back the same way. Nodes are
+      stored by id: renaming a node or its database changes the key which is read back, and
+      deleting a node or a database removes it from every setup (and functional units which
+      are then empty). A key must be the key of an existing node.
+    * ``ia``: stored as it is given.
+
+    Other keys are stored as they are, as tagged JSON (see ``bw2data.codec``).
+
+    ``registry[name] = setup`` and ``del registry[name]`` are saved right away;
+    ``registry[name]`` returns a :class:`CalculationSetupProxy`, whose changes are saved with
+    its ``save()``. Names are strings."""
+
+    _kind = ""
+    _registry_name = "calculation_setups"
+
+    def __init__(self):
+        self._proxies = {}
+
+    @staticmethod
+    def _models():
+        from bw2data.backends.schema import CalculationSetupDemand, CalculationSetupRecord
+
+        return CalculationSetupRecord, CalculationSetupDemand
+
+    def _record(self, name):
+        record, _ = self._models()
+        if not isinstance(name, str):
+            return None
+        return record.get_or_none((record.kind == self._kind) & (record.name == name))
+
+    # Reading
+
+    def _read(self, name: str) -> dict:
+        row = self._record(name)
+        if row is None:
+            raise KeyError(name)
+        return self._as_dict(row)
+
+    def _as_dict(self, row) -> dict:
+        from bw2data.backends.schema import ActivityDataset
+
+        _, demand = self._models()
+        value = dict(row.extra or {})
+        if row.ia is not None:
+            value["ia"] = row.ia
+        if row.units is not None:
+            rows = list(
+                demand.select(
+                    demand.unit, demand.node, demand.amount, demand.key_database, demand.key_code
+                )
+                .where(demand.setup == row.id)
+                # In the order they were written
+                .order_by(SQL("rowid"))
+                .tuples()
+            )
+            by_key = [node for _, node, _, database, _ in rows if database is not None]
+            keys = {}
+            for start in range(0, len(by_key), _CHUNK):
+                query = ActivityDataset.select(
+                    ActivityDataset.id, ActivityDataset.database, ActivityDataset.code
+                ).where(ActivityDataset.id.in_(by_key[start : start + _CHUNK]))
+                keys.update((id_, (database, code)) for id_, database, code in query.tuples())
+            units = [{} for _ in range(row.units)]
+            for unit, node, amount, database, code in rows:
+                if database is None:
+                    units[unit][node] = amount
+                else:
+                    # The key as it is now; the one it was written with if the node is not
+                    # there (e.g. in an extension which is not attached)
+                    units[unit][keys.get(node, (database, code))] = amount
+            value["inv"] = units
+        return value
+
+    def __getitem__(self, name):
+        proxy = self._proxies.get(name)
+        if proxy is not None and proxy._has_changes():
+            return proxy
+        try:
+            value = self._read(name)
+        except KeyError:
+            self._proxies.pop(name, None)
+            raise
+        # No pending changes, so read again in case it was changed elsewhere
+        if proxy is None:
+            proxy = self._proxies[name] = CalculationSetupProxy(self, name, value)
+        else:
+            proxy._load(value)
+        return proxy
+
+    def __iter__(self):
+        record, _ = self._models()
+        # Read completely first, so that setups can be deleted while iterating
+        query = record.select(record.name).where(record.kind == self._kind).order_by(record.name)
+        return iter([name for (name,) in query.tuples()])
+
+    def __len__(self):
+        record, _ = self._models()
+        return record.select().where(record.kind == self._kind).count()
+
+    def __contains__(self, name):
+        return self._record(name) is not None
+
+    # Writing
+
+    def __setitem__(self, name, value):
+        self._write(name, value)
+        self._proxies.pop(name, None)
+
+    def __delitem__(self, name):
+        row = self._record(name)
+        if row is None:
+            raise KeyError(name)
+        record, demand = self._models()
+        with _atomic(record._meta.database):
+            demand.delete().where(demand.setup == row.id).execute()
+            record.delete().where(record.id == row.id).execute()
+        self._proxies.pop(name, None)
+
+    def _write(self, name, value) -> None:
+        """Store ``value`` as the setup ``name``, replacing it if it exists. Raises
+        ``TypeError`` or ``ValueError`` for a setup which can't be stored, and
+        ``UnknownObject`` for a key of a node which doesn't exist; nothing is changed then."""
+        from bw2data.snowflake_ids import new_snowflake_id
+
+        if not isinstance(name, str):
+            raise TypeError(f"Calculation setup names must be strings, not {name!r}")
+        if isinstance(value, CalculationSetupProxy):
+            value = value._value
+        if not isinstance(value, Mapping):
+            raise TypeError(f"A calculation setup must be a dict, not {type(value).__name__}")
+        value = dict(value)
+        inv = value.pop("inv", None)
+        ia = value.pop("ia", None)
+        rows = None if inv is None else _setup_demand_rows(name, inv)
+        if rows and len(rows) > MAX_SETUP_NODES:
+            raise ValueError(
+                f"Calculation setup {name!r} has {len(rows)} nodes in its functional units; "
+                f"at most {MAX_SETUP_NODES} can be stored. Split it into several setups."
+            )
+        record, demand = self._models()
+        with _atomic(record._meta.database):
+            row = self._record(name)
+            setup_id = row.id if row is not None else new_snowflake_id()
+            fields = {
+                "units": None if inv is None else len(inv),
+                "ia": ia,
+                "extra": value or None,
+            }
+            if row is None:
+                record.insert(id=setup_id, kind=self._kind, name=name, **fields).execute()
+            else:
+                record.update(**fields).where(record.id == setup_id).execute()
+                demand.delete().where(demand.setup == setup_id).execute()
+            if rows:
+                demand.insert_many([dict(row, setup=setup_id) for row in rows]).execute()
+
+    # Compatibility
+
+    def flush(self, signal: bool = True):
+        """Deprecated. Saves the pending changes of all setups; save one with
+        ``registry[name].save()`` instead."""
+        warnings.warn(
+            f"`{self._registry_name}.flush()` is deprecated; save changes to a setup with "
+            f"`{self._registry_name}[name].save()` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        for proxy in list(self._proxies.values()):
+            proxy.save()
+
+    @property
+    def data(self) -> dict:
+        """All saved setups, as plain dicts."""
+        record, _ = self._models()
+        query = record.select().where(record.kind == self._kind).order_by(record.name)
+        return {row.name: self._as_dict(row) for row in query}
+
+    @property
+    def list(self):
+        """Sorted list of names."""
+        return sorted(self)
+
+    def random(self):
+        """Return a random name, or ``None`` if empty."""
+        import random as _random
+
+        names = list(self)
+        return _random.choice(names) if names else None
+
+    def __repr__(self):
+        return f"{type(self).__name__} with {len(self)} setup(s): {self.list}"
+
+
+def _setup_demand_rows(name: str, inv) -> list[dict]:
+    """``CalculationSetupDemand`` rows (without ``setup``) for the functional units ``inv``.
+    Keys are looked up as node ids; raises ``UnknownObject`` for a key of no node."""
+    from bw2data.backends.schema import ActivityDataset
+    from bw2data.errors import UnknownObject
+
+    if not isinstance(inv, (list, tuple)):
+        raise TypeError(f"`inv` of calculation setup {name!r} must be a list of dicts")
+    keys = set()
+    for unit in inv:
+        if not isinstance(unit, Mapping):
+            raise TypeError(f"`inv` of calculation setup {name!r} must be a list of dicts")
+        for node in unit:
+            if isinstance(node, (tuple, list)):
+                if len(node) != 2 or not all(isinstance(part, str) for part in node):
+                    raise ValueError(f"Not a node key in calculation setup {name!r}: {node!r}")
+                keys.add(tuple(node))
+            elif not isinstance(node, numbers.Integral) or isinstance(node, bool):
+                raise TypeError(
+                    f"Nodes in calculation setup {name!r} must be given by key or id, not "
+                    f"{node!r}"
+                )
+    ids = {}
+    for database in {database for database, _ in keys}:
+        codes = [code for db, code in keys if db == database]
+        for start in range(0, len(codes), _CHUNK):
+            query = ActivityDataset.select(ActivityDataset.code, ActivityDataset.id).where(
+                (ActivityDataset.database == database)
+                & ActivityDataset.code.in_(codes[start : start + _CHUNK])
+            )
+            ids.update(((database, code), id_) for code, id_ in query.tuples())
+    missing = sorted(keys.difference(ids))
+    if missing:
+        raise UnknownObject(
+            f"Calculation setup {name!r} refers to nodes which don't exist: "
+            + ", ".join(map(repr, missing[:5]))
+        )
+    rows = []
+    for position, unit in enumerate(inv):
+        seen = set()
+        for node, amount in unit.items():
+            key = tuple(node) if isinstance(node, (tuple, list)) else None
+            # ``int``: also numpy integers
+            node_id = ids[key] if key is not None else int(node)
+            if node_id in seen:
+                raise ValueError(
+                    f"Functional unit {position} of calculation setup {name!r} has node "
+                    f"{node_id} twice (by key and by id)"
+                )
+            seen.add(node_id)
+            if hasattr(amount, "item") and not isinstance(amount, (int, float)):
+                # E.g. a numpy scalar, which SQLite can't store
+                amount = amount.item()
+            if amount is None or (isinstance(amount, float) and math.isnan(amount)):
+                # SQLite stores NaN as ``NULL``
+                raise ValueError(
+                    f"Functional unit {position} of calculation setup {name!r} has no "
+                    f"amount for node {node!r}: {amount!r}"
+                )
+            rows.append(
+                {
+                    "unit": position,
+                    "node": node_id,
+                    "amount": amount,
+                    "key_database": key[0] if key else None,
+                    "key_code": key[1] if key else None,
+                }
+            )
+    return rows
+
+
+def remove_nodes_from_calculation_setups(nodes, message: str) -> None:
+    """Remove the nodes ``nodes`` (activity ids, or a query selecting them) from every
+    calculation setup, static and dynamic, and functional units which are then empty.
+    ``message`` is logged as a warning for each setup which changes, with ``%s`` for its
+    name."""
+    from bw2data.backends.schema import CalculationSetupDemand as demand
+    from bw2data.backends.schema import CalculationSetupRecord as record
+    from bw2data.logs import stdout_feedback_logger
+
+    if not isinstance(nodes, (list, tuple, set, frozenset)) and not hasattr(nodes, "sql"):
+        nodes = list(nodes)
+    with _atomic(record._meta.database):
+        affected = list(
+            record.select(record.id, record.kind, record.name)
+            .where(
+                record.id.in_(demand.select(demand.setup).where(demand.node.in_(nodes)).distinct())
+            )
+            .tuples()
+        )
+        if not affected:
+            return
+        demand.delete().where(demand.node.in_(nodes)).execute()
+        for setup_id, kind, name in affected:
+            stdout_feedback_logger.warning(message, name)
+            units = [
+                unit
+                for (unit,) in demand.select(demand.unit)
+                .where(demand.setup == setup_id)
+                .distinct()
+                .order_by(demand.unit)
+                .tuples()
+            ]
+            # In increasing order, so a unit never moves onto one which is still there
+            for position, unit in enumerate(units):
+                if position != unit:
+                    demand.update(unit=position).where(
+                        (demand.setup == setup_id) & (demand.unit == unit)
+                    ).execute()
+            record.update(units=len(units)).where(record.id == setup_id).execute()
+            registry = calculation_setups if kind == "static" else dynamic_calculation_setups
+            registry._proxies.pop(name, None)
+
+
+def move_database_in_calculation_setups(old: str, new: str) -> None:
+    """Point the nodes of database ``old`` in calculation setups at the nodes with the same
+    code in database ``new``, and their keys at ``new``. For ``Database.rename``, which
+    writes the database again under the new name (with new ids) before it deletes the old
+    one. Nodes without such a node are left as they are. Both databases are in the project's
+    own file."""
+    from bw2data.backends.schema import CalculationSetupDemand as demand
+    from bw2data.backends.schema import CalculationSetupRecord as record
+
+    database = record._meta.database
+    with _atomic(database):
+        database.execute_sql(
+            'UPDATE main."calculationsetupdemand" SET '
+            '"node" = (SELECT n."id" FROM main."activitydataset" AS n '
+            'JOIN main."activitydataset" AS o ON n."code" = o."code" '
+            'WHERE o."id" = "calculationsetupdemand"."node" AND n."database" = ?), '
+            '"key_database" = CASE WHEN "key_database" IS NULL THEN NULL ELSE ? END '
+            'WHERE "node" IN (SELECT o."id" FROM main."activitydataset" AS o '
+            'JOIN main."activitydataset" AS n ON n."code" = o."code" '
+            'WHERE o."database" = ? AND n."database" = ?)',
+            (new, new, old, new),
+        )
+    for registry in (calculation_setups, dynamic_calculation_setups):
+        registry._proxies.clear()
+
+
+class CalculationSetups(_CalculationSetups):
+    """Calculation setups: ``inv`` is a list of functional units, e.g.
+    ``[{(key): amount}, {(key): amount}]``, and ``ia`` a list of LCIA methods, e.g.
+    ``[(method), (method)]``. See ``_CalculationSetups``."""
+
+    _kind = "static"
+    _registry_name = "calculation_setups"
+
+
+class DynamicCalculationSetups(_CalculationSetups):
+    """Dynamic calculation setups: ``inv`` as for ``CalculationSetups``; ``ia`` is a list of
+    dicts from worst-case LCIA methods to the dynamic LCIA methods, e.g.
+    ``[{dLCIA_method_1_worstcase: dLCIA_method_1, dLCIA_method_2_worstcase: dLCIA_method_2}]``.
+    See ``_CalculationSetups``."""
+
+    _kind = "dynamic"
+    _registry_name = "dynamic_calculation_setups"
 
 
 class _LCIARegistry(_RecordRegistry):
@@ -1213,3 +1677,16 @@ preferences = Preferences()
 weightings = WeightingMeta()
 calculation_setups = CalculationSetups()
 dynamic_calculation_setups = DynamicCalculationSetups()
+
+
+def _forget_database_proxies(sender, **kwargs):
+    """Attaching or detaching a read-only extension adds or removes databases. Proxies with
+    unsaved changes are otherwise kept as they are, also for a database which is gone. Those of
+    the databases which are still there are kept, with their unsaved changes."""
+    for name in list(databases._proxies):
+        if name not in databases:
+            del databases._proxies[name]
+
+
+on_extension_attached.connect(_forget_database_proxies)
+on_extension_detached.connect(_forget_database_proxies)

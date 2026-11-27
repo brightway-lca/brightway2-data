@@ -3,13 +3,16 @@ import os
 from bw2data import config
 from bw2data.project import projects
 from bw2data.sqlite import AUTO_VACUUM_INCREMENTAL, SubstitutableDatabase, zstd_dictionaries
-from bw2data.backends.migrations import make_activity_keys_unique, migrate
+from bw2data.backends.migrations import ensure_lci_indexes, make_activity_keys_unique, migrate
 from bw2data.backends.schema import (
     COMPRESSED_COLUMNS,
+    CalculationSetupDemand,
+    CalculationSetupRecord,
     ActivityDataset,
     CharacterizationFactor,
     DatabaseRecord,
     ExchangeDataset,
+    ExtensionDatabaseState,
     GeoMappingRecord,
     Geocollection,
     MethodRecord,
@@ -36,8 +39,9 @@ LCI_PAGE_SIZE = 16384
 def _on_open(db):
     # ``projects.dir`` already points at the new project when the file is switched
     applied = migrate(db, projects.dir)
-    if 8 not in applied:
-        # Migration 8 has just looked for duplicate keys itself
+    # Migration 8, or creating the indexes it would have created, has just looked for
+    # duplicate keys itself
+    if 8 not in applied and not ensure_lci_indexes(db):
         make_activity_keys_unique(db)
 
 
@@ -48,6 +52,7 @@ sqlite3_lci_db = SubstitutableDatabase(
         ExchangeDataset,
         ZstdDictionary,
         DatabaseRecord,
+        ExtensionDatabaseState,
         Geocollection,
         GeoMappingRecord,
         Preference,
@@ -57,6 +62,8 @@ sqlite3_lci_db = SubstitutableDatabase(
         CharacterizationFactor,
         WeightingFactor,
         NormalizationFactor,
+        CalculationSetupRecord,
+        CalculationSetupDemand,
     ],
     # ``page_size`` has no effect in WAL journal mode, so keep the default rollback journal.
     # Like ``page_size``, ``auto_vacuum`` applies to a new file before its first table is
@@ -85,6 +92,9 @@ config.sqlite3_databases.append(
         sqlite3_lci_db,
     )
 )
+# The file was opened above without the read-only extensions of the project, which need this
+# module; later project switches attach them themselves
+projects._attach_stored_extensions()
 
 Node = Activity
 Edge = Exchange

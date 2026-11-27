@@ -9,6 +9,7 @@ from bw2data.backends import sqlite3_lci_db
 from bw2data.backends.migrations import (
     LCI_INDEXES,
     SCHEMA_VERSION,
+    ensure_lci_indexes,
     make_activity_keys_unique,
     migrate,
     schema_version,
@@ -38,7 +39,7 @@ def as_version_7_without_indexes():
 @bw2test
 def test_new_files_have_the_indexes():
     assert indexes() == NAMES
-    assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION == 8
+    assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
 
 
 @bw2test
@@ -46,7 +47,7 @@ def test_creates_missing_indexes():
     DatabaseChooser("db").write({("db", "a"): {"name": "a"}, ("db", "b"): {"name": "b"}})
     as_version_7_without_indexes()
     assert indexes() == set()
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [8]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10, 11]
     assert indexes() == NAMES
     assert len(DatabaseChooser("db")) == 2
 
@@ -54,7 +55,7 @@ def test_creates_missing_indexes():
 @bw2test
 def test_keeps_existing_indexes():
     sqlite3_lci_db.execute_sql("PRAGMA main.user_version = 7")
-    assert migrate(sqlite3_lci_db.db, projects.dir) == [8]
+    assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10, 11]
     assert indexes() == NAMES
 
 
@@ -79,9 +80,9 @@ def test_duplicate_keys_get_an_index_which_is_not_unique():
     # Without the unique index, nothing kept a second activity with the same key out
     add_duplicate()
     with pytest.warns(UserWarning, match=r"\('db', 'a'\) 2 times.*unique"):
-        assert migrate(sqlite3_lci_db.db, projects.dir) == [8]
+        assert migrate(sqlite3_lci_db.db, projects.dir) == [8, 9, 10, 11]
     # The step is not postponed: the exchange indexes exist, and later steps can run
-    assert schema_version(sqlite3_lci_db.db) == 8
+    assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
     assert indexes() == NAMES
     assert not key_index_is_unique()
 
@@ -109,6 +110,38 @@ def test_index_becomes_unique_once_the_duplicates_are_gone():
     assert make_activity_keys_unique(sqlite3_lci_db.db)
     with pytest.raises(Exception, match="UNIQUE"):
         add_duplicate()
+
+
+def without_indexes_past_step_8():
+    """As a file opened with ``feature/lci-extensions`` before it was merged into ``main``:
+    its steps were numbered 8 to 10, so it counts step 8 as done, but has no LCI indexes."""
+    for name in NAMES:
+        sqlite3_lci_db.execute_sql(f'DROP INDEX IF EXISTS main."{name}"')
+    assert schema_version(sqlite3_lci_db.db) == SCHEMA_VERSION
+
+
+@bw2test
+def test_missing_indexes_are_created_when_the_file_is_opened():
+    DatabaseChooser("db").write({("db", "a"): {"name": "a"}})
+    without_indexes_past_step_8()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        sqlite3_lci_db.change_path(sqlite3_lci_db._filepath)
+    assert indexes() == NAMES
+    assert key_index_is_unique()
+    assert not ensure_lci_indexes(sqlite3_lci_db.db)
+
+
+@bw2test
+def test_missing_indexes_with_duplicate_keys_warn_once():
+    DatabaseChooser("db").write({("db", "a"): {"name": "a"}})
+    without_indexes_past_step_8()
+    add_duplicate()
+    with pytest.warns(UserWarning, match="2 times") as caught:
+        sqlite3_lci_db.change_path(sqlite3_lci_db._filepath)
+    assert len([w for w in caught if "2 times" in str(w.message)]) == 1
+    assert indexes() == NAMES
+    assert not key_index_is_unique()
 
 
 @bw2test
