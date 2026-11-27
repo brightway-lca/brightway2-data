@@ -574,7 +574,46 @@ class ProjectManager(Iterable):
                 problems.update(all_invalid([spec.name for spec in usable], err))
                 lci_db.change_path(path)
         self._extension_problems = problems
+        self._track_lcia_files(lci_db)
         self._warn_extension_problems(problems, previous)
+
+    #: Keys of a stored extension entry: the file names of the processed datapackages of its
+    #: LCIA objects, as of when it was last attached, and whether it was not available when
+    #: the project last looked
+    _LCIA_FILES_KEY = "lcia_files"
+    _UNAVAILABLE_KEY = "unavailable"
+
+    def _track_lcia_files(self, lci_db) -> None:
+        """Keep the stored entries of the extensions up to date with what is attached now,
+        and remove the processed data in the project under the names of the LCIA objects of
+        an extension which is available again. While it was not, the project may have had
+        objects of its own with these names, whose processed data would otherwise be taken
+        for the extension's.
+
+        The entry of an attached extension gets the file names of the processed data of its
+        LCIA objects, so that they can be removed if it is detached while not available."""
+        stored = self._stored_extensions()
+        attached = {e.name: e for e in lci_db.extensions}
+        changed, stale = False, []
+        for position, entry in enumerate(stored):
+            entry = stored[position] = dict(entry)
+            extension = attached.get(entry["name"])
+            if extension is None:
+                if not entry.get(self._UNAVAILABLE_KEY):
+                    entry[self._UNAVAILABLE_KEY] = True
+                    changed = True
+                continue
+            files = self._lcia_processed_files(lci_db, [extension])
+            names = sorted(path.name for path in files)
+            if entry.get(self._LCIA_FILES_KEY, []) != names:
+                entry[self._LCIA_FILES_KEY] = names
+                changed = True
+            if entry.pop(self._UNAVAILABLE_KEY, False):
+                stale += files
+                changed = True
+        if changed:
+            self._store_extensions(stored)
+        self._remove_files(stale, "LCIA object", stacklevel=4)
 
     def _warn_extension_problems(self, problems: dict, previous: Optional[dict] = None) -> None:
         from bw2data.sqlite import _user_stacklevel
@@ -774,12 +813,12 @@ class ProjectManager(Iterable):
         try:
             # The project has no processed data for the databases which it now gets, or data
             # of another version of the file: start from a new local state, to be processed
-            self._start_extension_databases(lci_db, new_databases)
             new_extensions = [e for e in lci_db.extensions if e.name not in before]
             self._add_lcia_locations(lci_db, new_extensions)
             # Of other versions of these LCIA objects, or of objects of the project which had
             # the same names
             stale = self._lcia_processed_files(lci_db, new_extensions)
+            self._start_extension_databases(lci_db, new_databases)
         except BaseException:
             # Nothing is attached which wasn't before
             self._store_extensions(stored)
@@ -787,6 +826,7 @@ class ProjectManager(Iterable):
             raise
         self._remove_files(stale, "LCIA object", stacklevel=3)
         self._extension_problems = problems
+        self._track_lcia_files(lci_db)
         self._warn_extension_problems(problems, previous)
         bw2signals.on_extension_attached.send(self, names=[entry["name"] for entry in entries])
         return tuple(e for e in self.extensions if e.name in new_names)
@@ -828,7 +868,11 @@ class ProjectManager(Iterable):
         detached together. The file holds a fingerprint of each object (its name and factors),
         listed by ``AttachedExtension.lcia_fingerprints``. The objects are not processed; a
         project which attaches the file processes them when they are first used."""
-        from bw2data.backends.extensions import build_extension, check_export
+        from bw2data.backends.extensions import (
+            _lcia_export_names,
+            build_extension,
+            check_export,
+        )
 
         lci_db = self._lci_db()
         if lci_db is None:
@@ -836,15 +880,10 @@ class ProjectManager(Iterable):
         if lci_db.db.in_transaction():
             raise RuntimeError("Can't export inside a transaction: only committed data is read")
         databases = [databases] if isinstance(databases, str) else list(databases)
-        lcia = {
-            kind: names
-            for kind, names in (
-                ("method", methods),
-                ("normalization", normalizations),
-                ("weighting", weightings),
-            )
-            if names
-        }
+        # Read once here: the names may come from a generator
+        lcia = _lcia_export_names(
+            {"method": methods, "normalization": normalizations, "weighting": weightings}
+        )
         main_path = self.dir / self._LCI_DATABASE
         # Before anything is processed: an export which is refused changes nothing
         check_export(
@@ -923,8 +962,17 @@ class ProjectManager(Iterable):
                         f"Can't detach {message}. Pass `force=True` to detach it anyway."
                     )
                 warnings.warn(f"Detaching {message}", stacklevel=2)
-        # While the file is attached: the names of its LCIA objects are read from it
-        lcia_files = self._lcia_processed_files(lci_db, [extension] if extension else [])
+        if extension is not None:
+            # While the file is attached: the names of its LCIA objects are read from it
+            lcia_files = self._lcia_processed_files(lci_db, [extension])
+        else:
+            # Not available: of the objects it had when it was last attached. If the project
+            # has objects of its own with these names by now, they are processed again
+            (entry,) = [entry for entry in stored if entry["name"] == name]
+            lcia_files = [
+                self.dir / "processed" / filename
+                for filename in entry.get(self._LCIA_FILES_KEY) or ()
+            ]
         previous = dict(self._extension_problems)
         self._store_extensions([entry for entry in stored if entry["name"] != name])
         try:
@@ -1112,14 +1160,15 @@ class ProjectManager(Iterable):
                 if old is None:
                     # The names it had when it was last attached
                     forgotten = self._unused_databases(lci_db, forgotten)
+                # Before the local state changes: if this fails, it is the old version's
+                updated_extension = [e for e in lci_db.extensions if e.name == name]
+                self._add_lcia_locations(lci_db, updated_extension)
+                lcia_files += self._lcia_processed_files(lci_db, updated_extension)
                 # In one transaction: if this fails, the local state is the old version's
                 with lci_db.atomic():
                     self._start_extension_databases(lci_db, new.databases)
                     self._forget_extension_databases(lci_db, forgotten, processed=False)
                 processed = [db for db in old_databases if db in new.databases] + list(forgotten)
-                updated_extension = [e for e in lci_db.extensions if e.name == name]
-                self._add_lcia_locations(lci_db, updated_extension)
-                lcia_files += self._lcia_processed_files(lci_db, updated_extension)
         except BaseException:
             # The extension stays as it was: available, if its old file can still be read, or
             # with the problem which keeps it from being attached
@@ -1130,6 +1179,7 @@ class ProjectManager(Iterable):
         self._remove_processed(processed, stacklevel=3)
         self._remove_files(lcia_files, "LCIA object", stacklevel=3)
         self._extension_problems = problems
+        self._track_lcia_files(lci_db)
         self._warn_extension_problems(problems, previous)
         if not same:
             # As ``detach_extension``: an extension which was not available had no databases

@@ -295,10 +295,12 @@ def replace_cfs(old_key, new_key):
             if lcia_extension_of("method", name) is None
         ]
         altered_methods = [name for _, name in altered]
-        if altered:
+        # In chunks: SQLite limits the number of values in one statement
+        ids = [id_ for id_, _ in altered]
+        for start in range(0, len(ids), 500):
             CharacterizationFactor.update(flow=new_id).where(
                 (CharacterizationFactor.flow == old_id)
-                & CharacterizationFactor.method.in_([id_ for id_, _ in altered])
+                & CharacterizationFactor.method.in_(ids[start : start + 500])
             ).execute()
     failed, errors = [], []
     for name in altered_methods:

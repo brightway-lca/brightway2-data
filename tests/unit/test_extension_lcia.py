@@ -519,3 +519,151 @@ def test_processed_data_which_cannot_be_removed(built, monkeypatch):
     # Of the database, and of the method
     assert any("of an LCIA object" in message for message in messages), messages
     assert projects.extensions == ()
+
+
+# Found in review
+
+
+def test_names_from_a_generator_or_a_tuple(built, tmp_path):
+    """The names are read once: a generator is not used up by the checks before the export."""
+    projects.set_current("bio-builder")
+    for number, names in enumerate([(name for name in [METHOD, REGIONAL]), (METHOD, REGIONAL)]):
+        path = tmp_path / f"names-{number}.db"
+        projects.export_extension(path, ["bio"], methods=names)
+        assert file_rows(path, "SELECT count(*) FROM method") == [(2,)]
+        assert len(json.loads(info(path)[INFO_LCIA_FINGERPRINTS])["method"]) == 2
+    path = tmp_path / "weightings.db"
+    projects.export_extension(path, [], weightings=(name for name in [WEIGHTING]))
+    assert file_rows(path, "SELECT count(*) FROM weighting") == [(1,)]
+
+
+def test_unsaved_changes_are_forgotten_with_the_extension(built, tmp_path):
+    bio, _ = built
+    projects.attach_extension(bio)
+    proxy = Method(METHOD).metadata
+    proxy["unit"] = "other"
+    with pytest.raises(ReadOnlyExtensionError):
+        proxy.save()
+    assert methods[METHOD]["unit"] == "other"
+    # A new version, with other metadata: the refused change doesn't hide it
+    projects.set_current("bio-builder")
+    Method(METHOD).metadata["unit"] = "new points"
+    Method(METHOD).metadata.save()
+    new = tmp_path / "bio-2.db"
+    export_bio(new)
+    projects.set_current("user")
+    projects.update_extension("bio", new)
+    assert methods[METHOD]["unit"] == "new points"
+    Method(METHOD).metadata["unit"] = "other"
+    projects.detach_extension("bio")
+    assert METHOD not in methods
+    with pytest.raises(KeyError):
+        methods[METHOD]
+    assert METHOD not in methods._proxies
+
+
+def test_unsaved_changes_of_project_objects_are_kept(built):
+    bio, _ = built
+    Database("mine").write({("mine", "x"): {"name": "x", "type": "emission"}})
+    Method(("mine",)).write([(("mine", "x"), 1)])
+    Method(("mine",)).metadata["unit"] = "pending"
+    projects.attach_extension(bio)
+    assert methods[("mine",)]["unit"] == "pending"
+    projects.detach_extension("bio")
+    assert methods[("mine",)]["unit"] == "pending"
+
+
+def test_failed_update_keeps_the_local_state(built, tmp_path, monkeypatch):
+    """A step for the LCIA objects which fails leaves the databases' local state alone."""
+    from bw2data.backends.schema import ExtensionDatabaseState
+
+    bio, _ = built
+    projects.attach_extension(bio)
+    Database("bio").make_unsearchable()
+    state = list(ExtensionDatabaseState.select().dicts())
+    assert state[0]["searchable"] is False
+    old_id = projects.extensions[0].id
+    projects.set_current("bio-builder")
+    Method(REGIONAL).write([(("bio", "0"), 5, "Atlantis")])
+    new = tmp_path / "bio-2.db"
+    export_bio(new)
+    projects.set_current("user")
+    add = type(geomapping).add
+
+    def fail(self, keys):
+        if "Atlantis" in keys:
+            raise ValueError("no such place")
+        return add(self, keys)
+
+    monkeypatch.setattr(type(geomapping), "add", fail)
+    with pytest.raises(ValueError, match="no such place"):
+        projects.update_extension("bio", new)
+    assert projects.extensions[0].id == old_id
+    assert list(ExtensionDatabaseState.select().dicts()) == state
+
+
+@pytest.mark.parametrize("name", ['["a", ["b"]]', "5", "not json", "[]"])
+def test_malformed_names_are_refused(built, name):
+    bio, _ = built
+    projects.attach_extension(bio)
+    with pytest.warns(UserWarning, match=r"not available \(invalid\).*table method has names"):
+        reopen(
+            lambda: edit(
+                bio, "UPDATE method SET name = ? WHERE name = ?", (name, json.dumps(list(METHOD)))
+            )
+        )
+    assert [e.status for e in projects.extensions] == ["invalid"]
+    projects.detach_extension("bio")
+    with pytest.raises(ExtensionError, match="table method has names"):
+        projects.attach_extension(bio)
+
+
+def edit(path, sql, params=()):
+    conn = sqlite3.connect(path)
+    conn.execute(sql, params)
+    conn.commit()
+    conn.close()
+
+
+def reopen(between=lambda: None):
+    """Open the project again, as a new session would, after ``between()``."""
+    projects.set_current("elsewhere")
+    between()
+    projects.set_current("user")
+
+
+def test_processed_data_of_an_extension_which_comes_back(built):
+    """While an extension is not available, the project can have objects of its own with the
+    names of the extension's. Their processed data is not taken for the extension's."""
+    bio, _ = built
+    projects.attach_extension(bio)
+    moved = bio.with_name("moved.db")
+    with pytest.warns(UserWarning, match="not available"):
+        reopen(lambda: bio.rename(moved))
+    assert METHOD not in methods
+    Database("mine").write({("mine", "x"): {"name": "x", "type": "emission"}})
+    Method(METHOD).write([(("mine", "x"), 99)])
+    processed = Method(METHOD).filepath_processed()
+    assert processed.exists()
+    Method(METHOD).deregister()
+    assert processed.exists()
+    reopen(lambda: moved.rename(bio))
+    assert METHOD in methods
+    assert not processed.exists()
+    # Nothing is removed when it simply stays available
+    Method(METHOD).process()
+    reopen()
+    assert processed.exists()
+
+
+def test_detaching_an_unavailable_extension_removes_processed_data(built):
+    bio, _ = built
+    projects.attach_extension(bio)
+    Method(METHOD).process()
+    processed = Method(METHOD).filepath_processed()
+    with pytest.warns(UserWarning, match="not available"):
+        reopen(bio.unlink)
+    assert processed.exists()
+    projects.detach_extension("bio")
+    assert not processed.exists()
+    assert projects.extensions == ()

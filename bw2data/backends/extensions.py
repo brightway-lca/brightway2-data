@@ -957,7 +957,18 @@ def _read_extension(connection, number: int, spec: ExtensionSpec) -> AttachedExt
     lcia = {}
     for kind in LCIA_KINDS:
         sql = f"SELECT name FROM {_q(schema)}.{_q(_table(kind.record))}"
-        names = frozenset(kind.record.name.python_value(row[0]) for row in _rows(connection, sql))
+        try:
+            names = frozenset(
+                kind.record.name.python_value(row[0]) for row in _rows(connection, sql)
+            )
+            if not all(names):
+                raise ValueError("empty name")
+        except (TypeError, ValueError):
+            # Not a JSON list, an empty one, or one with a list or an object in it
+            raise ExtensionError(
+                f"Can't attach {label}: its table {_table(kind.record)} has names which are "
+                "not non-empty JSON lists of strings"
+            ) from None
         if names:
             lcia[kind.name] = names
     lcia_fingerprints = _read_lcia_fingerprints(info.get(INFO_LCIA_FINGERPRINTS), label)
@@ -1660,12 +1671,16 @@ def _json_value(value):
 
 
 def _lcia_export_names(lcia) -> dict[str, list[tuple]]:
-    """``{kind: names}`` of the LCIA objects to export, with the names as tuples."""
+    """``{kind: names}`` of the LCIA objects to export, with the names as tuples. The names
+    of a kind can be any iterable, which is read once; kinds without names are left out."""
     result = {}
     for kind, names in (lcia or {}).items():
         if kind not in LCIA_KIND:
             raise ValueError(f"Unknown kind of LCIA object: {kind!r}")
-        if isinstance(names, (str, tuple)):
+        # One name instead of a list of names: a string, or a tuple of strings
+        if isinstance(names, str) or (
+            isinstance(names, tuple) and not all(isinstance(name, (tuple, list)) for name in names)
+        ):
             raise ValueError(
                 f"The {LCIA_KIND[kind].label} to export must be given as a list of names, "
                 f"not {names!r}"

@@ -1711,5 +1711,19 @@ def _forget_database_proxies(sender, **kwargs):
             del databases._proxies[name]
 
 
+def _forget_lcia_proxies(sender, **kwargs):
+    """As ``_forget_database_proxies``, for methods, normalizations and weightings. The
+    proxies of objects stored in an extension are forgotten too: their unsaved changes can
+    never be saved, and another version of the file can have other metadata."""
+    from bw2data.backends.extensions import lcia_extension_of
+
+    for registry in (methods, normalizations, weightings):
+        for name in list(registry._proxies):
+            if name not in registry or lcia_extension_of(registry._kind, name) is not None:
+                del registry._proxies[name]
+
+
 on_extension_attached.connect(_forget_database_proxies)
 on_extension_detached.connect(_forget_database_proxies)
+on_extension_attached.connect(_forget_lcia_proxies)
+on_extension_detached.connect(_forget_lcia_proxies)
