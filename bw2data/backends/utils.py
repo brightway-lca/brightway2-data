@@ -271,8 +271,11 @@ def replace_cfs(old_key, new_key):
     is raised at the end; its message lists the modified methods, and the ones whose
     processed data is out of date.
 
+    Methods stored in a read-only extension are not changed.
+
     Returns list of modified methods."""
     from bw2data.backends.schema import CharacterizationFactor, MethodRecord, get_id
+    from bw2data.backends.extensions import lcia_extension_of
     from bw2data.meta import _write_transaction
     from bw2data.method import Method
 
@@ -280,18 +283,25 @@ def replace_cfs(old_key, new_key):
     new_id = get_id(new_key)
 
     with _write_transaction(CharacterizationFactor):
-        altered_methods = [
-            name
-            for (name,) in MethodRecord.select(MethodRecord.name)
+        # Methods stored in a read-only extension keep their factors
+        altered = [
+            (id_, name)
+            for id_, name in MethodRecord.select(MethodRecord.id, MethodRecord.name)
             .join(CharacterizationFactor)
             .where(CharacterizationFactor.flow == old_id)
             .distinct()
             .order_by(MethodRecord.id)
             .tuples()
+            if lcia_extension_of("method", name) is None
         ]
-        CharacterizationFactor.update(flow=new_id).where(
-            CharacterizationFactor.flow == old_id
-        ).execute()
+        altered_methods = [name for _, name in altered]
+        # In chunks: SQLite limits the number of values in one statement
+        ids = [id_ for id_, _ in altered]
+        for start in range(0, len(ids), 500):
+            CharacterizationFactor.update(flow=new_id).where(
+                (CharacterizationFactor.flow == old_id)
+                & CharacterizationFactor.method.in_(ids[start : start + 500])
+            ).execute()
     failed, errors = [], []
     for name in altered_methods:
         try:

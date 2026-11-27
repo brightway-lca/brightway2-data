@@ -1424,9 +1424,20 @@ class _LCIARegistry(_RecordRegistry):
     ``del methods[name]``) is saved immediately. Changes to an entry
     (``methods[name]["key"] = value``) are saved by ``methods[name].save()``, or with
     ``Method(name).metadata.save()``.
+
+    Objects stored in an attached read-only extension are listed and read like the project's
+    own, but can't be changed, replaced or deleted (``bw2data.errors.ReadOnlyExtensionError``),
+    and their names can't be used for objects of the project.
     """
 
     _known_fields = frozenset({"abbreviation"})
+    #: Kind of LCIA object, as in ``bw2data.backends.extensions.LCIA_KINDS``
+    _kind = None
+
+    def _check_writable(self, key, what: str = "can't be changed") -> None:
+        from bw2data.backends.extensions import check_lcia_writable
+
+        check_lcia_writable(self._kind, key, what)
 
     def _key(self, name):
         if isinstance(name, list):
@@ -1456,6 +1467,7 @@ class _LCIARegistry(_RecordRegistry):
                 f"{self._what} names must be non-empty tuples of values which can be stored "
                 f"as JSON (normally strings), not {name!r}"
             )
+        self._check_writable(key)
         known, extra = self._split(value)
         # Replaces all metadata: known fields which aren't given are cleared
         fields = {
@@ -1481,9 +1493,17 @@ class _LCIARegistry(_RecordRegistry):
     def __delitem__(self, name):
         key = self._key(name)
         model = self._model()
-        if key is None or not model.delete().where(self._where(key)).execute():
+        if key is None or not model.select().where(self._where(key)).exists():
             raise KeyError(name)
+        self._check_writable(key, "can't be deleted")
+        # The row count can't tell whether a row was deleted: a delete through the view of a
+        # read-only extension always reports 0 rows (see ``_write_changes``)
+        model.delete().where(self._where(key)).execute()
         self._proxies.pop(key, None)
+
+    def _write_changes(self, proxy, changed):
+        self._check_writable(proxy._row.name)
+        super()._write_changes(proxy, changed)
 
     @staticmethod
     def _unused_id(model) -> int:
@@ -1518,6 +1538,7 @@ class Methods(_LCIARegistry):
     Previously stored in ``methods.json``."""
 
     _known_fields = frozenset({"abbreviation", "num_cfs", "geocollections"})
+    _kind = "method"
     _what = "Method"
     _registry_name = "methods"
     _flush_hint = "`Method(name).metadata.save()` or `methods[name].save()`"
@@ -1532,6 +1553,7 @@ class WeightingMeta(_LCIARegistry):
     """Registry of LCIA weighting metadata, in the ``weighting`` table of
     ``lci/databases.db``. Previously stored in ``weightings.json``."""
 
+    _kind = "weighting"
     _what = "Weighting"
     _registry_name = "weightings"
     _flush_hint = "`Weighting(name).metadata.save()` or `weightings[name].save()`"
@@ -1546,6 +1568,7 @@ class NormalizationMeta(_LCIARegistry):
     """Registry of LCIA normalization metadata, in the ``normalization`` table of
     ``lci/databases.db``. Previously stored in ``normalizations.json``."""
 
+    _kind = "normalization"
     _what = "Normalization"
     _registry_name = "normalizations"
     _flush_hint = "`Normalization(name).metadata.save()` or `normalizations[name].save()`"
@@ -1688,5 +1711,19 @@ def _forget_database_proxies(sender, **kwargs):
             del databases._proxies[name]
 
 
+def _forget_lcia_proxies(sender, **kwargs):
+    """As ``_forget_database_proxies``, for methods, normalizations and weightings. The
+    proxies of objects stored in an extension are forgotten too: their unsaved changes can
+    never be saved, and another version of the file can have other metadata."""
+    from bw2data.backends.extensions import lcia_extension_of
+
+    for registry in (methods, normalizations, weightings):
+        for name in list(registry._proxies):
+            if name not in registry or lcia_extension_of(registry._kind, name) is not None:
+                del registry._proxies[name]
+
+
 on_extension_attached.connect(_forget_database_proxies)
 on_extension_detached.connect(_forget_database_proxies)
+on_extension_attached.connect(_forget_lcia_proxies)
+on_extension_detached.connect(_forget_lcia_proxies)
