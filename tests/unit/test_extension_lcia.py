@@ -2,6 +2,7 @@
 exporting them with the databases of their flows, the overlay of their tables, the guards, and
 what the project does with their processed data and locations."""
 
+import gc
 import json
 import sqlite3
 import warnings
@@ -453,11 +454,23 @@ def test_round_trip(built):
     Weighting(WEIGHTING).process()
     Method(REGIONAL).process()
 
+    others = [
+        Normalization(NORMALIZATION).filepath_processed(),
+        Weighting(WEIGHTING).filepath_processed(),
+        Method(REGIONAL).filepath_processed(),
+    ]
+    assert all(path.exists() for path in others)
+    # Windows can't remove a file which is open, as the method's is in the calculation
+    del lca, data_objs
+    gc.collect()
+
     projects.detach_extension("inv")
-    projects.detach_extension("bio")
+    with warnings.catch_warnings():
+        # If the calculation's file is still open after all
+        warnings.simplefilter("ignore")
+        projects.detach_extension("bio")
     # The processed data of its LCIA objects is removed with it
-    assert not processed.exists()
-    assert not Normalization(NORMALIZATION).filepath_processed().exists()
+    assert not any(path.exists() for path in others)
     assert sorted(methods) == []
 
 
