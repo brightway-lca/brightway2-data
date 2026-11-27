@@ -718,11 +718,13 @@ class AttachedExtension:
     datapackages: tuple[str, ...] = ()
     #: Names of the LCIA objects stored in the file, by kind (``"method"``,
     #: ``"normalization"``, ``"weighting"``)
-    lcia: Mapping[str, frozenset] = field(default=MappingProxyType({}), compare=False)
+    lcia: Mapping[str, frozenset] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False
+    )
     #: Fingerprint of each LCIA object in the file, by kind and name, as written when it was
     #: built (``INFO_LCIA_FINGERPRINTS``)
     lcia_fingerprints: Mapping[str, Mapping[tuple, str]] = field(
-        default=MappingProxyType({}), compare=False
+        default_factory=lambda: MappingProxyType({}), compare=False
     )
 
     @property
